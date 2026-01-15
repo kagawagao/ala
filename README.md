@@ -11,18 +11,27 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/Electron-47848F?style=flat&logo=electron&logoColor=white" alt="Electron">
   <img src="https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="TailwindCSS">
   <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
 </p>
 
-## 📸 Screenshot
+## 📸 Screenshots
 
+### Main Interface
 <p align="center">
   <img src="assets/screenshot.svg" alt="ALA Screenshot" width="100%">
 </p>
 
 *Dark-themed interface with syntax-highlighted log viewer, advanced filtering controls, and AI-powered analysis*
+
+### React + TypeScript Architecture
+<p align="center">
+  <img src="assets/screenshot-react.svg" alt="React Architecture" width="100%">
+</p>
+
+*Component-based React architecture with Import/Export filters functionality*
 
 ## Features
 
@@ -33,12 +42,23 @@
   - Log level (Verbose, Debug, Info, Warning, Error, Fatal)
   - Tag patterns (regex support)
   - Process ID (PID)
+- 📁 **Multiple File Support**: Open and analyze multiple log files simultaneously
+- 💾 **Filter Management**:
+  - Save/Load filters in browser localStorage
+  - **Import/Export filters** to/from JSON files
+  - Share filter configurations with your team
+- 🎯 **Keyword Highlighting**: Matched keywords highlighted in yellow in the log viewer
 - 🤖 **AI Analysis**: Integrate with OpenAI to analyze logs and get insights about:
   - Errors and warnings
   - Potential crashes
   - Performance concerns
   - Notable patterns
   - Debugging recommendations
+- ⚛️ **Modern Architecture**:
+  - **React + TypeScript** renderer with component-based design
+  - Webpack bundling for optimized builds
+  - Context isolation for enhanced security
+  - Props-based component communication
 - 💻 **Modern UI**: Clean, dark-themed interface styled with TailwindCSS featuring:
   - Real-time log viewer with syntax highlighting
   - Statistics dashboard
