@@ -1,6 +1,28 @@
 # ALA - Android Log Analyzer
 
-An Electron-based desktop application for analyzing Android logs with AI-powered insights. Built with JavaScript, featuring a Node.js backend and a modern UI styled with TailwindCSS.
+<p align="center">
+  <img src="assets/logo.svg" alt="ALA Logo" width="200" height="200">
+</p>
+
+<p align="center">
+  <strong>An Electron-based desktop application for analyzing Android logs with AI-powered insights.</strong><br>
+  Built with TypeScript, featuring a Node.js backend and a modern UI styled with TailwindCSS.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Electron-47848F?style=flat&logo=electron&logoColor=white" alt="Electron">
+  <img src="https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="TailwindCSS">
+  <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
+</p>
+
+## 📸 Screenshot
+
+<p align="center">
+  <img src="assets/screenshot.svg" alt="ALA Screenshot" width="100%">
+</p>
+
+*Dark-themed interface with syntax-highlighted log viewer, advanced filtering controls, and AI-powered analysis*
 
 ## Features
 
@@ -54,11 +76,17 @@ export OPENAI_API_KEY='your-api-key-here'
 ### Running the Application
 
 ```bash
-# Start in development mode
+# Compile TypeScript and start in development mode
 npm run dev
 
-# Start in production mode
+# Compile TypeScript and start in production mode
 npm start
+
+# Just compile TypeScript
+npm run build:ts
+
+# Just compile CSS
+npm run build:css
 ```
 
 ### Building the Application
@@ -68,7 +96,16 @@ npm start
 npm run build
 ```
 
-The built application will be available in the `dist` directory.
+The built application will be available in the `dist/build` directory.
+
+### Running Tests
+
+```bash
+# Run backend unit tests
+npm test
+```
+
+All 8 backend tests validate log parsing, filtering, and statistics functionality.
 
 ### Using the Application
 
@@ -112,22 +149,32 @@ See `examples/sample-android.log` for a complete example.
 ```
 ala/
 ├── src/
-│   ├── main.js                 # Electron main process
+│   ├── main.ts                 # Electron main process (TypeScript)
 │   ├── backend/
-│   │   ├── logAnalyzer.js      # Log parsing and filtering logic
-│   │   └── aiService.js        # AI integration service
+│   │   ├── log-analyzer.ts     # Log parsing and filtering logic (TypeScript)
+│   │   └── ai-service.ts       # AI integration service (TypeScript)
 │   └── renderer/
 │       ├── index.html          # UI markup
-│       ├── styles.css          # UI styles
+│       ├── input.css           # TailwindCSS source
+│       ├── styles.css          # Compiled CSS
 │       └── renderer.js         # UI logic and IPC communication
+├── test/
+│   └── test-backend.ts         # Backend unit tests (TypeScript)
+├── assets/
+│   ├── logo.svg                # Application logo
+│   └── screenshot.svg          # UI screenshot
 ├── examples/
 │   └── sample-android.log      # Example log file
+├── dist/                       # Compiled JavaScript (gitignored)
+├── tsconfig.json               # TypeScript configuration
+├── tailwind.config.js          # TailwindCSS configuration
 ├── package.json
 └── README.md
 ```
 
 ## Technologies
 
+- **TypeScript**: Strongly-typed programming language for backend
 - **Electron**: Desktop application framework
 - **Node.js**: Backend runtime
 - **TailwindCSS**: Modern utility-first CSS framework for styling
