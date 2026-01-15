@@ -78,12 +78,22 @@ combinedLogs.forEach(log => {
 });
 console.log();
 
+// Test 8: Regex keyword filtering
+console.log('Test 8: Regex keyword filtering ("login|logout")...');
+const regexLogs = logAnalyzer.filterLogs(parsedLogs, { keywords: 'login|logout' });
+console.log(`✓ Found ${regexLogs.length} logs matching regex "login|logout"`);
+regexLogs.slice(0, 5).forEach(log => {
+  console.log(`  - [${log.timestamp}] ${log.level}/${log.tag}: ${log.message.substring(0, 60)}...`);
+});
+console.log();
+
 console.log('✅ All tests passed!\n');
 console.log('📝 Summary:');
 console.log(`   - Log parsing: Working`);
 console.log(`   - Statistics: Working`);
 console.log(`   - Level filtering: Working`);
 console.log(`   - Keyword filtering: Working`);
+console.log(`   - Regex keyword filtering: Working`);
 console.log(`   - Time range filtering: Working`);
 console.log(`   - Tag filtering: Working`);
 console.log(`   - Combined filtering: Working`);

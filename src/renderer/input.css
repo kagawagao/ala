@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles */
+@layer utilities {
+  .scrollbar-custom::-webkit-scrollbar {
+    @apply w-3 h-3;
+  }
+  
+  .scrollbar-custom::-webkit-scrollbar-track {
+    @apply bg-dark-bg;
+  }
+  
+  .scrollbar-custom::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-md;
+  }
+  
+  .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+}
+
+/* Log level specific styles */
+@layer components {
+  .log-line {
+    @apply py-1 px-2 border-l-4 border-transparent mb-0.5 whitespace-pre-wrap break-all hover:bg-dark-hover;
+  }
+  
+  .log-line.level-V {
+    @apply text-log-verbose border-l-log-verbose;
+  }
+  
+  .log-line.level-D {
+    @apply text-log-debug border-l-log-debug;
+  }
+  
+  .log-line.level-I {
+    @apply text-log-info border-l-log-info;
+  }
+  
+  .log-line.level-W {
+    @apply text-log-warning border-l-log-warning;
+  }
+  
+  .log-line.level-E {
+    @apply text-log-error border-l-log-error;
+  }
+  
+  .log-line.level-F {
+    @apply text-log-fatal border-l-log-fatal font-bold bg-red-900/10;
+  }
+}

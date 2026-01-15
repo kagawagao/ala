@@ -42,15 +42,21 @@ tabBtns.forEach(btn => {
     const tabName = btn.dataset.tab;
     
     // Update active tab button
-    tabBtns.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    tabBtns.forEach(b => {
+      b.classList.remove('active', 'text-accent-teal', 'border-accent-teal');
+      b.classList.add('text-text-secondary', 'border-transparent');
+    });
+    btn.classList.add('active', 'text-accent-teal', 'border-accent-teal');
+    btn.classList.remove('text-text-secondary', 'border-transparent');
     
     // Show corresponding content
     tabContents.forEach(content => {
       if (content.id === tabName + 'Tab') {
         content.classList.add('active');
+        content.classList.remove('hidden');
       } else {
         content.classList.remove('active');
+        content.classList.add('hidden');
       }
     });
   });
@@ -163,7 +169,7 @@ function updateStats() {
 
 function renderLogs(logs) {
   if (logs.length === 0) {
-    logViewer.innerHTML = '<div class="empty-state"><p>No logs match the current filters.</p></div>';
+    logViewer.innerHTML = '<div class="flex items-center justify-center min-h-[300px] text-text-secondary"><p>No logs match the current filters.</p></div>';
     return;
   }
 
@@ -173,16 +179,16 @@ function renderLogs(logs) {
   let html = '';
   logsToRender.forEach(log => {
     const levelClass = `level-${log.level}`;
-    const timestamp = log.timestamp ? `<span class="log-timestamp">${log.timestamp}</span>` : '';
-    const level = `<span class="log-level">${log.level}</span>`;
-    const tag = log.tag !== 'Unknown' ? `<span class="log-tag">[${log.tag}]</span>` : '';
-    const message = `<span class="log-message">${escapeHtml(log.message)}</span>`;
+    const timestamp = log.timestamp ? `<span class="text-log-timestamp mr-2.5">${log.timestamp}</span>` : '';
+    const level = `<span class="font-bold mr-2.5">${log.level}</span>`;
+    const tag = log.tag !== 'Unknown' ? `<span class="text-accent-purple mr-2.5">[${log.tag}]</span>` : '';
+    const message = `<span>${escapeHtml(log.message)}</span>`;
     
     html += `<div class="log-line ${levelClass}">${timestamp}${level}${tag}${message}</div>`;
   });
   
   if (logs.length > MAX_RENDERED_LOGS) {
-    html += `<div class="empty-state"><p>Showing first ${MAX_RENDERED_LOGS} of ${logs.length} logs. Apply more filters to see more.</p></div>`;
+    html += `<div class="flex items-center justify-center min-h-[100px] text-text-secondary"><p>Showing first ${MAX_RENDERED_LOGS} of ${logs.length} logs. Apply more filters to see more.</p></div>`;
   }
   
   logViewer.innerHTML = html;
@@ -194,15 +200,15 @@ function displayAIAnalysis(analysis) {
   let formattedAnalysis = escapeHtml(analysis);
   
   // Convert headings
-  formattedAnalysis = formattedAnalysis.replace(/^### (.*$)/gm, '<h4>$1</h4>');
-  formattedAnalysis = formattedAnalysis.replace(/^## (.*$)/gm, '<h4>$1</h4>');
+  formattedAnalysis = formattedAnalysis.replace(/^### (.*$)/gm, '<h4 class="text-accent-teal mt-4 mb-2.5">$1</h4>');
+  formattedAnalysis = formattedAnalysis.replace(/^## (.*$)/gm, '<h4 class="text-accent-teal mt-4 mb-2.5">$1</h4>');
   
   // Convert bold
   formattedAnalysis = formattedAnalysis.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   
   // Convert bullet points
   formattedAnalysis = formattedAnalysis.replace(/^\- (.*$)/gm, '<li>$1</li>');
-  formattedAnalysis = formattedAnalysis.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  formattedAnalysis = formattedAnalysis.replace(/(<li>.*<\/li>\n?)+/g, '<ul class="ml-5 mb-2.5">$&</ul>');
   
   // Convert numbered lists
   formattedAnalysis = formattedAnalysis.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
@@ -210,15 +216,22 @@ function displayAIAnalysis(analysis) {
   // Convert line breaks to paragraphs
   formattedAnalysis = formattedAnalysis.split('\n\n').map(para => {
     if (!para.trim() || para.startsWith('<')) return para;
-    return `<p>${para}</p>`;
+    return `<p class="mb-2.5">${para}</p>`;
   }).join('\n');
   
-  aiResults.innerHTML = `<div class="ai-analysis-content">${formattedAnalysis}</div>`;
+  aiResults.innerHTML = `<div class="bg-dark-panel p-5 rounded border-l-4 border-accent-purple leading-7">${formattedAnalysis}</div>`;
 }
 
 function showStatus(message, type = 'info') {
   aiStatus.textContent = message;
-  aiStatus.className = `ai-status ${type}`;
+  // Base classes
+  aiStatus.className = 'mt-2.5 px-2 py-2 rounded text-xs';
+  // Add type-specific classes
+  if (type === 'info') {
+    aiStatus.className += ' bg-blue-900/40 text-blue-300';
+  } else if (type === 'error') {
+    aiStatus.className += ' bg-red-900/40 text-red-300';
+  }
 }
 
 function escapeHtml(text) {

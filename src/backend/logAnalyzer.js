@@ -80,13 +80,23 @@ class LogAnalyzer {
       });
     }
 
-    // Filter by keywords
+    // Filter by keywords (supports regex)
     if (filters.keywords && filters.keywords.trim()) {
-      const keywords = filters.keywords.toLowerCase().split(/\s+/).filter(k => k);
-      filtered = filtered.filter(log => {
-        const searchText = `${log.tag} ${log.message}`.toLowerCase();
-        return keywords.some(keyword => searchText.includes(keyword));
-      });
+      try {
+        // Try to interpret as regex first
+        const keywordPattern = new RegExp(filters.keywords, 'i');
+        filtered = filtered.filter(log => {
+          const searchText = `${log.tag} ${log.message}`;
+          return keywordPattern.test(searchText);
+        });
+      } catch (e) {
+        // If regex fails, fall back to space-separated keyword search
+        const keywords = filters.keywords.toLowerCase().split(/\s+/).filter(k => k);
+        filtered = filtered.filter(log => {
+          const searchText = `${log.tag} ${log.message}`.toLowerCase();
+          return keywords.some(keyword => searchText.includes(keyword));
+        });
+      }
     }
 
     // Filter by log level
