@@ -7,6 +7,10 @@ class AIService {
     this.openai = null;
     this.apiKey = process.env.OPENAI_API_KEY || null;
     
+    // Configuration constants
+    this.MAX_LOGS_FOR_ANALYSIS = 100;  // Maximum number of logs to send to AI
+    this.MAX_SUMMARY_LENGTH = 8000;     // Maximum character length for AI input
+    
     if (this.apiKey) {
       this.initializeOpenAI();
     }
@@ -82,8 +86,8 @@ Be concise and focus on actionable insights.`;
    * Prepare logs for AI analysis (truncate if necessary)
    */
   prepareLogSummary(logs) {
-    const maxLogs = 100; // Limit to avoid token limits
-    const maxLength = 8000; // Character limit
+    const maxLogs = this.MAX_LOGS_FOR_ANALYSIS;
+    const maxLength = this.MAX_SUMMARY_LENGTH;
     
     let summary = '';
     const logsToAnalyze = logs.slice(0, maxLogs);

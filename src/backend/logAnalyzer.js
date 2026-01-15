@@ -4,6 +4,9 @@
  */
 class LogAnalyzer {
   constructor() {
+    // Android logcat format regex pattern
+    // Capture groups: (1) timestamp, (2) PID, (3) TID, (4) level, (5) tag, (6) message
+    // Format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE
     this.logPattern = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)$/;
   }
 

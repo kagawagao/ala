@@ -1,5 +1,8 @@
 const { ipcRenderer } = require('electron');
 
+// Configuration
+const MAX_RENDERED_LOGS = 1000;  // Maximum number of logs to render for performance
+
 // State
 let allLogs = [];
 let filteredLogs = [];
@@ -165,8 +168,7 @@ function renderLogs(logs) {
   }
 
   // Limit rendering for performance
-  const maxRender = 1000;
-  const logsToRender = logs.slice(0, maxRender);
+  const logsToRender = logs.slice(0, MAX_RENDERED_LOGS);
   
   let html = '';
   logsToRender.forEach(log => {
@@ -179,15 +181,16 @@ function renderLogs(logs) {
     html += `<div class="log-line ${levelClass}">${timestamp}${level}${tag}${message}</div>`;
   });
   
-  if (logs.length > maxRender) {
-    html += `<div class="empty-state"><p>Showing first ${maxRender} of ${logs.length} logs. Apply more filters to see more.</p></div>`;
+  if (logs.length > MAX_RENDERED_LOGS) {
+    html += `<div class="empty-state"><p>Showing first ${MAX_RENDERED_LOGS} of ${logs.length} logs. Apply more filters to see more.</p></div>`;
   }
   
   logViewer.innerHTML = html;
 }
 
 function displayAIAnalysis(analysis) {
-  // Convert markdown-style formatting to HTML
+  // Security: First escape all HTML to prevent XSS, then apply safe formatting
+  // All user/AI content is HTML-escaped before any transformations
   let formattedAnalysis = escapeHtml(analysis);
   
   // Convert headings
