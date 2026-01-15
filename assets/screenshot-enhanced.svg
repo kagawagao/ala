@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <style>
+      .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      .mono { font-family: 'Courier New', monospace; }
+      .label { font-size: 11px; fill: #858585; }
+      .text { font-size: 12px; fill: #d4d4d4; }
+      .button { font-size: 13px; font-weight: 500; }
+      .highlight { fill: #ffd700; opacity: 0.3; }
+    </style>
+  </defs>
+  
+  <!-- Window background -->
+  <rect width="1200" height="800" fill="#1e1e1e"/>
+  
+  <!-- Header -->
+  <rect width="1200" height="80" fill="#2d2d2d"/>
+  <rect y="78" width="1200" height="2" fill="#007acc"/>
+  <text x="30" y="35" class="title" font-size="28" fill="#4ec9b0" font-weight="bold">🤖 Android Log Analyzer (ALA) - Enhanced Features</text>
+  <text x="30" y="60" class="title" font-size="14" fill="#858585">Multiple files • Saved filters • Keyword highlighting</text>
+  
+  <!-- Left Panel (Control Panel) -->
+  <rect x="0" y="80" width="384" height="720" fill="#252526"/>
+  <line x1="384" y1="80" x2="384" y2="800" stroke="#3e3e42" stroke-width="1"/>
+  
+  <!-- File Controls -->
+  <rect x="20" y="100" width="344" height="40" rx="4" fill="#007acc"/>
+  <text x="192" y="125" text-anchor="middle" class="button" fill="#ffffff">📁 Open Log File(s)</text>
+  <text x="30" y="155" class="text" font-size="10" fill="#4ec9b0">📄 3 files loaded</text>
+  
+  <!-- Filters Section -->
+  <text x="20" y="190" class="title" font-size="16" fill="#4ec9b0" font-weight="bold">Filters</text>
+  <line x1="20" y1="195" x2="364" y2="195" stroke="#3e3e42" stroke-width="1"/>
+  
+  <!-- Keywords input with example -->
+  <text x="20" y="240" class="label">Keywords (regex supported):</text>
+  <rect x="20" y="245" width="160" height="32" rx="4" fill="#3c3c3c" stroke="#3e3e42" stroke-width="1"/>
+  <text x="25" y="265" class="text" font-size="11" fill="#d4d4d4">error|warning</text>
+  
+  <!-- Apply buttons -->
+  <rect x="20" y="295" width="260" height="40" rx="4" fill="#4ec9b0"/>
+  <text x="150" y="320" text-anchor="middle" class="button" fill="#1e1e1e" font-weight="600">🔍 Apply Filters</text>
+  
+  <!-- NEW: Save/Load buttons -->
+  <rect x="20" y="345" width="1" height="0"/>
+  <text x="20" y="370" class="title" font-size="12" fill="#007acc" font-weight="bold">⭐ NEW: Filter Persistence</text>
+  <rect x="20" y="380" width="162" height="32" rx="4" fill="transparent" stroke="#007acc" stroke-width="1"/>
+  <text x="101" y="400" text-anchor="middle" class="button" fill="#007acc" font-size="11">💾 Save Filters</text>
+  <rect x="192" y="380" width="172" height="32" rx="4" fill="transparent" stroke="#007acc" stroke-width="1"/>
+  <text x="278" y="400" text-anchor="middle" class="button" fill="#007acc" font-size="11">📂 Load Filters</text>
+  
+  <!-- Feature callouts -->
+  <text x="20" y="450" class="title" font-size="12" fill="#4ec9b0" font-weight="bold">✨ New Features:</text>
+  <text x="30" y="470" class="text" font-size="10" fill="#d4d4d4">1. Multiple file support</text>
+  <text x="30" y="485" class="text" font-size="10" fill="#d4d4d4">2. Saved filters (localStorage)</text>
+  <text x="30" y="500" class="text" font-size="10" fill="#d4d4d4">3. Keyword highlighting</text>
+  
+  <!-- Right Panel -->
+  <!-- Stats Bar -->
+  <rect x="384" y="80" width="816" height="50" fill="#252526"/>
+  <line x1="384" y1="130" x2="1200" y2="130" stroke="#3e3e42" stroke-width="1"/>
+  
+  <text x="410" y="110" class="label">Total:</text>
+  <text x="455" y="110" class="text" fill="#4ec9b0" font-weight="600">125</text>
+  
+  <text x="530" y="110" class="label">Filtered:</text>
+  <text x="595" y="110" class="text" fill="#4ec9b0" font-weight="600">45</text>
+  
+  <text x="670" y="110" class="label">Files:</text>
+  <text x="715" y="110" class="text" fill="#007acc" font-weight="600">3</text>
+  
+  <!-- Tabs -->
+  <rect x="384" y="130" width="816" height="45" fill="#252526"/>
+  <line x1="384" y1="175" x2="1200" y2="175" stroke="#3e3e42" stroke-width="1"/>
+  
+  <text x="420" y="158" class="button" fill="#4ec9b0" font-weight="600">Log Viewer</text>
+  <rect x="410" y="170" width="100" height="2" fill="#4ec9b0"/>
+  
+  <!-- Log Viewer Content with highlighting -->
+  <g class="mono">
+    <!-- Log line 1 - with MULTIPLE FILES indicator -->
+    <rect x="394" y="185" width="4" height="20" fill="#f48771"/>
+    <text x="405" y="199" font-size="12" fill="#608b4e">01-15 10:30:25.890</text>
+    <text x="530" y="199" font-size="12" fill="#f48771" font-weight="bold">E</text>
+    <text x="545" y="199" font-size="9" fill="#666">📄app1.log</text>
+    <text x="615" y="199" font-size="12" fill="#c586c0">[NetworkManager]</text>
+    <text x="750" y="199" font-size="12" fill="#f48771">Connection </text>
+    <!-- Highlighted keyword "error" -->
+    <rect x="830" y="187" width="35" height="14" class="highlight" fill="#ffd700"/>
+    <text x="830" y="199" font-size="12" fill="#ffd700">error</text>
+    <text x="865" y="199" font-size="12" fill="#f48771"> occurred</text>
+    
+    <!-- Log line 2 - with highlighting -->
+    <rect x="394" y="210" width="4" height="20" fill="#dcdcaa"/>
+    <text x="405" y="224" font-size="12" fill="#608b4e">01-15 10:30:26.123</text>
+    <text x="530" y="224" font-size="12" fill="#dcdcaa" font-weight="bold">W</text>
+    <text x="545" y="224" font-size="9" fill="#666">📄app2.log</text>
+    <text x="615" y="224" font-size="12" fill="#c586c0">[AuthService]</text>
+    <!-- Highlighted keyword "warning" -->
+    <rect x="750" y="212" width="58" height="14" class="highlight" fill="#ffd700"/>
+    <text x="750" y="224" font-size="12" fill="#ffd700">Warning</text>
+    <text x="808" y="224" font-size="12" fill="#dcdcaa">: Retry attempt 3</text>
+    
+    <!-- Log line 3 - regular -->
+    <rect x="394" y="235" width="4" height="20" fill="#9cdcfe"/>
+    <text x="405" y="249" font-size="12" fill="#608b4e">01-15 10:30:27.234</text>
+    <text x="530" y="249" font-size="12" fill="#9cdcfe" font-weight="bold">I</text>
+    <text x="545" y="249" font-size="9" fill="#666">📄app1.log</text>
+    <text x="615" y="249" font-size="12" fill="#c586c0">[MainActivity]</text>
+    <text x="750" y="249" font-size="12" fill="#9cdcfe">User session started</text>
+    
+    <!-- Log line 4 - with highlighting -->
+    <rect x="394" y="260" width="4" height="20" fill="#f48771"/>
+    <text x="405" y="274" font-size="12" fill="#608b4e">01-15 10:30:28.345</text>
+    <text x="530" y="274" font-size="12" fill="#f48771" font-weight="bold">E</text>
+    <text x="545" y="274" font-size="9" fill="#666">📄app3.log</text>
+    <text x="615" y="274" font-size="12" fill="#c586c0">[DataService]</text>
+    <text x="750" y="274" font-size="12" fill="#f48771">Database </text>
+    <!-- Highlighted keyword "error" -->
+    <rect x="815" y="262" width="35" height="14" class="highlight" fill="#ffd700"/>
+    <text x="815" y="274" font-size="12" fill="#ffd700">error</text>
+    <text x="850" y="274" font-size="12" fill="#f48771">: Table not found</text>
+  </g>
+  
+  <!-- Feature annotations -->
+  <!-- Arrow pointing to file indicator -->
+  <line x1="610" y1="200" x2="580" y2="230" stroke="#007acc" stroke-width="2" marker-end="url(#arrowblue)"/>
+  <text x="480" y="240" font-size="10" fill="#007acc" font-weight="bold">Multiple file</text>
+  <text x="480" y="252" font-size="10" fill="#007acc" font-weight="bold">indicator</text>
+  
+  <!-- Arrow pointing to highlighting -->
+  <line x1="830" y1="170" x2="840" y2="185" stroke="#ffd700" stroke-width="2" marker-end="url(#arrowyellow)"/>
+  <text x="750" y="165" font-size="10" fill="#ffd700" font-weight="bold">Keyword</text>
+  <text x="750" y="177" font-size="10" fill="#ffd700" font-weight="bold">highlighting</text>
+  
+  <!-- Bottom note -->
+  <text x="600" y="790" text-anchor="middle" font-size="10" fill="#666">Enhanced with multiple file support • Filter persistence • Keyword highlighting</text>
+  
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowblue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#007acc" />
+    </marker>
+    <marker id="arrowyellow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ffd700" />
+    </marker>
+  </defs>
+</svg>
