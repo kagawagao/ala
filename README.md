@@ -1,13 +1,13 @@
 # ALA - Android Log Analyzer
 
-An Electron-based desktop application for analyzing Android logs with AI-powered insights. Built with JavaScript, featuring a Node.js backend and a modern UI.
+An Electron-based desktop application for analyzing Android logs with AI-powered insights. Built with JavaScript, featuring a Node.js backend and a modern UI styled with TailwindCSS.
 
 ## Features
 
 - 📱 **Android Log Parsing**: Parse standard Android logcat format line by line
 - 🔍 **Advanced Filtering**: Filter logs by:
   - Time range (start/end timestamps)
-  - Keywords (space-separated search terms)
+  - Keywords with **regex support** (e.g., `error|crash|exception`)
   - Log level (Verbose, Debug, Info, Warning, Error, Fatal)
   - Tag patterns (regex support)
   - Process ID (PID)
@@ -17,7 +17,7 @@ An Electron-based desktop application for analyzing Android logs with AI-powered
   - Performance concerns
   - Notable patterns
   - Debugging recommendations
-- 💻 **Modern UI**: Clean, dark-themed interface with:
+- 💻 **Modern UI**: Clean, dark-themed interface styled with TailwindCSS featuring:
   - Real-time log viewer with syntax highlighting
   - Statistics dashboard
   - Tabbed interface for logs and AI analysis
@@ -130,6 +130,7 @@ ala/
 
 - **Electron**: Desktop application framework
 - **Node.js**: Backend runtime
+- **TailwindCSS**: Modern utility-first CSS framework for styling
 - **OpenAI API**: AI-powered log analysis
 - **HTML/CSS/JavaScript**: UI implementation
 
