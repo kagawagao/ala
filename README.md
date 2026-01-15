@@ -119,10 +119,29 @@ npm run build:renderer
 # Just compile CSS (if modifying styles)
 npm run build:css
 
+# Generate app icon from logo
+npm run build:icon
+
 # Watch for changes (useful during development)
 npm run watch:ts         # Watch TypeScript backend
 npm run watch:renderer   # Watch React renderer
 npm run watch:css        # Watch Tailwind CSS
+```
+
+### Code Quality
+
+```bash
+# Run ESLint
+npm run lint
+
+# Auto-fix ESLint issues
+npm run lint:fix
+
+# Format code with Prettier
+npm run format
+
+# Check formatting
+npm run format:check
 ```
 
 ### Building the Application
@@ -132,7 +151,7 @@ npm run watch:css        # Watch Tailwind CSS
 npm run build
 ```
 
-The built application will be available in the `dist/build` directory.
+The built application will be available in the `dist/build` directory. The app uses the custom logo from `assets/icon.png` as the application icon.
 
 ### Running Tests
 
@@ -185,37 +204,61 @@ See `examples/sample-android.log` for a complete example.
 ```
 ala/
 ├── src/
-│   ├── main.ts                 # Electron main process (TypeScript)
+│   ├── main.ts                    # Electron main process (TypeScript)
+│   ├── preload.ts                 # Preload script for secure IPC (TypeScript)
 │   ├── backend/
-│   │   ├── log-analyzer.ts     # Log parsing and filtering logic (TypeScript)
-│   │   └── ai-service.ts       # AI integration service (TypeScript)
+│   │   ├── log-analyzer.ts        # Log parsing and filtering logic (TypeScript)
+│   │   └── ai-service.ts          # AI integration service (TypeScript)
 │   └── renderer/
-│       ├── index.html          # UI markup
-│       ├── input.css           # TailwindCSS source
-│       ├── styles.css          # Compiled CSS
-│       └── renderer.js         # UI logic and IPC communication
+│       ├── index.tsx              # React entry point (TypeScript)
+│       ├── App.tsx                # Main React component (TypeScript)
+│       ├── types.ts               # TypeScript type definitions
+│       ├── components/            # React components
+│       │   ├── Header.tsx         # Header component
+│       │   ├── ControlPanel.tsx   # Control panel with filters
+│       │   └── LogViewer.tsx      # Log display and AI analysis
+│       ├── index-template.html    # HTML template for Webpack
+│       ├── input.css              # TailwindCSS source
+│       └── styles.css             # Compiled CSS (gitignored)
 ├── test/
-│   └── test-backend.ts         # Backend unit tests (TypeScript)
+│   └── test-backend.ts            # Backend unit tests (TypeScript)
+├── scripts/
+│   └── generate-icon.js           # Icon generation script
 ├── assets/
-│   ├── logo.svg                # Application logo
-│   └── screenshot.svg          # UI screenshot
+│   ├── logo.svg                   # Application logo
+│   ├── icon.svg                   # App icon (SVG)
+│   ├── icon.png                   # App icon (PNG)
+│   ├── ICON.md                    # Icon generation instructions
+│   └── screenshot-react.svg       # UI screenshot
 ├── examples/
-│   └── sample-android.log      # Example log file
-├── dist/                       # Compiled JavaScript (gitignored)
-├── tsconfig.json               # TypeScript configuration
-├── tailwind.config.js          # TailwindCSS configuration
+│   └── sample-android.log         # Example log file
+├── dist/                          # Compiled output (gitignored)
+│   ├── main.js                    # Compiled main process
+│   ├── preload.js                 # Compiled preload script
+│   ├── backend/                   # Compiled backend modules
+│   └── renderer/                  # Compiled React app
+├── tsconfig.json                  # TypeScript configuration (main)
+├── tsconfig.test.json             # TypeScript configuration (tests)
+├── webpack.config.js              # Webpack configuration for React
+├── tailwind.config.js             # TailwindCSS configuration
+├── postcss.config.js              # PostCSS configuration
+├── .eslintrc.js                   # ESLint configuration
+├── .prettierrc.json               # Prettier configuration
 ├── package.json
 └── README.md
 ```
 
 ## Technologies
 
-- **TypeScript**: Strongly-typed programming language for backend
-- **Electron**: Desktop application framework
+- **TypeScript 5.9+**: Strongly-typed programming language for backend and frontend
+- **React 19.2+**: Component-based UI library with hooks
+- **Electron 28.3+**: Desktop application framework
 - **Node.js**: Backend runtime
-- **TailwindCSS**: Modern utility-first CSS framework for styling
+- **Webpack 5**: Module bundler for React application
+- **TailwindCSS 3.4+**: Modern utility-first CSS framework for styling
+- **ESLint**: Code linting for TypeScript and React
+- **Prettier**: Code formatting
 - **OpenAI API**: AI-powered log analysis
-- **HTML/CSS/JavaScript**: UI implementation
 
 ## Log Levels
 

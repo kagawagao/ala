@@ -5,7 +5,7 @@
     "lib": ["ES2020"],
     "jsx": "react",
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -23,8 +23,7 @@
     "types": ["node"]
   },
   "include": [
-    "src/**/*",
-    "test/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
