@@ -87,18 +87,42 @@ export OPENAI_API_KEY='your-api-key-here'
 
 ### Running the Application
 
+**First-time setup** - Build the project before running:
+
 ```bash
-# Compile TypeScript and start in development mode
-npm run dev
-
-# Compile TypeScript and start in production mode
-npm start
-
-# Just compile TypeScript
+# Build TypeScript backend
 npm run build:ts
 
-# Just compile CSS
+# Build React renderer
+npm run build:renderer
+```
+
+Then run the application:
+
+```bash
+# Start in development mode
+npm run dev
+
+# Start in production mode
+npm start
+```
+
+**Individual build commands:**
+
+```bash
+# Just compile TypeScript backend
+npm run build:ts
+
+# Just build React renderer
+npm run build:renderer
+
+# Just compile CSS (if modifying styles)
 npm run build:css
+
+# Watch for changes (useful during development)
+npm run watch:ts         # Watch TypeScript backend
+npm run watch:renderer   # Watch React renderer
+npm run watch:css        # Watch Tailwind CSS
 ```
 
 ### Building the Application
