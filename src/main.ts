@@ -13,8 +13,9 @@ function createWindow(): void {
     width: 1200,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
 
@@ -101,4 +102,52 @@ ipcMain.handle('analyze-with-ai', async (_event: IpcMainInvokeEvent, { logs, pro
 
 ipcMain.handle('check-ai-configured', async (): Promise<boolean> => {
   return aiService.isConfigured();
+});
+
+// Import filters from file
+ipcMain.handle('import-filters', async (): Promise<any | null> => {
+  if (!mainWindow) return null;
+  
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'] as any,
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  }) as { canceled: boolean; filePaths: string[] };
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    try {
+      const content = await fs.readFile(result.filePaths[0], 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to import filters:', error);
+      return null;
+    }
+  }
+  return null;
+});
+
+// Export filters to file
+ipcMain.handle('export-filters', async (_event: IpcMainInvokeEvent, filters: any): Promise<boolean> => {
+  if (!mainWindow) return false;
+  
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: 'ala-filters.json',
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  }) as { canceled: boolean; filePath?: string };
+
+  if (!result.canceled && result.filePath) {
+    try {
+      await fs.writeFile(result.filePath, JSON.stringify(filters, null, 2), 'utf-8');
+      return true;
+    } catch (error) {
+      console.error('Failed to export filters:', error);
+      return false;
+    }
+  }
+  return false;
 });
