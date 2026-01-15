@@ -17,21 +17,13 @@
   <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
 </p>
 
-## 📸 Screenshots
+## 📸 Screenshot
 
-### Main Interface
 <p align="center">
-  <img src="assets/screenshot.svg" alt="ALA Screenshot" width="100%">
+  <img src="assets/screenshot-react.svg" alt="ALA Screenshot" width="100%">
 </p>
 
-*Dark-themed interface with syntax-highlighted log viewer, advanced filtering controls, and AI-powered analysis*
-
-### React + TypeScript Architecture
-<p align="center">
-  <img src="assets/screenshot-react.svg" alt="React Architecture" width="100%">
-</p>
-
-*Component-based React architecture with Import/Export filters functionality*
+*Component-based React + TypeScript architecture with dark-themed interface, syntax-highlighted log viewer, advanced filtering controls, Import/Export filters, and AI-powered analysis*
 
 ## Features
 
