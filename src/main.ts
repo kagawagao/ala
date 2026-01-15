@@ -63,6 +63,30 @@ ipcMain.handle('open-log-file', async (): Promise<{ filePath: string; content: s
   return null;
 });
 
+// Support multiple files
+ipcMain.handle('open-log-files', async (): Promise<Array<{ filePath: string; content: string }> | null> => {
+  if (!mainWindow) return null;
+  
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'] as any,
+    filters: [
+      { name: 'Log Files', extensions: ['log', 'txt'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  }) as { canceled: boolean; filePaths: string[] };
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    const files = await Promise.all(
+      result.filePaths.map(async (filePath) => {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return { filePath, content };
+      })
+    );
+    return files;
+  }
+  return null;
+});
+
 ipcMain.handle('parse-log', async (_event: IpcMainInvokeEvent, content: string): Promise<LogEntry[]> => {
   return logAnalyzer.parseLog(content);
 });

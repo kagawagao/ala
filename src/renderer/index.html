@@ -17,7 +17,7 @@
       <!-- Control Panel -->
       <section class="w-96 bg-dark-panel p-5 overflow-y-auto scrollbar-custom border-r border-dark-border">
         <div class="mb-6">
-          <button id="openFileBtn" class="bg-accent-blue text-white px-5 py-2.5 rounded hover:bg-blue-700 transition font-medium w-full">📁 Open Log File</button>
+          <button id="openFileBtn" class="bg-accent-blue text-white px-5 py-2.5 rounded hover:bg-blue-700 transition font-medium w-full">📁 Open Log File(s)</button>
           <span id="fileName" class="block mt-2.5 text-accent-teal text-xs break-all"></span>
         </div>
 
@@ -68,6 +68,11 @@
           <div class="flex gap-2.5 mt-4">
             <button id="applyFiltersBtn" class="bg-accent-teal text-dark-bg px-5 py-2.5 rounded hover:bg-teal-600 transition font-medium flex-1">🔍 Apply Filters</button>
             <button id="clearFiltersBtn" class="bg-transparent text-text-secondary px-4 py-2.5 rounded hover:text-text-primary transition">Clear</button>
+          </div>
+          
+          <div class="flex gap-2.5 mt-2.5">
+            <button id="saveFiltersBtn" class="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1">💾 Save Filters</button>
+            <button id="loadFiltersBtn" class="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1">📂 Load Filters</button>
           </div>
         </div>
 

@@ -2,17 +2,21 @@ const { ipcRenderer } = require('electron');
 
 // Configuration
 const MAX_RENDERED_LOGS = 1000;  // Maximum number of logs to render for performance
+const FILTERS_STORAGE_KEY = 'ala_saved_filters';  // LocalStorage key for saved filters
 
 // State
 let allLogs = [];
 let filteredLogs = [];
-let currentFile = null;
+let currentFiles = [];  // Changed from currentFile to support multiple files
+let currentKeywords = '';  // Store current keywords for highlighting
 
 // DOM Elements
 const openFileBtn = document.getElementById('openFileBtn');
 const fileName = document.getElementById('fileName');
 const applyFiltersBtn = document.getElementById('applyFiltersBtn');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+const saveFiltersBtn = document.getElementById('saveFiltersBtn');  // New button
+const loadFiltersBtn = document.getElementById('loadFiltersBtn');  // New button
 const analyzeBtn = document.getElementById('analyzeBtn');
 const logViewer = document.getElementById('logViewer');
 const aiResults = document.getElementById('aiResults');
@@ -64,14 +68,30 @@ tabBtns.forEach(btn => {
 
 // Event Listeners
 openFileBtn.addEventListener('click', async () => {
-  const result = await ipcRenderer.invoke('open-log-file');
-  if (result) {
-    currentFile = result.filePath;
-    fileName.textContent = `📄 ${currentFile.split(/[\\/]/).pop()}`;
+  const results = await ipcRenderer.invoke('open-log-files');
+  if (results && results.length > 0) {
+    currentFiles = results.map(r => r.filePath);
     
-    // Parse the log file
-    showStatus('Parsing log file...', 'info');
-    allLogs = await ipcRenderer.invoke('parse-log', result.content);
+    // Display file names
+    if (currentFiles.length === 1) {
+      fileName.textContent = `📄 ${currentFiles[0].split(/[\\/]/).pop()}`;
+    } else {
+      fileName.textContent = `📄 ${currentFiles.length} files loaded`;
+    }
+    
+    // Parse all log files
+    showStatus(`Parsing ${currentFiles.length} log file(s)...`, 'info');
+    allLogs = [];
+    
+    for (const result of results) {
+      const logs = await ipcRenderer.invoke('parse-log', result.content);
+      // Add file source to each log entry
+      logs.forEach(log => {
+        log.sourceFile = result.filePath.split(/[\\/]/).pop();
+      });
+      allLogs = allLogs.concat(logs);
+    }
+    
     filteredLogs = allLogs;
     
     updateStats();
@@ -84,7 +104,7 @@ openFileBtn.addEventListener('click', async () => {
     if (!aiConfigured) {
       showStatus('AI not configured. Set OPENAI_API_KEY environment variable to enable AI analysis.', 'info');
     } else {
-      showStatus(`Loaded ${allLogs.length} log lines. Ready for analysis.`, 'info');
+      showStatus(`Loaded ${allLogs.length} log lines from ${currentFiles.length} file(s). Ready for analysis.`, 'info');
     }
   }
 });
@@ -103,6 +123,9 @@ applyFiltersBtn.addEventListener('click', async () => {
     tag: tagFilterInput.value.trim(),
     pid: pidFilterInput.value.trim()
   };
+
+  // Store keywords for highlighting
+  currentKeywords = filters.keywords;
 
   showStatus('Applying filters...', 'info');
   filteredLogs = await ipcRenderer.invoke('filter-logs', { logs: allLogs, filters });
@@ -123,12 +146,53 @@ clearFiltersBtn.addEventListener('click', () => {
   logLevelSelect.value = 'ALL';
   tagFilterInput.value = '';
   pidFilterInput.value = '';
+  currentKeywords = '';
   
   filteredLogs = allLogs;
   updateStats();
   renderLogs(filteredLogs);
   showStatus('Filters cleared', 'info');
 });
+
+// Save filters to localStorage
+if (saveFiltersBtn) {
+  saveFiltersBtn.addEventListener('click', () => {
+    const filters = {
+      startTime: startTimeInput.value.trim(),
+      endTime: endTimeInput.value.trim(),
+      keywords: keywordsInput.value.trim(),
+      level: logLevelSelect.value,
+      tag: tagFilterInput.value.trim(),
+      pid: pidFilterInput.value.trim()
+    };
+    
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    showStatus('Filters saved successfully!', 'info');
+  });
+}
+
+// Load filters from localStorage
+if (loadFiltersBtn) {
+  loadFiltersBtn.addEventListener('click', () => {
+    const savedFilters = localStorage.getItem(FILTERS_STORAGE_KEY);
+    if (savedFilters) {
+      try {
+        const filters = JSON.parse(savedFilters);
+        startTimeInput.value = filters.startTime || '';
+        endTimeInput.value = filters.endTime || '';
+        keywordsInput.value = filters.keywords || '';
+        logLevelSelect.value = filters.level || 'ALL';
+        tagFilterInput.value = filters.tag || '';
+        pidFilterInput.value = filters.pid || '';
+        showStatus('Filters loaded successfully!', 'info');
+      } catch (e) {
+        showStatus('Failed to load saved filters', 'error');
+      }
+    } else {
+      showStatus('No saved filters found', 'info');
+    }
+  });
+}
 
 analyzeBtn.addEventListener('click', async () => {
   if (filteredLogs.length === 0) {
@@ -182,9 +246,19 @@ function renderLogs(logs) {
     const timestamp = log.timestamp ? `<span class="text-log-timestamp mr-2.5">${log.timestamp}</span>` : '';
     const level = `<span class="font-bold mr-2.5">${log.level}</span>`;
     const tag = log.tag !== 'Unknown' ? `<span class="text-accent-purple mr-2.5">[${log.tag}]</span>` : '';
-    const message = `<span>${escapeHtml(log.message)}</span>`;
     
-    html += `<div class="log-line ${levelClass}">${timestamp}${level}${tag}${message}</div>`;
+    // Show source file if multiple files are loaded
+    const sourceFile = currentFiles.length > 1 && log.sourceFile ? 
+      `<span class="text-xs text-text-secondary mr-2.5">📄${log.sourceFile}</span>` : '';
+    
+    // Highlight keywords in message
+    let message = escapeHtml(log.message);
+    if (currentKeywords) {
+      message = highlightKeywords(message, currentKeywords);
+    }
+    message = `<span>${message}</span>`;
+    
+    html += `<div class="log-line ${levelClass}">${timestamp}${level}${sourceFile}${tag}${message}</div>`;
   });
   
   if (logs.length > MAX_RENDERED_LOGS) {
@@ -192,6 +266,33 @@ function renderLogs(logs) {
   }
   
   logViewer.innerHTML = html;
+}
+
+// Highlight keywords in text
+function highlightKeywords(text, keywords) {
+  if (!keywords || !keywords.trim()) return text;
+  
+  try {
+    // Try regex pattern first
+    const pattern = new RegExp(`(${keywords})`, 'gi');
+    return text.replace(pattern, '<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded">$1</mark>');
+  } catch (e) {
+    // Fallback to space-separated keywords
+    const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
+    let highlightedText = text;
+    
+    keywordList.forEach(keyword => {
+      const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
+      highlightedText = highlightedText.replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded">$1</mark>');
+    });
+    
+    return highlightedText;
+  }
+}
+
+// Escape special regex characters
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function displayAIAnalysis(analysis) {
@@ -245,5 +346,22 @@ function escapeHtml(text) {
   const aiConfigured = await ipcRenderer.invoke('check-ai-configured');
   if (!aiConfigured) {
     showStatus('AI features require OPENAI_API_KEY environment variable', 'info');
+  }
+  
+  // Auto-load saved filters on startup
+  const savedFilters = localStorage.getItem(FILTERS_STORAGE_KEY);
+  if (savedFilters) {
+    try {
+      const filters = JSON.parse(savedFilters);
+      startTimeInput.value = filters.startTime || '';
+      endTimeInput.value = filters.endTime || '';
+      keywordsInput.value = filters.keywords || '';
+      logLevelSelect.value = filters.level || 'ALL';
+      tagFilterInput.value = filters.tag || '';
+      pidFilterInput.value = filters.pid || '';
+      console.log('Loaded saved filters');
+    } catch (e) {
+      console.error('Failed to load saved filters:', e);
+    }
   }
 })();
