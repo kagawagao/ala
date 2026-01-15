@@ -1,8 +1,25 @@
+import { LogEntry } from './log-analyzer';
+
+/**
+ * AI analysis result
+ */
+export interface AIAnalysisResult {
+  success: boolean;
+  analysis?: string;
+  usage?: any;
+  error?: string;
+}
+
 /**
  * AI Service for analyzing Android logs
  * Supports OpenAI API integration
  */
-class AIService {
+export class AIService {
+  private openai: any;
+  private apiKey: string | null;
+  private MAX_LOGS_FOR_ANALYSIS: number;
+  private MAX_SUMMARY_LENGTH: number;
+
   constructor() {
     this.openai = null;
     this.apiKey = process.env.OPENAI_API_KEY || null;
@@ -16,7 +33,7 @@ class AIService {
     }
   }
 
-  initializeOpenAI() {
+  initializeOpenAI(): void {
     try {
       const { OpenAI } = require('openai');
       this.openai = new OpenAI({
@@ -28,14 +45,14 @@ class AIService {
     }
   }
 
-  isConfigured() {
+  isConfigured(): boolean {
     return this.openai !== null && this.apiKey !== null;
   }
 
   /**
    * Analyze logs using AI
    */
-  async analyzeLogs(logs, prompt = '') {
+  async analyzeLogs(logs: LogEntry[], prompt: string = ''): Promise<AIAnalysisResult> {
     if (!this.isConfigured()) {
       return {
         success: false,
@@ -73,7 +90,7 @@ Be concise and focus on actionable insights.`;
         analysis: response.choices[0].message.content,
         usage: response.usage
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI analysis error:', error);
       return {
         success: false,
@@ -85,7 +102,7 @@ Be concise and focus on actionable insights.`;
   /**
    * Prepare logs for AI analysis (truncate if necessary)
    */
-  prepareLogSummary(logs) {
+  prepareLogSummary(logs: LogEntry[]): string {
     const maxLogs = this.MAX_LOGS_FOR_ANALYSIS;
     const maxLength = this.MAX_SUMMARY_LENGTH;
     
@@ -134,11 +151,11 @@ Be concise and focus on actionable insights.`;
     return summary;
   }
 
-  formatLogsForAI(logs) {
+  formatLogsForAI(logs: LogEntry[]): string {
     return logs.map(log => {
       return `[${log.timestamp || 'N/A'}] ${log.level}/${log.tag}: ${log.message}`;
     }).join('\n');
   }
 }
 
-module.exports = AIService;
+export default AIService;

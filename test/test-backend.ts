@@ -4,16 +4,17 @@
  * Test script for ALA backend functionality
  */
 
-const fs = require('fs');
-const path = require('path');
-const LogAnalyzer = require('../src/backend/logAnalyzer');
+import * as fs from 'fs';
+import * as path from 'path';
+import LogAnalyzer from '../src/backend/log-analyzer';
 
 console.log('🧪 Testing Android Log Analyzer Backend\n');
 
 // Test 1: Parse log file
 console.log('Test 1: Parsing log file...');
 const logAnalyzer = new LogAnalyzer();
-const sampleLogPath = path.join(__dirname, '../examples/sample-android.log');
+// Fix path - examples is in root, not in dist
+const sampleLogPath = path.join(__dirname, '../../examples/sample-android.log');
 const logContent = fs.readFileSync(sampleLogPath, 'utf-8');
 const parsedLogs = logAnalyzer.parseLog(logContent);
 console.log(`✓ Parsed ${parsedLogs.length} log lines\n`);

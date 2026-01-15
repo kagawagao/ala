@@ -1,8 +1,46 @@
 /**
+ * Represents a parsed Android log entry
+ */
+export interface LogEntry {
+  lineNumber: number;
+  timestamp: string | null;
+  pid: string | null;
+  tid: string | null;
+  level: string;
+  tag: string;
+  message: string;
+  rawLine: string;
+}
+
+/**
+ * Filter criteria for log entries
+ */
+export interface LogFilters {
+  startTime?: string;
+  endTime?: string;
+  keywords?: string;
+  level?: string;
+  tag?: string;
+  pid?: string;
+}
+
+/**
+ * Statistics about log entries
+ */
+export interface LogStatistics {
+  total: number;
+  byLevel: Record<string, number>;
+  tags: Record<string, number>;
+  pids: Record<string, number>;
+}
+
+/**
  * Android Log Analyzer
  * Parses and filters Android log files (logcat format)
  */
-class LogAnalyzer {
+export class LogAnalyzer {
+  private logPattern: RegExp;
+
   constructor() {
     // Android logcat format regex pattern
     // Capture groups: (1) timestamp, (2) PID, (3) TID, (4) level, (5) tag, (6) message
@@ -14,9 +52,9 @@ class LogAnalyzer {
    * Parse Android log content into structured format
    * Format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE
    */
-  parseLog(content) {
+  parseLog(content: string): LogEntry[] {
     const lines = content.split('\n');
-    const parsedLogs = [];
+    const parsedLogs: LogEntry[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -55,7 +93,7 @@ class LogAnalyzer {
   /**
    * Filter logs based on time range, keywords, and log level
    */
-  filterLogs(logs, filters) {
+  filterLogs(logs: LogEntry[], filters: LogFilters): LogEntry[] {
     let filtered = [...logs];
 
     // Filter by time range
@@ -122,7 +160,7 @@ class LogAnalyzer {
    * Parse timestamp string to comparable format
    * Input: "MM-DD HH:MM:SS.mmm"
    */
-  parseTimestamp(timeStr) {
+  parseTimestamp(timeStr: string): Date | null {
     try {
       const parts = timeStr.match(/(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
       if (!parts) return null;
@@ -139,8 +177,8 @@ class LogAnalyzer {
   /**
    * Get statistics about the logs
    */
-  getStatistics(logs) {
-    const stats = {
+  getStatistics(logs: LogEntry[]): LogStatistics {
+    const stats: LogStatistics = {
       total: logs.length,
       byLevel: { V: 0, D: 0, I: 0, W: 0, E: 0, F: 0, U: 0 },
       tags: {},
@@ -159,4 +197,4 @@ class LogAnalyzer {
   }
 }
 
-module.exports = LogAnalyzer;
+export default LogAnalyzer;
