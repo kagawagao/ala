@@ -1,0 +1,48 @@
+{
+  "name": "ala",
+  "version": "1.0.0",
+  "description": "Android Log Analyzer - An Electron-based tool for analyzing Android logs with AI",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "android",
+    "log",
+    "analyzer",
+    "electron",
+    "ai"
+  ],
+  "author": "Jingsong Gao",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "openai": "^4.20.0"
+  },
+  "build": {
+    "appId": "com.kagawagao.ala",
+    "productName": "Android Log Analyzer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

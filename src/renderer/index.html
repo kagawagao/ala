@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Android Log Analyzer (ALA)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 Android Log Analyzer (ALA)</h1>
+      <p class="subtitle">Analyze Android logs with time range filtering and AI-powered insights</p>
+    </header>
+
+    <div class="main-content">
+      <!-- Control Panel -->
+      <section class="control-panel">
+        <div class="file-controls">
+          <button id="openFileBtn" class="btn btn-primary">📁 Open Log File</button>
+          <span id="fileName" class="file-name"></span>
+        </div>
+
+        <div class="filter-section">
+          <h3>Filters</h3>
+          
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="startTime">Start Time (MM-DD HH:MM:SS.mmm):</label>
+              <input type="text" id="startTime" placeholder="e.g., 01-15 10:30:00.000">
+            </div>
+            <div class="filter-group">
+              <label for="endTime">End Time (MM-DD HH:MM:SS.mmm):</label>
+              <input type="text" id="endTime" placeholder="e.g., 01-15 11:30:00.000">
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="keywords">Keywords (space-separated):</label>
+              <input type="text" id="keywords" placeholder="e.g., error crash exception">
+            </div>
+            <div class="filter-group">
+              <label for="logLevel">Log Level:</label>
+              <select id="logLevel">
+                <option value="ALL">All</option>
+                <option value="V">Verbose</option>
+                <option value="D">Debug</option>
+                <option value="I">Info</option>
+                <option value="W">Warning</option>
+                <option value="E">Error</option>
+                <option value="F">Fatal</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="tagFilter">Tag Filter (regex):</label>
+              <input type="text" id="tagFilter" placeholder="e.g., Activity.*">
+            </div>
+            <div class="filter-group">
+              <label for="pidFilter">PID:</label>
+              <input type="text" id="pidFilter" placeholder="e.g., 12345">
+            </div>
+          </div>
+
+          <div class="filter-actions">
+            <button id="applyFiltersBtn" class="btn btn-secondary">🔍 Apply Filters</button>
+            <button id="clearFiltersBtn" class="btn btn-link">Clear</button>
+          </div>
+        </div>
+
+        <div class="ai-section">
+          <h3>AI Analysis</h3>
+          <textarea id="aiPrompt" placeholder="Optional: Enter specific questions or analysis requests for the AI..." rows="2"></textarea>
+          <button id="analyzeBtn" class="btn btn-ai" disabled>🤖 Analyze with AI</button>
+          <div id="aiStatus" class="ai-status"></div>
+        </div>
+      </section>
+
+      <!-- Results Panel -->
+      <section class="results-panel">
+        <div class="stats-bar">
+          <div class="stat">
+            <span class="stat-label">Total:</span>
+            <span id="totalCount" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Filtered:</span>
+            <span id="filteredCount" class="stat-value">0</span>
+          </div>
+          <div class="stat error">
+            <span class="stat-label">Errors:</span>
+            <span id="errorCount" class="stat-value">0</span>
+          </div>
+          <div class="stat warning">
+            <span class="stat-label">Warnings:</span>
+            <span id="warningCount" class="stat-value">0</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="logs">Log Viewer</button>
+          <button class="tab-btn" data-tab="analysis">AI Analysis</button>
+        </div>
+
+        <div class="tab-content active" id="logsTab">
+          <div id="logViewer" class="log-viewer">
+            <div class="empty-state">
+              <p>📋 No log file loaded. Click "Open Log File" to get started.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="analysisTab">
+          <div id="aiResults" class="ai-results">
+            <div class="empty-state">
+              <p>🤖 No AI analysis yet. Load logs and click "Analyze with AI".</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
