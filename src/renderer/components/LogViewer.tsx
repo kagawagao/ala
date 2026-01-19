@@ -10,6 +10,7 @@ interface LogViewerProps {
   activeTab: 'logs' | 'ai';
   setActiveTab: (tab: 'logs' | 'ai') => void;
   aiAnalysis: string;
+  isSearching: boolean;
 }
 
 const MAX_RENDERED_LOGS = 1000;
@@ -23,6 +24,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   activeTab,
   setActiveTab,
   aiAnalysis,
+  isSearching,
 }) => {
   const escapeHtml = (text: string): string => {
     const div = document.createElement('div');
@@ -163,10 +165,17 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom">
-        {activeTab === 'logs' ? (
+        {isSearching ? (
+          <div className="flex items-center justify-center min-h-full">
+            <div className="text-center">
+              <div className="inline-block w-12 h-12 border-4 border-accent-teal border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-text-secondary">Searching logs...</p>
+            </div>
+          </div>
+        ) : activeTab === 'logs' ? (
           logs.length === 0 ? (
             <div className="flex items-center justify-center min-h-full text-text-secondary">
-              <p>No logs match the current filters.</p>
+              <p>No logs loaded or no logs match the current filters. Click "Search" to filter logs.</p>
             </div>
           ) : (
             <>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
@@ -9,6 +9,8 @@ const App: React.FC = () => {
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [filters, setFilters] = useState<LogFilters>({
     startTime: '',
     endTime: '',
@@ -22,6 +24,8 @@ const App: React.FC = () => {
   const [aiConfigured, setAiConfigured] = useState<boolean>(false);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'logs' | 'ai'>('logs');
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     // Check AI configuration on mount
@@ -34,16 +38,88 @@ const App: React.FC = () => {
     };
     checkAI();
 
-    // Load saved filters from localStorage
+    // Load saved filters from localStorage (excluding time fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        setFilters(parsed);
+        // Don't restore time fields
+        setFilters({
+          ...parsed,
+          startTime: '',
+          endTime: ''
+        });
       } catch (e) {
         console.error('Failed to load saved filters:', e);
       }
     }
+
+    // Initialize Web Worker for filtering
+    const workerCode = `
+      self.onmessage = function(e) {
+        const { logs, filters } = e.data;
+        
+        try {
+          const filtered = logs.filter((log) => {
+            if (filters.startTime && log.timestamp < filters.startTime) return false;
+            if (filters.endTime && log.timestamp > filters.endTime) return false;
+
+            if (filters.keywords && filters.keywords.trim()) {
+              try {
+                const regex = new RegExp(filters.keywords, 'i');
+                if (!regex.test(log.message)) return false;
+              } catch (e) {
+                const keywords = filters.keywords.toLowerCase().split(/\\s+/).filter(k => k);
+                const message = log.message.toLowerCase();
+                const hasMatch = keywords.some(keyword => message.includes(keyword));
+                if (!hasMatch) return false;
+              }
+            }
+
+            if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) return false;
+
+            if (filters.tag && filters.tag.trim()) {
+              try {
+                const tagRegex = new RegExp(filters.tag, 'i');
+                if (!tagRegex.test(log.tag)) return false;
+              } catch (e) {
+                if (log.tag.toLowerCase() !== filters.tag.toLowerCase()) return false;
+              }
+            }
+
+            if (filters.pid && filters.pid.trim() && log.pid !== filters.pid) return false;
+
+            return true;
+          });
+          
+          self.postMessage({ success: true, filtered });
+        } catch (error) {
+          self.postMessage({ success: false, error: error.message });
+        }
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    workerRef.current = new Worker(URL.createObjectURL(blob));
+
+    workerRef.current.onmessage = (e) => {
+      const { success, filtered, error } = e.data;
+      if (success) {
+        setFilteredLogs(filtered);
+        setIsSearching(false);
+        showStatus(`Filtered to ${filtered.length} log lines`, 'info');
+      } else {
+        setIsSearching(false);
+        showStatus(`Filter error: ${error}`, 'error');
+      }
+    };
+
+    return () => {
+      // Cleanup worker on unmount
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -78,22 +154,48 @@ const App: React.FC = () => {
       }
       
       setAllLogs(allParsedLogs);
-      setFilteredLogs(allParsedLogs);
+      // Don't auto-filter after upload - wait for search button
+      setFilteredLogs([]);
       
-      showStatus(`Loaded ${allParsedLogs.length} log lines from ${results.length} file(s)`, 'info');
+      showStatus(`Loaded ${allParsedLogs.length} log lines from ${results.length} file(s). Click "Search" to filter logs.`, 'info');
     }
   };
 
-  const handleApplyFilters = async () => {
+  const handleSearch = () => {
     if (allLogs.length === 0) {
       showStatus('No log file loaded', 'error');
       return;
     }
 
-    showStatus('Applying filters...', 'info');
-    const filtered = await window.electronAPI.filterLogs({ logs: allLogs, filters });
-    setFilteredLogs(filtered);
-    showStatus(`Filtered to ${filtered.length} log lines`, 'info');
+    setIsSearching(true);
+    showStatus('Searching...', 'info');
+
+    // Convert dates to timestamp strings for filtering
+    const filterData = {
+      ...filters,
+      startTime: startDate ? formatDateToTimestamp(startDate) : '',
+      endTime: endDate ? formatDateToTimestamp(endDate) : ''
+    };
+
+    // Use Web Worker for non-blocking search
+    if (workerRef.current) {
+      workerRef.current.postMessage({ logs: allLogs, filters: filterData });
+    }
+  };
+
+  const formatDateToTimestamp = (date: Date): string => {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const ms = String(date.getMilliseconds()).padStart(3, '0');
+    return `${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
+  };
+
+  const handleApplyFilters = async () => {
+    // This is now renamed to handleSearch
+    handleSearch();
   };
 
   const handleClearFilters = () => {
@@ -106,12 +208,21 @@ const App: React.FC = () => {
       pid: ''
     };
     setFilters(clearedFilters);
-    setFilteredLogs(allLogs);
-    showStatus('Filters cleared', 'info');
+    setStartDate(null);
+    setEndDate(null);
+    setFilteredLogs([]);
+    showStatus('Filters cleared. Click "Search" to show all logs.', 'info');
   };
 
   const handleSaveFilters = () => {
-    localStorage.setItem('ala_saved_filters', JSON.stringify(filters));
+    // Save filters excluding time fields
+    const filtersToSave = {
+      keywords: filters.keywords,
+      level: filters.level,
+      tag: filters.tag,
+      pid: filters.pid
+    };
+    localStorage.setItem('ala_saved_filters', JSON.stringify(filtersToSave));
     showStatus('Filters saved successfully!', 'info');
   };
 
@@ -120,7 +231,13 @@ const App: React.FC = () => {
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        setFilters(parsed);
+        setFilters({
+          ...filters,
+          keywords: parsed.keywords || '',
+          level: parsed.level || 'ALL',
+          tag: parsed.tag || '',
+          pid: parsed.pid || ''
+        });
         showStatus('Filters loaded successfully!', 'info');
       } catch (e) {
         showStatus('Failed to load saved filters', 'error');
@@ -186,8 +303,12 @@ const App: React.FC = () => {
         <ControlPanel
           filters={filters}
           setFilters={setFilters}
+          startDate={startDate}
+          endDate={endDate}
+          setStartDate={setStartDate}
+          setEndDate={setEndDate}
           onOpenFiles={handleOpenFiles}
-          onApplyFilters={handleApplyFilters}
+          onSearch={handleSearch}
           onClearFilters={handleClearFilters}
           onSaveFilters={handleSaveFilters}
           onLoadFilters={handleLoadFilters}
@@ -198,6 +319,7 @@ const App: React.FC = () => {
           aiConfigured={aiConfigured}
           statusMessage={statusMessage}
           statusType={statusType}
+          isSearching={isSearching}
         />
         
         <LogViewer
@@ -209,6 +331,7 @@ const App: React.FC = () => {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           aiAnalysis={aiAnalysis}
+          isSearching={isSearching}
         />
       </div>
     </div>

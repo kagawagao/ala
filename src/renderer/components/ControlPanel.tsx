@@ -1,11 +1,16 @@
 import React from 'react';
 import { LogFilters } from '../types';
+import DateTimeRangePicker from './DateTimeRangePicker';
 
 interface ControlPanelProps {
   filters: LogFilters;
   setFilters: (filters: LogFilters) => void;
+  startDate: Date | null;
+  endDate: Date | null;
+  setStartDate: (date: Date | null) => void;
+  setEndDate: (date: Date | null) => void;
   onOpenFiles: () => void;
-  onApplyFilters: () => void;
+  onSearch: () => void;
   onClearFilters: () => void;
   onSaveFilters: () => void;
   onLoadFilters: () => void;
@@ -16,13 +21,18 @@ interface ControlPanelProps {
   aiConfigured: boolean;
   statusMessage: string;
   statusType: 'info' | 'error';
+  isSearching: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
   filters,
   setFilters,
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
   onOpenFiles,
-  onApplyFilters,
+  onSearch,
   onClearFilters,
   onSaveFilters,
   onLoadFilters,
@@ -33,6 +43,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   aiConfigured,
   statusMessage,
   statusType,
+  isSearching,
 }) => {
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
 
@@ -64,28 +75,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <div className="mb-6">
         <h3 className="text-accent-teal text-base mb-4 border-b border-dark-border pb-2">Filters</h3>
         
-        {/* Time Range */}
-        <div className="flex gap-2.5 mb-3">
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">Start Time (MM-DD HH:MM:SS.mmm):</label>
-            <input 
-              type="text" 
-              value={filters.startTime}
-              onChange={(e) => updateFilter('startTime', e.target.value)}
-              placeholder="e.g., 01-15 10:30:00.000" 
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            />
-          </div>
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">End Time (MM-DD HH:MM:SS.mmm):</label>
-            <input 
-              type="text" 
-              value={filters.endTime}
-              onChange={(e) => updateFilter('endTime', e.target.value)}
-              placeholder="e.g., 01-15 11:30:00.000" 
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            />
-          </div>
+        {/* Time Range with DatePicker */}
+        <div className="mb-3">
+          <DateTimeRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onStartChange={setStartDate}
+            onEndChange={setEndDate}
+          />
         </div>
 
         {/* Keywords and Level */}
@@ -142,17 +139,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
 
-        {/* Apply/Clear Buttons */}
+        {/* Search/Clear Buttons */}
         <div className="flex gap-2.5 mt-4">
           <button 
-            onClick={onApplyFilters}
-            className="bg-accent-teal text-dark-bg px-5 py-2.5 rounded hover:bg-teal-600 transition font-medium flex-1"
+            onClick={onSearch}
+            disabled={isSearching}
+            className="bg-accent-teal text-dark-bg px-5 py-2.5 rounded hover:bg-teal-600 transition font-medium flex-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            🔍 Apply Filters
+            {isSearching ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-dark-bg border-t-transparent rounded-full animate-spin"></span>
+                Searching...
+              </>
+            ) : (
+              <>🔍 Search</>
+            )}
           </button>
           <button 
             onClick={onClearFilters}
-            className="bg-transparent text-text-secondary px-4 py-2.5 rounded hover:text-text-primary transition"
+            disabled={isSearching}
+            className="bg-transparent text-text-secondary px-4 py-2.5 rounded hover:text-text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Clear
           </button>
