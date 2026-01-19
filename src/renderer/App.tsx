@@ -38,16 +38,17 @@ const App: React.FC = () => {
     };
     checkAI();
 
-    // Load saved filters from localStorage (excluding time fields)
+    // Load saved filters from localStorage (excluding time and PID fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        // Don't restore time fields
+        // Don't restore time and PID fields
         setFilters({
           ...parsed,
           startTime: '',
-          endTime: ''
+          endTime: '',
+          pid: ''
         });
       } catch (e) {
         console.error('Failed to load saved filters:', e);
@@ -215,12 +216,11 @@ const App: React.FC = () => {
   };
 
   const handleSaveFilters = () => {
-    // Save filters excluding time fields
+    // Save filters excluding time and PID fields
     const filtersToSave = {
       keywords: filters.keywords,
       level: filters.level,
-      tag: filters.tag,
-      pid: filters.pid
+      tag: filters.tag
     };
     localStorage.setItem('ala_saved_filters', JSON.stringify(filtersToSave));
     showStatus('Filters saved successfully!', 'info');
@@ -235,8 +235,8 @@ const App: React.FC = () => {
           ...filters,
           keywords: parsed.keywords || '',
           level: parsed.level || 'ALL',
-          tag: parsed.tag || '',
-          pid: parsed.pid || ''
+          tag: parsed.tag || ''
+          // PID is not restored from saved filters
         });
         showStatus('Filters loaded successfully!', 'info');
       } catch (e) {
