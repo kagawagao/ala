@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
@@ -7,6 +8,7 @@ import LogViewer from './components/LogViewer';
 import FilterPresetManager from './components/FilterPresetManager';
 
 const App: React.FC = () => {
+  const { i18n } = useTranslation();
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
@@ -34,6 +36,12 @@ const App: React.FC = () => {
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
+    // Load language preference from localStorage
+    const savedLanguage = localStorage.getItem('ala_language');
+    if (savedLanguage) {
+      i18n.changeLanguage(savedLanguage);
+    }
+
     // Load theme preference from localStorage
     const savedTheme = localStorage.getItem('ala_theme') as 'dark' | 'light' | null;
     if (savedTheme) {

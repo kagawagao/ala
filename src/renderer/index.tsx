@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import 'antd/dist/reset.css';
+import './i18n/config'; // Initialize i18n
 
 // JetBrains Mono font and custom CSS
 const globalStyles = `
@@ -23,6 +24,42 @@ const globalStyles = `
   .log-viewer-tabs .ant-tabs-tabpane {
     height: 100%;
     overflow: auto;
+  }
+
+  /* macOS-style scrollbar for all platforms */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(155, 155, 155, 0.7) transparent;
+  }
+
+  /* WebKit scrollbar styling (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(155, 155, 155, 0.7);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(155, 155, 155, 0.9);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: rgba(155, 155, 155, 1);
+  }
+
+  /* Make scrollbar appear only on hover for even more macOS-like behavior */
+  *::-webkit-scrollbar-thumb {
+    transition: background-color 0.2s ease;
   }
 `;
 

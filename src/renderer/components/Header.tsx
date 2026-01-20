@@ -1,6 +1,7 @@
 import React from 'react';
-import { MenuOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons';
-import { Button } from 'antd';
+import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined } from '@ant-design/icons';
+import { Button, Dropdown } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
   onToggleDrawer: () => void;
@@ -9,6 +10,26 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme }) => {
+  const { t, i18n } = useTranslation();
+
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('ala_language', lang);
+  };
+
+  const languageMenuItems = [
+    {
+      key: 'zh',
+      label: t('chinese'),
+      onClick: () => handleLanguageChange('zh')
+    },
+    {
+      key: 'en',
+      label: t('english'),
+      onClick: () => handleLanguageChange('en')
+    }
+  ];
+
   return (
     <header style={{
       backgroundColor: theme === 'dark' ? '#1e1e1e' : '#f5f5f5',
@@ -25,22 +46,31 @@ const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme })
           marginBottom: '4px',
           fontWeight: 600 
         }}>
-          🤖 Android Log Analyzer (ALA)
+          🤖 {t('appTitle')}
         </h1>
         <p style={{ 
           color: theme === 'dark' ? '#858585' : '#595959', 
           fontSize: '14px',
           margin: 0 
         }}>
-          Analyze Android logs with time range filtering and AI-powered insights
+          {t('appDescription')}
         </p>
       </div>
+      <Dropdown menu={{ items: languageMenuItems }} placement="bottomRight">
+        <Button
+          type="text"
+          icon={<GlobalOutlined />}
+          size="large"
+          title={t('switchLanguage')}
+          style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
+        />
+      </Dropdown>
       <Button
         type="text"
         icon={theme === 'dark' ? <BulbOutlined /> : <BulbFilled />}
         onClick={onToggleTheme}
         size="large"
-        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        title={t(theme === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       />
       <Button
