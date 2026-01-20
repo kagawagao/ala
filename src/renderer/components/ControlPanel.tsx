@@ -10,8 +10,6 @@ import {
   Divider, 
   Alert,
   Radio,
-  Collapse,
-  Tag,
   FloatButton
 } from 'antd';
 import {
@@ -24,8 +22,7 @@ import {
   ExportOutlined,
   RobotOutlined,
   SettingOutlined,
-  LoadingOutlined,
-  CheckOutlined
+  LoadingOutlined
 } from '@ant-design/icons';
 
 interface ControlPanelProps {
@@ -86,27 +83,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onDeleteFile,
 }) => {
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
-  const [savedPresets, setSavedPresets] = React.useState<any[]>([]);
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    loadPresets();
-  }, []);
-
-  const loadPresets = () => {
-    const saved = localStorage.getItem('ala_filter_presets');
-    if (saved) {
-      try {
-        setSavedPresets(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load presets:', e);
-      }
-    }
-  };
-
-  const handleApplyPreset = (preset: any) => {
-    onLoadPreset(preset.filters);
-  };
 
   const updateFilter = (key: keyof LogFilters, value: string) => {
     setFilters({ ...filters, [key]: value });
@@ -318,44 +295,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </Button>
 
           {/* Filter Presets Collapse */}
-          {savedPresets.length > 0 && (
-            <Collapse
-              size="small"
-              items={savedPresets.map((preset) => ({
-                key: preset.id,
-                label: preset.name,
-                children: (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {preset.description && (
-                      <p style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', margin: 0 }}>
-                        {preset.description}
-                      </p>
-                    )}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {preset.filters.keywords && (
-                        <Tag color="blue" style={{ fontSize: '12px' }}>Keywords: {preset.filters.keywords}</Tag>
-                      )}
-                      {preset.filters.level && preset.filters.level !== 'ALL' && (
-                        <Tag color="green" style={{ fontSize: '12px' }}>Level: {preset.filters.level}</Tag>
-                      )}
-                      {preset.filters.tag && (
-                        <Tag color="purple" style={{ fontSize: '12px' }}>Tag: {preset.filters.tag}</Tag>
-                      )}
-                    </div>
-                    <Button 
-                      type="primary" 
-                      size="small" 
-                      icon={<CheckOutlined />}
-                      onClick={() => handleApplyPreset(preset)}
-                      block
-                    >
-                      Apply Preset
-                    </Button>
-                  </div>
-                ),
-              }))}
-            />
-          )}
+          {/* Note: Presets are managed via the "Manage Presets" button below */}
 
           {/* Status Message */}
           {statusMessage && (
