@@ -314,10 +314,6 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
-  useEffect(() => {
-    updateStatistics();
-  }, [filteredLogs]);
-
   return (
     <ConfigProvider
       theme={{
