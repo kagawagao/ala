@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, List, Button, Input, Space, Popconfirm, Tag, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 
 interface FilterPreset {
@@ -25,7 +25,6 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   onLoadPreset,
 }) => {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState<string>('');
   const [newDescription, setNewDescription] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
@@ -154,8 +153,10 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
           locale={{ emptyText: 'No saved presets. Create one by clicking the button above.' }}
           renderItem={(preset) => (
             <List.Item
+              key={preset.id}
               actions={[
                 <Button
+                  key="load"
                   type="link"
                   size="small"
                   onClick={() => handleLoad(preset)}
@@ -163,6 +164,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   Load
                 </Button>,
                 <Popconfirm
+                  key="delete"
                   title="Delete this preset?"
                   onConfirm={() => handleDelete(preset.id)}
                   okText="Yes"
