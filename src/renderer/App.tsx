@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ConfigProvider, theme as antdTheme } from 'antd';
 import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
@@ -28,9 +29,16 @@ const App: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
+    // Load theme preference from localStorage
+    const savedTheme = localStorage.getItem('ala_theme') as 'dark' | 'light' | null;
+    if (savedTheme) {
+      setThemeMode(savedTheme);
+    }
+
     // Check AI configuration on mount
     const checkAI = async () => {
       const configured = await window.electronAPI.checkAIConfigured();
@@ -132,6 +140,7 @@ const App: React.FC = () => {
     if (filteredLogs.length > 0) {
       updateStatistics();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredLogs]);
 
   const showStatus = (message: string, type: 'info' | 'error' = 'info') => {
@@ -196,11 +205,6 @@ const App: React.FC = () => {
     const seconds = String(date.getSeconds()).padStart(2, '0');
     const ms = String(date.getMilliseconds()).padStart(3, '0');
     return `${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
-  };
-
-  const handleApplyFilters = async () => {
-    // This is now renamed to handleSearch
-    handleSearch();
   };
 
   const handleClearFilters = () => {
@@ -304,9 +308,35 @@ const App: React.FC = () => {
     showStatus('Preset loaded successfully!', 'info');
   };
 
+  const handleToggleTheme = () => {
+    const newTheme = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(newTheme);
+    localStorage.setItem('ala_theme', newTheme);
+  };
+
+  useEffect(() => {
+    updateStatistics();
+  }, [filteredLogs]);
+
   return (
-    <div className="h-screen flex flex-col">
-      <Header onToggleDrawer={() => setDrawerOpen(!drawerOpen)} />
+    <ConfigProvider
+      theme={{
+        algorithm: themeMode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: themeMode === 'dark' ? '#4ec9b0' : '#1890ff',
+          colorBgContainer: themeMode === 'dark' ? '#252526' : '#ffffff',
+          colorBgElevated: themeMode === 'dark' ? '#2d2d2d' : '#ffffff',
+          colorText: themeMode === 'dark' ? '#d4d4d4' : '#000000',
+          colorBorder: themeMode === 'dark' ? '#3e3e42' : '#d9d9d9',
+        },
+      }}
+    >
+      <div className={`h-screen flex flex-col ${themeMode === 'light' ? 'bg-white text-black' : ''}`}>
+        <Header 
+          onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
+          theme={themeMode}
+          onToggleTheme={handleToggleTheme}
+        />
       
       <div className="flex flex-1 overflow-hidden">
         <ControlPanel
@@ -354,6 +384,7 @@ const App: React.FC = () => {
         onLoadPreset={handleLoadPreset}
       />
     </div>
+    </ConfigProvider>
   );
 };
 

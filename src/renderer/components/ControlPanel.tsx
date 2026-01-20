@@ -81,7 +81,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   return (
     <Drawer
       title="Control Panel"
-      placement="left"
+      placement="right"
       onClose={onDrawerClose}
       open={drawerOpen}
       width={400}

@@ -35,24 +35,92 @@ export interface LogStatistics {
 }
 
 /**
+ * Supported log format types
+ */
+export enum LogFormat {
+  ANDROID_LOGCAT = 'android_logcat',
+  GENERIC_TIMESTAMPED = 'generic_timestamped',
+  UNKNOWN = 'unknown'
+}
+
+/**
  * Android Log Analyzer
- * Parses and filters Android log files (logcat format)
+ * Parses and filters Android log files (logcat format) and generic log formats
  */
 export class LogAnalyzer {
-  private logPattern: RegExp;
+  private androidLogcatPattern: RegExp;
+  private genericTimestampedPattern: RegExp;
 
   constructor() {
     // Android logcat format regex pattern
     // Capture groups: (1) timestamp, (2) PID, (3) TID, (4) level, (5) tag, (6) message
     // Format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE
-    this.logPattern = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)$/;
+    this.androidLogcatPattern = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)$/;
+    
+    // Generic timestamped log format patterns
+    // Supports various common formats like:
+    // [2024-01-15 10:30:45] INFO: Message
+    // 2024-01-15 10:30:45.123 [ERROR] Message
+    // [INFO] 2024-01-15 10:30:45 - Message
+    this.genericTimestampedPattern = /^(?:\[)?(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\]?\s*(?:\[)?([A-Z]+|VERBOSE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)\]?:?\s*(?:-\s*)?(.+)$/i;
+  }
+
+  /**
+   * Detect the log format from the content
+   */
+  detectLogFormat(content: string): LogFormat {
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    // Try to match first 10 lines to determine format
+    const sampleSize = Math.min(10, lines.length);
+    let androidMatches = 0;
+    let genericMatches = 0;
+    
+    for (let i = 0; i < sampleSize; i++) {
+      const line = lines[i].trim();
+      if (this.androidLogcatPattern.test(line)) {
+        androidMatches++;
+      }
+      if (this.genericTimestampedPattern.test(line)) {
+        genericMatches++;
+      }
+    }
+    
+    // If majority matches Android format, it's Android logcat
+    if (androidMatches >= sampleSize * 0.6) {
+      return LogFormat.ANDROID_LOGCAT;
+    }
+    
+    // If majority matches generic format, it's generic timestamped
+    if (genericMatches >= sampleSize * 0.6) {
+      return LogFormat.GENERIC_TIMESTAMPED;
+    }
+    
+    return LogFormat.UNKNOWN;
   }
 
   /**
    * Parse Android log content into structured format
-   * Format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE
+   * Auto-detects format and parses accordingly
    */
   parseLog(content: string): LogEntry[] {
+    const format = this.detectLogFormat(content);
+    
+    switch (format) {
+      case LogFormat.ANDROID_LOGCAT:
+        return this.parseAndroidLogcat(content);
+      case LogFormat.GENERIC_TIMESTAMPED:
+        return this.parseGenericTimestamped(content);
+      default:
+        return this.parseUnknownFormat(content);
+    }
+  }
+
+  /**
+   * Parse Android logcat format
+   * Format: MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE
+   */
+  private parseAndroidLogcat(content: string): LogEntry[] {
     const lines = content.split('\n');
     const parsedLogs: LogEntry[] = [];
 
@@ -60,7 +128,7 @@ export class LogAnalyzer {
       const line = lines[i].trim();
       if (!line) continue;
 
-      const match = line.match(this.logPattern);
+      const match = line.match(this.androidLogcatPattern);
       if (match) {
         parsedLogs.push({
           lineNumber: i + 1,
@@ -88,6 +156,117 @@ export class LogAnalyzer {
     }
 
     return parsedLogs;
+  }
+
+  /**
+   * Parse generic timestamped log format
+   * Supports formats like:
+   * [2024-01-15 10:30:45] INFO: Message
+   * 2024-01-15 10:30:45.123 [ERROR] Message
+   */
+  private parseGenericTimestamped(content: string): LogEntry[] {
+    const lines = content.split('\n');
+    const parsedLogs: LogEntry[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const match = line.match(this.genericTimestampedPattern);
+      if (match) {
+        const level = this.normalizeLogLevel(match[2]);
+        parsedLogs.push({
+          lineNumber: i + 1,
+          timestamp: this.normalizeTimestamp(match[1]),
+          pid: null,
+          tid: null,
+          level: level,
+          tag: 'Generic',
+          message: match[3],
+          rawLine: line
+        });
+      } else {
+        // Treat as continuation or unknown format
+        parsedLogs.push({
+          lineNumber: i + 1,
+          timestamp: null,
+          pid: null,
+          tid: null,
+          level: 'U',
+          tag: 'Unknown',
+          message: line,
+          rawLine: line
+        });
+      }
+    }
+
+    return parsedLogs;
+  }
+
+  /**
+   * Parse unknown format - treat each line as a log entry
+   */
+  private parseUnknownFormat(content: string): LogEntry[] {
+    const lines = content.split('\n');
+    const parsedLogs: LogEntry[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      parsedLogs.push({
+        lineNumber: i + 1,
+        timestamp: null,
+        pid: null,
+        tid: null,
+        level: 'U',
+        tag: 'Unknown',
+        message: line,
+        rawLine: line
+      });
+    }
+
+    return parsedLogs;
+  }
+
+  /**
+   * Normalize log level to single character format
+   */
+  private normalizeLogLevel(level: string): string {
+    const levelUpper = level.toUpperCase();
+    
+    if (levelUpper.startsWith('V') || levelUpper === 'VERBOSE') return 'V';
+    if (levelUpper.startsWith('D') || levelUpper === 'DEBUG') return 'D';
+    if (levelUpper.startsWith('I') || levelUpper === 'INFO') return 'I';
+    if (levelUpper.startsWith('W') || levelUpper === 'WARN' || levelUpper === 'WARNING') return 'W';
+    if (levelUpper.startsWith('E') || levelUpper === 'ERROR') return 'E';
+    if (levelUpper.startsWith('F') || levelUpper === 'FATAL') return 'F';
+    
+    return 'U'; // Unknown
+  }
+
+  /**
+   * Normalize timestamp to MM-DD HH:MM:SS.mmm format
+   */
+  private normalizeTimestamp(timestamp: string): string {
+    try {
+      // Parse various timestamp formats and convert to MM-DD HH:MM:SS.mmm
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return timestamp; // Return as-is if can't parse
+      }
+      
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      const ms = String(date.getMilliseconds()).padStart(3, '0');
+      
+      return `${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
+    } catch (e) {
+      return timestamp; // Return as-is if error
+    }
   }
 
   /**

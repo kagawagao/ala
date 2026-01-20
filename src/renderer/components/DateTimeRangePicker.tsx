@@ -1,6 +1,8 @@
 import React from 'react';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
+import { DatePicker } from 'antd';
+import dayjs, { Dayjs } from 'dayjs';
+
+const { RangePicker } = DatePicker;
 
 interface DateTimeRangePickerProps {
   startDate: Date | null;
@@ -15,43 +17,37 @@ const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
   onStartChange,
   onEndChange,
 }) => {
+  const handleChange = (dates: null | (Dayjs | null)[]) => {
+    if (!dates) {
+      onStartChange(null);
+      onEndChange(null);
+      return;
+    }
+
+    const [start, end] = dates;
+    onStartChange(start ? start.toDate() : null);
+    onEndChange(end ? end.toDate() : null);
+  };
+
+  const value: [Dayjs | null, Dayjs | null] | null = 
+    startDate || endDate 
+      ? [startDate ? dayjs(startDate) : null, endDate ? dayjs(endDate) : null]
+      : null;
+
   return (
-    <div className="flex gap-2.5">
-      <div className="flex-1 flex flex-col">
-        <label className="text-xs text-text-secondary mb-1.5">Start Time:</label>
-        <DatePicker
-          selected={startDate}
-          onChange={onStartChange}
-          showTimeSelect
-          timeFormat="HH:mm:ss"
-          timeIntervals={1}
-          dateFormat="MM-dd HH:mm:ss"
-          placeholderText="Select start time"
-          isClearable
-          className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue w-full"
-          wrapperClassName="w-full"
-          popperClassName="date-picker-popper"
-          calendarClassName="date-picker-calendar"
-        />
-      </div>
-      <div className="flex-1 flex flex-col">
-        <label className="text-xs text-text-secondary mb-1.5">End Time:</label>
-        <DatePicker
-          selected={endDate}
-          onChange={onEndChange}
-          showTimeSelect
-          timeFormat="HH:mm:ss"
-          timeIntervals={1}
-          dateFormat="MM-dd HH:mm:ss"
-          placeholderText="Select end time"
-          minDate={startDate || undefined}
-          isClearable
-          className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue w-full"
-          wrapperClassName="w-full"
-          popperClassName="date-picker-popper"
-          calendarClassName="date-picker-calendar"
-        />
-      </div>
+    <div>
+      <label className="text-xs text-text-secondary mb-1.5 block">Time Range:</label>
+      <RangePicker
+        showTime={{
+          format: 'HH:mm:ss',
+        }}
+        format="MM-DD HH:mm:ss"
+        placeholder={['Start time', 'End time']}
+        value={value}
+        onChange={handleChange}
+        style={{ width: '100%' }}
+        allowClear
+      />
     </div>
   );
 };
