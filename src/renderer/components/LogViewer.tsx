@@ -113,7 +113,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       <div 
         key={index} 
         style={{
-          fontFamily: 'monospace',
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: '14px',
           padding: '4px 8px',
           borderLeft: `4px solid ${levelStyle.borderColor}`,
@@ -265,12 +265,14 @@ const LogViewer: React.FC<LogViewerProps> = ({
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key as 'logs' | 'ai')}
           items={tabItems}
-          style={{ height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}
+          style={{ height: '100%' }}
           tabBarStyle={{ 
             backgroundColor: 'var(--ant-color-bg-container)',
             margin: 0,
             paddingLeft: '24px',
+            flexShrink: 0
           }}
+          className="log-viewer-tabs"
         />
       </div>
     </section>

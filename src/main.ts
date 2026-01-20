@@ -22,6 +22,9 @@ function createWindow(): void {
     }
   });
 
+  // Maximize window on startup
+  mainWindow.maximize();
+
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   Menu.setApplicationMenu(null);
