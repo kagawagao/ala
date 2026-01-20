@@ -2,6 +2,13 @@ import React from 'react';
 import { Tabs } from 'antd';
 import { LogEntry, LogStatistics } from '../types';
 
+// CSS for animations
+const spinnerStyles = `
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+`;
+
 interface LogViewerProps {
   logs: LogEntry[];
   allLogsCount: number;
@@ -215,6 +222,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
   return (
     <section style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <style>{spinnerStyles}</style>
       {/* Statistics Bar */}
       <div style={{
         backgroundColor: 'var(--ant-color-bg-elevated)',
@@ -264,11 +272,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
             paddingLeft: '24px',
           }}
         />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     </section>
   );

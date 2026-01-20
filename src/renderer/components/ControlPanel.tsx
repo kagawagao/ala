@@ -326,6 +326,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {aiPanelOpen && (
         <div
+          role="dialog"
+          aria-label="AI Analysis Panel"
+          aria-modal="true"
           style={{
             position: 'fixed',
             right: 24,
@@ -349,6 +352,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               type="text" 
               size="small" 
               onClick={() => setAiPanelOpen(false)}
+              aria-label="Close AI panel"
             >
               ✕
             </Button>

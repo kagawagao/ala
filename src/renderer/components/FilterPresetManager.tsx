@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, List, Button, Input, Space, Popconfirm, Tag, message } from 'antd';
-import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 
 interface FilterPreset {
@@ -123,7 +123,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 rows={2}
               />
               <Space>
-                <Button type="primary" icon={<CheckOutlined />} onClick={handleSaveNew}>
+                <Button type="primary" onClick={handleSaveNew}>
                   Save
                 </Button>
                 <Button onClick={() => {
