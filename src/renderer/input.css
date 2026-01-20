@@ -2,6 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ant Design Dark Theme Customization */
+@layer base {
+  :root {
+    --ant-color-primary: #4ec9b0;
+    --ant-color-primary-hover: #007acc;
+    --ant-color-text: #d4d4d4;
+    --ant-color-text-secondary: #858585;
+    --ant-color-bg-container: #252526;
+    --ant-color-bg-elevated: #2d2d2d;
+    --ant-color-border: #3e3e42;
+  }
+  
+  .ant-drawer-content,
+  .ant-modal-content,
+  .ant-select-dropdown,
+  .ant-picker-dropdown {
+    background-color: #252526 !important;
+    color: #d4d4d4 !important;
+  }
+  
+  .ant-input,
+  .ant-input-textarea,
+  .ant-select-selector,
+  .ant-picker {
+    background-color: #3c3c3c !important;
+    border-color: #3e3e42 !important;
+    color: #d4d4d4 !important;
+  }
+  
+  .ant-input::placeholder,
+  .ant-input-textarea::placeholder {
+    color: #858585 !important;
+  }
+  
+  .ant-btn-default {
+    background-color: transparent !important;
+    border-color: #3e3e42 !important;
+    color: #d4d4d4 !important;
+  }
+  
+  .ant-btn-default:hover {
+    border-color: #4ec9b0 !important;
+    color: #4ec9b0 !important;
+  }
+  
+  .ant-btn-primary {
+    background-color: #007acc !important;
+    border-color: #007acc !important;
+  }
+  
+  .ant-btn-primary:hover {
+    background-color: #4ec9b0 !important;
+    border-color: #4ec9b0 !important;
+  }
+  
+  .ant-select-item {
+    color: #d4d4d4 !important;
+  }
+  
+  .ant-select-item-option-selected {
+    background-color: #007acc !important;
+  }
+  
+  .ant-select-item-option-active {
+    background-color: #2d2d2d !important;
+  }
+  
+  .ant-drawer-header {
+    border-bottom-color: #3e3e42 !important;
+  }
+  
+  .ant-drawer-title {
+    color: #4ec9b0 !important;
+  }
+  
+  .ant-divider {
+    border-color: #3e3e42 !important;
+  }
+  
+  .ant-divider-inner-text {
+    color: #4ec9b0 !important;
+  }
+  
+  .ant-modal-header {
+    background-color: #2d2d2d !important;
+    border-bottom-color: #3e3e42 !important;
+  }
+  
+  .ant-modal-title {
+    color: #4ec9b0 !important;
+  }
+  
+  .ant-list-item {
+    border-bottom-color: #3e3e42 !important;
+  }
+  
+  .ant-tag {
+    background-color: #007acc !important;
+    border-color: #007acc !important;
+    color: #ffffff !important;
+  }
+  
+  .ant-alert-info {
+    background-color: rgba(0, 122, 204, 0.2) !important;
+    border-color: #007acc !important;
+  }
+  
+  .ant-alert-error {
+    background-color: rgba(244, 135, 113, 0.2) !important;
+    border-color: #f48771 !important;
+  }
+}
+
 /* Custom scrollbar styles */
 @layer utilities {
   .scrollbar-custom::-webkit-scrollbar {

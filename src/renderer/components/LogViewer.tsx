@@ -71,6 +71,11 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
   const renderLogLine = (log: LogEntry, index: number) => {
     const levelClass = getLevelClass(log.level);
+    const lineNumber = log.lineNumber ? (
+      <span className="text-gray-500 mr-2.5 select-none" style={{ minWidth: '50px', display: 'inline-block' }}>
+        #{log.lineNumber}
+      </span>
+    ) : null;
     const timestamp = log.timestamp ? (
       <span className="text-green-600 mr-2.5">{log.timestamp}</span>
     ) : null;
@@ -96,6 +101,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         log.level === 'D' ? 'border-green-400' : 
         'border-gray-600'
       }`}>
+        {lineNumber}
         {timestamp}
         {level}
         {sourceFile}

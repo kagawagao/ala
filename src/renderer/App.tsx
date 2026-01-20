@@ -3,6 +3,7 @@ import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
 import LogViewer from './components/LogViewer';
+import FilterPresetManager from './components/FilterPresetManager';
 
 const App: React.FC = () => {
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
@@ -25,6 +26,8 @@ const App: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'logs' | 'ai'>('logs');
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
+  const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
@@ -296,9 +299,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoadPreset = (presetFilters: LogFilters) => {
+    setFilters(presetFilters);
+    showStatus('Preset loaded successfully!', 'info');
+  };
+
   return (
     <div className="h-screen flex flex-col">
-      <Header />
+      <Header onToggleDrawer={() => setDrawerOpen(!drawerOpen)} />
       
       <div className="flex flex-1 overflow-hidden">
         <ControlPanel
@@ -321,6 +329,9 @@ const App: React.FC = () => {
           statusMessage={statusMessage}
           statusType={statusType}
           isSearching={isSearching}
+          drawerOpen={drawerOpen}
+          onDrawerClose={() => setDrawerOpen(false)}
+          onManagePresets={() => setPresetManagerVisible(true)}
         />
         
         <LogViewer
@@ -335,6 +346,13 @@ const App: React.FC = () => {
           isSearching={isSearching}
         />
       </div>
+      
+      <FilterPresetManager
+        visible={presetManagerVisible}
+        onClose={() => setPresetManagerVisible(false)}
+        currentFilters={filters}
+        onLoadPreset={handleLoadPreset}
+      />
     </div>
   );
 };

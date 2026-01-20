@@ -1,6 +1,27 @@
 import React from 'react';
 import { LogFilters } from '../types';
 import DateTimeRangePicker from './DateTimeRangePicker';
+import { 
+  Drawer, 
+  Button, 
+  Input, 
+  Select, 
+  Space, 
+  Divider, 
+  Alert 
+} from 'antd';
+import {
+  FolderOpenOutlined,
+  SearchOutlined,
+  ClearOutlined,
+  SaveOutlined,
+  FolderOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  RobotOutlined,
+  SettingOutlined,
+  LoadingOutlined
+} from '@ant-design/icons';
 
 interface ControlPanelProps {
   filters: LogFilters;
@@ -22,6 +43,9 @@ interface ControlPanelProps {
   statusMessage: string;
   statusType: 'info' | 'error';
   isSearching: boolean;
+  drawerOpen: boolean;
+  onDrawerClose: () => void;
+  onManagePresets: () => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -44,6 +68,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   statusMessage,
   statusType,
   isSearching,
+  drawerOpen,
+  onDrawerClose,
+  onManagePresets,
 }) => {
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
 
@@ -52,31 +79,44 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
-    <section className="w-96 bg-dark-panel p-5 overflow-y-auto scrollbar-custom border-r border-dark-border">
-      {/* File Controls */}
-      <div className="mb-6">
-        <button 
-          onClick={onOpenFiles}
-          className="bg-accent-blue text-white px-5 py-2.5 rounded hover:bg-blue-700 transition font-medium w-full"
-        >
-          📁 Open Log File(s)
-        </button>
-        {currentFiles.length > 0 && (
-          <span className="block mt-2.5 text-accent-teal text-xs break-all">
-            {currentFiles.length === 1 
-              ? `📄 ${currentFiles[0].split(/[\\/]/).pop()}`
-              : `📄 ${currentFiles.length} files loaded`
-            }
-          </span>
-        )}
-      </div>
+    <Drawer
+      title="Control Panel"
+      placement="left"
+      onClose={onDrawerClose}
+      open={drawerOpen}
+      width={400}
+      styles={{
+        body: { padding: '16px', backgroundColor: '#252526' },
+        header: { backgroundColor: '#2d2d2d', borderBottom: '1px solid #3e3e42', color: '#4ec9b0' }
+      }}
+      className="control-panel-drawer"
+    >
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        {/* File Controls */}
+        <div>
+          <Button 
+            type="primary"
+            icon={<FolderOpenOutlined />}
+            onClick={onOpenFiles}
+            block
+            size="large"
+          >
+            Open Log File(s)
+          </Button>
+          {currentFiles.length > 0 && (
+            <div className="mt-2 text-accent-teal text-xs break-all">
+              {currentFiles.length === 1 
+                ? `📄 ${currentFiles[0].split(/[\\/]/).pop()}`
+                : `📄 ${currentFiles.length} files loaded`
+              }
+            </div>
+          )}
+        </div>
 
-      {/* Filters Section */}
-      <div className="mb-6">
-        <h3 className="text-accent-teal text-base mb-4 border-b border-dark-border pb-2">Filters</h3>
+        <Divider style={{ margin: '8px 0', borderColor: '#3e3e42' }}>Filters</Divider>
         
         {/* Time Range with DatePicker */}
-        <div className="mb-3">
+        <div>
           <DateTimeRangePicker
             startDate={startDate}
             endDate={endDate}
@@ -85,144 +125,156 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         </div>
 
-        {/* Keywords and Level */}
-        <div className="flex gap-2.5 mb-3">
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">Keywords (regex supported):</label>
-            <input 
-              type="text" 
-              value={filters.keywords}
-              onChange={(e) => updateFilter('keywords', e.target.value)}
-              placeholder="e.g., error|crash|exception" 
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            />
-          </div>
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">Log Level:</label>
-            <select 
-              value={filters.level}
-              onChange={(e) => updateFilter('level', e.target.value)}
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            >
-              <option value="ALL">All</option>
-              <option value="V">Verbose</option>
-              <option value="D">Debug</option>
-              <option value="I">Info</option>
-              <option value="W">Warning</option>
-              <option value="E">Error</option>
-              <option value="F">Fatal</option>
-            </select>
-          </div>
+        {/* Keywords */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Keywords (regex supported):</label>
+          <Input 
+            value={filters.keywords}
+            onChange={(e) => updateFilter('keywords', e.target.value)}
+            placeholder="e.g., error|crash|exception" 
+          />
         </div>
 
-        {/* Tag and PID */}
-        <div className="flex gap-2.5 mb-3">
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">Tag Filter (regex):</label>
-            <input 
-              type="text" 
-              value={filters.tag}
-              onChange={(e) => updateFilter('tag', e.target.value)}
-              placeholder="e.g., Activity.*" 
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            />
-          </div>
-          <div className="flex-1 flex flex-col">
-            <label className="text-xs text-text-secondary mb-1.5">PID:</label>
-            <input 
-              type="text" 
-              value={filters.pid}
-              onChange={(e) => updateFilter('pid', e.target.value)}
-              placeholder="e.g., 12345" 
-              className="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue"
-            />
-          </div>
+        {/* Log Level */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Log Level:</label>
+          <Select 
+            value={filters.level}
+            onChange={(value) => updateFilter('level', value)}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'ALL', label: 'All' },
+              { value: 'V', label: 'Verbose' },
+              { value: 'D', label: 'Debug' },
+              { value: 'I', label: 'Info' },
+              { value: 'W', label: 'Warning' },
+              { value: 'E', label: 'Error' },
+              { value: 'F', label: 'Fatal' },
+            ]}
+          />
+        </div>
+
+        {/* Tag Filter */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Tag Filter (regex):</label>
+          <Input 
+            value={filters.tag}
+            onChange={(e) => updateFilter('tag', e.target.value)}
+            placeholder="e.g., Activity.*" 
+          />
+        </div>
+
+        {/* PID */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">PID:</label>
+          <Input 
+            value={filters.pid}
+            onChange={(e) => updateFilter('pid', e.target.value)}
+            placeholder="e.g., 12345" 
+          />
         </div>
 
         {/* Search/Clear Buttons */}
-        <div className="flex gap-2.5 mt-4">
-          <button 
+        <Space.Compact block>
+          <Button 
+            type="primary"
+            icon={isSearching ? <LoadingOutlined /> : <SearchOutlined />}
             onClick={onSearch}
             disabled={isSearching}
-            className="bg-accent-teal text-dark-bg px-5 py-2.5 rounded hover:bg-teal-600 transition font-medium flex-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ flex: 1 }}
           >
-            {isSearching ? (
-              <>
-                <span className="inline-block w-4 h-4 border-2 border-dark-bg border-t-transparent rounded-full animate-spin"></span>
-                Searching...
-              </>
-            ) : (
-              <>🔍 Search</>
-            )}
-          </button>
-          <button 
+            {isSearching ? 'Searching...' : 'Search'}
+          </Button>
+          <Button 
+            icon={<ClearOutlined />}
             onClick={onClearFilters}
             disabled={isSearching}
-            className="bg-transparent text-text-secondary px-4 py-2.5 rounded hover:text-text-primary transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Clear
-          </button>
-        </div>
+          </Button>
+        </Space.Compact>
         
         {/* Save/Load Buttons */}
-        <div className="flex gap-2.5 mt-2.5">
-          <button 
+        <Space.Compact block>
+          <Button 
+            icon={<SaveOutlined />}
             onClick={onSaveFilters}
-            className="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1"
+            style={{ flex: 1 }}
           >
-            💾 Save
-          </button>
-          <button 
+            Save
+          </Button>
+          <Button 
+            icon={<FolderOutlined />}
             onClick={onLoadFilters}
-            className="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1"
+            style={{ flex: 1 }}
           >
-            📂 Load
-          </button>
-        </div>
+            Load
+          </Button>
+        </Space.Compact>
 
-        {/* Import/Export Buttons (NEW) */}
-        <div className="flex gap-2.5 mt-2.5">
-          <button 
+        {/* Import/Export Buttons */}
+        <Space.Compact block>
+          <Button 
+            icon={<ImportOutlined />}
             onClick={onImportFilters}
-            className="bg-transparent border border-accent-purple text-accent-purple px-4 py-1.5 rounded hover:bg-accent-purple hover:text-white transition text-sm flex-1"
+            style={{ flex: 1 }}
           >
-            📥 Import
-          </button>
-          <button 
+            Import
+          </Button>
+          <Button 
+            icon={<ExportOutlined />}
             onClick={onExportFilters}
-            className="bg-transparent border border-accent-purple text-accent-purple px-4 py-1.5 rounded hover:bg-accent-purple hover:text-white transition text-sm flex-1"
+            style={{ flex: 1 }}
           >
-            📤 Export
-          </button>
-        </div>
-      </div>
+            Export
+          </Button>
+        </Space.Compact>
 
-      {/* AI Analysis Section */}
-      <div className="mb-6">
-        <h3 className="text-accent-teal text-base mb-4 border-b border-dark-border pb-2">AI Analysis</h3>
-        <textarea 
-          value={aiPrompt}
-          onChange={(e) => setAiPrompt(e.target.value)}
-          placeholder="Optional: Enter specific questions or analysis requests for the AI..." 
-          rows={2} 
-          className="w-full bg-dark-input border border-dark-border text-text-primary px-2.5 py-2.5 rounded text-sm resize-y mb-2.5 focus:outline-none focus:border-accent-blue"
-        />
-        <button 
+        {/* Manage Presets Button */}
+        <Button 
+          icon={<SettingOutlined />}
+          onClick={onManagePresets}
+          block
+        >
+          Manage Presets
+        </Button>
+
+        <Divider style={{ margin: '8px 0', borderColor: '#3e3e42' }}>AI Analysis</Divider>
+        
+        {/* AI Prompt */}
+        <div>
+          <Input.TextArea 
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Optional: Enter specific questions or analysis requests for the AI..." 
+            rows={3} 
+            style={{ resize: 'vertical' }}
+          />
+        </div>
+        
+        <Button 
+          type="primary"
+          icon={<RobotOutlined />}
           onClick={() => onAnalyzeWithAI(aiPrompt)}
           disabled={!aiConfigured}
-          className="bg-accent-purple text-white px-5 py-2.5 rounded hover:bg-purple-700 transition font-medium w-full disabled:opacity-50 disabled:cursor-not-allowed"
+          block
+          size="large"
+          style={{ backgroundColor: '#c586c0', borderColor: '#c586c0' }}
         >
-          🤖 Analyze with AI
-        </button>
+          Analyze with AI
+        </Button>
+
+        {/* Status Message */}
         {statusMessage && (
-          <div className={`mt-2.5 px-2 py-2 rounded text-xs ${
-            statusType === 'info' ? 'bg-blue-900/40 text-blue-300' : 'bg-red-900/40 text-red-300'
-          }`}>
-            {statusMessage}
-          </div>
+          <Alert 
+            message={statusMessage}
+            type={statusType === 'info' ? 'info' : 'error'}
+            showIcon
+            closable
+          />
         )}
-      </div>
-    </section>
+      </Space>
+    </Drawer>
   );
 };
 
