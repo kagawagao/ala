@@ -85,10 +85,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       onClose={onDrawerClose}
       open={drawerOpen}
       width={400}
-      styles={{
-        body: { padding: '16px', backgroundColor: 'var(--ant-color-bg-container)' },
-        header: { backgroundColor: 'var(--ant-color-bg-elevated)', borderBottom: '1px solid var(--ant-color-border)', color: 'var(--ant-color-primary)' }
-      }}
       className="control-panel-drawer"
     >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -259,7 +255,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           disabled={!aiConfigured}
           block
           size="large"
-          className="bg-accent-purple border-accent-purple hover:bg-purple-700"
+          className="ai-analyze-button"
         >
           Analyze with AI
         </Button>

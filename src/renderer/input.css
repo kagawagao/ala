@@ -128,6 +128,32 @@
   .hover\:bg-purple-700:hover {
     background-color: #a068a0;
   }
+  
+  /* Control Panel Drawer Styles */
+  .control-panel-drawer .ant-drawer-body {
+    padding: 16px;
+    background-color: var(--ant-color-bg-container);
+  }
+  
+  .control-panel-drawer .ant-drawer-header {
+    background-color: var(--ant-color-bg-elevated);
+    border-bottom: 1px solid var(--ant-color-border);
+  }
+  
+  .control-panel-drawer .ant-drawer-title {
+    color: var(--ant-color-primary);
+  }
+  
+  /* AI Button Styling */
+  .ai-analyze-button.ant-btn-primary {
+    background-color: #c586c0;
+    border-color: #c586c0;
+  }
+  
+  .ai-analyze-button.ant-btn-primary:hover:not(:disabled) {
+    background-color: #a068a0;
+    border-color: #a068a0;
+  }
 }
 
 /* Custom scrollbar styles */

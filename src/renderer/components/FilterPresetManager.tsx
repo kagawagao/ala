@@ -41,7 +41,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
         setPresets(JSON.parse(saved));
       } catch (e) {
         console.error('Failed to load presets:', e);
-        message.error('Failed to load presets');
+        const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+        message.error(`Failed to load presets: ${errorMsg}`);
       }
     }
   };
