@@ -167,6 +167,85 @@
     border-color: #a068a0;
   }
   
+  /* Tabs Styling */
+  .ant-tabs {
+    color: var(--ant-color-text);
+  }
+  
+  .ant-tabs-tab {
+    color: var(--ant-color-text-secondary);
+  }
+  
+  .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: var(--ant-color-primary) !important;
+  }
+  
+  .ant-tabs-ink-bar {
+    background-color: var(--ant-color-primary);
+  }
+  
+  .ant-tabs-content-holder {
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .ant-tabs-content {
+    height: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .ant-tabs-tabpane {
+    height: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Collapse Styling */
+  .ant-collapse {
+    background-color: transparent;
+    border-color: var(--ant-color-border);
+  }
+  
+  .ant-collapse-item {
+    border-color: var(--ant-color-border);
+  }
+  
+  .ant-collapse-header {
+    color: var(--ant-color-text) !important;
+    background-color: var(--ant-color-bg-elevated);
+  }
+  
+  .ant-collapse-content {
+    background-color: var(--ant-color-bg-container);
+    border-color: var(--ant-color-border);
+  }
+  
+  .ant-collapse-content-box {
+    background-color: var(--ant-color-bg-container);
+  }
+  
+  /* Radio Button Styling */
+  .ant-radio-button-wrapper {
+    background-color: transparent;
+    border-color: var(--ant-color-border);
+    color: var(--ant-color-text);
+  }
+  
+  .ant-radio-button-wrapper-checked {
+    background-color: var(--ant-color-primary) !important;
+    border-color: var(--ant-color-primary) !important;
+    color: #ffffff !important;
+  }
+  
+  .ant-radio-button-wrapper:hover {
+    color: var(--ant-color-primary);
+  }
+  
   /* Log line number display */
   .line-number-display {
     color: #858585;

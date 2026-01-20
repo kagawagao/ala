@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tabs } from 'antd';
 import { LogEntry, LogStatistics } from '../types';
 
 interface LogViewerProps {
@@ -11,6 +12,7 @@ interface LogViewerProps {
   setActiveTab: (tab: 'logs' | 'ai') => void;
   aiAnalysis: string;
   isSearching: boolean;
+  lineBreakMode: 'wrap' | 'nowrap';
 }
 
 const MAX_RENDERED_LOGS = 1000;
@@ -25,6 +27,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   setActiveTab,
   aiAnalysis,
   isSearching,
+  lineBreakMode,
 }) => {
   const escapeHtml = (text: string): string => {
     const div = document.createElement('div');
@@ -111,6 +114,53 @@ const LogViewer: React.FC<LogViewerProps> = ({
     );
   };
 
+  const tabItems = [
+    {
+      key: 'logs',
+      label: 'Log Viewer',
+      children: (
+        <div className={`flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom ${lineBreakMode === 'nowrap' ? 'overflow-x-auto' : ''}`}>
+          {isSearching ? (
+            <div className="flex items-center justify-center min-h-full">
+              <div className="text-center">
+                <div className="inline-block w-12 h-12 border-4 border-accent-teal border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-text-secondary">Searching logs...</p>
+              </div>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="flex items-center justify-center min-h-full text-text-secondary">
+              <p>No logs loaded or no logs match the current filters. Click "Search" to filter logs.</p>
+            </div>
+          ) : (
+            <div className={lineBreakMode === 'nowrap' ? 'whitespace-nowrap' : ''}>
+              {logs.slice(0, MAX_RENDERED_LOGS).map((log, index) => renderLogLine(log, index))}
+              {logs.length > MAX_RENDERED_LOGS && (
+                <div className="flex items-center justify-center py-8 text-text-secondary">
+                  <p>Showing first {MAX_RENDERED_LOGS} of {logs.length} logs. Apply more filters to see more.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'ai',
+      label: 'AI Analysis',
+      children: (
+        <div className="flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom">
+          {aiAnalysis ? (
+            <div className="whitespace-pre-wrap text-text-primary">{aiAnalysis}</div>
+          ) : (
+            <div className="flex items-center justify-center min-h-full text-text-secondary">
+              <p>No AI analysis yet. Click "Analyze with AI" to start.</p>
+            </div>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <section className="flex-1 flex flex-col overflow-hidden">
       {/* Statistics Bar */}
@@ -145,65 +195,20 @@ const LogViewer: React.FC<LogViewerProps> = ({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-dark-panel px-6 py-2 border-b border-dark-border flex gap-6">
-        <button
-          onClick={() => setActiveTab('logs')}
-          className={`py-2 px-4 font-medium transition ${
-            activeTab === 'logs' 
-              ? 'text-accent-teal border-b-2 border-accent-teal' 
-              : 'text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          Log Viewer
-        </button>
-        <button
-          onClick={() => setActiveTab('ai')}
-          className={`py-2 px-4 font-medium transition ${
-            activeTab === 'ai' 
-              ? 'text-accent-teal border-b-2 border-accent-teal' 
-              : 'text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          AI Analysis
-        </button>
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom">
-        {isSearching ? (
-          <div className="flex items-center justify-center min-h-full">
-            <div className="text-center">
-              <div className="inline-block w-12 h-12 border-4 border-accent-teal border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className="text-text-secondary">Searching logs...</p>
-            </div>
-          </div>
-        ) : activeTab === 'logs' ? (
-          logs.length === 0 ? (
-            <div className="flex items-center justify-center min-h-full text-text-secondary">
-              <p>No logs loaded or no logs match the current filters. Click "Search" to filter logs.</p>
-            </div>
-          ) : (
-            <>
-              {logs.slice(0, MAX_RENDERED_LOGS).map((log, index) => renderLogLine(log, index))}
-              {logs.length > MAX_RENDERED_LOGS && (
-                <div className="flex items-center justify-center py-8 text-text-secondary">
-                  <p>Showing first {MAX_RENDERED_LOGS} of {logs.length} logs. Apply more filters to see more.</p>
-                </div>
-              )}
-            </>
-          )
-        ) : (
-          <div className="prose prose-invert max-w-none">
-            {aiAnalysis ? (
-              <div className="whitespace-pre-wrap text-text-primary">{aiAnalysis}</div>
-            ) : (
-              <div className="flex items-center justify-center min-h-full text-text-secondary">
-                <p>No AI analysis yet. Click "Analyze with AI" to start.</p>
-              </div>
-            )}
-          </div>
-        )}
+      {/* Tabs with Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Tabs
+          activeKey={activeTab}
+          onChange={(key) => setActiveTab(key as 'logs' | 'ai')}
+          items={tabItems}
+          className="flex-1"
+          style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+          tabBarStyle={{ 
+            backgroundColor: 'var(--ant-color-bg-container)',
+            margin: 0,
+            paddingLeft: '24px',
+          }}
+        />
       </div>
     </section>
   );

@@ -42,6 +42,7 @@ declare global {
       checkAIConfigured: () => Promise<boolean>;
       importFilters: () => Promise<LogFilters | null>;
       exportFilters: (filters: LogFilters) => Promise<boolean>;
+      deleteLogFile: (filePath: string) => Promise<boolean>;
     };
   }
 }

@@ -8,7 +8,10 @@ import {
   Select, 
   Space, 
   Divider, 
-  Alert 
+  Alert,
+  Radio,
+  Collapse,
+  Tag
 } from 'antd';
 import {
   FolderOpenOutlined,
@@ -20,7 +23,8 @@ import {
   ExportOutlined,
   RobotOutlined,
   SettingOutlined,
-  LoadingOutlined
+  LoadingOutlined,
+  CheckOutlined
 } from '@ant-design/icons';
 
 interface ControlPanelProps {
@@ -46,6 +50,10 @@ interface ControlPanelProps {
   drawerOpen: boolean;
   onDrawerClose: () => void;
   onManagePresets: () => void;
+  lineBreakMode: 'wrap' | 'nowrap';
+  onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
+  onLoadPreset: (filters: LogFilters) => void;
+  onDeleteFile: (filePath: string) => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -71,8 +79,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   drawerOpen,
   onDrawerClose,
   onManagePresets,
+  lineBreakMode,
+  onLineBreakModeChange,
+  onLoadPreset,
+  onDeleteFile,
 }) => {
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
+  const [savedPresets, setSavedPresets] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    loadPresets();
+  }, []);
+
+  const loadPresets = () => {
+    const saved = localStorage.getItem('ala_filter_presets');
+    if (saved) {
+      try {
+        setSavedPresets(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load presets:', e);
+      }
+    }
+  };
+
+  const handleApplyPreset = (preset: any) => {
+    onLoadPreset(preset.filters);
+  };
 
   const updateFilter = (key: keyof LogFilters, value: string) => {
     setFilters({ ...filters, [key]: value });
@@ -100,13 +132,39 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             Open Log File(s)
           </Button>
           {currentFiles.length > 0 && (
-            <div className="mt-2 text-accent-teal text-xs break-all">
-              {currentFiles.length === 1 
-                ? `📄 ${currentFiles[0].split(/[\\/]/).pop()}`
-                : `📄 ${currentFiles.length} files loaded`
-              }
+            <div className="mt-2 space-y-1">
+              {currentFiles.map((file, index) => (
+                <div key={index} className="flex items-center justify-between text-accent-teal text-xs break-all bg-dark-panel p-2 rounded">
+                  <span className="flex-1">📄 {file.split(/[\\/]/).pop()}</span>
+                  {currentFiles.length > 1 && (
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      onClick={() => onDeleteFile(file)}
+                      className="ml-2"
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
           )}
+        </div>
+
+        {/* Line Break Mode */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Line Break Mode:</label>
+          <Radio.Group 
+            value={lineBreakMode}
+            onChange={(e) => onLineBreakModeChange(e.target.value)}
+            buttonStyle="solid"
+            style={{ width: '100%' }}
+          >
+            <Radio.Button value="wrap" style={{ width: '50%', textAlign: 'center' }}>Word Wrap</Radio.Button>
+            <Radio.Button value="nowrap" style={{ width: '50%', textAlign: 'center' }}>No Wrap</Radio.Button>
+          </Radio.Group>
         </div>
 
         <Divider style={{ margin: '8px 0', borderColor: 'var(--ant-color-border)' }}>Filters</Divider>
@@ -234,6 +292,44 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         >
           Manage Presets
         </Button>
+
+        {/* Filter Presets Collapse */}
+        {savedPresets.length > 0 && (
+          <Collapse
+            size="small"
+            items={savedPresets.map((preset) => ({
+              key: preset.id,
+              label: preset.name,
+              children: (
+                <div className="space-y-2">
+                  {preset.description && (
+                    <p className="text-xs text-text-secondary">{preset.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {preset.filters.keywords && (
+                      <Tag color="blue" className="text-xs">Keywords: {preset.filters.keywords}</Tag>
+                    )}
+                    {preset.filters.level && preset.filters.level !== 'ALL' && (
+                      <Tag color="green" className="text-xs">Level: {preset.filters.level}</Tag>
+                    )}
+                    {preset.filters.tag && (
+                      <Tag color="purple" className="text-xs">Tag: {preset.filters.tag}</Tag>
+                    )}
+                  </div>
+                  <Button 
+                    type="primary" 
+                    size="small" 
+                    icon={<CheckOutlined />}
+                    onClick={() => handleApplyPreset(preset)}
+                    block
+                  >
+                    Apply Preset
+                  </Button>
+                </div>
+              ),
+            }))}
+          />
+        )}
 
         <Divider style={{ margin: '8px 0', borderColor: 'var(--ant-color-border)' }}>AI Analysis</Divider>
         

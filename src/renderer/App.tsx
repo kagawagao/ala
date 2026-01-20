@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
+  const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
@@ -314,6 +315,25 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
+  const handleDeleteFile = async (filePath: string) => {
+    // Remove from currentFiles
+    const updatedFiles = currentFiles.filter(f => f !== filePath);
+    setCurrentFiles(updatedFiles);
+    
+    // Remove logs from this file
+    const fileName = filePath.split(/[\\/]/).pop();
+    const updatedAllLogs = allLogs.filter(log => log.sourceFile !== fileName);
+    const updatedFilteredLogs = filteredLogs.filter(log => log.sourceFile !== fileName);
+    
+    setAllLogs(updatedAllLogs);
+    setFilteredLogs(updatedFilteredLogs);
+    
+    // Call IPC to confirm deletion (just returns success)
+    await window.electronAPI.deleteLogFile(filePath);
+    
+    showStatus(`Removed ${fileName} from view`, 'info');
+  };
+
   return (
     <ConfigProvider
       theme={{
@@ -358,6 +378,10 @@ const App: React.FC = () => {
           drawerOpen={drawerOpen}
           onDrawerClose={() => setDrawerOpen(false)}
           onManagePresets={() => setPresetManagerVisible(true)}
+          lineBreakMode={lineBreakMode}
+          onLineBreakModeChange={setLineBreakMode}
+          onLoadPreset={handleLoadPreset}
+          onDeleteFile={handleDeleteFile}
         />
         
         <LogViewer
@@ -370,6 +394,7 @@ const App: React.FC = () => {
           setActiveTab={setActiveTab}
           aiAnalysis={aiAnalysis}
           isSearching={isSearching}
+          lineBreakMode={lineBreakMode}
         />
       </div>
       
