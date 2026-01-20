@@ -109,7 +109,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
         </div>
 
-        <Divider style={{ margin: '8px 0', borderColor: '#3e3e42' }}>Filters</Divider>
+        <Divider style={{ margin: '8px 0', borderColor: 'var(--ant-color-border)' }}>Filters</Divider>
         
         {/* Time Range with DatePicker */}
         <div>
@@ -235,7 +235,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           Manage Presets
         </Button>
 
-        <Divider style={{ margin: '8px 0', borderColor: '#3e3e42' }}>AI Analysis</Divider>
+        <Divider style={{ margin: '8px 0', borderColor: 'var(--ant-color-border)' }}>AI Analysis</Divider>
         
         {/* AI Prompt */}
         <div>

@@ -154,6 +154,15 @@
     background-color: #a068a0;
     border-color: #a068a0;
   }
+  
+  /* Log line number display */
+  .line-number-display {
+    color: #858585;
+    margin-right: 0.625rem;
+    user-select: none;
+    min-width: 50px;
+    display: inline-block;
+  }
 }
 
 /* Custom scrollbar styles */

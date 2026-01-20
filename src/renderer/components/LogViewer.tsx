@@ -72,7 +72,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const renderLogLine = (log: LogEntry, index: number) => {
     const levelClass = getLevelClass(log.level);
     const lineNumber = log.lineNumber ? (
-      <span className="text-gray-500 mr-2.5 select-none" style={{ minWidth: '50px', display: 'inline-block' }}>
+      <span className="line-number-display">
         #{log.lineNumber}
       </span>
     ) : null;
