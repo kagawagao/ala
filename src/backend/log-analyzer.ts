@@ -132,12 +132,12 @@ export class LogAnalyzer {
       if (match) {
         parsedLogs.push({
           lineNumber: i + 1,
-          timestamp: match[1],
-          pid: match[2],
-          tid: match[3],
-          level: match[4],
-          tag: match[5],
-          message: match[6],
+          timestamp: match[1].trim(),
+          pid: match[2].trim(),
+          tid: match[3].trim(),
+          level: match[4].trim(),
+          tag: match[5].trim(),
+          message: match[6].trim(),
           rawLine: line
         });
       } else {
@@ -177,12 +177,12 @@ export class LogAnalyzer {
         const level = this.normalizeLogLevel(match[2]);
         parsedLogs.push({
           lineNumber: i + 1,
-          timestamp: this.normalizeTimestamp(match[1]),
+          timestamp: this.normalizeTimestamp(match[1].trim()),
           pid: null,
           tid: null,
           level: level,
           tag: 'Generic',
-          message: match[3],
+          message: match[3].trim(),
           rawLine: line
         });
       } else {

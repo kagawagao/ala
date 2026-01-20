@@ -341,70 +341,76 @@ const App: React.FC = () => {
         token: {
           colorPrimary: themeMode === 'dark' ? '#4ec9b0' : '#1890ff',
           colorBgContainer: themeMode === 'dark' ? '#252526' : '#ffffff',
-          colorBgElevated: themeMode === 'dark' ? '#2d2d2d' : '#ffffff',
+          colorBgElevated: themeMode === 'dark' ? '#2d2d2d' : '#f5f5f5',
           colorText: themeMode === 'dark' ? '#d4d4d4' : '#000000',
           colorBorder: themeMode === 'dark' ? '#3e3e42' : '#d9d9d9',
         },
       }}
     >
-      <div className={`h-screen flex flex-col ${themeMode === 'light' ? 'bg-white text-black' : ''}`}>
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: themeMode === 'dark' ? '#1e1e1e' : '#ffffff',
+        color: themeMode === 'dark' ? '#d4d4d4' : '#000000'
+      }}>
         <Header 
           onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
           theme={themeMode}
           onToggleTheme={handleToggleTheme}
         />
       
-      <div className="flex flex-1 overflow-hidden">
-        <ControlPanel
-          filters={filters}
-          setFilters={setFilters}
-          startDate={startDate}
-          endDate={endDate}
-          setStartDate={setStartDate}
-          setEndDate={setEndDate}
-          onOpenFiles={handleOpenFiles}
-          onSearch={handleSearch}
-          onClearFilters={handleClearFilters}
-          onSaveFilters={handleSaveFilters}
-          onLoadFilters={handleLoadFilters}
-          onImportFilters={handleImportFilters}
-          onExportFilters={handleExportFilters}
-          onAnalyzeWithAI={handleAnalyzeWithAI}
-          currentFiles={currentFiles}
-          aiConfigured={aiConfigured}
-          statusMessage={statusMessage}
-          statusType={statusType}
-          isSearching={isSearching}
-          drawerOpen={drawerOpen}
-          onDrawerClose={() => setDrawerOpen(false)}
-          onManagePresets={() => setPresetManagerVisible(true)}
-          lineBreakMode={lineBreakMode}
-          onLineBreakModeChange={setLineBreakMode}
-          onLoadPreset={handleLoadPreset}
-          onDeleteFile={handleDeleteFile}
-        />
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <ControlPanel
+            filters={filters}
+            setFilters={setFilters}
+            startDate={startDate}
+            endDate={endDate}
+            setStartDate={setStartDate}
+            setEndDate={setEndDate}
+            onOpenFiles={handleOpenFiles}
+            onSearch={handleSearch}
+            onClearFilters={handleClearFilters}
+            onSaveFilters={handleSaveFilters}
+            onLoadFilters={handleLoadFilters}
+            onImportFilters={handleImportFilters}
+            onExportFilters={handleExportFilters}
+            onAnalyzeWithAI={handleAnalyzeWithAI}
+            currentFiles={currentFiles}
+            aiConfigured={aiConfigured}
+            statusMessage={statusMessage}
+            statusType={statusType}
+            isSearching={isSearching}
+            drawerOpen={drawerOpen}
+            onDrawerClose={() => setDrawerOpen(false)}
+            onManagePresets={() => setPresetManagerVisible(true)}
+            lineBreakMode={lineBreakMode}
+            onLineBreakModeChange={setLineBreakMode}
+            onLoadPreset={handleLoadPreset}
+            onDeleteFile={handleDeleteFile}
+          />
+          
+          <LogViewer
+            logs={filteredLogs}
+            allLogsCount={allLogs.length}
+            statistics={statistics}
+            currentFiles={currentFiles}
+            keywords={filters.keywords}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            aiAnalysis={aiAnalysis}
+            isSearching={isSearching}
+            lineBreakMode={lineBreakMode}
+          />
+        </div>
         
-        <LogViewer
-          logs={filteredLogs}
-          allLogsCount={allLogs.length}
-          statistics={statistics}
-          currentFiles={currentFiles}
-          keywords={filters.keywords}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          aiAnalysis={aiAnalysis}
-          isSearching={isSearching}
-          lineBreakMode={lineBreakMode}
+        <FilterPresetManager
+          visible={presetManagerVisible}
+          onClose={() => setPresetManagerVisible(false)}
+          currentFilters={filters}
+          onLoadPreset={handleLoadPreset}
         />
       </div>
-      
-      <FilterPresetManager
-        visible={presetManagerVisible}
-        onClose={() => setPresetManagerVisible(false)}
-        currentFilters={filters}
-        onLoadPreset={handleLoadPreset}
-      />
-    </div>
     </ConfigProvider>
   );
 };

@@ -36,7 +36,14 @@ const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 
   return (
     <div>
-      <label className="text-xs text-text-secondary mb-1.5 block">Time Range:</label>
+      <label style={{ 
+        fontSize: '12px', 
+        color: 'var(--ant-color-text-secondary)', 
+        marginBottom: '6px', 
+        display: 'block' 
+      }}>
+        Time Range:
+      </label>
       <RangePicker
         showTime={{
           format: 'HH:mm:ss',

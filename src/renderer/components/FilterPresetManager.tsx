@@ -104,7 +104,12 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {/* Add New Preset */}
         {showAddForm ? (
-          <div className="bg-dark-panel p-4 rounded border border-dark-border">
+          <div style={{
+            backgroundColor: 'var(--ant-color-bg-elevated)',
+            padding: '16px',
+            borderRadius: '4px',
+            border: '1px solid var(--ant-color-border)'
+          }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Input
                 placeholder="Preset Name"
@@ -176,7 +181,9 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 title={preset.name}
                 description={
                   <Space direction="vertical" size="small">
-                    {preset.description && <div className="text-gray-600">{preset.description}</div>}
+                    {preset.description && (
+                      <div style={{ color: '#6b7280' }}>{preset.description}</div>
+                    )}
                     <div>
                       {getFilterSummary(preset.filters).map((item, idx) => (
                         <Tag key={idx} color="blue" style={{ marginBottom: 4 }}>
@@ -184,7 +191,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                         </Tag>
                       ))}
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>
                       Created: {new Date(preset.createdAt).toLocaleString()}
                     </div>
                   </Space>

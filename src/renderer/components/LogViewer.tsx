@@ -45,7 +45,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
     try {
       // Try regex pattern first
       const pattern = new RegExp(`(${keywords})`, 'gi');
-      return text.replace(pattern, '<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded">$1</mark>');
+      return text.replace(pattern, '<mark style="background-color: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0 4px; border-radius: 2px;">$1</mark>');
     } catch (e) {
       // Fallback to space-separated keywords
       const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
@@ -53,41 +53,47 @@ const LogViewer: React.FC<LogViewerProps> = ({
       
       keywordList.forEach(keyword => {
         const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
-        highlightedText = highlightedText.replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded">$1</mark>');
+        highlightedText = highlightedText.replace(regex, '<mark style="background-color: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0 4px; border-radius: 2px;">$1</mark>');
       });
       
       return highlightedText;
     }
   };
 
-  const getLevelClass = (level: string): string => {
-    const levelColors: Record<string, string> = {
-      'E': 'text-red-400',
-      'W': 'text-yellow-400',
-      'I': 'text-blue-400',
-      'D': 'text-green-400',
-      'V': 'text-gray-400',
-      'F': 'text-red-600'
+  const getLevelClass = (level: string): { color: string; borderColor: string } => {
+    const levelColors: Record<string, { color: string; borderColor: string }> = {
+      'E': { color: '#f87171', borderColor: '#f87171' },
+      'W': { color: '#facc15', borderColor: '#facc15' },
+      'I': { color: '#60a5fa', borderColor: '#60a5fa' },
+      'D': { color: '#4ade80', borderColor: '#4ade80' },
+      'V': { color: '#9ca3af', borderColor: '#9ca3af' },
+      'F': { color: '#dc2626', borderColor: '#dc2626' }
     };
-    return levelColors[level] || 'text-gray-400';
+    return levelColors[level] || { color: '#9ca3af', borderColor: '#6b7280' };
   };
 
   const renderLogLine = (log: LogEntry, index: number) => {
-    const levelClass = getLevelClass(log.level);
+    const levelStyle = getLevelClass(log.level);
     const lineNumber = log.lineNumber ? (
-      <span className="line-number-display">
+      <span style={{ 
+        color: '#858585', 
+        marginRight: '10px', 
+        userSelect: 'none', 
+        minWidth: '50px', 
+        display: 'inline-block' 
+      }}>
         #{log.lineNumber}
       </span>
     ) : null;
     const timestamp = log.timestamp ? (
-      <span className="text-green-600 mr-2.5">{log.timestamp}</span>
+      <span style={{ color: '#16a34a', marginRight: '10px' }}>{log.timestamp}</span>
     ) : null;
-    const level = <span className={`font-bold mr-2.5 ${levelClass}`}>{log.level}</span>;
+    const level = <span style={{ fontWeight: 'bold', marginRight: '10px', color: levelStyle.color }}>{log.level}</span>;
     const tag = log.tag !== 'Unknown' ? (
-      <span className="text-purple-400 mr-2.5">[{log.tag}]</span>
+      <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
     ) : null;
     const sourceFile = currentFiles.length > 1 && log.sourceFile ? (
-      <span className="text-xs text-gray-500 mr-2.5">📄{log.sourceFile}</span>
+      <span style={{ fontSize: '12px', color: '#6b7280', marginRight: '10px' }}>📄{log.sourceFile}</span>
     ) : null;
 
     // Highlight keywords in message
@@ -97,13 +103,16 @@ const LogViewer: React.FC<LogViewerProps> = ({
     }
 
     return (
-      <div key={index} className={`log-line font-mono text-sm py-1 px-2 border-l-4 ${
-        log.level === 'E' ? 'border-red-400' : 
-        log.level === 'W' ? 'border-yellow-400' : 
-        log.level === 'I' ? 'border-blue-400' : 
-        log.level === 'D' ? 'border-green-400' : 
-        'border-gray-600'
-      }`}>
+      <div 
+        key={index} 
+        style={{
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          padding: '4px 8px',
+          borderLeft: `4px solid ${levelStyle.borderColor}`,
+          marginBottom: '2px'
+        }}
+      >
         {lineNumber}
         {timestamp}
         {level}
@@ -119,23 +128,55 @@ const LogViewer: React.FC<LogViewerProps> = ({
       key: 'logs',
       label: 'Log Viewer',
       children: (
-        <div className={`flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom ${lineBreakMode === 'nowrap' ? 'overflow-x-auto' : ''}`}>
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: lineBreakMode === 'nowrap' ? 'auto' : 'hidden',
+          backgroundColor: 'var(--ant-color-bg-container)',
+          padding: '16px'
+        }}>
           {isSearching ? (
-            <div className="flex items-center justify-center min-h-full">
-              <div className="text-center">
-                <div className="inline-block w-12 h-12 border-4 border-accent-teal border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-text-secondary">Searching logs...</p>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  display: 'inline-block',
+                  width: '48px',
+                  height: '48px',
+                  border: '4px solid #4ec9b0',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '16px'
+                }}></div>
+                <p style={{ color: 'var(--ant-color-text-secondary)' }}>Searching logs...</p>
               </div>
             </div>
           ) : logs.length === 0 ? (
-            <div className="flex items-center justify-center min-h-full text-text-secondary">
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+              color: 'var(--ant-color-text-secondary)'
+            }}>
               <p>No logs loaded or no logs match the current filters. Click "Search" to filter logs.</p>
             </div>
           ) : (
-            <div className={lineBreakMode === 'nowrap' ? 'whitespace-nowrap' : ''}>
+            <div style={{ whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal' }}>
               {logs.slice(0, MAX_RENDERED_LOGS).map((log, index) => renderLogLine(log, index))}
               {logs.length > MAX_RENDERED_LOGS && (
-                <div className="flex items-center justify-center py-8 text-text-secondary">
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '32px 0',
+                  color: 'var(--ant-color-text-secondary)'
+                }}>
                   <p>Showing first {MAX_RENDERED_LOGS} of {logs.length} logs. Apply more filters to see more.</p>
                 </div>
               )}
@@ -148,12 +189,23 @@ const LogViewer: React.FC<LogViewerProps> = ({
       key: 'ai',
       label: 'AI Analysis',
       children: (
-        <div className="flex-1 overflow-y-auto bg-dark-bg p-4 scrollbar-custom">
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          backgroundColor: 'var(--ant-color-bg-container)',
+          padding: '16px'
+        }}>
           {aiAnalysis ? (
-            <div className="whitespace-pre-wrap text-text-primary">{aiAnalysis}</div>
+            <div style={{ whiteSpace: 'pre-wrap', color: 'var(--ant-color-text)' }}>{aiAnalysis}</div>
           ) : (
-            <div className="flex items-center justify-center min-h-full text-text-secondary">
-              <p>No AI analysis yet. Click "Analyze with AI" to start.</p>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+              color: 'var(--ant-color-text-secondary)'
+            }}>
+              <p>No AI analysis yet. Click the floating AI button to start.</p>
             </div>
           )}
         </div>
@@ -162,33 +214,37 @@ const LogViewer: React.FC<LogViewerProps> = ({
   ];
 
   return (
-    <section className="flex-1 flex flex-col overflow-hidden">
+    <section style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Statistics Bar */}
-      <div className="bg-dark-panel px-6 py-3 border-b border-dark-border">
-        <div className="flex gap-6 text-sm">
+      <div style={{
+        backgroundColor: 'var(--ant-color-bg-elevated)',
+        padding: '12px 24px',
+        borderBottom: '1px solid var(--ant-color-border)'
+      }}>
+        <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
           <div>
-            <span className="text-text-secondary">Total: </span>
-            <span className="text-accent-teal font-semibold">{allLogsCount}</span>
+            <span style={{ color: 'var(--ant-color-text-secondary)' }}>Total: </span>
+            <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{allLogsCount}</span>
           </div>
           <div>
-            <span className="text-text-secondary">Filtered: </span>
-            <span className="text-accent-teal font-semibold">{logs.length}</span>
+            <span style={{ color: 'var(--ant-color-text-secondary)' }}>Filtered: </span>
+            <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{logs.length}</span>
           </div>
           {currentFiles.length > 0 && (
             <div>
-              <span className="text-text-secondary">Files: </span>
-              <span className="text-accent-blue font-semibold">{currentFiles.length}</span>
+              <span style={{ color: 'var(--ant-color-text-secondary)' }}>Files: </span>
+              <span style={{ color: '#007acc', fontWeight: 600 }}>{currentFiles.length}</span>
             </div>
           )}
           {statistics && (
             <>
               <div>
-                <span className="text-text-secondary">Errors: </span>
-                <span className="text-red-400 font-semibold">{statistics.byLevel.E || 0}</span>
+                <span style={{ color: 'var(--ant-color-text-secondary)' }}>Errors: </span>
+                <span style={{ color: '#f87171', fontWeight: 600 }}>{statistics.byLevel.E || 0}</span>
               </div>
               <div>
-                <span className="text-text-secondary">Warnings: </span>
-                <span className="text-yellow-400 font-semibold">{statistics.byLevel.W || 0}</span>
+                <span style={{ color: 'var(--ant-color-text-secondary)' }}>Warnings: </span>
+                <span style={{ color: '#facc15', fontWeight: 600 }}>{statistics.byLevel.W || 0}</span>
               </div>
             </>
           )}
@@ -196,19 +252,23 @@ const LogViewer: React.FC<LogViewerProps> = ({
       </div>
 
       {/* Tabs with Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Tabs
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key as 'logs' | 'ai')}
           items={tabItems}
-          className="flex-1"
-          style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+          style={{ height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}
           tabBarStyle={{ 
             backgroundColor: 'var(--ant-color-bg-container)',
             margin: 0,
             paddingLeft: '24px',
           }}
         />
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     </section>
   );
