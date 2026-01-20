@@ -84,7 +84,8 @@ const App: React.FC = () => {
                 const tagRegex = new RegExp(filters.tag, 'i');
                 if (!tagRegex.test(log.tag)) return false;
               } catch (e) {
-                if (log.tag.toLowerCase() !== filters.tag.toLowerCase()) return false;
+                // Fallback to case-insensitive contains search
+                if (!log.tag.toLowerCase().includes(filters.tag.toLowerCase())) return false;
               }
             }
 

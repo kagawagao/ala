@@ -1,4 +1,5 @@
 export interface LogEntry {
+  lineNumber?: number;
   timestamp: string;
   pid: string;
   tid: string;
