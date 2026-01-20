@@ -143,3 +143,5 @@ vite.config.ts.timestamp-*
 
 # TypeScript compilation output
 dist/
+src/**/*.js
+src/**/*.js.map

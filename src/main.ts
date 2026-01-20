@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, IpcMainInvokeEvent, Menu } from 'electron';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import LogAnalyzer, { LogEntry, LogFilters } from './backend/log-analyzer';
@@ -23,6 +23,15 @@ function createWindow(): void {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  Menu.setApplicationMenu(null);
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && input.key.toLowerCase() === 'd') {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
@@ -97,6 +106,10 @@ ipcMain.handle('parse-log', async (_event: IpcMainInvokeEvent, content: string):
 
 ipcMain.handle('filter-logs', async (_event: IpcMainInvokeEvent, { logs, filters }: { logs: LogEntry[]; filters: LogFilters }): Promise<LogEntry[]> => {
   return logAnalyzer.filterLogs(logs, filters);
+});
+
+ipcMain.handle('get-statistics', async (_event: IpcMainInvokeEvent, logs: LogEntry[]) => {
+  return logAnalyzer.getStatistics(logs);
 });
 
 ipcMain.handle('analyze-with-ai', async (_event: IpcMainInvokeEvent, { logs, prompt }: { logs: LogEntry[]; prompt: string }) => {

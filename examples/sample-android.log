@@ -1,7 +1,7 @@
 01-15 10:30:25.123  1234  1234 I ActivityManager: Start proc 5678:com.example.app/u0a123 for activity com.example.app/.MainActivity
-01-15 10:30:25.234  5678  5678 D MyApp: Application onCreate
-01-15 10:30:25.345  5678  5678 I MyApp: Initializing database
-01-15 10:30:25.456  5678  5678 V MyApp: Loading configuration from assets
+01-15 10:30:25.234  5678  5678 D MyApp   : Application onCreate
+01-15 10:30:25.345  5678  5678 I MyApp   : Initializing database
+01-15 10:30:25.456  5678  5678 V MyApp   : Loading configuration from assets
 01-15 10:30:25.567  5678  5678 D NetworkManager: Setting up network client
 01-15 10:30:25.678  5678  5678 I NetworkManager: Base URL: https://api.example.com
 01-15 10:30:26.123  5678  5678 D MainActivity: onCreate called
@@ -35,7 +35,7 @@
 01-15 10:30:38.892  5678  5678 I DetailActivity: Showing not found message
 01-15 10:30:40.123  1234  1234 I ActivityManager: Killing 9876:com.example.oldapp/u0a456 (adj 906): empty #33
 01-15 10:30:42.234  5678  5678 D HomeActivity: onResume called
-01-15 10:30:45.345  5678  5678 I MyApp: Application is in foreground
+01-15 10:30:45.345  5678  5678 I MyApp   : Application is in foreground
 01-15 10:30:50.456  5678  5702 D MemoryMonitor: Heap size: 45MB, allocated: 32MB, free: 13MB
 01-15 10:30:55.567  5678  5702 W MemoryMonitor: Memory usage is high: 85%
 01-15 10:31:00.678  5678  5678 D HomeActivity: User clicked logout button
