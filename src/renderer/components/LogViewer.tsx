@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'antd';
+import { Tabs, Divider } from 'antd';
 import { LogEntry, LogStatistics } from '../types';
 
 // CSS for animations
@@ -99,9 +99,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
     const tag = log.tag !== 'Unknown' ? (
       <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
     ) : null;
-    const sourceFile = currentFiles.length > 1 && log.sourceFile ? (
-      <span style={{ fontSize: '12px', color: '#6b7280', marginRight: '10px' }}>📄{log.sourceFile}</span>
-    ) : null;
 
     // Highlight keywords in message
     let message = escapeHtml(log.message);
@@ -123,11 +120,89 @@ const LogViewer: React.FC<LogViewerProps> = ({
         {lineNumber}
         {timestamp}
         {level}
-        {sourceFile}
         {tag}
         <span dangerouslySetInnerHTML={{ __html: message }} />
       </div>
     );
+  };
+
+  // Group logs by source file
+  const groupLogsByFile = (logs: LogEntry[]) => {
+    if (currentFiles.length <= 1) {
+      // Single file or no files, no grouping needed
+      return logs.map((log, index) => renderLogLine(log, index));
+    }
+
+    const groups: { file: string; logs: LogEntry[]; startIndex: number }[] = [];
+    let currentFile = '';
+    let currentGroup: LogEntry[] = [];
+    let startIndex = 0;
+
+    logs.forEach((log, index) => {
+      const logFile = log.sourceFile || '';
+      if (logFile !== currentFile) {
+        if (currentGroup.length > 0) {
+          groups.push({ file: currentFile, logs: currentGroup, startIndex });
+        }
+        currentFile = logFile;
+        currentGroup = [log];
+        startIndex = index;
+      } else {
+        currentGroup.push(log);
+      }
+    });
+
+    // Add the last group
+    if (currentGroup.length > 0) {
+      groups.push({ file: currentFile, logs: currentGroup, startIndex });
+    }
+
+    // Render groups with dividers
+    return groups.map((group, groupIndex) => (
+      <React.Fragment key={`group-${groupIndex}`}>
+        {groupIndex > 0 && (
+          <Divider 
+            style={{ 
+              margin: '16px 0',
+              borderColor: 'var(--ant-color-border-secondary)'
+            }}
+          />
+        )}
+        {group.file && (
+          <div style={{ 
+            marginBottom: '12px',
+            padding: '8px 12px',
+            backgroundColor: 'var(--ant-color-bg-elevated)',
+            borderRadius: '4px',
+            borderLeft: '4px solid #4ec9b0'
+          }}>
+            <span style={{ 
+              fontSize: '14px', 
+              fontWeight: 600,
+              color: 'var(--ant-color-text)',
+              marginRight: '8px'
+            }}>
+              📄
+            </span>
+            <span style={{ 
+              fontSize: '14px', 
+              fontWeight: 600,
+              color: '#4ec9b0'
+            }}>
+              {group.file}
+            </span>
+            <span style={{ 
+              fontSize: '12px',
+              color: 'var(--ant-color-text-secondary)',
+              marginLeft: '12px'
+            }}>
+              ({group.logs.length} logs)
+            </span>
+          </div>
+        )}
+        {group.logs.map((log, index) => renderLogLine(log, group.startIndex + index))}
+      </React.Fragment>
+    ));
   };
 
   const tabItems = [
@@ -175,7 +250,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             </div>
           ) : (
             <div style={{ whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal' }}>
-              {logs.slice(0, MAX_RENDERED_LOGS).map((log, index) => renderLogLine(log, index))}
+              {groupLogsByFile(logs.slice(0, MAX_RENDERED_LOGS))}
               {logs.length > MAX_RENDERED_LOGS && (
                 <div style={{
                   display: 'flex',
