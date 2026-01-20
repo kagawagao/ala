@@ -103,7 +103,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {/* Add New Preset */}
         {showAddForm ? (
-          <div className="bg-gray-50 p-4 rounded">
+          <div className="bg-dark-panel p-4 rounded border border-dark-border">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Input
                 placeholder="Preset Name"
