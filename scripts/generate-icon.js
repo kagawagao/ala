@@ -1,29 +1,97 @@
 #!/usr/bin/env node
 
 /**
- * Simple script to copy logo.svg as a placeholder icon
+ * Generate app icons from logo.svg using electron-icon-builder
  * 
- * For better quality, use ImageMagick or Inkscape:
- * convert -background none -density 1024 assets/logo.svg -resize 512x512 assets/icon.png
- * 
- * Or use an online converter like https://cloudconvert.com/svg-to-png
+ * This script generates all required icon sizes for:
+ * - macOS (.icns)
+ * - Windows (.ico)
+ * - Linux (.png)
  */
 
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const logoPath = path.join(__dirname, '..', 'assets', 'logo.svg');
+const assetsDir = path.join(__dirname, '..', 'assets');
 
-// For now, just copy the SVG and rename it
-// Electron and electron-builder can handle SVG icons on some platforms
-const iconSvgPath = path.join(__dirname, '..', 'assets', 'icon.svg');
-const iconPngPath = path.join(__dirname, '..', 'assets', 'icon.png');
+// Check if logo.svg exists
+if (!fs.existsSync(logoPath)) {
+  console.error('✗ logo.svg not found in assets/');
+  process.exit(1);
+}
 
-if (fs.existsSync(logoPath)) {
+console.log('Generating app icons from logo.svg...');
+
+try {
+  // First, convert SVG to high-res PNG (1024x1024) for icon generation
+  // electron-icon-builder expects PNG input
+  const tempPngPath = path.join(assetsDir, 'icon-temp-1024.png');
+  
+  // Try to use ImageMagick if available, otherwise use a simpler approach
+  let conversionSuccess = false;
+  
+  try {
+    execSync(
+      `convert -background none -density 1024 "${logoPath}" -resize 1024x1024 "${tempPngPath}"`,
+      { stdio: 'pipe' }
+    );
+    conversionSuccess = true;
+    console.log('✓ Converted logo.svg to high-res PNG using ImageMagick');
+  } catch (e) {
+    // ImageMagick not available, try alternative
+    console.log('⚠ ImageMagick not found, trying alternative method...');
+    
+    // Try using Inkscape if available
+    try {
+      execSync(
+        `inkscape "${logoPath}" --export-type=png --export-filename="${tempPngPath}" --export-width=1024`,
+        { stdio: 'pipe' }
+      );
+      conversionSuccess = true;
+      console.log('✓ Converted logo.svg to high-res PNG using Inkscape');
+    } catch (e2) {
+      console.log('⚠ Inkscape not found either');
+    }
+  }
+  
+  if (conversionSuccess && fs.existsSync(tempPngPath)) {
+    // Now use electron-icon-builder to generate all icon formats
+    const iconBuilderPath = path.join(__dirname, '..', 'node_modules', '.bin', 'electron-icon-builder');
+    
+    try {
+      execSync(
+        `"${iconBuilderPath}" --input="${tempPngPath}" --output="${assetsDir}" --flatten`,
+        { stdio: 'inherit' }
+      );
+      
+      // Clean up temp file
+      fs.unlinkSync(tempPngPath);
+      
+      console.log('\n✓ Successfully generated app icons:');
+      console.log('  - macOS: icon.icns');
+      console.log('  - Windows: icon.ico');
+      console.log('  - Linux: icon.png (multiple sizes)');
+      console.log('\n✓ All icon files ready for electron-builder');
+    } catch (builderError) {
+      console.error('✗ Error running electron-icon-builder:', builderError.message);
+      throw builderError;
+    }
+  } else {
+    throw new Error('Could not convert SVG to PNG');
+  }
+} catch (error) {
+  console.error('✗ Error generating icons:', error.message);
+  console.error('\nFalling back to simple copy method...');
+  
+  // Fallback: just copy the SVG as placeholder
+  const iconSvgPath = path.join(assetsDir, 'icon.svg');
+  const iconPngPath = path.join(assetsDir, 'icon.png');
+  
   fs.copyFileSync(logoPath, iconSvgPath);
   console.log('✓ Created icon.svg from logo.svg');
   
-  // Also create a symlink or copy as icon.png for compatibility
   try {
     fs.copyFileSync(logoPath, iconPngPath);
     console.log('✓ Created icon.png placeholder');
@@ -31,12 +99,8 @@ if (fs.existsSync(logoPath)) {
     // Ignore error
   }
   
-  console.log('\nℹ For best results, convert logo.svg to icon.png (512x512) using:');
-  console.log('  - ImageMagick: convert -background none -density 1024 assets/logo.svg -resize 512x512 assets/icon.png');
-  console.log('  - Inkscape: inkscape assets/logo.svg --export-type=png --export-filename=assets/icon.png --export-width=512');
-  console.log('  - Online: https://cloudconvert.com/svg-to-png');
-  console.log('\n  See assets/ICON.md for detailed instructions');
-} else {
-  console.error('✗ logo.svg not found in assets/');
-  process.exit(1);
+  console.log('\n⚠ Note: For production builds, install ImageMagick or Inkscape:');
+  console.log('  - Ubuntu/Debian: sudo apt-get install imagemagick');
+  console.log('  - macOS: brew install imagemagick');
+  console.log('  - Windows: https://imagemagick.org/script/download.php');
 }

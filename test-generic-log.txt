@@ -1,8 +1,0 @@
-[2024-01-15 10:30:45.123] INFO: Application started successfully
-2024-01-15 10:30:46.234 [DEBUG] Database connection established
-[2024-01-15 10:30:47.345] WARN: Cache size exceeding threshold
-2024-01-15 10:30:48.456 [ERROR] Failed to load configuration file
-[2024-01-15 10:30:49.567] INFO: User logged in - ID: 12345
-2024-01-15 10:30:50.678 [DEBUG] Processing request queue
-[2024-01-15 10:30:51.789] ERROR: Network timeout occurred
-2024-01-15 10:30:52.890 [INFO] Background task completed
