@@ -50,6 +50,7 @@ export enum LogFormat {
 export class LogAnalyzer {
   private androidLogcatPattern: RegExp;
   private genericTimestampedPattern: RegExp;
+  private readonly MAX_LOG_LINES = 100000; // Maximum log lines to prevent OOM
 
   constructor() {
     // Android logcat format regex pattern
@@ -103,18 +104,32 @@ export class LogAnalyzer {
   /**
    * Parse Android log content into structured format
    * Auto-detects format and parses accordingly
+   * Returns an object with parsed logs and truncation status
    */
-  parseLog(content: string): LogEntry[] {
+  parseLog(content: string): { logs: LogEntry[], truncated: boolean, totalLines: number } {
     const format = this.detectLogFormat(content);
     
+    let logs: LogEntry[];
     switch (format) {
       case LogFormat.ANDROID_LOGCAT:
-        return this.parseAndroidLogcat(content);
+        logs = this.parseAndroidLogcat(content);
+        break;
       case LogFormat.GENERIC_TIMESTAMPED:
-        return this.parseGenericTimestamped(content);
+        logs = this.parseGenericTimestamped(content);
+        break;
       default:
-        return this.parseUnknownFormat(content);
+        logs = this.parseUnknownFormat(content);
     }
+    
+    const totalLines = logs.length;
+    const truncated = totalLines > this.MAX_LOG_LINES;
+    
+    // Truncate if exceeds limit
+    if (truncated) {
+      logs = logs.slice(0, this.MAX_LOG_LINES);
+    }
+    
+    return { logs, truncated, totalLines };
   }
 
   /**

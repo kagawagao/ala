@@ -103,7 +103,7 @@ ipcMain.handle('open-log-files', async (): Promise<Array<{ filePath: string; con
   return null;
 });
 
-ipcMain.handle('parse-log', async (_event: IpcMainInvokeEvent, content: string): Promise<LogEntry[]> => {
+ipcMain.handle('parse-log', async (_event: IpcMainInvokeEvent, content: string): Promise<{ logs: LogEntry[], truncated: boolean, totalLines: number }> => {
   return logAnalyzer.parseLog(content);
 });
 

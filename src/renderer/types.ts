@@ -31,11 +31,17 @@ export interface AIAnalysisResult {
   timestamp: string;
 }
 
+export interface ParseLogResult {
+  logs: LogEntry[];
+  truncated: boolean;
+  totalLines: number;
+}
+
 declare global {
   interface Window {
     electronAPI: {
       openLogFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
-      parseLog: (content: string) => Promise<LogEntry[]>;
+      parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
       analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<string>;

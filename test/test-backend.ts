@@ -16,8 +16,13 @@ const logAnalyzer = new LogAnalyzer();
 // Fix path - examples is in root, not in dist
 const sampleLogPath = path.join(__dirname, '../../examples/sample-android.log');
 const logContent = fs.readFileSync(sampleLogPath, 'utf-8');
-const parsedLogs = logAnalyzer.parseLog(logContent);
-console.log(`✓ Parsed ${parsedLogs.length} log lines\n`);
+const parseResult = logAnalyzer.parseLog(logContent);
+const parsedLogs = parseResult.logs;
+console.log(`✓ Parsed ${parsedLogs.length} log lines`);
+if (parseResult.truncated) {
+  console.log(`⚠ Warning: Log file truncated at ${parsedLogs.length} lines (total: ${parseResult.totalLines})`);
+}
+console.log();
 
 // Test 2: Get statistics
 console.log('Test 2: Getting statistics...');

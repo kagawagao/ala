@@ -187,8 +187,23 @@ const App: React.FC = () => {
       showStatus(`Parsing ${rawFileContents.length} log file(s)...`, 'info');
       
       let allParsedLogs: LogEntry[] = [];
+      let anyTruncated = false;
+      let totalLinesCount = 0;
+      let maxLinesLimit = 0;
+      
       for (const result of rawFileContents) {
-        const logs = await window.electronAPI.parseLog(result.content);
+        const parseResult = await window.electronAPI.parseLog(result.content);
+        // Extract logs and truncation info
+        const logs = parseResult.logs;
+        const truncated = parseResult.truncated;
+        const totalLines = parseResult.totalLines;
+        
+        if (truncated) {
+          anyTruncated = true;
+          maxLinesLimit = logs.length; // This is the limit
+        }
+        totalLinesCount += totalLines;
+        
         // Add file source to each log entry
         logs.forEach(log => {
           log.sourceFile = result.filePath.split(/[\\/]/).pop();
@@ -200,7 +215,14 @@ const App: React.FC = () => {
       // Clear raw contents after parsing
       setRawFileContents([]);
       
-      showStatus(`Parsed ${allParsedLogs.length} log lines. Applying filters...`, 'info');
+      if (anyTruncated) {
+        showStatus(
+          `Warning: Log file(s) contained ${totalLinesCount.toLocaleString()} lines. Only the first ${maxLinesLimit.toLocaleString()} lines were loaded to prevent memory issues. Consider filtering the log file before opening.`,
+          'error'
+        );
+      } else {
+        showStatus(`Parsed ${allParsedLogs.length} log lines. Applying filters...`, 'info');
+      }
       
       // Now filter the parsed logs
       const filterData = {
