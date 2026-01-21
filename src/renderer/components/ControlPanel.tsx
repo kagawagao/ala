@@ -24,6 +24,7 @@ import {
   SettingOutlined,
   LoadingOutlined
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 interface ControlPanelProps {
   filters: LogFilters;
@@ -51,6 +52,7 @@ interface ControlPanelProps {
   lineBreakMode: 'wrap' | 'nowrap';
   onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
   onLoadPreset: (filters: LogFilters) => void;
+  onApplyMultiplePresets: (presets: LogFilters[]) => void;
   onDeleteFile: (filePath: string) => void;
 }
 
@@ -80,8 +82,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   lineBreakMode,
   onLineBreakModeChange,
   onLoadPreset,
+  onApplyMultiplePresets,
   onDeleteFile,
 }) => {
+  const { t } = useTranslation();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
 
@@ -92,11 +96,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   return (
     <>
       <Drawer
-        title="Control Panel"
+        title={t('controlPanel')}
         placement="right"
         onClose={onDrawerClose}
         open={drawerOpen}
         width={400}
+        mask={false}
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           {/* File Controls */}
@@ -108,7 +113,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               block
               size="large"
             >
-              Open Log File(s)
+              {t('openFiles')}
             </Button>
             {currentFiles.length > 0 && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -147,7 +152,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           {/* Line Break Mode */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              Line Break Mode:
+              {t('lineBreakMode')}:
             </label>
             <Radio.Group 
               value={lineBreakMode}
@@ -155,12 +160,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               buttonStyle="solid"
               style={{ width: '100%' }}
             >
-              <Radio.Button value="wrap" style={{ width: '50%', textAlign: 'center' }}>Word Wrap</Radio.Button>
-              <Radio.Button value="nowrap" style={{ width: '50%', textAlign: 'center' }}>No Wrap</Radio.Button>
+              <Radio.Button value="wrap" style={{ width: '50%', textAlign: 'center' }}>{t('wordWrap')}</Radio.Button>
+              <Radio.Button value="nowrap" style={{ width: '50%', textAlign: 'center' }}>{t('noWrap')}</Radio.Button>
             </Radio.Group>
           </div>
 
-          <Divider style={{ margin: '8px 0' }}>Filters</Divider>
+          <Divider style={{ margin: '8px 0' }}>{t('filters')}</Divider>
           
           {/* Time Range with DatePicker */}
           <div>
@@ -175,32 +180,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           {/* Keywords */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              Keywords (regex supported):
+              {t('keywordsRegexSupported')}
             </label>
             <Input 
               value={filters.keywords}
               onChange={(e) => updateFilter('keywords', e.target.value)}
-              placeholder="e.g., error|crash|exception" 
+              placeholder={t('keywordsPlaceholder')} 
             />
           </div>
 
           {/* Log Level */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              Log Level:
+              {t('logLevel')}:
             </label>
             <Select 
               value={filters.level}
               onChange={(value) => updateFilter('level', value)}
               style={{ width: '100%' }}
               options={[
-                { value: 'ALL', label: 'All' },
-                { value: 'V', label: 'Verbose' },
-                { value: 'D', label: 'Debug' },
-                { value: 'I', label: 'Info' },
-                { value: 'W', label: 'Warning' },
-                { value: 'E', label: 'Error' },
-                { value: 'F', label: 'Fatal' },
+                { value: 'ALL', label: t('allLevels') },
+                { value: 'V', label: t('verbose') },
+                { value: 'D', label: t('debug') },
+                { value: 'I', label: t('info') },
+                { value: 'W', label: t('warning') },
+                { value: 'E', label: t('error') },
+                { value: 'F', label: t('fatal') },
               ]}
             />
           </div>
@@ -208,24 +213,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           {/* Tag Filter */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              Tag Filter (regex):
+              {t('tagFilterRegex')}
             </label>
             <Input 
               value={filters.tag}
               onChange={(e) => updateFilter('tag', e.target.value)}
-              placeholder="e.g., Activity.*" 
+              placeholder={t('tagPlaceholder')} 
             />
           </div>
 
           {/* PID */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              PID:
+              {t('pid')}:
             </label>
             <Input 
               value={filters.pid}
               onChange={(e) => updateFilter('pid', e.target.value)}
-              placeholder="e.g., 12345" 
+              placeholder={t('pidPlaceholder')} 
             />
           </div>
 
@@ -238,14 +243,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               disabled={isSearching}
               style={{ flex: 1 }}
             >
-              {isSearching ? 'Searching...' : 'Search'}
+              {isSearching ? t('searching') : t('search')}
             </Button>
             <Button 
               icon={<ClearOutlined />}
               onClick={onClearFilters}
               disabled={isSearching}
             >
-              Clear
+              {t('clearFilters')}
             </Button>
           </Space.Compact>
           
@@ -256,14 +261,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               onClick={onSaveFilters}
               style={{ flex: 1 }}
             >
-              Save
+              {t('save')}
             </Button>
             <Button 
               icon={<FolderOutlined />}
               onClick={onLoadFilters}
               style={{ flex: 1 }}
             >
-              Load
+              {t('load')}
             </Button>
           </Space.Compact>
 
@@ -274,14 +279,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               onClick={onImportFilters}
               style={{ flex: 1 }}
             >
-              Import
+              {t('importFilters')}
             </Button>
             <Button 
               icon={<ExportOutlined />}
               onClick={onExportFilters}
               style={{ flex: 1 }}
             >
-              Export
+              {t('exportFilters')}
             </Button>
           </Space.Compact>
 
@@ -291,7 +296,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             onClick={onManagePresets}
             block
           >
-            Manage Presets
+            {t('managePresets')}
           </Button>
 
           {/* Filter Presets Collapse */}
@@ -321,13 +326,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           backgroundColor: '#c586c0'
         }}
         onClick={() => setAiPanelOpen(!aiPanelOpen)}
-        tooltip="AI Analysis"
+        tooltip={t('aiAnalysisTooltip')}
       />
 
       {aiPanelOpen && (
         <div
           role="dialog"
-          aria-label="AI Analysis Panel"
+          aria-label={t('aiAnalysisPanel')}
           aria-modal="true"
           style={{
             position: 'fixed',
@@ -347,12 +352,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: 'var(--ant-color-primary)' }}>AI Analysis</h3>
+            <h3 style={{ margin: 0, color: 'var(--ant-color-primary)' }}>{t('aiAnalysis')}</h3>
             <Button 
               type="text" 
               size="small" 
               onClick={() => setAiPanelOpen(false)}
-              aria-label="Close AI panel"
+              aria-label={t('closeAiPanel')}
             >
               ✕
             </Button>
@@ -361,7 +366,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <Input.TextArea 
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder="Optional: Enter specific questions or analysis requests for the AI..." 
+            placeholder={t('aiPromptOptional')} 
             rows={4} 
             style={{ resize: 'vertical' }}
           />
@@ -381,12 +386,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               borderColor: '#c586c0'
             }}
           >
-            Analyze with AI
+            {t('analyzeWithAI')}
           </Button>
 
           {!aiConfigured && (
             <Alert 
-              message="AI features require OPENAI_API_KEY environment variable"
+              message={t('aiRequiresKey')}
               type="warning"
               showIcon
               style={{ fontSize: '12px' }}

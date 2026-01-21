@@ -59,6 +59,7 @@
     "dayjs": "^1.11.10",
     "i18next": "^25.7.4",
     "openai": "^4.20.0",
+    "rc-virtual-list": "^3.19.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-i18next": "^16.5.3"

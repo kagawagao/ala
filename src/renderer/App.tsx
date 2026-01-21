@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
+  const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -163,11 +164,30 @@ const App: React.FC = () => {
     if (results && results.length > 0) {
       const fileNames = results.map(r => r.filePath);
       setCurrentFiles(fileNames);
+      setRawFileContents(results);
       
-      showStatus(`Parsing ${results.length} log file(s)...`, 'info');
+      // Clear existing logs
+      setAllLogs([]);
+      setFilteredLogs([]);
+      
+      showStatus(`Loaded ${results.length} file(s). Click "Search" to parse and filter logs.`, 'info');
+    }
+  };
+
+  const handleSearch = async () => {
+    if (rawFileContents.length === 0 && allLogs.length === 0) {
+      showStatus('No log file loaded', 'error');
+      return;
+    }
+
+    setIsSearching(true);
+    
+    // Parse files on first search if not already parsed
+    if (rawFileContents.length > 0 && allLogs.length === 0) {
+      showStatus(`Parsing ${rawFileContents.length} log file(s)...`, 'info');
       
       let allParsedLogs: LogEntry[] = [];
-      for (const result of results) {
+      for (const result of rawFileContents) {
         const logs = await window.electronAPI.parseLog(result.content);
         // Add file source to each log entry
         logs.forEach(log => {
@@ -177,32 +197,36 @@ const App: React.FC = () => {
       }
       
       setAllLogs(allParsedLogs);
-      // Don't auto-filter after upload - wait for search button
-      setFilteredLogs([]);
+      // Clear raw contents after parsing
+      setRawFileContents([]);
       
-      showStatus(`Loaded ${allParsedLogs.length} log lines from ${results.length} file(s). Click "Search" to filter logs.`, 'info');
-    }
-  };
+      showStatus(`Parsed ${allParsedLogs.length} log lines. Applying filters...`, 'info');
+      
+      // Now filter the parsed logs
+      const filterData = {
+        ...filters,
+        startTime: startDate ? formatDateToTimestamp(startDate) : '',
+        endTime: endDate ? formatDateToTimestamp(endDate) : ''
+      };
 
-  const handleSearch = () => {
-    if (allLogs.length === 0) {
-      showStatus('No log file loaded', 'error');
-      return;
-    }
+      // Use Web Worker for non-blocking search
+      if (workerRef.current) {
+        workerRef.current.postMessage({ logs: allParsedLogs, filters: filterData });
+      }
+    } else {
+      showStatus('Searching...', 'info');
 
-    setIsSearching(true);
-    showStatus('Searching...', 'info');
+      // Convert dates to timestamp strings for filtering
+      const filterData = {
+        ...filters,
+        startTime: startDate ? formatDateToTimestamp(startDate) : '',
+        endTime: endDate ? formatDateToTimestamp(endDate) : ''
+      };
 
-    // Convert dates to timestamp strings for filtering
-    const filterData = {
-      ...filters,
-      startTime: startDate ? formatDateToTimestamp(startDate) : '',
-      endTime: endDate ? formatDateToTimestamp(endDate) : ''
-    };
-
-    // Use Web Worker for non-blocking search
-    if (workerRef.current) {
-      workerRef.current.postMessage({ logs: allLogs, filters: filterData });
+      // Use Web Worker for non-blocking search
+      if (workerRef.current) {
+        workerRef.current.postMessage({ logs: allLogs, filters: filterData });
+      }
     }
   };
 
@@ -317,6 +341,58 @@ const App: React.FC = () => {
     showStatus('Preset loaded successfully!', 'info');
   };
 
+  const handleApplyMultiplePresets = (presets: LogFilters[]) => {
+    if (presets.length === 0) return;
+    
+    // Merge multiple presets - combine keywords with OR operator, take most restrictive level
+    const mergedFilters: LogFilters = {
+      startTime: '',
+      endTime: '',
+      keywords: '',
+      level: 'ALL',
+      tag: '',
+      pid: ''
+    };
+
+    // Combine keywords with OR operator
+    const allKeywords = presets
+      .map(p => p.keywords)
+      .filter(k => k && k.trim())
+      .join('|');
+    
+    if (allKeywords) {
+      mergedFilters.keywords = allKeywords;
+    }
+
+    // Combine tags with OR operator
+    const allTags = presets
+      .map(p => p.tag)
+      .filter(t => t && t.trim())
+      .join('|');
+    
+    if (allTags) {
+      mergedFilters.tag = allTags;
+    }
+
+    // Use the most restrictive (highest priority) log level
+    const levelPriority: Record<string, number> = { 'ALL': 0, 'V': 1, 'D': 2, 'I': 3, 'W': 4, 'E': 5, 'F': 6 };
+    let highestLevel = 'ALL';
+    let highestPriority = 0;
+    
+    presets.forEach(p => {
+      const priority = levelPriority[p.level] || 0;
+      if (priority > highestPriority) {
+        highestPriority = priority;
+        highestLevel = p.level;
+      }
+    });
+    
+    mergedFilters.level = highestLevel;
+
+    setFilters(mergedFilters);
+    showStatus(`Applied ${presets.length} presets. Keywords and tags combined with OR.`, 'info');
+  };
+
   const handleToggleTheme = () => {
     const newTheme = themeMode === 'dark' ? 'light' : 'dark';
     setThemeMode(newTheme);
@@ -327,6 +403,10 @@ const App: React.FC = () => {
     // Remove from currentFiles
     const updatedFiles = currentFiles.filter(f => f !== filePath);
     setCurrentFiles(updatedFiles);
+    
+    // Remove from raw file contents if not yet parsed
+    const updatedRawContents = rawFileContents.filter(f => f.filePath !== filePath);
+    setRawFileContents(updatedRawContents);
     
     // Remove logs from this file
     const fileName = filePath.split(/[\\/]/).pop();
@@ -395,6 +475,7 @@ const App: React.FC = () => {
             lineBreakMode={lineBreakMode}
             onLineBreakModeChange={setLineBreakMode}
             onLoadPreset={handleLoadPreset}
+            onApplyMultiplePresets={handleApplyMultiplePresets}
             onDeleteFile={handleDeleteFile}
           />
           
@@ -409,6 +490,7 @@ const App: React.FC = () => {
             aiAnalysis={aiAnalysis}
             isSearching={isSearching}
             lineBreakMode={lineBreakMode}
+            themeMode={themeMode}
           />
         </div>
         
@@ -417,6 +499,7 @@ const App: React.FC = () => {
           onClose={() => setPresetManagerVisible(false)}
           currentFilters={filters}
           onLoadPreset={handleLoadPreset}
+          onApplyMultiplePresets={handleApplyMultiplePresets}
         />
       </div>
     </ConfigProvider>

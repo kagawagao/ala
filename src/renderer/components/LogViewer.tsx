@@ -1,6 +1,8 @@
 import React from 'react';
-import { Tabs, Divider } from 'antd';
+import { Tabs, Divider, theme } from 'antd';
+import VirtualList from 'rc-virtual-list';
 import { LogEntry, LogStatistics } from '../types';
+import { useTranslation } from 'react-i18next';
 
 // CSS for animations
 const spinnerStyles = `
@@ -20,9 +22,8 @@ interface LogViewerProps {
   aiAnalysis: string;
   isSearching: boolean;
   lineBreakMode: 'wrap' | 'nowrap';
+  themeMode: 'dark' | 'light';
 }
-
-const MAX_RENDERED_LOGS = 1000;
 
 const LogViewer: React.FC<LogViewerProps> = ({
   logs,
@@ -35,7 +36,10 @@ const LogViewer: React.FC<LogViewerProps> = ({
   aiAnalysis,
   isSearching,
   lineBreakMode,
+  themeMode,
 }) => {
+  const { t } = useTranslation();
+  const { token } = theme.useToken();
   const escapeHtml = (text: string): string => {
     const div = document.createElement('div');
     div.textContent = text;
@@ -49,10 +53,14 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const highlightKeywords = (text: string, keywords: string): string => {
     if (!keywords || !keywords.trim()) return text;
     
+    // Theme-aware colors for keyword highlighting
+    const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
+    const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+    
     try {
       // Try regex pattern first
       const pattern = new RegExp(`(${keywords})`, 'gi');
-      return text.replace(pattern, '<mark style="background-color: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0 4px; border-radius: 2px;">$1</mark>');
+      return text.replace(pattern, `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px;">$1</mark>`);
     } catch (e) {
       // Fallback to space-separated keywords
       const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
@@ -60,7 +68,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       
       keywordList.forEach(keyword => {
         const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
-        highlightedText = highlightedText.replace(regex, '<mark style="background-color: rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0 4px; border-radius: 2px;">$1</mark>');
+        highlightedText = highlightedText.replace(regex, `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px;">$1</mark>`);
       });
       
       return highlightedText;
@@ -77,6 +85,49 @@ const LogViewer: React.FC<LogViewerProps> = ({
       'F': { color: '#dc2626', borderColor: '#dc2626' }
     };
     return levelColors[level] || { color: '#9ca3af', borderColor: '#6b7280' };
+  };
+
+  // Group logs by source file - always returns groups
+  const groupLogsByFile = (logs: LogEntry[]): { file: string; logs: LogEntry[]; startIndex: number }[] => {
+    const groups: { file: string; logs: LogEntry[]; startIndex: number }[] = [];
+    
+    if (currentFiles.length <= 1) {
+      // Single file or no files - create one group
+      if (logs.length > 0) {
+        groups.push({ 
+          file: logs[0]?.sourceFile || '', 
+          logs: logs, 
+          startIndex: 0 
+        });
+      }
+      return groups;
+    }
+
+    // Multiple files - group by source file
+    let currentFile = '';
+    let currentGroup: LogEntry[] = [];
+    let startIndex = 0;
+
+    logs.forEach((log, index) => {
+      const logFile = log.sourceFile || '';
+      if (logFile !== currentFile) {
+        if (currentGroup.length > 0) {
+          groups.push({ file: currentFile, logs: currentGroup, startIndex });
+        }
+        currentFile = logFile;
+        currentGroup = [log];
+        startIndex = index;
+      } else {
+        currentGroup.push(log);
+      }
+    });
+
+    // Add the last group
+    if (currentGroup.length > 0) {
+      groups.push({ file: currentFile, logs: currentGroup, startIndex });
+    }
+
+    return groups;
   };
 
   const renderLogLine = (log: LogEntry, index: number) => {
@@ -126,96 +177,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
     );
   };
 
-  // Group logs by source file
-  const groupLogsByFile = (logs: LogEntry[]) => {
-    if (currentFiles.length <= 1) {
-      // Single file or no files, no grouping needed
-      return logs.map((log, index) => renderLogLine(log, index));
-    }
-
-    const groups: { file: string; logs: LogEntry[]; startIndex: number }[] = [];
-    let currentFile = '';
-    let currentGroup: LogEntry[] = [];
-    let startIndex = 0;
-
-    logs.forEach((log, index) => {
-      const logFile = log.sourceFile || '';
-      if (logFile !== currentFile) {
-        if (currentGroup.length > 0) {
-          groups.push({ file: currentFile, logs: currentGroup, startIndex });
-        }
-        currentFile = logFile;
-        currentGroup = [log];
-        startIndex = index;
-      } else {
-        currentGroup.push(log);
-      }
-    });
-
-    // Add the last group
-    if (currentGroup.length > 0) {
-      groups.push({ file: currentFile, logs: currentGroup, startIndex });
-    }
-
-    // Render groups with dividers
-    return groups.map((group, groupIndex) => (
-      <React.Fragment key={`group-${groupIndex}`}>
-        {groupIndex > 0 && (
-          <Divider 
-            style={{ 
-              margin: '16px 0',
-              borderColor: 'var(--ant-color-border-secondary)'
-            }}
-          />
-        )}
-        {group.file && (
-          <div style={{ 
-            marginBottom: '12px',
-            padding: '8px 12px',
-            backgroundColor: 'var(--ant-color-bg-elevated)',
-            borderRadius: '4px',
-            borderLeft: '4px solid #4ec9b0'
-          }}>
-            <span style={{ 
-              fontSize: '14px', 
-              fontWeight: 600,
-              color: 'var(--ant-color-text)',
-              marginRight: '8px'
-            }}>
-              📄
-            </span>
-            <span style={{ 
-              fontSize: '14px', 
-              fontWeight: 600,
-              color: '#4ec9b0'
-            }}>
-              {group.file}
-            </span>
-            <span style={{ 
-              fontSize: '12px',
-              color: 'var(--ant-color-text-secondary)',
-              marginLeft: '12px'
-            }}>
-              ({group.logs.length} logs)
-            </span>
-          </div>
-        )}
-        {group.logs.map((log, index) => renderLogLine(log, group.startIndex + index))}
-      </React.Fragment>
-    ));
-  };
-
   const tabItems = [
     {
       key: 'logs',
-      label: 'Log Viewer',
+      label: t('logViewer'),
       children: (
         <div style={{
           flex: 1,
-          overflowY: 'auto',
-          overflowX: lineBreakMode === 'nowrap' ? 'auto' : 'hidden',
+          height: '100%',
           backgroundColor: 'var(--ant-color-bg-container)',
-          padding: '16px'
         }}>
           {isSearching ? (
             <div style={{
@@ -235,7 +205,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
                   animation: 'spin 1s linear infinite',
                   marginBottom: '16px'
                 }}></div>
-                <p style={{ color: 'var(--ant-color-text-secondary)' }}>Searching logs...</p>
+                <p style={{ color: 'var(--ant-color-text-secondary)' }}>{t('searchingLogs')}</p>
               </div>
             </div>
           ) : logs.length === 0 ? (
@@ -246,22 +216,84 @@ const LogViewer: React.FC<LogViewerProps> = ({
               minHeight: '100%',
               color: 'var(--ant-color-text-secondary)'
             }}>
-              <p>No logs loaded or no logs match the current filters. Click "Search" to filter logs.</p>
+              <p>{t('noLogsMatchFilter')}</p>
             </div>
           ) : (
-            <div style={{ whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal' }}>
-              {groupLogsByFile(logs.slice(0, MAX_RENDERED_LOGS))}
-              {logs.length > MAX_RENDERED_LOGS && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '32px 0',
-                  color: 'var(--ant-color-text-secondary)'
-                }}>
-                  <p>Showing first {MAX_RENDERED_LOGS} of {logs.length} logs. Apply more filters to see more.</p>
-                </div>
-              )}
+            // Render logs with optional file grouping
+            <div style={{
+              height: '100%',
+              overflowY: 'auto',
+              overflowX: lineBreakMode === 'nowrap' ? 'auto' : 'hidden',
+              padding: '16px',
+              whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal'
+            }}>
+              {groupLogsByFile(logs).map((group, groupIndex) => (
+                <React.Fragment key={`group-${groupIndex}`}>
+                  {currentFiles.length > 1 && groupIndex > 0 && (
+                    <Divider 
+                      style={{ 
+                        margin: '16px 0',
+                        borderColor: 'var(--ant-color-border-secondary)'
+                      }}
+                    >
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 600,
+                        color: 'var(--ant-color-text)',
+                        marginRight: '8px'
+                      }}>
+                        📄
+                      </span>
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 600,
+                        color: '#4ec9b0'
+                      }}>
+                        {group.file}
+                      </span>
+                      <span style={{ 
+                        fontSize: '12px',
+                        color: 'var(--ant-color-text-secondary)',
+                        marginLeft: '12px'
+                      }}>
+                        ({group.logs.length} {t('logs')})
+                      </span>
+                    </Divider>
+                  )}
+                  {currentFiles.length > 1 && groupIndex === 0 && group.file && (
+                    <Divider 
+                      style={{ 
+                        margin: '0 0 16px 0',
+                        borderColor: 'var(--ant-color-border-secondary)'
+                      }}
+                    >
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 600,
+                        color: 'var(--ant-color-text)',
+                        marginRight: '8px'
+                      }}>
+                        📄
+                      </span>
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 600,
+                        color: '#4ec9b0'
+                      }}>
+                        {group.file}
+                      </span>
+                      <span style={{ 
+                        fontSize: '12px',
+                        color: 'var(--ant-color-text-secondary)',
+                        marginLeft: '12px'
+                      }}>
+                        ({group.logs.length} {t('logs')})
+                      </span>
+                    </Divider>
+                  )}
+                  {group.logs.map((log: LogEntry, index: number) => renderLogLine(log, group.startIndex + index))}
+                </React.Fragment>
+              ))}
             </div>
           )}
         </div>
@@ -269,7 +301,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
     },
     {
       key: 'ai',
-      label: 'AI Analysis',
+      label: t('aiAnalysis'),
       children: (
         <div style={{
           flex: 1,
@@ -287,7 +319,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
               minHeight: '100%',
               color: 'var(--ant-color-text-secondary)'
             }}>
-              <p>No AI analysis yet. Click the floating AI button to start.</p>
+              <p>{t('clickSearchToFilter')}</p>
             </div>
           )}
         </div>
@@ -306,27 +338,27 @@ const LogViewer: React.FC<LogViewerProps> = ({
       }}>
         <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
           <div>
-            <span style={{ color: 'var(--ant-color-text-secondary)' }}>Total: </span>
+            <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('totalLogs')}: </span>
             <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{allLogsCount}</span>
           </div>
           <div>
-            <span style={{ color: 'var(--ant-color-text-secondary)' }}>Filtered: </span>
+            <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('filtered')}: </span>
             <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{logs.length}</span>
           </div>
           {currentFiles.length > 0 && (
             <div>
-              <span style={{ color: 'var(--ant-color-text-secondary)' }}>Files: </span>
+              <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('files')}: </span>
               <span style={{ color: '#007acc', fontWeight: 600 }}>{currentFiles.length}</span>
             </div>
           )}
           {statistics && (
             <>
               <div>
-                <span style={{ color: 'var(--ant-color-text-secondary)' }}>Errors: </span>
+                <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('errors')}: </span>
                 <span style={{ color: '#f87171', fontWeight: 600 }}>{statistics.byLevel.E || 0}</span>
               </div>
               <div>
-                <span style={{ color: 'var(--ant-color-text-secondary)' }}>Warnings: </span>
+                <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('warnings')}: </span>
                 <span style={{ color: '#facc15', fontWeight: 600 }}>{statistics.byLevel.W || 0}</span>
               </div>
             </>

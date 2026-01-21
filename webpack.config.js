@@ -32,4 +32,12 @@ module.exports = {
       filename: 'index.html',
     }),
   ],
+  devServer: {
+    static: {
+      directory: path.join(__dirname, 'dist/renderer'),
+    },
+    hot: true,
+    port: 8080,
+    historyApiFallback: true,
+  },
 };
