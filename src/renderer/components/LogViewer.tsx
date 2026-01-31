@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs, Divider, theme } from 'antd';
+import { Tabs, Divider, theme, Tooltip } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import { LogEntry, LogStatistics } from '../types';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,9 @@ interface LogViewerProps {
   isSearching: boolean;
   lineBreakMode: 'wrap' | 'nowrap';
   themeMode: 'dark' | 'light';
+  keywordDescriptions?: { keyword: string; description: string }[];
+  tagDescription?: string;
+  currentTag?: string;
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -37,6 +40,9 @@ const LogViewer: React.FC<LogViewerProps> = ({
   isSearching,
   lineBreakMode,
   themeMode,
+  keywordDescriptions = [],
+  tagDescription = '',
+  currentTag = '',
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -60,7 +66,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
     try {
       // Try regex pattern first
       const pattern = new RegExp(`(${keywords})`, 'gi');
-      return text.replace(pattern, `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px;">$1</mark>`);
+      return text.replace(pattern, (match) => {
+        // Find description for this keyword
+        const desc = keywordDescriptions.find(kd => 
+          kd.keyword.toLowerCase() === match.toLowerCase()
+        );
+        const title = desc ? desc.description : '';
+        const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+        return `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px; cursor: help;"${titleAttr} data-tooltip="keyword">${match}</mark>`;
+      });
     } catch (e) {
       // Fallback to space-separated keywords
       const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
@@ -68,7 +82,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
       
       keywordList.forEach(keyword => {
         const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
-        highlightedText = highlightedText.replace(regex, `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px;">$1</mark>`);
+        highlightedText = highlightedText.replace(regex, (match) => {
+          // Find description for this keyword
+          const desc = keywordDescriptions.find(kd => 
+            kd.keyword.toLowerCase() === match.toLowerCase()
+          );
+          const title = desc ? desc.description : '';
+          const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+          return `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px; cursor: help;"${titleAttr} data-tooltip="keyword">${match}</mark>`;
+        });
       });
       
       return highlightedText;
@@ -147,8 +169,19 @@ const LogViewer: React.FC<LogViewerProps> = ({
       <span style={{ color: '#16a34a', marginRight: '10px' }}>{log.timestamp}</span>
     ) : null;
     const level = <span style={{ fontWeight: 'bold', marginRight: '10px', color: levelStyle.color }}>{log.level}</span>;
+    
+    // Check if current log tag matches the filtered tag and has description
+    const showTagTooltip = currentTag && tagDescription && 
+      (log.tag === currentTag || new RegExp(currentTag, 'i').test(log.tag));
+    
     const tag = log.tag !== 'Unknown' ? (
-      <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
+      showTagTooltip ? (
+        <Tooltip title={tagDescription} placement="top">
+          <span style={{ color: '#c084fc', marginRight: '10px', cursor: 'help' }}>[{log.tag}]</span>
+        </Tooltip>
+      ) : (
+        <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
+      )
     ) : null;
 
     // Highlight keywords in message

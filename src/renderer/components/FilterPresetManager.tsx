@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox } from 'antd';
+import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox, Tooltip } from 'antd';
 import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
-interface FilterPreset {
+export interface FilterPreset {
   id: string;
   name: string;
   description: string;
   filters: LogFilters;
+  keywordDescriptions?: { keyword: string; description: string }[]; // Multiple keywords with descriptions
+  tagDescription?: string; // Single tag description
   createdAt: string;
 }
 
@@ -16,8 +18,8 @@ interface FilterPresetManagerProps {
   visible: boolean;
   onClose: () => void;
   currentFilters: LogFilters;
-  onLoadPreset: (filters: LogFilters) => void;
-  onApplyMultiplePresets: (presets: LogFilters[]) => void;
+  onLoadPreset: (preset: FilterPreset) => void;
+  onApplyMultiplePresets: (presets: FilterPreset[]) => void;
 }
 
 const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
@@ -33,6 +35,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const [newDescription, setNewDescription] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
+  const [keywordDescriptions, setKeywordDescriptions] = useState<{ keyword: string; description: string }[]>([]);
+  const [tagDescription, setTagDescription] = useState<string>('');
 
   useEffect(() => {
     loadPresets();
@@ -67,12 +71,16 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       name: newName.trim(),
       description: newDescription.trim(),
       filters: currentFilters,
+      keywordDescriptions: keywordDescriptions.length > 0 ? keywordDescriptions : undefined,
+      tagDescription: tagDescription.trim() || undefined,
       createdAt: new Date().toISOString(),
     };
 
     savePresets([...presets, newPreset]);
     setNewName('');
     setNewDescription('');
+    setKeywordDescriptions([]);
+    setTagDescription('');
     setShowAddForm(false);
     message.success(t('savePreset'));
   };
@@ -84,7 +92,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   };
 
   const handleLoad = (preset: FilterPreset) => {
-    onLoadPreset(preset.filters);
+    onLoadPreset(preset);
     message.success(`Loaded preset: ${preset.name}`);
     onClose();
   };
@@ -103,11 +111,9 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       return;
     }
 
-    const selectedFilters = presets
-      .filter(p => selectedPresetIds.includes(p.id))
-      .map(p => p.filters);
+    const selectedPresets = presets.filter(p => selectedPresetIds.includes(p.id));
     
-    onApplyMultiplePresets(selectedFilters);
+    onApplyMultiplePresets(selectedPresets);
     message.success(t('applyPresets').replace('{count}', selectedPresetIds.length.toString()));
     setSelectedPresetIds([]);
     onClose();
@@ -162,6 +168,43 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 onChange={(e) => setNewDescription(e.target.value)}
                 rows={2}
               />
+              {/* Keyword descriptions */}
+              {currentFilters.keywords && (
+                <div>
+                  <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('keywordDescriptions')}</div>
+                  {currentFilters.keywords.split('|').map((keyword, idx) => {
+                    const kw = keyword.trim();
+                    if (!kw) return null;
+                    const existingDesc = keywordDescriptions.find(kd => kd.keyword === kw);
+                    return (
+                      <Input
+                        key={idx}
+                        placeholder={`${t('descriptionFor')} "${kw}"`}
+                        value={existingDesc?.description || ''}
+                        onChange={(e) => {
+                          const newDescs = keywordDescriptions.filter(kd => kd.keyword !== kw);
+                          if (e.target.value.trim()) {
+                            newDescs.push({ keyword: kw, description: e.target.value });
+                          }
+                          setKeywordDescriptions(newDescs);
+                        }}
+                        style={{ marginBottom: '4px' }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              {/* Tag description */}
+              {currentFilters.tag && (
+                <div>
+                  <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('tagDescription')}</div>
+                  <Input
+                    placeholder={`${t('descriptionFor')} tag "${currentFilters.tag}"`}
+                    value={tagDescription}
+                    onChange={(e) => setTagDescription(e.target.value)}
+                  />
+                </div>
+              )}
               <Space>
                 <Button type="primary" onClick={handleSaveNew}>
                   {t('save')}
@@ -170,6 +213,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   setShowAddForm(false);
                   setNewName('');
                   setNewDescription('');
+                  setKeywordDescriptions([]);
+                  setTagDescription('');
                 }}>
                   {t('cancel')}
                 </Button>

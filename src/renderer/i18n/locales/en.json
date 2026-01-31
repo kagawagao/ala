@@ -78,5 +78,8 @@
   "filtered": "Filtered",
   "errors": "Errors",
   "warnings": "Warnings",
-  "logs": "logs"
+  "logs": "logs",
+  "keywordDescriptions": "Keyword Descriptions",
+  "tagDescription": "Tag Description",
+  "descriptionFor": "Description for"
 }

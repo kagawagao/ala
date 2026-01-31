@@ -5,7 +5,7 @@ import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
 import LogViewer from './components/LogViewer';
-import FilterPresetManager from './components/FilterPresetManager';
+import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 
 const App: React.FC = () => {
   const { i18n } = useTranslation();
@@ -34,6 +34,10 @@ const App: React.FC = () => {
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
+  const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
+    keywordDescriptions: { keyword: string; description: string }[];
+    tagDescription: string;
+  }>({ keywordDescriptions: [], tagDescription: '' });
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
@@ -358,12 +362,17 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLoadPreset = (presetFilters: LogFilters) => {
-    setFilters(presetFilters);
+  const handleLoadPreset = (preset: FilterPreset) => {
+    setFilters(preset.filters);
+    // Set descriptions from the preset
+    setActivePresetDescriptions({
+      keywordDescriptions: preset.keywordDescriptions || [],
+      tagDescription: preset.tagDescription || ''
+    });
     showStatus('Preset loaded successfully!', 'info');
   };
 
-  const handleApplyMultiplePresets = (presets: LogFilters[]) => {
+  const handleApplyMultiplePresets = (presets: FilterPreset[]) => {
     if (presets.length === 0) return;
     
     // Merge multiple presets - combine keywords with OR operator, take most restrictive level
@@ -376,9 +385,23 @@ const App: React.FC = () => {
       pid: ''
     };
 
+    // Merge keyword descriptions
+    const allKeywordDescriptions: { keyword: string; description: string }[] = [];
+    presets.forEach(p => {
+      if (p.keywordDescriptions) {
+        allKeywordDescriptions.push(...p.keywordDescriptions);
+      }
+    });
+
+    // Merge tag descriptions (join with semicolon if multiple)
+    const allTagDescriptions = presets
+      .map(p => p.tagDescription)
+      .filter(d => d && d.trim())
+      .join('; ');
+
     // Combine keywords with OR operator
     const allKeywords = presets
-      .map(p => p.keywords)
+      .map(p => p.filters.keywords)
       .filter(k => k && k.trim())
       .join('|');
     
@@ -388,7 +411,7 @@ const App: React.FC = () => {
 
     // Combine tags with OR operator
     const allTags = presets
-      .map(p => p.tag)
+      .map(p => p.filters.tag)
       .filter(t => t && t.trim())
       .join('|');
     
@@ -402,16 +425,20 @@ const App: React.FC = () => {
     let highestPriority = 0;
     
     presets.forEach(p => {
-      const priority = levelPriority[p.level] || 0;
+      const priority = levelPriority[p.filters.level] || 0;
       if (priority > highestPriority) {
         highestPriority = priority;
-        highestLevel = p.level;
+        highestLevel = p.filters.level;
       }
     });
     
     mergedFilters.level = highestLevel;
 
     setFilters(mergedFilters);
+    setActivePresetDescriptions({
+      keywordDescriptions: allKeywordDescriptions,
+      tagDescription: allTagDescriptions
+    });
     showStatus(`Applied ${presets.length} presets. Keywords and tags combined with OR.`, 'info');
   };
 
@@ -513,6 +540,9 @@ const App: React.FC = () => {
             isSearching={isSearching}
             lineBreakMode={lineBreakMode}
             themeMode={themeMode}
+            keywordDescriptions={activePresetDescriptions.keywordDescriptions}
+            tagDescription={activePresetDescriptions.tagDescription}
+            currentTag={filters.tag}
           />
         </div>
         

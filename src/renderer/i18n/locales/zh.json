@@ -78,5 +78,8 @@
   "filtered": "已过滤",
   "errors": "错误",
   "warnings": "警告",
-  "logs": "条日志"
+  "logs": "条日志",
+  "keywordDescriptions": "关键词描述",
+  "tagDescription": "标签描述",
+  "descriptionFor": "描述"
 }

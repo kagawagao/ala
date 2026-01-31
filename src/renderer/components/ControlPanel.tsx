@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogFilters } from '../types';
+import { FilterPreset } from './FilterPresetManager';
 import DateTimeRangePicker from './DateTimeRangePicker';
 import { 
   Drawer, 
@@ -51,8 +52,8 @@ interface ControlPanelProps {
   onManagePresets: () => void;
   lineBreakMode: 'wrap' | 'nowrap';
   onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
-  onLoadPreset: (filters: LogFilters) => void;
-  onApplyMultiplePresets: (presets: LogFilters[]) => void;
+  onLoadPreset: (preset: FilterPreset) => void;
+  onApplyMultiplePresets: (presets: FilterPreset[]) => void;
   onDeleteFile: (filePath: string) => void;
 }
 
