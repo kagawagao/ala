@@ -90,5 +90,7 @@
   "editPreset": "Edit Preset",
   "presetConfiguration": "Preset Configuration",
   "optional": "(Optional)",
-  "keyword": "keyword"
+  "keyword": "keyword",
+  "presetsMigrated": "Filter presets have been automatically migrated to the new format",
+  "atLeastOneKeywordOrTag": "Please add at least one keyword or tag"
 }

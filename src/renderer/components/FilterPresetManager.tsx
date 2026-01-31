@@ -111,7 +111,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
           setPresets(migratedPresets);
           // Save migrated presets
           localStorage.setItem('ala_filter_presets', JSON.stringify(migratedPresets));
-          message.info('Filter presets have been automatically migrated to the new format');
+          message.info(t('presetsMigrated'));
         } else if (Array.isArray(parsed)) {
           setPresets(parsed);
         } else {
@@ -139,7 +139,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     }
 
     if (keywords.length === 0 && !tagText.trim()) {
-      message.warning('Please add at least one keyword or tag');
+      message.warning(t('atLeastOneKeywordOrTag'));
       return;
     }
 

@@ -90,5 +90,7 @@
   "editPreset": "编辑预设",
   "presetConfiguration": "预设配置",
   "optional": "(可选)",
-  "keyword": "关键词"
+  "keyword": "关键词",
+  "presetsMigrated": "过滤器预设已自动迁移到新格式",
+  "atLeastOneKeywordOrTag": "请至少添加一个关键词或标签"
 }
