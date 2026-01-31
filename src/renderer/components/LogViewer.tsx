@@ -1,5 +1,6 @@
 import React from 'react';
-import { Tabs, Divider, theme, Tooltip } from 'antd';
+import { Tabs, Divider, theme, Tooltip, FloatButton } from 'antd';
+import { MenuUnfoldOutlined, MenuFoldOutlined } from '@ant-design/icons';
 import VirtualList from 'rc-virtual-list';
 import { LogEntry, LogStatistics } from '../types';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +23,7 @@ interface LogViewerProps {
   aiAnalysis: string;
   isSearching: boolean;
   lineBreakMode: 'wrap' | 'nowrap';
+  onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
   themeMode: 'dark' | 'light';
   keywordDescriptions?: { keyword: string; description: string }[];
   tagDescription?: string;
@@ -39,6 +41,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   aiAnalysis,
   isSearching,
   lineBreakMode,
+  onLineBreakModeChange,
   themeMode,
   keywordDescriptions = [],
   tagDescription = '',
@@ -361,7 +364,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   ];
 
   return (
-    <section style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <section style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <style>{spinnerStyles}</style>
       {/* Statistics Bar */}
       <div style={{
@@ -415,6 +418,20 @@ const LogViewer: React.FC<LogViewerProps> = ({
           className="log-viewer-tabs"
         />
       </div>
+
+      {/* Floating Line Break Mode Button */}
+      {activeTab === 'logs' && logs.length > 0 && (
+        <FloatButton
+          icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+          tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
+          onClick={() => onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')}
+          style={{
+            position: 'absolute',
+            right: 24,
+            top: 80,
+          }}
+        />
+      )}
     </section>
   );
 };

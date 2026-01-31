@@ -1,5 +1,5 @@
 import React from 'react';
-import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined } from '@ant-design/icons';
+import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined, SettingOutlined } from '@ant-design/icons';
 import { Button, Dropdown } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -7,9 +7,10 @@ interface HeaderProps {
   onToggleDrawer: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  onManagePresets: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, onManagePresets }) => {
   const { t, i18n } = useTranslation();
 
   const handleLanguageChange = (lang: string) => {
@@ -27,6 +28,15 @@ const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme })
       key: 'en',
       label: t('english'),
       onClick: () => handleLanguageChange('en')
+    }
+  ];
+
+  const presetMenuItems = [
+    {
+      key: 'manage',
+      label: t('managePresets'),
+      icon: <SettingOutlined />,
+      onClick: onManagePresets
     }
   ];
 
@@ -56,6 +66,15 @@ const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme })
           {t('appDescription')}
         </p>
       </div>
+      <Dropdown menu={{ items: presetMenuItems }} placement="bottomRight">
+        <Button
+          type="text"
+          icon={<SettingOutlined />}
+          size="large"
+          title={t('managePresets')}
+          style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
+        />
+      </Dropdown>
       <Dropdown menu={{ items: languageMenuItems }} placement="bottomRight">
         <Button
           type="text"

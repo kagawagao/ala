@@ -4,20 +4,38 @@ import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
-export interface FilterPreset {
+// Old preset structure for migration
+interface OldFilterPreset {
   id: string;
   name: string;
   description: string;
   filters: LogFilters;
-  keywordDescriptions?: { keyword: string; description: string }[]; // Multiple keywords with descriptions
-  tagDescription?: string; // Single tag description
+  keywordDescriptions?: { keyword: string; description: string }[];
+  tagDescription?: string;
+  createdAt: string;
+}
+
+// New preset structure
+export interface FilterPreset {
+  id: string;
+  name: string;
+  description: string;
+  config: {
+    tag?: {
+      text: string;
+      description: string;
+    };
+    keywords: Array<{
+      text: string;
+      description: string;
+    }>;
+  };
   createdAt: string;
 }
 
 interface FilterPresetManagerProps {
   visible: boolean;
   onClose: () => void;
-  currentFilters: LogFilters;
   onLoadPreset: (preset: FilterPreset) => void;
   onApplyMultiplePresets: (presets: FilterPreset[]) => void;
 }
@@ -25,7 +43,6 @@ interface FilterPresetManagerProps {
 const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   visible,
   onClose,
-  currentFilters,
   onLoadPreset,
   onApplyMultiplePresets,
 }) => {
@@ -35,18 +52,66 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const [newDescription, setNewDescription] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
-  const [keywordDescriptions, setKeywordDescriptions] = useState<{ keyword: string; description: string }[]>([]);
+  const [tagText, setTagText] = useState<string>('');
   const [tagDescription, setTagDescription] = useState<string>('');
+  const [keywords, setKeywords] = useState<Array<{ text: string; description: string }>>([]);
 
   useEffect(() => {
     loadPresets();
   }, []);
 
+  // Migration function to convert old presets to new format
+  const migrateOldPreset = (oldPreset: OldFilterPreset): FilterPreset => {
+    const keywords: Array<{ text: string; description: string }> = [];
+    
+    // Extract keywords from filters.keywords
+    if (oldPreset.filters.keywords) {
+      const keywordTexts = oldPreset.filters.keywords.split('|').filter(k => k.trim());
+      keywordTexts.forEach(kw => {
+        const trimmedKw = kw.trim();
+        const desc = oldPreset.keywordDescriptions?.find(kd => kd.keyword === trimmedKw);
+        keywords.push({
+          text: trimmedKw,
+          description: desc?.description || ''
+        });
+      });
+    }
+
+    const newPreset: FilterPreset = {
+      id: oldPreset.id,
+      name: oldPreset.name,
+      description: oldPreset.description,
+      config: {
+        keywords: keywords,
+        ...(oldPreset.filters.tag ? {
+          tag: {
+            text: oldPreset.filters.tag,
+            description: oldPreset.tagDescription || ''
+          }
+        } : {})
+      },
+      createdAt: oldPreset.createdAt
+    };
+
+    return newPreset;
+  };
+
   const loadPresets = () => {
     const saved = localStorage.getItem('ala_filter_presets');
     if (saved) {
       try {
-        setPresets(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Check if presets need migration
+        if (parsed.length > 0 && 'filters' in parsed[0]) {
+          // Old format detected, migrate
+          const migratedPresets = parsed.map((p: OldFilterPreset) => migrateOldPreset(p));
+          setPresets(migratedPresets);
+          // Save migrated presets
+          localStorage.setItem('ala_filter_presets', JSON.stringify(migratedPresets));
+          message.info('Presets migrated to new format');
+        } else {
+          setPresets(parsed);
+        }
       } catch (e) {
         console.error('Failed to load presets:', e);
         const errorMsg = e instanceof Error ? e.message : 'Unknown error';
@@ -66,20 +131,32 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       return;
     }
 
+    if (keywords.length === 0 && !tagText.trim()) {
+      message.warning('Please add at least one keyword or tag');
+      return;
+    }
+
     const newPreset: FilterPreset = {
       id: `preset_${Date.now()}`,
       name: newName.trim(),
       description: newDescription.trim(),
-      filters: currentFilters,
-      keywordDescriptions: keywordDescriptions.length > 0 ? keywordDescriptions : undefined,
-      tagDescription: tagDescription.trim() || undefined,
+      config: {
+        keywords: keywords.filter(k => k.text.trim()),
+        ...(tagText.trim() ? {
+          tag: {
+            text: tagText.trim(),
+            description: tagDescription.trim()
+          }
+        } : {})
+      },
       createdAt: new Date().toISOString(),
     };
 
     savePresets([...presets, newPreset]);
     setNewName('');
     setNewDescription('');
-    setKeywordDescriptions([]);
+    setKeywords([]);
+    setTagText('');
     setTagDescription('');
     setShowAddForm(false);
     message.success(t('savePreset'));
@@ -119,11 +196,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     onClose();
   };
 
-  const getFilterSummary = (filters: LogFilters): string[] => {
+  const getFilterSummary = (preset: FilterPreset): string[] => {
     const summary: string[] = [];
-    if (filters.keywords) summary.push(`Keywords: ${filters.keywords}`);
-    if (filters.level && filters.level !== 'ALL') summary.push(`Level: ${filters.level}`);
-    if (filters.tag) summary.push(`Tag: ${filters.tag}`);
+    if (preset.config.keywords.length > 0) {
+      const keywordTexts = preset.config.keywords.map(k => k.text).join('|');
+      summary.push(`Keywords: ${keywordTexts}`);
+    }
+    if (preset.config.tag) {
+      summary.push(`Tag: ${preset.config.tag.text}`);
+    }
     return summary;
   };
 
@@ -160,7 +241,6 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 placeholder={t('presetName')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                onPressEnter={handleSaveNew}
               />
               <Input.TextArea
                 placeholder={t('presetDescription')}
@@ -168,43 +248,74 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 onChange={(e) => setNewDescription(e.target.value)}
                 rows={2}
               />
-              {/* Keyword descriptions */}
-              {currentFilters.keywords && (
-                <div>
-                  <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('keywordDescriptions')}</div>
-                  {currentFilters.keywords.split('|').map((keyword, idx) => {
-                    const kw = keyword.trim();
-                    if (!kw) return null;
-                    const existingDesc = keywordDescriptions.find(kd => kd.keyword === kw);
-                    return (
-                      <Input
-                        key={idx}
-                        placeholder={`${t('descriptionFor')} "${kw}"`}
-                        value={existingDesc?.description || ''}
-                        onChange={(e) => {
-                          const newDescs = keywordDescriptions.filter(kd => kd.keyword !== kw);
-                          if (e.target.value.trim()) {
-                            newDescs.push({ keyword: kw, description: e.target.value });
-                          }
-                          setKeywordDescriptions(newDescs);
-                        }}
-                        style={{ marginBottom: '4px' }}
-                      />
-                    );
-                  })}
+              
+              {/* Tag configuration */}
+              <div>
+                <div style={{ marginBottom: '8px', fontWeight: 500 }}>
+                  {t('tagText')} {t('optional')}
                 </div>
-              )}
-              {/* Tag description */}
-              {currentFilters.tag && (
-                <div>
-                  <div style={{ marginBottom: '8px', fontWeight: 500 }}>{t('tagDescription')}</div>
+                <Input
+                  placeholder={t('tagPlaceholder')}
+                  value={tagText}
+                  onChange={(e) => setTagText(e.target.value)}
+                  style={{ marginBottom: '4px' }}
+                />
+                {tagText && (
                   <Input
-                    placeholder={`${t('descriptionFor')} tag "${currentFilters.tag}"`}
+                    placeholder={t('tagDescription')}
                     value={tagDescription}
                     onChange={(e) => setTagDescription(e.target.value)}
                   />
+                )}
+              </div>
+
+              {/* Keywords configuration */}
+              <div>
+                <div style={{ marginBottom: '8px', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t('keywordDescriptions')}</span>
+                  <Button
+                    type="dashed"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => setKeywords([...keywords, { text: '', description: '' }])}
+                  >
+                    {t('addKeyword')}
+                  </Button>
                 </div>
-              )}
+                {keywords.map((kw, idx) => (
+                  <div key={idx} style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <Input
+                        placeholder={t('keywordText')}
+                        value={kw.text}
+                        onChange={(e) => {
+                          const newKeywords = [...keywords];
+                          newKeywords[idx].text = e.target.value;
+                          setKeywords(newKeywords);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => setKeywords(keywords.filter((_, i) => i !== idx))}
+                        title={t('removeKeyword')}
+                      />
+                    </div>
+                    <Input
+                      placeholder={`${t('descriptionFor')} "${kw.text || 'keyword'}"`}
+                      value={kw.description}
+                      onChange={(e) => {
+                        const newKeywords = [...keywords];
+                        newKeywords[idx].description = e.target.value;
+                        setKeywords(newKeywords);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
               <Space>
                 <Button type="primary" onClick={handleSaveNew}>
                   {t('save')}
@@ -213,7 +324,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   setShowAddForm(false);
                   setNewName('');
                   setNewDescription('');
-                  setKeywordDescriptions([]);
+                  setKeywords([]);
+                  setTagText('');
                   setTagDescription('');
                 }}>
                   {t('cancel')}
@@ -228,7 +340,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
             onClick={() => setShowAddForm(true)}
             block
           >
-            {t('saveCurrentAsPreset')}
+            {t('createNewPreset')}
           </Button>
         )}
 
@@ -278,7 +390,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                         <div style={{ color: '#6b7280' }}>{preset.description}</div>
                       )}
                       <div>
-                        {getFilterSummary(preset.filters).map((item, idx) => (
+                        {getFilterSummary(preset).map((item, idx) => (
                           <Tag key={idx} color="blue" style={{ marginBottom: 4 }}>
                             {item}
                           </Tag>

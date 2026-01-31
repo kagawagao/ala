@@ -80,6 +80,16 @@ const App: React.FC = () => {
       }
     }
 
+    // Add Ctrl+F keyboard shortcut to toggle drawer
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setDrawerOpen(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+
     // Initialize Web Worker for filtering
     const workerCode = `
       self.onmessage = function(e) {
@@ -142,7 +152,8 @@ const App: React.FC = () => {
     };
 
     return () => {
-      // Cleanup worker on unmount
+      // Cleanup worker and keyboard listener on unmount
+      window.removeEventListener('keydown', handleKeyDown);
       if (workerRef.current) {
         workerRef.current.terminate();
       }
@@ -363,11 +374,20 @@ const App: React.FC = () => {
   };
 
   const handleLoadPreset = (preset: FilterPreset) => {
-    setFilters(preset.filters);
+    // Extract keywords and tag from config
+    const keywordTexts = preset.config.keywords.map(k => k.text).join('|');
+    const tagText = preset.config.tag?.text || '';
+    
+    setFilters({
+      ...filters,
+      keywords: keywordTexts,
+      tag: tagText
+    });
+    
     // Set descriptions from the preset
     setActivePresetDescriptions({
-      keywordDescriptions: preset.keywordDescriptions || [],
-      tagDescription: preset.tagDescription || ''
+      keywordDescriptions: preset.config.keywords.map(k => ({ keyword: k.text, description: k.description })),
+      tagDescription: preset.config.tag?.description || ''
     });
     showStatus('Preset loaded successfully!', 'info');
   };
@@ -375,7 +395,7 @@ const App: React.FC = () => {
   const handleApplyMultiplePresets = (presets: FilterPreset[]) => {
     if (presets.length === 0) return;
     
-    // Merge multiple presets - combine keywords with OR operator, take most restrictive level
+    // Merge multiple presets - combine keywords and tags with OR operator
     const mergedFilters: LogFilters = {
       startTime: '',
       endTime: '',
@@ -388,20 +408,20 @@ const App: React.FC = () => {
     // Merge keyword descriptions
     const allKeywordDescriptions: { keyword: string; description: string }[] = [];
     presets.forEach(p => {
-      if (p.keywordDescriptions) {
-        allKeywordDescriptions.push(...p.keywordDescriptions);
-      }
+      p.config.keywords.forEach(k => {
+        allKeywordDescriptions.push({ keyword: k.text, description: k.description });
+      });
     });
 
     // Merge tag descriptions (join with semicolon if multiple)
     const allTagDescriptions = presets
-      .map(p => p.tagDescription)
+      .map(p => p.config.tag?.description)
       .filter(d => d && d.trim())
       .join('; ');
 
     // Combine keywords with OR operator
     const allKeywords = presets
-      .map(p => p.filters.keywords)
+      .flatMap(p => p.config.keywords.map(k => k.text))
       .filter(k => k && k.trim())
       .join('|');
     
@@ -411,28 +431,13 @@ const App: React.FC = () => {
 
     // Combine tags with OR operator
     const allTags = presets
-      .map(p => p.filters.tag)
+      .map(p => p.config.tag?.text)
       .filter(t => t && t.trim())
       .join('|');
     
     if (allTags) {
       mergedFilters.tag = allTags;
     }
-
-    // Use the most restrictive (highest priority) log level
-    const levelPriority: Record<string, number> = { 'ALL': 0, 'V': 1, 'D': 2, 'I': 3, 'W': 4, 'E': 5, 'F': 6 };
-    let highestLevel = 'ALL';
-    let highestPriority = 0;
-    
-    presets.forEach(p => {
-      const priority = levelPriority[p.filters.level] || 0;
-      if (priority > highestPriority) {
-        highestPriority = priority;
-        highestLevel = p.filters.level;
-      }
-    });
-    
-    mergedFilters.level = highestLevel;
 
     setFilters(mergedFilters);
     setActivePresetDescriptions({
@@ -495,6 +500,7 @@ const App: React.FC = () => {
           onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
           theme={themeMode}
           onToggleTheme={handleToggleTheme}
+          onManagePresets={() => setPresetManagerVisible(true)}
         />
       
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -520,9 +526,6 @@ const App: React.FC = () => {
             isSearching={isSearching}
             drawerOpen={drawerOpen}
             onDrawerClose={() => setDrawerOpen(false)}
-            onManagePresets={() => setPresetManagerVisible(true)}
-            lineBreakMode={lineBreakMode}
-            onLineBreakModeChange={setLineBreakMode}
             onLoadPreset={handleLoadPreset}
             onApplyMultiplePresets={handleApplyMultiplePresets}
             onDeleteFile={handleDeleteFile}
@@ -539,6 +542,7 @@ const App: React.FC = () => {
             aiAnalysis={aiAnalysis}
             isSearching={isSearching}
             lineBreakMode={lineBreakMode}
+            onLineBreakModeChange={setLineBreakMode}
             themeMode={themeMode}
             keywordDescriptions={activePresetDescriptions.keywordDescriptions}
             tagDescription={activePresetDescriptions.tagDescription}
@@ -549,7 +553,6 @@ const App: React.FC = () => {
         <FilterPresetManager
           visible={presetManagerVisible}
           onClose={() => setPresetManagerVisible(false)}
-          currentFilters={filters}
           onLoadPreset={handleLoadPreset}
           onApplyMultiplePresets={handleApplyMultiplePresets}
         />

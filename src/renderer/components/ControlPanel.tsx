@@ -10,7 +10,6 @@ import {
   Space, 
   Divider, 
   Alert,
-  Radio,
   FloatButton
 } from 'antd';
 import {
@@ -22,7 +21,6 @@ import {
   ImportOutlined,
   ExportOutlined,
   RobotOutlined,
-  SettingOutlined,
   LoadingOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -49,9 +47,6 @@ interface ControlPanelProps {
   isSearching: boolean;
   drawerOpen: boolean;
   onDrawerClose: () => void;
-  onManagePresets: () => void;
-  lineBreakMode: 'wrap' | 'nowrap';
-  onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
   onLoadPreset: (preset: FilterPreset) => void;
   onApplyMultiplePresets: (presets: FilterPreset[]) => void;
   onDeleteFile: (filePath: string) => void;
@@ -79,9 +74,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   isSearching,
   drawerOpen,
   onDrawerClose,
-  onManagePresets,
-  lineBreakMode,
-  onLineBreakModeChange,
   onLoadPreset,
   onApplyMultiplePresets,
   onDeleteFile,
@@ -148,22 +140,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Line Break Mode */}
-          <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              {t('lineBreakMode')}:
-            </label>
-            <Radio.Group 
-              value={lineBreakMode}
-              onChange={(e) => onLineBreakModeChange(e.target.value)}
-              buttonStyle="solid"
-              style={{ width: '100%' }}
-            >
-              <Radio.Button value="wrap" style={{ width: '50%', textAlign: 'center' }}>{t('wordWrap')}</Radio.Button>
-              <Radio.Button value="nowrap" style={{ width: '50%', textAlign: 'center' }}>{t('noWrap')}</Radio.Button>
-            </Radio.Group>
           </div>
 
           <Divider style={{ margin: '8px 0' }}>{t('filters')}</Divider>
@@ -290,15 +266,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               {t('exportFilters')}
             </Button>
           </Space.Compact>
-
-          {/* Manage Presets Button */}
-          <Button 
-            icon={<SettingOutlined />}
-            onClick={onManagePresets}
-            block
-          >
-            {t('managePresets')}
-          </Button>
 
           {/* Filter Presets Collapse */}
           {/* Note: Presets are managed via the "Manage Presets" button below */}
