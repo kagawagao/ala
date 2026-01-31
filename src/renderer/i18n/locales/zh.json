@@ -89,5 +89,6 @@
   "createNewPreset": "创建新预设",
   "editPreset": "编辑预设",
   "presetConfiguration": "预设配置",
-  "optional": "(可选)"
+  "optional": "(可选)",
+  "keyword": "关键词"
 }

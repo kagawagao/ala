@@ -4,6 +4,9 @@ import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
+// Constants
+const KEYWORD_SEPARATOR = '|';
+
 // Old preset structure for migration
 interface OldFilterPreset {
   id: string;
@@ -66,7 +69,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     
     // Extract keywords from filters.keywords
     if (oldPreset.filters.keywords) {
-      const keywordTexts = oldPreset.filters.keywords.split('|').filter(k => k.trim());
+      const keywordTexts = oldPreset.filters.keywords.split(KEYWORD_SEPARATOR).filter(k => k.trim());
       keywordTexts.forEach(kw => {
         const trimmedKw = kw.trim();
         const desc = oldPreset.keywordDescriptions?.find(kd => kd.keyword === trimmedKw);
@@ -102,15 +105,19 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       try {
         const parsed = JSON.parse(saved);
         // Check if presets need migration
-        if (parsed.length > 0 && 'filters' in parsed[0]) {
+        if (Array.isArray(parsed) && parsed.length > 0 && 'filters' in parsed[0]) {
           // Old format detected, migrate
           const migratedPresets = parsed.map((p: OldFilterPreset) => migrateOldPreset(p));
           setPresets(migratedPresets);
           // Save migrated presets
           localStorage.setItem('ala_filter_presets', JSON.stringify(migratedPresets));
-          message.info('Presets migrated to new format');
-        } else {
+          message.info('Filter presets have been automatically migrated to the new format');
+        } else if (Array.isArray(parsed)) {
           setPresets(parsed);
+        } else {
+          // Invalid format, reset
+          setPresets([]);
+          localStorage.removeItem('ala_filter_presets');
         }
       } catch (e) {
         console.error('Failed to load presets:', e);
@@ -199,7 +206,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const getFilterSummary = (preset: FilterPreset): string[] => {
     const summary: string[] = [];
     if (preset.config.keywords.length > 0) {
-      const keywordTexts = preset.config.keywords.map(k => k.text).join('|');
+      const keywordTexts = preset.config.keywords.map(k => k.text).join(KEYWORD_SEPARATOR);
       summary.push(`Keywords: ${keywordTexts}`);
     }
     if (preset.config.tag) {
@@ -304,7 +311,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                       />
                     </div>
                     <Input
-                      placeholder={`${t('descriptionFor')} "${kw.text || 'keyword'}"`}
+                      placeholder={`${t('descriptionFor')} "${kw.text || t('keyword')}"`}
                       value={kw.description}
                       onChange={(e) => {
                         const newKeywords = [...keywords];

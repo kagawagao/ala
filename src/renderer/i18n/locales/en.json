@@ -89,5 +89,6 @@
   "createNewPreset": "Create New Preset",
   "editPreset": "Edit Preset",
   "presetConfiguration": "Preset Configuration",
-  "optional": "(Optional)"
+  "optional": "(Optional)",
+  "keyword": "keyword"
 }

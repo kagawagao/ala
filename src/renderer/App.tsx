@@ -7,6 +7,9 @@ import ControlPanel from './components/ControlPanel';
 import LogViewer from './components/LogViewer';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 
+// Constants
+const KEYWORD_SEPARATOR = '|';
+
 const App: React.FC = () => {
   const { i18n } = useTranslation();
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
@@ -80,9 +83,9 @@ const App: React.FC = () => {
       }
     }
 
-    // Add Ctrl+F keyboard shortcut to toggle drawer
+    // Add Ctrl+Shift+F keyboard shortcut to toggle drawer
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
         e.preventDefault();
         setDrawerOpen(prev => !prev);
       }
@@ -375,7 +378,7 @@ const App: React.FC = () => {
 
   const handleLoadPreset = (preset: FilterPreset) => {
     // Extract keywords and tag from config
-    const keywordTexts = preset.config.keywords.map(k => k.text).join('|');
+    const keywordTexts = preset.config.keywords.map(k => k.text).join(KEYWORD_SEPARATOR);
     const tagText = preset.config.tag?.text || '';
     
     setFilters({
@@ -423,7 +426,7 @@ const App: React.FC = () => {
     const allKeywords = presets
       .flatMap(p => p.config.keywords.map(k => k.text))
       .filter(k => k && k.trim())
-      .join('|');
+      .join(KEYWORD_SEPARATOR);
     
     if (allKeywords) {
       mergedFilters.keywords = allKeywords;
@@ -433,7 +436,7 @@ const App: React.FC = () => {
     const allTags = presets
       .map(p => p.config.tag?.text)
       .filter(t => t && t.trim())
-      .join('|');
+      .join(KEYWORD_SEPARATOR);
     
     if (allTags) {
       mergedFilters.tag = allTags;
