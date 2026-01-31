@@ -260,6 +260,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 placeholder={t('presetName')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
+                onPressEnter={handleSaveNew}
               />
               <Input.TextArea
                 placeholder={t('presetDescription')}

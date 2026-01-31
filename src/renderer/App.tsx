@@ -84,6 +84,8 @@ const App: React.FC = () => {
     }
 
     // Add Ctrl+Shift+F keyboard shortcut to toggle drawer
+    // Note: Uses Shift modifier to avoid conflict with browser's native Ctrl+F (find)
+    // May still conflict with some browser extensions, but this is acceptable for a desktop app
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
         e.preventDefault();
