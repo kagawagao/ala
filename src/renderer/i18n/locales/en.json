@@ -81,5 +81,13 @@
   "logs": "logs",
   "keywordDescriptions": "Keyword Descriptions",
   "tagDescription": "Tag Description",
-  "descriptionFor": "Description for"
+  "descriptionFor": "Description for",
+  "addKeyword": "Add Keyword",
+  "keywordText": "Keyword Text",
+  "removeKeyword": "Remove Keyword",
+  "tagText": "Tag Text",
+  "createNewPreset": "Create New Preset",
+  "editPreset": "Edit Preset",
+  "presetConfiguration": "Preset Configuration",
+  "optional": "(Optional)"
 }

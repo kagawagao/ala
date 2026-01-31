@@ -81,5 +81,13 @@
   "logs": "条日志",
   "keywordDescriptions": "关键词描述",
   "tagDescription": "标签描述",
-  "descriptionFor": "描述"
+  "descriptionFor": "描述",
+  "addKeyword": "添加关键词",
+  "keywordText": "关键词文本",
+  "removeKeyword": "移除关键词",
+  "tagText": "标签文本",
+  "createNewPreset": "创建新预设",
+  "editPreset": "编辑预设",
+  "presetConfiguration": "预设配置",
+  "optional": "(可选)"
 }
