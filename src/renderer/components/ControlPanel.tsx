@@ -267,9 +267,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </Button>
           </Space.Compact>
 
-          {/* Filter Presets Collapse */}
-          {/* Note: Presets are managed via the "Manage Presets" button below */}
-
           {/* Status Message */}
           {statusMessage && (
             <Alert 

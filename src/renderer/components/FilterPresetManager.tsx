@@ -104,20 +104,32 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Check if presets need migration
-        if (Array.isArray(parsed) && parsed.length > 0 && 'filters' in parsed[0]) {
-          // Old format detected, migrate
-          const migratedPresets = parsed.map((p: OldFilterPreset) => migrateOldPreset(p));
+        if (!Array.isArray(parsed)) {
+          // Invalid format, reset
+          setPresets([]);
+          localStorage.removeItem('ala_filter_presets');
+          return;
+        }
+
+        // Check if any presets need migration (old format has 'filters' property)
+        const needsMigration = parsed.some(p => 'filters' in p);
+        
+        if (needsMigration) {
+          // Migrate all presets, handling both old and new formats
+          const migratedPresets = parsed.map((p: any) => {
+            // If already in new format, keep as is
+            if ('config' in p) {
+              return p as FilterPreset;
+            }
+            // Otherwise, migrate from old format
+            return migrateOldPreset(p as OldFilterPreset);
+          });
           setPresets(migratedPresets);
           // Save migrated presets
           localStorage.setItem('ala_filter_presets', JSON.stringify(migratedPresets));
           message.info(t('presetsMigrated'));
-        } else if (Array.isArray(parsed)) {
-          setPresets(parsed);
         } else {
-          // Invalid format, reset
-          setPresets([]);
-          localStorage.removeItem('ala_filter_presets');
+          setPresets(parsed);
         }
       } catch (e) {
         console.error('Failed to load presets:', e);

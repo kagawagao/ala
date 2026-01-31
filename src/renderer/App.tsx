@@ -398,7 +398,8 @@ const App: React.FC = () => {
   const handleApplyMultiplePresets = (presets: FilterPreset[]) => {
     if (presets.length === 0) return;
     
-    // Merge multiple presets - combine keywords and tags with OR operator
+    // Merge multiple presets - combine keywords and tags with OR operator (|)
+    // Note: Log level is not merged from presets - it remains at ALL or user's manual selection
     const mergedFilters: LogFilters = {
       startTime: '',
       endTime: '',
