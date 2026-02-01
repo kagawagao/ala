@@ -1,5 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -21,6 +22,10 @@ module.exports = {
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
+    fallback: {
+      "path": false,
+      "fs": false,
+    },
   },
   output: {
     filename: 'renderer.bundle.js',
@@ -30,6 +35,9 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './src/renderer/index-template.html',
       filename: 'index.html',
+    }),
+    new webpack.DefinePlugin({
+      'global': 'globalThis',
     }),
   ],
   devServer: {
