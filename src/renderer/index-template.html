@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Android Log Analyzer (ALA)</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:;">
+  <script>
+    // Polyfill for global object - ensures compatibility with Node.js-style packages
+    if (typeof global === 'undefined') {
+      window.global = window;
+    }
+  </script>
 </head>
 <body class="bg-dark-bg text-text-primary font-sans">
   <div id="root"></div>

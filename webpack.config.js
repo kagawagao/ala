@@ -26,6 +26,9 @@ module.exports = {
       "path": false,
       "fs": false,
     },
+    alias: {
+      'global': false,
+    },
   },
   output: {
     filename: 'renderer.bundle.js',
@@ -37,7 +40,7 @@ module.exports = {
       filename: 'index.html',
     }),
     new webpack.DefinePlugin({
-      'global': 'globalThis',
+      global: 'globalThis',
     }),
   ],
   devServer: {
