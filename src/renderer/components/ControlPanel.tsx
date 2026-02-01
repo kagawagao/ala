@@ -154,15 +154,27 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
-          {/* Keywords */}
+          {/* Keywords (Filter) */}
           <div>
             <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
-              {t('keywordsRegexSupported')}
+              {t('keywords')}:
             </label>
             <Input 
               value={filters.keywords}
               onChange={(e) => updateFilter('keywords', e.target.value)}
               placeholder={t('keywordsPlaceholder')} 
+            />
+          </div>
+
+          {/* Highlights (Visual Only) */}
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+              {t('highlights')}:
+            </label>
+            <Input 
+              value={filters.highlights}
+              onChange={(e) => updateFilter('highlights', e.target.value)}
+              placeholder={t('highlightsPlaceholder')} 
             />
           </div>
 

@@ -17,7 +17,7 @@ interface LogViewerProps {
   allLogsCount: number;
   statistics: LogStatistics | null;
   currentFiles: string[];
-  keywords: string;
+  highlights: string; // For visual highlighting only
   activeTab: 'logs' | 'ai';
   setActiveTab: (tab: 'logs' | 'ai') => void;
   aiAnalysis: string;
@@ -25,7 +25,7 @@ interface LogViewerProps {
   lineBreakMode: 'wrap' | 'nowrap';
   onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
   themeMode: 'dark' | 'light';
-  keywordDescriptions?: { keyword: string; description: string }[];
+  highlightDescriptions?: { keyword: string; description: string }[];
   tagDescription?: string;
   currentTag?: string;
 }
@@ -35,7 +35,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   allLogsCount,
   statistics,
   currentFiles,
-  keywords,
+  highlights,
   activeTab,
   setActiveTab,
   aiAnalysis,
@@ -43,7 +43,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   lineBreakMode,
   onLineBreakModeChange,
   themeMode,
-  keywordDescriptions = [],
+  highlightDescriptions = [],
   tagDescription = '',
   currentTag = '',
 }) => {
@@ -53,40 +53,40 @@ const LogViewer: React.FC<LogViewerProps> = ({
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   };
 
-  // Render message with keyword highlighting and tooltips
-  const renderMessageWithHighlights = (message: string, keywords: string): React.ReactNode => {
-    if (!keywords || !keywords.trim()) return message;
+  // Render message with highlight highlighting and tooltips
+  const renderMessageWithHighlights = (message: string, highlights: string): React.ReactNode => {
+    if (!highlights || !highlights.trim()) return message;
     
-    // Theme-aware colors for keyword highlighting
+    // Theme-aware colors for highlight highlighting
     const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
     const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
     
     try {
       // Try regex pattern first
-      const pattern = new RegExp(`(${keywords})`, 'gi');
+      const pattern = new RegExp(`(${highlights})`, 'gi');
       const parts: React.ReactNode[] = [];
       let lastIndex = 0;
       let match;
       const regex = new RegExp(pattern);
       
       // Reset regex for exec
-      const execRegex = new RegExp(`(${keywords})`, 'gi');
+      const execRegex = new RegExp(`(${highlights})`, 'gi');
       while ((match = execRegex.exec(message)) !== null) {
         // Add text before match
         if (match.index > lastIndex) {
           parts.push(message.substring(lastIndex, match.index));
         }
         
-        // Find description for this keyword
+        // Find description for this highlight
         const matchText = match[0];
-        const desc = keywordDescriptions.find(kd => 
+        const desc = highlightDescriptions.find(kd => 
           kd.keyword.toLowerCase() === matchText.toLowerCase()
         );
         
-        // Add highlighted keyword with optional tooltip
+        // Add highlighted highlight with optional tooltip
         const highlightedSpan = (
           <mark 
-            key={`keyword-${match.index}`}
+            key={`highlight-${match.index}`}
             style={{ 
               backgroundColor: bgColor, 
               color: textColor, 
@@ -119,18 +119,18 @@ const LogViewer: React.FC<LogViewerProps> = ({
       
       return <>{parts}</>;
     } catch (e) {
-      // Fallback to space-separated keywords
-      const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
+      // Fallback to space-separated highlights
+      const highlightList = highlights.toLowerCase().split(/\s+/).filter(k => k);
       let result: React.ReactNode[] = [message];
       
-      keywordList.forEach(keyword => {
+      highlightList.forEach(highlight => {
         const newResult: React.ReactNode[] = [];
         result.forEach((part, partIdx) => {
           if (typeof part === 'string') {
-            const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
+            const regex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
             let lastIndex = 0;
             let match;
-            const execRegex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
+            const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
             
             while ((match = execRegex.exec(part)) !== null) {
               // Add text before match
@@ -138,16 +138,16 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 newResult.push(part.substring(lastIndex, match.index));
               }
               
-              // Find description for this keyword
+              // Find description for this highlight
               const matchText = match[0];
-              const desc = keywordDescriptions.find(kd => 
+              const desc = highlightDescriptions.find(kd => 
                 kd.keyword.toLowerCase() === matchText.toLowerCase()
               );
               
-              // Add highlighted keyword with optional tooltip
+              // Add highlighted highlight with optional tooltip
               const highlightedSpan = (
                 <mark 
-                  key={`keyword-${partIdx}-${match.index}`}
+                  key={`highlight-${partIdx}-${match.index}`}
                   style={{ 
                     backgroundColor: bgColor, 
                     color: textColor, 
@@ -275,8 +275,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
       )
     ) : null;
 
-    // Render message with keyword highlighting and tooltips
-    const message = keywords ? renderMessageWithHighlights(log.message, keywords) : log.message;
+    // Render message with highlight highlighting and tooltips
+    const message = highlights ? renderMessageWithHighlights(log.message, highlights) : log.message;
 
     return (
       <div 

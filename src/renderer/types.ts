@@ -13,7 +13,8 @@ export interface LogEntry {
 export interface LogFilters {
   startTime: string;
   endTime: string;
-  keywords: string;
+  keywords: string; // For filtering logs (reduces visible logs)
+  highlights: string; // For visual highlighting only (no filtering)
   level: string;
   tag: string;
   pid: string;

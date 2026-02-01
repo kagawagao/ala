@@ -32,6 +32,10 @@ export interface FilterPreset {
       text: string;
       description: string;
     }>;
+    highlights: Array<{
+      text: string;
+      description: string;
+    }>;
   };
   createdAt: string;
 }
@@ -58,6 +62,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const [tagText, setTagText] = useState<string>('');
   const [tagDescription, setTagDescription] = useState<string>('');
   const [keywords, setKeywords] = useState<Array<{ text: string; description: string }>>([]);
+  const [highlights, setHighlights] = useState<Array<{ text: string; description: string }>>([]);
 
   useEffect(() => {
     loadPresets();
@@ -68,6 +73,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     const keywords: Array<{ text: string; description: string }> = [];
     
     // Extract keywords from filters.keywords
+    // In old format, keywords were used for highlighting, so migrate to highlights
     if (oldPreset.filters.keywords) {
       const keywordTexts = oldPreset.filters.keywords.split(KEYWORD_SEPARATOR).filter(k => k.trim());
       keywordTexts.forEach(kw => {
@@ -85,7 +91,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       name: oldPreset.name,
       description: oldPreset.description,
       config: {
-        keywords: keywords,
+        keywords: [], // Empty keywords for filtering (old format didn't have this)
+        highlights: keywords, // Old keywords become highlights
         ...(oldPreset.filters.tag ? {
           tag: {
             text: oldPreset.filters.tag,
@@ -150,7 +157,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       return;
     }
 
-    if (keywords.length === 0 && !tagText.trim()) {
+    if (keywords.length === 0 && highlights.length === 0 && !tagText.trim()) {
       message.warning(t('atLeastOneKeywordOrTag'));
       return;
     }
@@ -161,6 +168,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       description: newDescription.trim(),
       config: {
         keywords: keywords.filter(k => k.text.trim()),
+        highlights: highlights.filter(h => h.text.trim()),
         ...(tagText.trim() ? {
           tag: {
             text: tagText.trim(),
@@ -175,6 +183,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     setNewName('');
     setNewDescription('');
     setKeywords([]);
+    setHighlights([]);
     setTagText('');
     setTagDescription('');
     setShowAddForm(false);
@@ -292,7 +301,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
               {/* Keywords configuration */}
               <div>
                 <div style={{ marginBottom: '8px', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>{t('keywordDescriptions')}</span>
+                  <span>{t('keywords')} (Filter)</span>
                   <Button
                     type="dashed"
                     size="small"
@@ -306,7 +315,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   <div key={idx} style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <Input
-                        placeholder={t('keywordText')}
+                        placeholder={t('keywordsPlaceholder')}
                         value={kw.text}
                         onChange={(e) => {
                           const newKeywords = [...keywords];
@@ -330,6 +339,53 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                         const newKeywords = [...keywords];
                         newKeywords[idx].description = e.target.value;
                         setKeywords(newKeywords);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Highlights configuration */}
+              <div>
+                <div style={{ marginBottom: '8px', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t('highlights')} (Visual)</span>
+                  <Button
+                    type="dashed"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => setHighlights([...highlights, { text: '', description: '' }])}
+                  >
+                    {t('addKeyword')}
+                  </Button>
+                </div>
+                {highlights.map((hl, idx) => (
+                  <div key={idx} style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <Input
+                        placeholder={t('highlightsPlaceholder')}
+                        value={hl.text}
+                        onChange={(e) => {
+                          const newHighlights = [...highlights];
+                          newHighlights[idx].text = e.target.value;
+                          setHighlights(newHighlights);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => setHighlights(highlights.filter((_, i) => i !== idx))}
+                        title={t('removeKeyword')}
+                      />
+                    </div>
+                    <Input
+                      placeholder={`${t('descriptionFor')} "${hl.text || 'highlight'}"`}
+                      value={hl.description}
+                      onChange={(e) => {
+                        const newHighlights = [...highlights];
+                        newHighlights[idx].description = e.target.value;
+                        setHighlights(newHighlights);
                       }}
                     />
                   </div>

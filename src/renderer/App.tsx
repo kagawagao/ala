@@ -23,6 +23,7 @@ const App: React.FC = () => {
     startTime: '',
     endTime: '',
     keywords: '',
+    highlights: '',
     level: 'ALL',
     tag: '',
     pid: ''
@@ -39,8 +40,9 @@ const App: React.FC = () => {
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
     keywordDescriptions: { keyword: string; description: string }[];
+    highlightDescriptions: { keyword: string; description: string }[];
     tagDescription: string;
-  }>({ keywordDescriptions: [], tagDescription: '' });
+  }>({ keywordDescriptions: [], highlightDescriptions: [], tagDescription: '' });
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
@@ -105,8 +107,16 @@ const App: React.FC = () => {
             if (filters.startTime && log.timestamp < filters.startTime) return false;
             if (filters.endTime && log.timestamp > filters.endTime) return false;
 
-            // Keywords are only for highlighting, not filtering
-            // Removed keyword filtering logic
+            // Keywords filter (reduces visible logs)
+            if (filters.keywords && filters.keywords.trim()) {
+              try {
+                const keywordRegex = new RegExp(filters.keywords, 'i');
+                if (!keywordRegex.test(log.message)) return false;
+              } catch (e) {
+                // Fallback to case-insensitive contains search
+                if (!log.message.toLowerCase().includes(filters.keywords.toLowerCase())) return false;
+              }
+            }
 
             if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) return false;
 
@@ -278,6 +288,7 @@ const App: React.FC = () => {
       startTime: '',
       endTime: '',
       keywords: '',
+      highlights: '',
       level: 'ALL',
       tag: '',
       pid: ''
@@ -293,6 +304,7 @@ const App: React.FC = () => {
     // Save filters excluding time and PID fields
     const filtersToSave = {
       keywords: filters.keywords,
+      highlights: filters.highlights,
       level: filters.level,
       tag: filters.tag
     };
@@ -308,6 +320,7 @@ const App: React.FC = () => {
         setFilters({
           ...filters,
           keywords: parsed.keywords || '',
+          highlights: parsed.highlights || '',
           level: parsed.level || 'ALL',
           tag: parsed.tag || ''
           // PID is not restored from saved filters
@@ -370,19 +383,22 @@ const App: React.FC = () => {
   };
 
   const handleLoadPreset = (preset: FilterPreset) => {
-    // Extract keywords and tag from config
+    // Extract keywords, highlights, and tag from config
     const keywordTexts = preset.config.keywords.map(k => k.text).join(KEYWORD_SEPARATOR);
+    const highlightTexts = preset.config.highlights.map(h => h.text).join(KEYWORD_SEPARATOR);
     const tagText = preset.config.tag?.text || '';
     
     setFilters({
       ...filters,
       keywords: keywordTexts,
+      highlights: highlightTexts,
       tag: tagText
     });
     
     // Set descriptions from the preset
     setActivePresetDescriptions({
       keywordDescriptions: preset.config.keywords.map(k => ({ keyword: k.text, description: k.description })),
+      highlightDescriptions: preset.config.highlights.map(h => ({ keyword: h.text, description: h.description })),
       tagDescription: preset.config.tag?.description || ''
     });
     showStatus('Preset loaded successfully!', 'info');
@@ -391,12 +407,13 @@ const App: React.FC = () => {
   const handleApplyMultiplePresets = (presets: FilterPreset[]) => {
     if (presets.length === 0) return;
     
-    // Merge multiple presets - combine keywords and tags with OR operator (|)
+    // Merge multiple presets - combine keywords, highlights, and tags with OR operator (|)
     // Note: Log level is not merged from presets - it remains at ALL or user's manual selection
     const mergedFilters: LogFilters = {
       startTime: '',
       endTime: '',
       keywords: '',
+      highlights: '',
       level: 'ALL',
       tag: '',
       pid: ''
@@ -407,6 +424,14 @@ const App: React.FC = () => {
     presets.forEach(p => {
       p.config.keywords.forEach(k => {
         allKeywordDescriptions.push({ keyword: k.text, description: k.description });
+      });
+    });
+
+    // Merge highlight descriptions
+    const allHighlightDescriptions: { keyword: string; description: string }[] = [];
+    presets.forEach(p => {
+      p.config.highlights.forEach(h => {
+        allHighlightDescriptions.push({ keyword: h.text, description: h.description });
       });
     });
 
@@ -426,6 +451,16 @@ const App: React.FC = () => {
       mergedFilters.keywords = allKeywords;
     }
 
+    // Combine highlights with OR operator
+    const allHighlights = presets
+      .flatMap(p => p.config.highlights.map(h => h.text))
+      .filter(h => h && h.trim())
+      .join(KEYWORD_SEPARATOR);
+    
+    if (allHighlights) {
+      mergedFilters.highlights = allHighlights;
+    }
+
     // Combine tags with OR operator
     const allTags = presets
       .map(p => p.config.tag?.text)
@@ -439,9 +474,10 @@ const App: React.FC = () => {
     setFilters(mergedFilters);
     setActivePresetDescriptions({
       keywordDescriptions: allKeywordDescriptions,
+      highlightDescriptions: allHighlightDescriptions,
       tagDescription: allTagDescriptions
     });
-    showStatus(`Applied ${presets.length} presets. Keywords and tags combined with OR.`, 'info');
+    showStatus(`Applied ${presets.length} presets. Keywords, highlights, and tags combined with OR.`, 'info');
   };
 
   const handleToggleTheme = () => {
@@ -533,7 +569,7 @@ const App: React.FC = () => {
             allLogsCount={allLogs.length}
             statistics={statistics}
             currentFiles={currentFiles}
-            keywords={filters.keywords}
+            highlights={filters.highlights}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             aiAnalysis={aiAnalysis}
@@ -541,7 +577,7 @@ const App: React.FC = () => {
             lineBreakMode={lineBreakMode}
             onLineBreakModeChange={setLineBreakMode}
             themeMode={themeMode}
-            keywordDescriptions={activePresetDescriptions.keywordDescriptions}
+            highlightDescriptions={activePresetDescriptions.highlightDescriptions}
             tagDescription={activePresetDescriptions.tagDescription}
             currentTag={filters.tag}
           />
