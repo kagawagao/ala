@@ -72,7 +72,7 @@
   },
   "build": {
     "appId": "com.kagawagao.ala",
-    "productName": "Android Log Analyzer",
+    "productName": "ALA",
     "directories": {
       "output": "dist/build"
     },
