@@ -58,12 +58,11 @@ try {
   
   if (conversionSuccess && fs.existsSync(tempPngPath)) {
     // Now use electron-icon-builder to generate all icon formats
-    const iconBuilderPath = path.join(__dirname, '..', 'node_modules', '.bin', 'electron-icon-builder');
-    
+    // Use npx for cross-platform compatibility
     try {
       execSync(
-        `"${iconBuilderPath}" --input="${tempPngPath}" --output="${assetsDir}" --flatten`,
-        { stdio: 'inherit' }
+        `npx electron-icon-builder --input="${tempPngPath}" --output="${assetsDir}" --flatten`,
+        { stdio: 'inherit', cwd: path.join(__dirname, '..') }
       );
       
       // Clean up temp file
@@ -76,6 +75,11 @@ try {
       console.log('\n✓ All icon files ready for electron-builder');
     } catch (builderError) {
       console.error('✗ Error running electron-icon-builder:', builderError.message);
+      console.error('Falling back to simple copy method...');
+      // Don't throw, fall through to fallback
+      if (fs.existsSync(tempPngPath)) {
+        fs.unlinkSync(tempPngPath);
+      }
       throw builderError;
     }
   } else {

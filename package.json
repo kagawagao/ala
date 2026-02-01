@@ -18,7 +18,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "postinstall": "npm run build:icon"
+    "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'"
   },
   "keywords": [
     "android",
@@ -73,19 +73,20 @@
     },
     "files": [
       "dist/**/*",
+      "assets/icons/**/*",
       "package.json"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.png"
+      "icon": "assets/icons/icon.icns"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "assets/icons/icon.ico"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icon.png"
+      "icon": "assets/icons/512x512.png"
     }
   }
 }
