@@ -105,17 +105,8 @@ const App: React.FC = () => {
             if (filters.startTime && log.timestamp < filters.startTime) return false;
             if (filters.endTime && log.timestamp > filters.endTime) return false;
 
-            if (filters.keywords && filters.keywords.trim()) {
-              try {
-                const regex = new RegExp(filters.keywords, 'i');
-                if (!regex.test(log.message)) return false;
-              } catch (e) {
-                const keywords = filters.keywords.toLowerCase().split(/\\s+/).filter(k => k);
-                const message = log.message.toLowerCase();
-                const hasMatch = keywords.some(keyword => message.includes(keyword));
-                if (!hasMatch) return false;
-              }
-            }
+            // Keywords are only for highlighting, not filtering
+            // Removed keyword filtering logic
 
             if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) return false;
 

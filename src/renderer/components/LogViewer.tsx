@@ -49,18 +49,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const escapeHtml = (text: string): string => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  };
-
   const escapeRegex = (str: string): string => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   };
 
-  const highlightKeywords = (text: string, keywords: string): string => {
-    if (!keywords || !keywords.trim()) return text;
+  // Render message with keyword highlighting and tooltips
+  const renderMessageWithHighlights = (message: string, keywords: string): React.ReactNode => {
+    if (!keywords || !keywords.trim()) return message;
     
     // Theme-aware colors for keyword highlighting
     const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
@@ -69,34 +64,127 @@ const LogViewer: React.FC<LogViewerProps> = ({
     try {
       // Try regex pattern first
       const pattern = new RegExp(`(${keywords})`, 'gi');
-      return text.replace(pattern, (match) => {
+      const parts: React.ReactNode[] = [];
+      let lastIndex = 0;
+      let match;
+      const regex = new RegExp(pattern);
+      
+      // Reset regex for exec
+      const execRegex = new RegExp(`(${keywords})`, 'gi');
+      while ((match = execRegex.exec(message)) !== null) {
+        // Add text before match
+        if (match.index > lastIndex) {
+          parts.push(message.substring(lastIndex, match.index));
+        }
+        
         // Find description for this keyword
+        const matchText = match[0];
         const desc = keywordDescriptions.find(kd => 
-          kd.keyword.toLowerCase() === match.toLowerCase()
+          kd.keyword.toLowerCase() === matchText.toLowerCase()
         );
-        const title = desc ? desc.description : '';
-        const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-        return `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px; cursor: help;"${titleAttr} data-tooltip="keyword">${match}</mark>`;
-      });
+        
+        // Add highlighted keyword with optional tooltip
+        const highlightedSpan = (
+          <mark 
+            key={`keyword-${match.index}`}
+            style={{ 
+              backgroundColor: bgColor, 
+              color: textColor, 
+              padding: '0 4px', 
+              borderRadius: '2px',
+              cursor: desc ? 'help' : 'default'
+            }}
+          >
+            {matchText}
+          </mark>
+        );
+        
+        if (desc && desc.description) {
+          parts.push(
+            <Tooltip key={`tooltip-${match.index}`} title={desc.description} placement="top">
+              {highlightedSpan}
+            </Tooltip>
+          );
+        } else {
+          parts.push(highlightedSpan);
+        }
+        
+        lastIndex = execRegex.lastIndex;
+      }
+      
+      // Add remaining text
+      if (lastIndex < message.length) {
+        parts.push(message.substring(lastIndex));
+      }
+      
+      return <>{parts}</>;
     } catch (e) {
       // Fallback to space-separated keywords
       const keywordList = keywords.toLowerCase().split(/\s+/).filter(k => k);
-      let highlightedText = text;
+      let result: React.ReactNode[] = [message];
       
       keywordList.forEach(keyword => {
-        const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
-        highlightedText = highlightedText.replace(regex, (match) => {
-          // Find description for this keyword
-          const desc = keywordDescriptions.find(kd => 
-            kd.keyword.toLowerCase() === match.toLowerCase()
-          );
-          const title = desc ? desc.description : '';
-          const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-          return `<mark style="background-color: ${bgColor}; color: ${textColor}; padding: 0 4px; border-radius: 2px; cursor: help;"${titleAttr} data-tooltip="keyword">${match}</mark>`;
+        const newResult: React.ReactNode[] = [];
+        result.forEach((part, partIdx) => {
+          if (typeof part === 'string') {
+            const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
+            let lastIndex = 0;
+            let match;
+            const execRegex = new RegExp(`(${escapeRegex(keyword)})`, 'gi');
+            
+            while ((match = execRegex.exec(part)) !== null) {
+              // Add text before match
+              if (match.index > lastIndex) {
+                newResult.push(part.substring(lastIndex, match.index));
+              }
+              
+              // Find description for this keyword
+              const matchText = match[0];
+              const desc = keywordDescriptions.find(kd => 
+                kd.keyword.toLowerCase() === matchText.toLowerCase()
+              );
+              
+              // Add highlighted keyword with optional tooltip
+              const highlightedSpan = (
+                <mark 
+                  key={`keyword-${partIdx}-${match.index}`}
+                  style={{ 
+                    backgroundColor: bgColor, 
+                    color: textColor, 
+                    padding: '0 4px', 
+                    borderRadius: '2px',
+                    cursor: desc ? 'help' : 'default'
+                  }}
+                >
+                  {matchText}
+                </mark>
+              );
+              
+              if (desc && desc.description) {
+                newResult.push(
+                  <Tooltip key={`tooltip-${partIdx}-${match.index}`} title={desc.description} placement="top">
+                    {highlightedSpan}
+                  </Tooltip>
+                );
+              } else {
+                newResult.push(highlightedSpan);
+              }
+              
+              lastIndex = execRegex.lastIndex;
+            }
+            
+            // Add remaining text
+            if (lastIndex < part.length) {
+              newResult.push(part.substring(lastIndex));
+            }
+          } else {
+            newResult.push(part);
+          }
         });
+        result = newResult;
       });
       
-      return highlightedText;
+      return <>{result}</>;
     }
   };
 
@@ -187,11 +275,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
       )
     ) : null;
 
-    // Highlight keywords in message
-    let message = escapeHtml(log.message);
-    if (keywords) {
-      message = highlightKeywords(message, keywords);
-    }
+    // Render message with keyword highlighting and tooltips
+    const message = keywords ? renderMessageWithHighlights(log.message, keywords) : log.message;
 
     return (
       <div 
@@ -208,7 +293,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         {timestamp}
         {level}
         {tag}
-        <span dangerouslySetInnerHTML={{ __html: message }} />
+        <span>{message}</span>
       </div>
     );
   };
@@ -428,7 +513,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
           style={{
             position: 'absolute',
             right: 24,
-            top: 80,
+            bottom: 24,
+            zIndex: 100,
           }}
         />
       )}
