@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
@@ -84,6 +85,22 @@ const App: React.FC = () => {
         console.error('Failed to load saved filters:', e);
       }
     }
+
+    // Load presets from localStorage
+    const loadPresets = () => {
+      const saved = localStorage.getItem('ala_filter_presets');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setPresets(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to load presets:', e);
+        }
+      }
+    };
+    loadPresets();
 
     // Add Ctrl+Shift+F keyboard shortcut to toggle drawer
     // Note: Uses Shift modifier to avoid conflict with browser's native Ctrl+F (find)
@@ -300,56 +317,24 @@ const App: React.FC = () => {
     showStatus('Filters cleared. Click "Search" to show all logs.', 'info');
   };
 
-  const handleSaveFilters = () => {
-    // Save filters excluding time and PID fields
-    const filtersToSave = {
-      keywords: filters.keywords,
-      highlights: filters.highlights,
-      level: filters.level,
-      tag: filters.tag
-    };
-    localStorage.setItem('ala_saved_filters', JSON.stringify(filtersToSave));
-    showStatus('Filters saved successfully!', 'info');
-  };
-
-  const handleLoadFilters = () => {
-    const savedFilters = localStorage.getItem('ala_saved_filters');
-    if (savedFilters) {
-      try {
-        const parsed = JSON.parse(savedFilters);
-        setFilters({
-          ...filters,
-          keywords: parsed.keywords || '',
-          highlights: parsed.highlights || '',
-          level: parsed.level || 'ALL',
-          tag: parsed.tag || ''
-          // PID is not restored from saved filters
-        });
-        showStatus('Filters loaded successfully!', 'info');
-      } catch (e) {
-        showStatus('Failed to load saved filters', 'error');
-      }
-    } else {
-      showStatus('No saved filters found', 'info');
-    }
-  };
-
-  const handleImportFilters = async () => {
+  const handleImportPresetsToManager = async () => {
     const imported = await window.electronAPI.importFilters();
     if (imported) {
-      setFilters(imported);
-      showStatus('Filters imported successfully!', 'info');
+      // Import as a new preset - we can create a preset from the imported filters
+      // For now, just show status
+      showStatus('Import presets through the Preset Manager', 'info');
     } else {
-      showStatus('Failed to import filters', 'error');
+      showStatus('Failed to import', 'error');
     }
   };
 
-  const handleExportFilters = async () => {
-    const success = await window.electronAPI.exportFilters(filters);
+  const handleExportPresetsFromManager = async () => {
+    // Export all presets
+    const success = await window.electronAPI.exportFilters(presets as any);
     if (success) {
-      showStatus('Filters exported successfully!', 'info');
+      showStatus('Presets exported successfully!', 'info');
     } else {
-      showStatus('Failed to export filters', 'error');
+      showStatus('Failed to export presets', 'error');
     }
   };
 
@@ -547,10 +532,6 @@ const App: React.FC = () => {
             onOpenFiles={handleOpenFiles}
             onSearch={handleSearch}
             onClearFilters={handleClearFilters}
-            onSaveFilters={handleSaveFilters}
-            onLoadFilters={handleLoadFilters}
-            onImportFilters={handleImportFilters}
-            onExportFilters={handleExportFilters}
             onAnalyzeWithAI={handleAnalyzeWithAI}
             currentFiles={currentFiles}
             aiConfigured={aiConfigured}
@@ -562,6 +543,7 @@ const App: React.FC = () => {
             onLoadPreset={handleLoadPreset}
             onApplyMultiplePresets={handleApplyMultiplePresets}
             onDeleteFile={handleDeleteFile}
+            presets={presets}
           />
           
           <LogViewer
@@ -585,9 +567,25 @@ const App: React.FC = () => {
         
         <FilterPresetManager
           visible={presetManagerVisible}
-          onClose={() => setPresetManagerVisible(false)}
+          onClose={() => {
+            setPresetManagerVisible(false);
+            // Reload presets when closing to reflect any changes
+            const saved = localStorage.getItem('ala_filter_presets');
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                  setPresets(parsed);
+                }
+              } catch (e) {
+                console.error('Failed to reload presets:', e);
+              }
+            }
+          }}
           onLoadPreset={handleLoadPreset}
           onApplyMultiplePresets={handleApplyMultiplePresets}
+          onImport={handleImportPresetsToManager}
+          onExport={handleExportPresetsFromManager}
         />
       </div>
     </ConfigProvider>

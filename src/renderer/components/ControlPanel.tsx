@@ -16,12 +16,9 @@ import {
   FolderOpenOutlined,
   SearchOutlined,
   ClearOutlined,
-  SaveOutlined,
-  FolderOutlined,
-  ImportOutlined,
-  ExportOutlined,
   RobotOutlined,
-  LoadingOutlined
+  LoadingOutlined,
+  CheckOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
@@ -35,10 +32,6 @@ interface ControlPanelProps {
   onOpenFiles: () => void;
   onSearch: () => void;
   onClearFilters: () => void;
-  onSaveFilters: () => void;
-  onLoadFilters: () => void;
-  onImportFilters: () => void;
-  onExportFilters: () => void;
   onAnalyzeWithAI: (prompt?: string) => void;
   currentFiles: string[];
   aiConfigured: boolean;
@@ -50,6 +43,7 @@ interface ControlPanelProps {
   onLoadPreset: (preset: FilterPreset) => void;
   onApplyMultiplePresets: (presets: FilterPreset[]) => void;
   onDeleteFile: (filePath: string) => void;
+  presets: FilterPreset[];
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -62,10 +56,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onOpenFiles,
   onSearch,
   onClearFilters,
-  onSaveFilters,
-  onLoadFilters,
-  onImportFilters,
-  onExportFilters,
   onAnalyzeWithAI,
   currentFiles,
   aiConfigured,
@@ -77,6 +67,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onLoadPreset,
   onApplyMultiplePresets,
   onDeleteFile,
+  presets,
 }) => {
   const { t } = useTranslation();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
@@ -243,41 +234,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </Button>
           </Space.Compact>
           
-          {/* Save/Load Buttons */}
-          <Space.Compact block>
-            <Button 
-              icon={<SaveOutlined />}
-              onClick={onSaveFilters}
-              style={{ flex: 1 }}
-            >
-              {t('save')}
-            </Button>
-            <Button 
-              icon={<FolderOutlined />}
-              onClick={onLoadFilters}
-              style={{ flex: 1 }}
-            >
-              {t('load')}
-            </Button>
-          </Space.Compact>
-
-          {/* Import/Export Buttons */}
-          <Space.Compact block>
-            <Button 
-              icon={<ImportOutlined />}
-              onClick={onImportFilters}
-              style={{ flex: 1 }}
-            >
-              {t('importFilters')}
-            </Button>
-            <Button 
-              icon={<ExportOutlined />}
-              onClick={onExportFilters}
-              style={{ flex: 1 }}
-            >
-              {t('exportFilters')}
-            </Button>
-          </Space.Compact>
+          {/* Apply Preset */}
+          {presets.length > 0 && (
+            <>
+              <Divider style={{ margin: '8px 0' }}>{t('applyPreset')}</Divider>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+                  {t('selectPreset')}:
+                </label>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder={t('selectPresetToApply')}
+                  onChange={(value) => {
+                    const preset = presets.find(p => p.id === value);
+                    if (preset) {
+                      onLoadPreset(preset);
+                    }
+                  }}
+                  options={presets.map(preset => ({
+                    value: preset.id,
+                    label: preset.name
+                  }))}
+                  allowClear
+                />
+              </div>
+            </>
+          )}
 
           {/* Status Message */}
           {statusMessage && (

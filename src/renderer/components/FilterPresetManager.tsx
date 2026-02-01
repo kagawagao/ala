@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, CheckOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
@@ -45,6 +45,8 @@ interface FilterPresetManagerProps {
   onClose: () => void;
   onLoadPreset: (preset: FilterPreset) => void;
   onApplyMultiplePresets: (presets: FilterPreset[]) => void;
+  onImport: () => Promise<void>;
+  onExport: () => Promise<void>;
 }
 
 const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
@@ -52,6 +54,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   onClose,
   onLoadPreset,
   onApplyMultiplePresets,
+  onImport,
+  onExport,
 }) => {
   const { t } = useTranslation();
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -242,16 +246,24 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       open={visible}
       onCancel={onClose}
       footer={
-        selectedPresetIds.length > 0 ? (
-          <Space>
-            <Button onClick={() => setSelectedPresetIds([])}>
-              {t('clearSelection')}
-            </Button>
-            <Button type="primary" icon={<CheckOutlined />} onClick={handleApplyMultiple}>
-              {t('applyPresets').replace('{count}', selectedPresetIds.length.toString())}
-            </Button>
-          </Space>
-        ) : null
+        <Space>
+          <Button icon={<ImportOutlined />} onClick={onImport}>
+            {t('importFilters')}
+          </Button>
+          <Button icon={<ExportOutlined />} onClick={onExport}>
+            {t('exportFilters')}
+          </Button>
+          {selectedPresetIds.length > 0 && (
+            <>
+              <Button onClick={() => setSelectedPresetIds([])}>
+                {t('clearSelection')}
+              </Button>
+              <Button type="primary" icon={<CheckOutlined />} onClick={handleApplyMultiple}>
+                {t('applyPresets').replace('{count}', selectedPresetIds.length.toString())}
+              </Button>
+            </>
+          )}
+        </Space>
       }
       width={700}
     >

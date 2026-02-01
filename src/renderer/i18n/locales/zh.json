@@ -94,5 +94,8 @@
   "optional": "(可选)",
   "keyword": "关键词",
   "presetsMigrated": "过滤器预设已自动迁移到新格式",
-  "atLeastOneKeywordOrTag": "请至少添加一个关键词或标签"
+  "atLeastOneKeywordOrTag": "请至少添加一个关键词或标签",
+  "applyPreset": "应用预设",
+  "selectPreset": "选择预设",
+  "selectPresetToApply": "选择要应用的预设"
 }
