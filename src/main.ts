@@ -4,6 +4,18 @@ import { promises as fs } from 'fs';
 import LogAnalyzer, { LogEntry, LogFilters } from './backend/log-analyzer';
 import AIService from './backend/ai-service';
 
+// Enable hot-reload in development
+try {
+  if (process.env.NODE_ENV === 'development') {
+    require('electron-reloader')(module, {
+      debug: true,
+      watchRenderer: true
+    });
+  }
+} catch (_) { 
+  // Ignore errors if electron-reloader is not installed
+}
+
 let mainWindow: BrowserWindow | null;
 const logAnalyzer = new LogAnalyzer();
 const aiService = new AIService();
@@ -25,16 +37,8 @@ function createWindow(): void {
   // Maximize window on startup
   mainWindow.maximize();
 
-  // Load from HTTP in development (for hot-reload), file in production
-  const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
-  
-  if (isDev) {
-    // In development, load from webpack-dev-server
-    mainWindow.loadURL('http://localhost:8080');
-  } else {
-    // In production, load from file
-    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  }
+  // Always load from file system
+  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   Menu.setApplicationMenu(null);
 

@@ -87,20 +87,35 @@ export OPENAI_API_KEY='your-api-key-here'
 
 ### Running the Application
 
-**Development Mode (with Hot Module Replacement):**
+**Development Mode (with auto-reload):**
 
-The development mode automatically starts webpack-dev-server for hot-reload and loads the app via HTTP for instant updates:
+The development mode uses `electron-reloader` to automatically restart Electron when file changes are detected:
 
 ```bash
-# Start in development mode with hot-reload
+# Start in development mode with auto-reload
 npm run dev
 ```
 
 This will:
 1. Compile the TypeScript backend
-2. Start webpack-dev-server on http://localhost:8080 with HMR enabled
-3. Launch Electron which loads the renderer from the dev server
-4. Changes to React components will hot-reload automatically
+2. Build the React renderer in production mode
+3. Launch Electron with auto-reload enabled
+4. File changes will automatically restart Electron
+
+For continuous development with automatic recompilation:
+
+```bash
+# In one terminal: watch and rebuild automatically
+npm run watch
+
+# In another terminal: run Electron in dev mode
+npm run dev
+```
+
+The `watch` command will:
+- Watch TypeScript backend files and recompile on changes
+- Watch React renderer files and rebuild on changes
+- `electron-reloader` will detect changes and restart the app
 
 **Production Mode:**
 
@@ -124,15 +139,13 @@ npm run build:ts
 # Just build React renderer (production)
 npm run build:renderer
 
-# Start webpack-dev-server only (for development)
-npm run serve
-
 # Generate app icon from logo
 npm run build:icon
 
-# Watch for changes (useful during development)
-npm run watch:ts         # Watch TypeScript backend
-npm run watch:renderer   # Watch React renderer in development mode
+# Watch for changes and rebuild automatically (useful during development)
+npm run watch           # Watch both TypeScript backend and React renderer
+npm run watch:ts        # Watch TypeScript backend only
+npm run watch:renderer  # Watch React renderer in development mode
 ```
 
 ### Code Quality
