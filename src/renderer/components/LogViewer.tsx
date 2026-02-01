@@ -513,7 +513,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           style={{
             position: 'absolute',
             right: 24,
-            bottom: 24,
+            top: 24,
             zIndex: 100,
           }}
         />
