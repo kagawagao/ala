@@ -23,8 +23,19 @@ module.exports = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
     fallback: {
+      // Disable Node.js core modules that aren't needed in browser/renderer
       "path": false,
       "fs": false,
+      "crypto": false,
+      "stream": false,
+      "http": false,
+      "https": false,
+      "zlib": false,
+      "util": false,
+      "url": false,
+      "assert": false,
+      "buffer": false,
+      "process": false,
     },
     alias: {
       'global': false,
@@ -41,6 +52,11 @@ module.exports = {
     }),
     new webpack.DefinePlugin({
       global: 'globalThis',
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+    }),
+    // Provide empty modules for Node.js globals
+    new webpack.ProvidePlugin({
+      process: 'process/browser',
     }),
   ],
   devServer: {
@@ -51,4 +67,7 @@ module.exports = {
     port: 8080,
     historyApiFallback: true,
   },
+  // Important: Keep Node.js integration disabled for security
+  // Electron's contextIsolation should be enabled
+  node: false,
 };

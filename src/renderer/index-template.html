@@ -6,9 +6,18 @@
   <title>Android Log Analyzer (ALA)</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:;">
   <script>
-    // Polyfill for global object - ensures compatibility with Node.js-style packages
+    // Polyfill for Node.js-style globals - ensures compatibility with Node.js-style packages
     if (typeof global === 'undefined') {
       window.global = window;
+    }
+    // Some packages check for 'require' to detect Node.js environment
+    // In Electron renderer with nodeIntegration disabled, provide a stub
+    if (typeof require === 'undefined') {
+      window.require = undefined;
+    }
+    // Define process if not already defined (will be provided by webpack)
+    if (typeof process === 'undefined') {
+      window.process = { env: {} };
     }
   </script>
 </head>
