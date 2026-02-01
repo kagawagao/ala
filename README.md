@@ -87,21 +87,29 @@ export OPENAI_API_KEY='your-api-key-here'
 
 ### Running the Application
 
-**First-time setup** - Build the project before running:
+**Development Mode (with Hot Module Replacement):**
+
+The development mode automatically starts webpack-dev-server for hot-reload and loads the app via HTTP for instant updates:
 
 ```bash
-# Build TypeScript backend
-npm run build:ts
-
-# Build React renderer
-npm run build:renderer
+# Start in development mode with hot-reload
+npm run dev
 ```
 
-Then run the application:
+This will:
+1. Compile the TypeScript backend
+2. Start webpack-dev-server on http://localhost:8080 with HMR enabled
+3. Launch Electron which loads the renderer from the dev server
+4. Changes to React components will hot-reload automatically
+
+**Production Mode:**
+
+For production, the app loads from the file system:
 
 ```bash
-# Start in development mode
-npm run dev
+# Build everything
+npm run build:ts        # Compile TypeScript backend
+npm run build:renderer  # Build React renderer for production
 
 # Start in production mode
 npm start
@@ -113,19 +121,18 @@ npm start
 # Just compile TypeScript backend
 npm run build:ts
 
-# Just build React renderer
+# Just build React renderer (production)
 npm run build:renderer
 
-# Just compile CSS (if modifying styles)
-npm run build:css
+# Start webpack-dev-server only (for development)
+npm run serve
 
 # Generate app icon from logo
 npm run build:icon
 
 # Watch for changes (useful during development)
 npm run watch:ts         # Watch TypeScript backend
-npm run watch:renderer   # Watch React renderer
-npm run watch:css        # Watch Tailwind CSS
+npm run watch:renderer   # Watch React renderer in development mode
 ```
 
 ### Code Quality

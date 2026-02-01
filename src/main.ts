@@ -25,7 +25,16 @@ function createWindow(): void {
   // Maximize window on startup
   mainWindow.maximize();
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // Load from HTTP in development (for hot-reload), file in production
+  const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+  
+  if (isDev) {
+    // In development, load from webpack-dev-server
+    mainWindow.loadURL('http://localhost:8080');
+  } else {
+    // In production, load from file
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  }
 
   Menu.setApplicationMenu(null);
 
