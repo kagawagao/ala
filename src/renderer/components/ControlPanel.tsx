@@ -72,6 +72,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const { t } = useTranslation();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
+  const [selectedPresetIds, setSelectedPresetIds] = React.useState<string[]>([]);
 
   const updateFilter = (key: keyof LogFilters, value: string) => {
     setFilters({ ...filters, [key]: value });
@@ -243,20 +244,36 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   {t('selectPreset')}:
                 </label>
                 <Select
+                  mode="multiple"
                   style={{ width: '100%' }}
                   placeholder={t('selectPresetToApply')}
-                  onChange={(value) => {
-                    const preset = presets.find(p => p.id === value);
-                    if (preset) {
-                      onLoadPreset(preset);
-                    }
-                  }}
+                  value={selectedPresetIds}
+                  onChange={(values) => setSelectedPresetIds(values)}
                   options={presets.map(preset => ({
                     value: preset.id,
                     label: preset.name
                   }))}
                   allowClear
+                  maxTagCount="responsive"
                 />
+                {selectedPresetIds.length > 0 && (
+                  <Button
+                    type="primary"
+                    icon={<CheckOutlined />}
+                    onClick={() => {
+                      const selectedPresets = presets.filter(p => selectedPresetIds.includes(p.id));
+                      if (selectedPresets.length === 1) {
+                        onLoadPreset(selectedPresets[0]);
+                      } else if (selectedPresets.length > 1) {
+                        onApplyMultiplePresets(selectedPresets);
+                      }
+                      setSelectedPresetIds([]);
+                    }}
+                    style={{ width: '100%', marginTop: '8px' }}
+                  >
+                    {t('applyPresets', { count: selectedPresetIds.length })}
+                  </Button>
+                )}
               </div>
             </>
           )}
