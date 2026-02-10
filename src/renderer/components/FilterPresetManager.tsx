@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, CheckOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, CheckOutlined, ImportOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +67,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const [tagDescription, setTagDescription] = useState<string>('');
   const [keywords, setKeywords] = useState<Array<{ text: string; description: string }>>([]);
   const [highlights, setHighlights] = useState<Array<{ text: string; description: string }>>([]);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPresets();
@@ -166,24 +167,57 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       return;
     }
 
-    const newPreset: FilterPreset = {
-      id: `preset_${Date.now()}`,
-      name: newName.trim(),
-      description: newDescription.trim(),
-      config: {
-        keywords: keywords.filter(k => k.text.trim()),
-        highlights: highlights.filter(h => h.text.trim()),
-        ...(tagText.trim() ? {
-          tag: {
-            text: tagText.trim(),
-            description: tagDescription.trim()
-          }
-        } : {})
-      },
-      createdAt: new Date().toISOString(),
-    };
+    if (editingPresetId) {
+      // Update existing preset
+      const updatedPresets = presets.map(p => {
+        if (p.id === editingPresetId) {
+          return {
+            ...p,
+            name: newName.trim(),
+            description: newDescription.trim(),
+            config: {
+              keywords: keywords.filter(k => k.text.trim()),
+              highlights: highlights.filter(h => h.text.trim()),
+              ...(tagText.trim() ? {
+                tag: {
+                  text: tagText.trim(),
+                  description: tagDescription.trim()
+                }
+              } : {})
+            }
+          };
+        }
+        return p;
+      });
+      savePresets(updatedPresets);
+      message.success(t('presetUpdated'));
+    } else {
+      // Create new preset
+      const newPreset: FilterPreset = {
+        id: `preset_${Date.now()}`,
+        name: newName.trim(),
+        description: newDescription.trim(),
+        config: {
+          keywords: keywords.filter(k => k.text.trim()),
+          highlights: highlights.filter(h => h.text.trim()),
+          ...(tagText.trim() ? {
+            tag: {
+              text: tagText.trim(),
+              description: tagDescription.trim()
+            }
+          } : {})
+        },
+        createdAt: new Date().toISOString(),
+      };
 
-    savePresets([...presets, newPreset]);
+      savePresets([...presets, newPreset]);
+      message.success(t('savePreset'));
+    }
+    
+    resetForm();
+  };
+
+  const resetForm = () => {
     setNewName('');
     setNewDescription('');
     setKeywords([]);
@@ -191,13 +225,33 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     setTagText('');
     setTagDescription('');
     setShowAddForm(false);
-    message.success(t('savePreset'));
+    setEditingPresetId(null);
   };
 
   const handleDelete = (id: string) => {
     const updated = presets.filter((p) => p.id !== id);
     savePresets(updated);
     message.success(t('delete'));
+    // If we're editing this preset, close the form
+    if (editingPresetId === id) {
+      resetForm();
+    }
+  };
+
+  const handleEdit = (preset: FilterPreset) => {
+    setEditingPresetId(preset.id);
+    setNewName(preset.name);
+    setNewDescription(preset.description);
+    setKeywords(preset.config.keywords);
+    setHighlights(preset.config.highlights);
+    if (preset.config.tag) {
+      setTagText(preset.config.tag.text);
+      setTagDescription(preset.config.tag.description);
+    } else {
+      setTagText('');
+      setTagDescription('');
+    }
+    setShowAddForm(true);
   };
 
   const handleLoad = (preset: FilterPreset) => {
@@ -244,7 +298,12 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     <Modal
       title={t('filterPresetManager')}
       open={visible}
-      onCancel={onClose}
+      onCancel={() => {
+        onClose();
+        if (showAddForm) {
+          resetForm();
+        }
+      }}
       footer={
         <Space>
           <Button icon={<ImportOutlined />} onClick={onImport}>
@@ -276,6 +335,9 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
             borderRadius: '4px',
             border: '1px solid var(--ant-color-border)'
           }}>
+            <div style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
+              {editingPresetId ? t('editPreset') : t('createNewPreset')}
+            </div>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Input
                 placeholder={t('presetName')}
@@ -406,16 +468,9 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
               <Space>
                 <Button type="primary" onClick={handleSaveNew}>
-                  {t('save')}
+                  {editingPresetId ? t('update') : t('save')}
                 </Button>
-                <Button onClick={() => {
-                  setShowAddForm(false);
-                  setNewName('');
-                  setNewDescription('');
-                  setKeywords([]);
-                  setTagText('');
-                  setTagDescription('');
-                }}>
+                <Button onClick={resetForm}>
                   {t('cancel')}
                 </Button>
               </Space>
@@ -440,6 +495,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
             <List.Item
               key={preset.id}
               actions={[
+                <Button
+                  key="edit"
+                  type="link"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEdit(preset)}
+                >
+                  {t('edit')}
+                </Button>,
                 <Button
                   key="load"
                   type="link"

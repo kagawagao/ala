@@ -97,5 +97,8 @@
   "atLeastOneKeywordOrTag": "Please add at least one keyword or tag",
   "applyPreset": "Apply Preset",
   "selectPreset": "Select Preset",
-  "selectPresetToApply": "Select a preset to apply"
+  "selectPresetToApply": "Select a preset to apply",
+  "edit": "Edit",
+  "update": "Update",
+  "presetUpdated": "Preset updated successfully"
 }
