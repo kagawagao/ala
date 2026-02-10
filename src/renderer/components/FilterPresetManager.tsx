@@ -277,7 +277,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
     const selectedPresets = presets.filter(p => selectedPresetIds.includes(p.id));
     
     onApplyMultiplePresets(selectedPresets);
-    message.success(t('applyPresets').replace('{count}', selectedPresetIds.length.toString()));
+    message.success(t('applyPresets', { count: selectedPresetIds.length }));
     setSelectedPresetIds([]);
     onClose();
   };
@@ -318,7 +318,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 {t('clearSelection')}
               </Button>
               <Button type="primary" icon={<CheckOutlined />} onClick={handleApplyMultiple}>
-                {t('applyPresets').replace('{count}', selectedPresetIds.length.toString())}
+                {t('applyPresets', { count: selectedPresetIds.length })}
               </Button>
             </>
           )}

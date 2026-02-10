@@ -254,7 +254,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     label: preset.name
                   }))}
                   allowClear
-                  maxTagCount="responsive"
+                  maxTagCount={3}
                 />
                 {selectedPresetIds.length > 0 && (
                   <Button

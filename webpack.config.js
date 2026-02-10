@@ -2,8 +2,11 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
-module.exports = {
-  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+module.exports = (env, argv) => {
+  const isProduction = argv.mode === 'production';
+  
+  return {
+  mode: isProduction ? 'production' : 'development',
   entry: './src/renderer/index.tsx',
   target: 'electron-renderer',
   devtool: 'source-map',
@@ -52,7 +55,7 @@ module.exports = {
     }),
     new webpack.DefinePlugin({
       global: 'globalThis',
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+      'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
     }),
     // Provide empty modules for Node.js globals
     new webpack.ProvidePlugin({
@@ -70,4 +73,5 @@ module.exports = {
   // Important: Keep Node.js integration disabled for security
   // Electron's contextIsolation should be enabled
   node: false,
+  };
 };
