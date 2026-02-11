@@ -2,22 +2,13 @@ import React from 'react';
 import { LogFilters } from '../types';
 import { FilterPreset } from './FilterPresetManager';
 import DateTimeRangePicker from './DateTimeRangePicker';
-import { 
-  Drawer, 
-  Button, 
-  Input, 
-  Select, 
-  Space, 
-  Divider, 
-  Alert,
-  FloatButton
-} from 'antd';
+import { Drawer, Button, Input, Select, Space, Divider, Alert, FloatButton } from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
   ClearOutlined,
   RobotOutlined,
-  LoadingOutlined
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
@@ -84,13 +75,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         placement="right"
         onClose={onDrawerClose}
         open={drawerOpen}
-        width={400}
+        size={400}
         mask={false}
       >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
           {/* File Controls */}
           <div>
-            <Button 
+            <Button
               type="primary"
               icon={<FolderOpenOutlined />}
               onClick={onOpenFiles}
@@ -100,19 +91,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               {t('openFiles')}
             </Button>
             {currentFiles.length > 0 && (
-              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div
+                style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}
+              >
                 {currentFiles.map((file, index) => (
-                  <div 
-                    key={index} 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
                       justifyContent: 'space-between',
                       fontSize: '12px',
                       wordBreak: 'break-all',
                       padding: '8px',
                       borderRadius: '4px',
-                      backgroundColor: 'var(--ant-color-bg-elevated)'
+                      backgroundColor: 'var(--ant-color-bg-elevated)',
                     }}
                   >
                     <span style={{ flex: 1 }}>📄 {file.split(/[\\/]/).pop()}</span>
@@ -134,7 +127,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
 
           <Divider style={{ margin: '8px 0' }}>{t('filters')}</Divider>
-          
+
           {/* Time Range with DatePicker */}
           <div>
             <DateTimeRangePicker
@@ -147,34 +140,55 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Keywords (Filter) */}
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                color: 'var(--ant-color-text-secondary)',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
               {t('keywords')}:
             </label>
-            <Input 
+            <Input
               value={filters.keywords}
               onChange={(e) => updateFilter('keywords', e.target.value)}
-              placeholder={t('keywordsPlaceholder')} 
+              placeholder={t('keywordsPlaceholder')}
             />
           </div>
 
           {/* Highlights (Visual Only) */}
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                color: 'var(--ant-color-text-secondary)',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
               {t('highlights')}:
             </label>
-            <Input 
+            <Input
               value={filters.highlights}
               onChange={(e) => updateFilter('highlights', e.target.value)}
-              placeholder={t('highlightsPlaceholder')} 
+              placeholder={t('highlightsPlaceholder')}
             />
           </div>
 
           {/* Log Level */}
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                color: 'var(--ant-color-text-secondary)',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
               {t('logLevel')}:
             </label>
-            <Select 
+            <Select
               value={filters.level}
               onChange={(value) => updateFilter('level', value)}
               style={{ width: '100%' }}
@@ -192,31 +206,45 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Tag Filter */}
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                color: 'var(--ant-color-text-secondary)',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
               {t('tagFilterRegex')}
             </label>
-            <Input 
+            <Input
               value={filters.tag}
               onChange={(e) => updateFilter('tag', e.target.value)}
-              placeholder={t('tagPlaceholder')} 
+              placeholder={t('tagPlaceholder')}
             />
           </div>
 
           {/* PID */}
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                color: 'var(--ant-color-text-secondary)',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
               {t('pid')}:
             </label>
-            <Input 
+            <Input
               value={filters.pid}
               onChange={(e) => updateFilter('pid', e.target.value)}
-              placeholder={t('pidPlaceholder')} 
+              placeholder={t('pidPlaceholder')}
             />
           </div>
 
           {/* Search/Clear Buttons */}
           <Space.Compact block>
-            <Button 
+            <Button
               type="primary"
               icon={isSearching ? <LoadingOutlined /> : <SearchOutlined />}
               onClick={onSearch}
@@ -225,21 +253,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             >
               {isSearching ? t('searching') : t('search')}
             </Button>
-            <Button 
-              icon={<ClearOutlined />}
-              onClick={onClearFilters}
-              disabled={isSearching}
-            >
+            <Button icon={<ClearOutlined />} onClick={onClearFilters} disabled={isSearching}>
               {t('clearFilters')}
             </Button>
           </Space.Compact>
-          
+
           {/* Apply Preset */}
           {presets.length > 0 && (
             <>
               <Divider style={{ margin: '8px 0' }}>{t('applyPreset')}</Divider>
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)', marginBottom: '4px', display: 'block' }}>
+                <label
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--ant-color-text-secondary)',
+                    marginBottom: '4px',
+                    display: 'block',
+                  }}
+                >
                   {t('selectPreset')}:
                 </label>
                 <Select
@@ -251,7 +282,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     setSelectedPresetIds(values);
                     // Immediate application - apply on selection change
                     if (values.length > 0) {
-                      const selectedPresets = presets.filter(p => values.includes(p.id));
+                      const selectedPresets = presets.filter((p) => values.includes(p.id));
                       if (selectedPresets.length === 1) {
                         onLoadPreset(selectedPresets[0]);
                       } else if (selectedPresets.length > 1) {
@@ -259,9 +290,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                       }
                     }
                   }}
-                  options={presets.map(preset => ({
+                  options={presets.map((preset) => ({
                     value: preset.id,
-                    label: preset.name
+                    label: preset.name,
                   }))}
                   allowClear
                   maxTagCount={3}
@@ -272,8 +303,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Status Message */}
           {statusMessage && (
-            <Alert 
-              message={statusMessage}
+            <Alert
+              title={statusMessage}
               type={statusType === 'info' ? 'info' : 'error'}
               showIcon
               closable
@@ -286,12 +317,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <FloatButton
         icon={<RobotOutlined />}
         type="primary"
-        style={{ 
-          right: 24, 
+        style={{
+          right: 24,
           bottom: 24,
           width: 56,
           height: 56,
-          backgroundColor: '#c586c0'
+          backgroundColor: '#c586c0',
         }}
         onClick={() => setAiPanelOpen(!aiPanelOpen)}
         tooltip={t('aiAnalysisTooltip')}
@@ -316,30 +347,30 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px'
+            gap: '12px',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, color: 'var(--ant-color-primary)' }}>{t('aiAnalysis')}</h3>
-            <Button 
-              type="text" 
-              size="small" 
+            <Button
+              type="text"
+              size="small"
               onClick={() => setAiPanelOpen(false)}
               aria-label={t('closeAiPanel')}
             >
               ✕
             </Button>
           </div>
-          
-          <Input.TextArea 
+
+          <Input.TextArea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder={t('aiPromptOptional')} 
-            rows={4} 
+            placeholder={t('aiPromptOptional')}
+            rows={4}
             style={{ resize: 'vertical' }}
           />
-          
-          <Button 
+
+          <Button
             type="primary"
             icon={<RobotOutlined />}
             onClick={() => {
@@ -351,14 +382,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             size="large"
             style={{
               backgroundColor: '#c586c0',
-              borderColor: '#c586c0'
+              borderColor: '#c586c0',
             }}
           >
             {t('analyzeWithAI')}
           </Button>
 
           {!aiConfigured && (
-            <Alert 
+            <Alert
               message={t('aiRequiresKey')}
               type="warning"
               showIcon
