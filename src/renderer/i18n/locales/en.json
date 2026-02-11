@@ -100,5 +100,18 @@
   "selectPresetToApply": "Select a preset to apply",
   "edit": "Edit",
   "update": "Update",
-  "presetUpdated": "Preset updated successfully"
+  "presetUpdated": "Preset updated successfully",
+  "filesLoaded": "Loaded {count} file(s). Click \"Search\" to parse and filter logs.",
+  "noLogFileLoaded": "No log file loaded",
+  "logFilesTruncated": "Warning: Log file(s) contained {total} lines. Only the first {limit} lines were loaded to prevent memory issues. Consider filtering the log file before opening.",
+  "logLinesParsed": "Parsed {count} log lines. Applying filters...",
+  "filtersCleared": "Filters cleared. Click \"Search\" to show all logs.",
+  "importPresetsThroughManager": "Import presets through the Preset Manager",
+  "settings": "Settings",
+  "aiSettings": "AI Settings",
+  "apiEndpoint": "API Endpoint",
+  "apiKey": "API Key",
+  "model": "Model",
+  "saveSettings": "Save Settings",
+  "aiSettingsSaved": "AI settings saved successfully"
 }

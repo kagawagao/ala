@@ -269,6 +269,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
     const timestamp = log.timestamp ? (
       <span style={{ color: '#16a34a', marginRight: '10px' }}>{log.timestamp}</span>
     ) : null;
+    
+    // Display PID and TID
+    const pid = log.pid ? (
+      <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.pid}</span>
+    ) : null;
+    const tid = log.tid ? (
+      <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.tid}</span>
+    ) : null;
+    
     const level = (
       <span style={{ fontWeight: 'bold', marginRight: '10px', color: levelStyle.color }}>
         {log.level}
@@ -310,6 +319,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
       >
         {lineNumber}
         {timestamp}
+        {pid}
+        {tid}
         {level}
         {tag}
         <span>{message}</span>

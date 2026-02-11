@@ -17,8 +17,7 @@ import {
   SearchOutlined,
   ClearOutlined,
   RobotOutlined,
-  LoadingOutlined,
-  CheckOutlined
+  LoadingOutlined
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
@@ -248,7 +247,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   style={{ width: '100%' }}
                   placeholder={t('selectPresetToApply')}
                   value={selectedPresetIds}
-                  onChange={(values) => setSelectedPresetIds(values)}
+                  onChange={(values) => {
+                    setSelectedPresetIds(values);
+                    // Immediate application - apply on selection change
+                    if (values.length > 0) {
+                      const selectedPresets = presets.filter(p => values.includes(p.id));
+                      if (selectedPresets.length === 1) {
+                        onLoadPreset(selectedPresets[0]);
+                      } else if (selectedPresets.length > 1) {
+                        onApplyMultiplePresets(selectedPresets);
+                      }
+                    }
+                  }}
                   options={presets.map(preset => ({
                     value: preset.id,
                     label: preset.name
@@ -256,24 +266,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   allowClear
                   maxTagCount={3}
                 />
-                {selectedPresetIds.length > 0 && (
-                  <Button
-                    type="primary"
-                    icon={<CheckOutlined />}
-                    onClick={() => {
-                      const selectedPresets = presets.filter(p => selectedPresetIds.includes(p.id));
-                      if (selectedPresets.length === 1) {
-                        onLoadPreset(selectedPresets[0]);
-                      } else if (selectedPresets.length > 1) {
-                        onApplyMultiplePresets(selectedPresets);
-                      }
-                      setSelectedPresetIds([]);
-                    }}
-                    style={{ width: '100%', marginTop: '8px' }}
-                  >
-                    {t('applyPresets', { count: selectedPresetIds.length })}
-                  </Button>
-                )}
               </div>
             </>
           )}

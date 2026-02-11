@@ -1,5 +1,5 @@
 import React from 'react';
-import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined, SettingOutlined } from '@ant-design/icons';
+import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined, SettingOutlined, ToolOutlined } from '@ant-design/icons';
 import { Button, Dropdown } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -8,9 +8,10 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onManagePresets: () => void;
+  onOpenSettings: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, onManagePresets }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, onManagePresets, onOpenSettings }) => {
   const { t, i18n } = useTranslation();
 
   const handleLanguageChange = (lang: string) => {
@@ -75,6 +76,14 @@ const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, o
           style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
         />
       </Dropdown>
+      <Button
+        type="text"
+        icon={<ToolOutlined />}
+        onClick={onOpenSettings}
+        size="large"
+        title={t('settings')}
+        style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
+      />
       <Dropdown menu={{ items: languageMenuItems }} placement="bottomRight">
         <Button
           type="text"

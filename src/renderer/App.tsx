@@ -6,12 +6,13 @@ import Header from './components/Header';
 import ControlPanel from './components/ControlPanel';
 import LogViewer from './components/LogViewer';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
+import SettingsModal from './components/SettingsModal';
 
 // Constants
 const KEYWORD_SEPARATOR = '|';
 
 const App: React.FC = () => {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
@@ -208,13 +210,13 @@ const App: React.FC = () => {
       setAllLogs([]);
       setFilteredLogs([]);
       
-      showStatus(`Loaded ${results.length} file(s). Click "Search" to parse and filter logs.`, 'info');
+      showStatus(t('filesLoaded', { count: results.length }), 'info');
     }
   };
 
   const handleSearch = async () => {
     if (rawFileContents.length === 0 && allLogs.length === 0) {
-      showStatus('No log file loaded', 'error');
+      showStatus(t('noLogFileLoaded'), 'error');
       return;
     }
 
@@ -255,11 +257,11 @@ const App: React.FC = () => {
       
       if (anyTruncated) {
         showStatus(
-          `Warning: Log file(s) contained ${totalLinesCount.toLocaleString()} lines. Only the first ${maxLinesLimit.toLocaleString()} lines were loaded to prevent memory issues. Consider filtering the log file before opening.`,
+          t('logFilesTruncated', { total: totalLinesCount.toLocaleString(), limit: maxLinesLimit.toLocaleString() }),
           'error'
         );
       } else {
-        showStatus(`Parsed ${allParsedLogs.length} log lines. Applying filters...`, 'info');
+        showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
       }
       
       // Now filter the parsed logs
@@ -314,7 +316,7 @@ const App: React.FC = () => {
     setStartDate(null);
     setEndDate(null);
     setFilteredLogs([]);
-    showStatus('Filters cleared. Click "Search" to show all logs.', 'info');
+    showStatus(t('filtersCleared'), 'info');
   };
 
   const handleImportPresetsToManager = async () => {
@@ -322,7 +324,7 @@ const App: React.FC = () => {
     if (imported) {
       // Import as a new preset - we can create a preset from the imported filters
       // For now, just show status
-      showStatus('Import presets through the Preset Manager', 'info');
+      showStatus(t('importPresetsThroughManager'), 'info');
     } else {
       showStatus('Failed to import', 'error');
     }
@@ -519,6 +521,7 @@ const App: React.FC = () => {
           theme={themeMode}
           onToggleTheme={handleToggleTheme}
           onManagePresets={() => setPresetManagerVisible(true)}
+          onOpenSettings={() => setSettingsModalVisible(true)}
         />
       
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -586,6 +589,11 @@ const App: React.FC = () => {
           onApplyMultiplePresets={handleApplyMultiplePresets}
           onImport={handleImportPresetsToManager}
           onExport={handleExportPresetsFromManager}
+        />
+
+        <SettingsModal
+          visible={settingsModalVisible}
+          onClose={() => setSettingsModalVisible(false)}
         />
       </div>
     </ConfigProvider>

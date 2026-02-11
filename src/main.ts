@@ -77,10 +77,10 @@ ipcMain.handle('open-log-file', async (): Promise<{ filePath: string; content: s
   if (!mainWindow) return null;
   
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'] as any,
+    properties: ['openFile', 'multiSelections'] as any,
     filters: [
-      { name: 'Log Files', extensions: ['log', 'txt'] },
-      { name: 'All Files', extensions: ['*'] }
+      { name: 'All Files', extensions: ['*'] },
+      { name: 'Log Files', extensions: ['log', 'txt'] }
     ]
   }) as { canceled: boolean; filePaths: string[] };
 

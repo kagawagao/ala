@@ -100,5 +100,18 @@
   "selectPresetToApply": "选择要应用的预设",
   "edit": "编辑",
   "update": "更新",
-  "presetUpdated": "预设更新成功"
+  "presetUpdated": "预设更新成功",
+  "filesLoaded": "已加载 {count} 个文件。点击\"搜索\"以解析和过滤日志。",
+  "noLogFileLoaded": "未加载日志文件",
+  "logFilesTruncated": "警告：日志文件包含 {total} 行。为防止内存问题，仅加载了前 {limit} 行。建议在打开前先过滤日志文件。",
+  "logLinesParsed": "已解析 {count} 行日志。正在应用过滤器...",
+  "filtersCleared": "过滤器已清除。点击\"搜索\"以显示所有日志。",
+  "importPresetsThroughManager": "通过预设管理器导入预设",
+  "settings": "设置",
+  "aiSettings": "AI 设置",
+  "apiEndpoint": "API 端点",
+  "apiKey": "API 密钥",
+  "model": "模型",
+  "saveSettings": "保存设置",
+  "aiSettingsSaved": "AI 设置已保存"
 }
