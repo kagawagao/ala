@@ -1,0 +1,57 @@
+export interface LogEntry {
+  lineNumber?: number;
+  timestamp: string;
+  pid: string;
+  tid: string;
+  level: string;
+  tag: string;
+  message: string;
+  rawLine: string;
+  sourceFile?: string;
+}
+
+export interface LogFilters {
+  startTime: string;
+  endTime: string;
+  keywords: string; // For filtering logs (reduces visible logs)
+  highlights: string; // For visual highlighting only (no filtering)
+  level: string;
+  tag: string;
+  pid: string;
+}
+
+export interface LogStatistics {
+  total: number;
+  byLevel: Record<string, number>;
+  tags: Record<string, number>;
+  pids: Record<string, number>;
+}
+
+export interface AIAnalysisResult {
+  analysis: string;
+  timestamp: string;
+}
+
+export interface ParseLogResult {
+  logs: LogEntry[];
+  truncated: boolean;
+  totalLines: number;
+}
+
+declare global {
+  interface Window {
+    electronAPI: {
+      openLogFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
+      parseLog: (content: string) => Promise<ParseLogResult>;
+      filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
+      getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
+      analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<string>;
+      checkAIConfigured: () => Promise<boolean>;
+      importFilters: () => Promise<LogFilters | null>;
+      exportFilters: (filters: LogFilters) => Promise<boolean>;
+      deleteLogFile: (filePath: string) => Promise<boolean>;
+    };
+  }
+}
+
+export {};

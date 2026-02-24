@@ -1,0 +1,46 @@
+01-15 10:30:25.123456  1234  1234 I ActivityManager: Start proc 5678:com.example.app/u0a123 for activity com.example.app/.MainActivity
+01-15 10:30:25.234567  5678  5678 D MyApp   : Application onCreate
+01-15 10:30:25.345678  5678  5678 I MyApp   : Initializing database
+01-19 16:08:28.353415  2963  3131 I skin-support:  skin-support: notifyConnectStatus:connect=false
+01-15 10:30:25.456789  5678  5678 V MyApp   : Loading configuration from assets
+01-15 10:30:25.567890  5678  5678 D NetworkManager: Setting up network client
+01-15 10:30:25.678901  5678  5678 I NetworkManager: Base URL: https://api.example.com
+01-15 10:30:26.123456  5678  5678 D MainActivity: onCreate called
+01-15 10:30:26.234567  5678  5678 I MainActivity: Setting up UI components
+01-15 10:30:26.345678  5678  5690 D NetworkManager: Starting background sync
+01-15 10:30:26.456789  5678  5690 W NetworkManager: Network not available, will retry
+01-15 10:30:27.123456  5678  5678 I MainActivity: User clicked login button
+01-15 10:30:27.234567  5678  5690 D AuthService: Attempting login with username: user@example.com
+01-15 10:30:27.345678  5678  5690 D NetworkManager: POST /api/auth/login
+01-15 10:30:27.890123  5678  5690 E NetworkManager: Connection timeout after 500ms
+01-15 10:30:27.891234  5678  5690 E AuthService: Login failed: NetworkException: Connection timeout
+01-15 10:30:27.892345  5678  5678 W MainActivity: Login error: Connection timeout
+01-15 10:30:28.123456  5678  5678 I MainActivity: Showing error dialog to user
+01-15 10:30:30.234567  5678  5678 I MainActivity: User clicked retry button
+01-15 10:30:30.345678  5678  5690 D AuthService: Attempting login with username: user@example.com
+01-15 10:30:30.456789  5678  5690 D NetworkManager: POST /api/auth/login
+01-15 10:30:31.123456  5678  5690 I NetworkManager: Response received: 200 OK
+01-15 10:30:31.234567  5678  5690 D AuthService: Login successful, saving token
+01-15 10:30:31.345678  5678  5678 I MainActivity: Login successful, navigating to home
+01-15 10:30:31.456789  5678  5678 D HomeActivity: onCreate called
+01-15 10:30:31.567890  5678  5678 I HomeActivity: Loading user data
+01-15 10:30:31.678901  5678  5690 D DataService: Fetching user profile
+01-15 10:30:32.123456  5678  5690 I DataService: User profile loaded successfully
+01-15 10:30:32.234567  5678  5678 I HomeActivity: Displaying user data
+01-15 10:30:35.123456  5678  5678 V HomeActivity: User scrolling through feed
+01-15 10:30:38.234567  5678  5678 D HomeActivity: User clicked on item 42
+01-15 10:30:38.345678  5678  5678 I DetailActivity: onCreate called for item 42
+01-15 10:30:38.456789  5678  5690 D DataService: Fetching item details for id: 42
+01-15 10:30:38.890123  5678  5690 E DataService: Failed to load item: HttpException: 404 Not Found
+01-15 10:30:38.891234  5678  5678 W DetailActivity: Item not found
+01-15 10:30:38.892345  5678  5678 I DetailActivity: Showing not found message
+01-15 10:30:40.123456  1234  1234 I ActivityManager: Killing 9876:com.example.oldapp/u0a456 (adj 906): empty #33
+01-15 10:30:42.234567  5678  5678 D HomeActivity: onResume called
+01-15 10:30:45.345678  5678  5678 I MyApp   : Application is in foreground
+01-15 10:30:50.456789  5678  5702 D MemoryMonitor: Heap size: 45MB, allocated: 32MB, free: 13MB
+01-15 10:30:55.567890  5678  5702 W MemoryMonitor: Memory usage is high: 85%
+01-15 10:31:00.678901  5678  5678 D HomeActivity: User clicked logout button
+01-15 10:31:00.789012  5678  5678 I AuthService: Logging out user
+01-15 10:31:00.890123  5678  5678 D AuthService: Clearing auth token
+01-15 10:31:00.991234  5678  5678 I MainActivity: Navigating to login screen
+01-15 10:31:01.123456  5678  5678 D MainActivity: onResume called

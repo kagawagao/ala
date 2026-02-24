@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Android Log Analyzer (ALA)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-dark-bg text-text-primary font-sans">
+  <div class="h-screen flex flex-col">
+    <header class="bg-dark-hover px-8 py-5 border-b-2 border-accent-blue">
+      <h1 class="text-accent-teal text-3xl mb-1">🤖 Android Log Analyzer (ALA)</h1>
+      <p class="text-text-secondary text-sm">Analyze Android logs with time range filtering and AI-powered insights</p>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Control Panel -->
+      <section class="w-96 bg-dark-panel p-5 overflow-y-auto scrollbar-custom border-r border-dark-border">
+        <div class="mb-6">
+          <button id="openFileBtn" class="bg-accent-blue text-white px-5 py-2.5 rounded hover:bg-blue-700 transition font-medium w-full">📁 Open Log File(s)</button>
+          <span id="fileName" class="block mt-2.5 text-accent-teal text-xs break-all"></span>
+        </div>
+
+        <div class="mb-6">
+          <h3 class="text-accent-teal text-base mb-4 border-b border-dark-border pb-2">Filters</h3>
+          
+          <div class="flex gap-2.5 mb-3">
+            <div class="flex-1 flex flex-col">
+              <label for="startTime" class="text-xs text-text-secondary mb-1.5">Start Time (MM-DD HH:MM:SS.mmm):</label>
+              <input type="text" id="startTime" placeholder="e.g., 01-15 10:30:00.000" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+            </div>
+            <div class="flex-1 flex flex-col">
+              <label for="endTime" class="text-xs text-text-secondary mb-1.5">End Time (MM-DD HH:MM:SS.mmm):</label>
+              <input type="text" id="endTime" placeholder="e.g., 01-15 11:30:00.000" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+            </div>
+          </div>
+
+          <div class="flex gap-2.5 mb-3">
+            <div class="flex-1 flex flex-col">
+              <label for="keywords" class="text-xs text-text-secondary mb-1.5">Keywords (regex supported):</label>
+              <input type="text" id="keywords" placeholder="e.g., error|crash|exception" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+            </div>
+            <div class="flex-1 flex flex-col">
+              <label for="logLevel" class="text-xs text-text-secondary mb-1.5">Log Level:</label>
+              <select id="logLevel" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+                <option value="ALL">All</option>
+                <option value="V">Verbose</option>
+                <option value="D">Debug</option>
+                <option value="I">Info</option>
+                <option value="W">Warning</option>
+                <option value="E">Error</option>
+                <option value="F">Fatal</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex gap-2.5 mb-3">
+            <div class="flex-1 flex flex-col">
+              <label for="tagFilter" class="text-xs text-text-secondary mb-1.5">Tag Filter (regex):</label>
+              <input type="text" id="tagFilter" placeholder="e.g., Activity.*" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+            </div>
+            <div class="flex-1 flex flex-col">
+              <label for="pidFilter" class="text-xs text-text-secondary mb-1.5">PID:</label>
+              <input type="text" id="pidFilter" placeholder="e.g., 12345" class="bg-dark-input border border-dark-border text-text-primary px-2 py-2 rounded text-sm focus:outline-none focus:border-accent-blue">
+            </div>
+          </div>
+
+          <div class="flex gap-2.5 mt-4">
+            <button id="applyFiltersBtn" class="bg-accent-teal text-dark-bg px-5 py-2.5 rounded hover:bg-teal-600 transition font-medium flex-1">🔍 Apply Filters</button>
+            <button id="clearFiltersBtn" class="bg-transparent text-text-secondary px-4 py-2.5 rounded hover:text-text-primary transition">Clear</button>
+          </div>
+          
+          <div class="flex gap-2.5 mt-2.5">
+            <button id="saveFiltersBtn" class="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1">💾 Save Filters</button>
+            <button id="loadFiltersBtn" class="bg-transparent border border-accent-blue text-accent-blue px-4 py-1.5 rounded hover:bg-accent-blue hover:text-white transition text-sm flex-1">📂 Load Filters</button>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <h3 class="text-accent-teal text-base mb-4 border-b border-dark-border pb-2">AI Analysis</h3>
+          <textarea id="aiPrompt" placeholder="Optional: Enter specific questions or analysis requests for the AI..." rows="2" class="w-full bg-dark-input border border-dark-border text-text-primary px-2.5 py-2.5 rounded text-sm resize-y mb-2.5 focus:outline-none focus:border-accent-blue"></textarea>
+          <button id="analyzeBtn" class="bg-accent-purple text-white px-5 py-2.5 rounded hover:bg-purple-700 transition font-medium w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled>🤖 Analyze with AI</button>
+          <div id="aiStatus" class="mt-2.5 px-2 py-2 rounded text-xs"></div>
+        </div>
+      </section>
+
+      <!-- Results Panel -->
+      <section class="flex-1 flex flex-col bg-dark-bg">
+        <div class="flex gap-8 px-6 py-4 bg-dark-panel border-b border-dark-border">
+          <div class="flex items-center gap-2">
+            <span class="text-text-secondary text-sm">Total:</span>
+            <span id="totalCount" class="text-accent-teal font-semibold text-base">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-secondary text-sm">Filtered:</span>
+            <span id="filteredCount" class="text-accent-teal font-semibold text-base">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-secondary text-sm">Errors:</span>
+            <span id="errorCount" class="text-log-error font-semibold text-base">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-text-secondary text-sm">Warnings:</span>
+            <span id="warningCount" class="text-log-warning font-semibold text-base">0</span>
+          </div>
+        </div>
+
+        <div class="flex bg-dark-panel border-b border-dark-border">
+          <button class="tab-btn px-6 py-3 bg-transparent border-b-2 border-accent-teal text-accent-teal hover:text-text-primary transition active" data-tab="logs">Log Viewer</button>
+          <button class="tab-btn px-6 py-3 bg-transparent border-b-2 border-transparent text-text-secondary hover:text-text-primary transition" data-tab="analysis">AI Analysis</button>
+        </div>
+
+        <div class="tab-content flex-1 overflow-auto active" id="logsTab">
+          <div id="logViewer" class="p-5 font-mono text-sm leading-relaxed scrollbar-custom">
+            <div class="flex items-center justify-center min-h-[300px] text-text-secondary text-base">
+              <p>📋 No log file loaded. Click "Open Log File" to get started.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content flex-1 overflow-auto" id="analysisTab">
+          <div id="aiResults" class="p-5 scrollbar-custom">
+            <div class="flex items-center justify-center min-h-[300px] text-text-secondary text-base">
+              <p>🤖 No AI analysis yet. Load logs and click "Analyze with AI".</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
