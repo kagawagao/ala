@@ -174,7 +174,7 @@ The built application will be available in the `dist/build` directory. The app u
 npm test
 ```
 
-The test suite validates log parsing, filtering, statistics functionality, and multi-format log detection.
+The test suite validates log parsing, filtering, and statistics functionality.
 
 ### Using the Application
 
@@ -196,7 +196,7 @@ The test suite validates log parsing, filtering, statistics functionality, and m
    - Click "Manage Presets" to open the preset manager
    - Save current filter settings as a named preset
    - Load or apply multiple presets from the preset dropdown
-   - Import/Export presets to share with your team
+   - Export presets to share with your team
 
 4. **Analyze with AI**
    - Configure your AI settings via the Settings button (⚙️)
@@ -326,7 +326,7 @@ AI configuration is managed through the in-app Settings dialog (click the ⚙️
 
 The application follows a standard Electron architecture:
 
-- **Main Process** (`main.js`): Handles IPC communication, file operations, and coordinates backend services
+- **Main Process** (`src/main.ts`): Handles IPC communication, file operations, and coordinates backend services
 - **Renderer Process** (`renderer/`): Handles UI rendering and user interactions
 - **Backend Services** (`backend/`): Pure Node.js modules for log processing and AI integration
 
