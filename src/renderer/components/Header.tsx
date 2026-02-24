@@ -1,45 +1,15 @@
 import React from 'react';
-import { MenuOutlined, BulbOutlined, BulbFilled, GlobalOutlined, SettingOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Dropdown } from 'antd';
+import { BulbOutlined, BulbFilled } from '@ant-design/icons';
+import { Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
-  onToggleDrawer: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  onManagePresets: () => void;
-  onOpenSettings: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, onManagePresets, onOpenSettings }) => {
-  const { t, i18n } = useTranslation();
-
-  const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('ala_language', lang);
-  };
-
-  const languageMenuItems = [
-    {
-      key: 'zh',
-      label: t('chinese'),
-      onClick: () => handleLanguageChange('zh')
-    },
-    {
-      key: 'en',
-      label: t('english'),
-      onClick: () => handleLanguageChange('en')
-    }
-  ];
-
-  const presetMenuItems = [
-    {
-      key: 'manage',
-      label: t('managePresets'),
-      icon: <SettingOutlined />,
-      onClick: onManagePresets
-    }
-  ];
+const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
+  const { t } = useTranslation();
 
   return (
     <header style={{
@@ -67,45 +37,12 @@ const Header: React.FC<HeaderProps> = ({ onToggleDrawer, theme, onToggleTheme, o
           {t('appDescription')}
         </p>
       </div>
-      <Dropdown menu={{ items: presetMenuItems }} placement="bottomRight">
-        <Button
-          type="text"
-          icon={<SettingOutlined />}
-          size="large"
-          title={t('managePresets')}
-          style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
-        />
-      </Dropdown>
-      <Button
-        type="text"
-        icon={<ToolOutlined />}
-        onClick={onOpenSettings}
-        size="large"
-        title={t('settings')}
-        style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
-      />
-      <Dropdown menu={{ items: languageMenuItems }} placement="bottomRight">
-        <Button
-          type="text"
-          icon={<GlobalOutlined />}
-          size="large"
-          title={t('switchLanguage')}
-          style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
-        />
-      </Dropdown>
       <Button
         type="text"
         icon={theme === 'dark' ? <BulbOutlined /> : <BulbFilled />}
         onClick={onToggleTheme}
         size="large"
         title={t(theme === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
-        style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
-      />
-      <Button
-        type="text"
-        icon={<MenuOutlined />}
-        onClick={onToggleDrawer}
-        size="large"
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       />
     </header>

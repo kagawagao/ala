@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ConfigProvider, theme as antdTheme } from 'antd';
+import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
-import ControlPanel from './components/ControlPanel';
+import AppSider from './components/AppSider';
 import LogViewer from './components/LogViewer';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 import SettingsModal from './components/SettingsModal';
+
+const { Content } = Layout;
 
 // Constants
 const KEYWORD_SEPARATOR = '|';
@@ -35,7 +37,6 @@ const App: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'logs' | 'ai'>('logs');
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -104,18 +105,6 @@ const App: React.FC = () => {
     };
     loadPresets();
 
-    // Add Ctrl+Shift+F keyboard shortcut to toggle drawer
-    // Note: Uses Shift modifier to avoid conflict with browser's native Ctrl+F (find)
-    // May still conflict with some browser extensions, but this is acceptable for a desktop app
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
-        e.preventDefault();
-        setDrawerOpen(prev => !prev);
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-
     // Initialize Web Worker for filtering
     const workerCode = `
       self.onmessage = function(e) {
@@ -177,8 +166,7 @@ const App: React.FC = () => {
     };
 
     return () => {
-      // Cleanup worker and keyboard listener on unmount
-      window.removeEventListener('keydown', handleKeyDown);
+      // Cleanup worker on unmount
       if (workerRef.current) {
         workerRef.current.terminate();
       }
@@ -509,23 +497,14 @@ const App: React.FC = () => {
         },
       }}
     >
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: themeMode === 'dark' ? '#1e1e1e' : '#ffffff',
-        color: themeMode === 'dark' ? '#d4d4d4' : '#000000'
-      }}>
+      <Layout style={{ height: '100vh' }}>
         <Header 
-          onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
           theme={themeMode}
           onToggleTheme={handleToggleTheme}
-          onManagePresets={() => setPresetManagerVisible(true)}
-          onOpenSettings={() => setSettingsModalVisible(true)}
         />
-      
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          <ControlPanel
+        
+        <Layout style={{ flex: 1, overflow: 'hidden' }}>
+          <AppSider
             filters={filters}
             setFilters={setFilters}
             startDate={startDate}
@@ -541,32 +520,35 @@ const App: React.FC = () => {
             statusMessage={statusMessage}
             statusType={statusType}
             isSearching={isSearching}
-            drawerOpen={drawerOpen}
-            onDrawerClose={() => setDrawerOpen(false)}
             onLoadPreset={handleLoadPreset}
             onApplyMultiplePresets={handleApplyMultiplePresets}
             onDeleteFile={handleDeleteFile}
             presets={presets}
+            onManagePresets={() => setPresetManagerVisible(true)}
+            onOpenSettings={() => setSettingsModalVisible(true)}
+            themeMode={themeMode}
           />
           
-          <LogViewer
-            logs={filteredLogs}
-            allLogsCount={allLogs.length}
-            statistics={statistics}
-            currentFiles={currentFiles}
-            highlights={filters.highlights}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            aiAnalysis={aiAnalysis}
-            isSearching={isSearching}
-            lineBreakMode={lineBreakMode}
-            onLineBreakModeChange={setLineBreakMode}
-            themeMode={themeMode}
-            highlightDescriptions={activePresetDescriptions.highlightDescriptions}
-            tagDescription={activePresetDescriptions.tagDescription}
-            currentTag={filters.tag}
-          />
-        </div>
+          <Content style={{ overflow: 'hidden' }}>
+            <LogViewer
+              logs={filteredLogs}
+              allLogsCount={allLogs.length}
+              statistics={statistics}
+              currentFiles={currentFiles}
+              highlights={filters.highlights}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              aiAnalysis={aiAnalysis}
+              isSearching={isSearching}
+              lineBreakMode={lineBreakMode}
+              onLineBreakModeChange={setLineBreakMode}
+              themeMode={themeMode}
+              highlightDescriptions={activePresetDescriptions.highlightDescriptions}
+              tagDescription={activePresetDescriptions.tagDescription}
+              currentTag={filters.tag}
+            />
+          </Content>
+        </Layout>
         
         <FilterPresetManager
           visible={presetManagerVisible}
@@ -595,7 +577,7 @@ const App: React.FC = () => {
           visible={settingsModalVisible}
           onClose={() => setSettingsModalVisible(false)}
         />
-      </div>
+      </Layout>
     </ConfigProvider>
   );
 };
