@@ -114,6 +114,11 @@ const App: React.FC = () => {
         
         try {
           const filtered = logs.filter((log) => {
+            // Exclude logs without timestamps when time filters are applied,
+            // mirroring backend behavior for unknown/multiline lines
+            if ((filters.startTime || filters.endTime) && (log.timestamp === null || log.timestamp === undefined)) {
+              return false;
+            }
             if (filters.startTime && log.timestamp < filters.startTime) return false;
             if (filters.endTime && log.timestamp > filters.endTime) return false;
 
@@ -322,7 +327,7 @@ const App: React.FC = () => {
 
   const handleExportPresetsFromManager = async () => {
     // Export all presets
-    const success = await window.electronAPI.exportFilters(presets as any);
+    const success = await window.electronAPI.exportFilters(presets);
     if (success) {
       showStatus('Presets exported successfully!', 'info');
     } else {
@@ -340,12 +345,18 @@ const App: React.FC = () => {
     setActiveTab('ai');
     
     try {
-      const analysis = await window.electronAPI.analyzeWithAI({ 
+      const result = await window.electronAPI.analyzeWithAI({ 
         logs: filteredLogs, 
         prompt 
       });
-      setAiAnalysis(analysis);
-      showStatus('AI analysis completed', 'info');
+      if (result.success && result.analysis) {
+        setAiAnalysis(result.analysis);
+        showStatus('AI analysis completed', 'info');
+      } else {
+        const errMsg = result.error || 'Unknown error';
+        showStatus(`AI analysis failed: ${errMsg}`, 'error');
+        setAiAnalysis(`Failed to analyze logs: ${errMsg}`);
+      }
     } catch (error) {
       showStatus('AI analysis failed', 'error');
       setAiAnalysis('Failed to analyze logs. Please check your API key and try again.');

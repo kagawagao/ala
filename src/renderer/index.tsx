@@ -4,12 +4,10 @@ import App from './App';
 import 'antd/dist/reset.css';
 import './i18n/config'; // Initialize i18n
 
-// JetBrains Mono font and custom CSS
+// Custom CSS
 const globalStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-  
   * {
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace !important;
   }
   
   /* Fix Ant Design Tabs scrolling issue */
