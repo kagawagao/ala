@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Layout, Button, Space, Divider, Input, Select, Alert, FloatButton, Form } from 'antd';
+import { Layout, Button, Space, Divider, Input, Select, Alert, FloatButton, Form, DatePicker } from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
@@ -11,11 +11,12 @@ import {
   ToolOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import dayjs, { Dayjs } from 'dayjs';
 import { LogFilters } from '../types';
 import { FilterPreset } from './FilterPresetManager';
-import DateTimeRangePicker from './DateTimeRangePicker';
 
 const { Sider } = Layout;
+const { RangePicker } = DatePicker;
 
 interface AppSiderProps {
   filters: LogFilters;
@@ -72,14 +73,37 @@ const AppSider: React.FC<AppSiderProps> = ({
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
   const [selectedPresetIds, setSelectedPresetIds] = React.useState<string[]>([]);
 
-  // Initialize form with current filters
+  // Initialize form with current filters and time range
   useEffect(() => {
-    form.setFieldsValue(filters);
-  }, [filters, form]);
+    const timeRange: [Dayjs | null, Dayjs | null] | null =
+      startDate || endDate
+        ? [startDate ? dayjs(startDate) : null, endDate ? dayjs(endDate) : null]
+        : null;
+    
+    form.setFieldsValue({
+      ...filters,
+      timeRange,
+    });
+  }, [filters, startDate, endDate, form]);
 
   // Handle form value changes
-  const handleValuesChange = (changedValues: Partial<LogFilters>, allValues: LogFilters) => {
-    setFilters(allValues);
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    // Handle time range separately
+    if ('timeRange' in changedValues) {
+      const timeRange = changedValues.timeRange;
+      if (!timeRange) {
+        setStartDate(null);
+        setEndDate(null);
+      } else {
+        const [start, end] = timeRange;
+        setStartDate(start ? start.toDate() : null);
+        setEndDate(end ? end.toDate() : null);
+      }
+    }
+    
+    // Update filters (excluding timeRange which is not part of LogFilters)
+    const { timeRange, ...filterValues } = allValues;
+    setFilters(filterValues);
   };
 
   const handleLanguageChange = (lang: string) => {
@@ -179,14 +203,21 @@ const AppSider: React.FC<AppSiderProps> = ({
                 initialValues={filters}
               >
                 {/* Time Range with DatePicker */}
-                <div style={{ marginBottom: '16px' }}>
-                  <DateTimeRangePicker
-                    startDate={startDate}
-                    endDate={endDate}
-                    onStartChange={setStartDate}
-                    onEndChange={setEndDate}
+                <Form.Item
+                  name="timeRange"
+                  label={t('timeRange')}
+                  style={{ marginBottom: '16px' }}
+                >
+                  <RangePicker
+                    showTime={{
+                      format: 'HH:mm:ss',
+                    }}
+                    format="MM-DD HH:mm:ss"
+                    placeholder={[t('startTime'), t('endTime')]}
+                    style={{ width: '100%' }}
+                    allowClear
                   />
-                </div>
+                </Form.Item>
 
                 {/* Keywords (Filter) */}
                 <Form.Item
