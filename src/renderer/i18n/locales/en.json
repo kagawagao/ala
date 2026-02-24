@@ -112,5 +112,8 @@
   "apiKey": "API Key",
   "model": "Model",
   "saveSettings": "Save Settings",
-  "aiSettingsSaved": "AI settings saved successfully"
+  "aiSettingsSaved": "AI settings saved successfully",
+  "apiEndpointRequired": "Please enter API endpoint",
+  "apiKeyRequired": "Please enter API key",
+  "modelRequired": "Please enter model name"
 }

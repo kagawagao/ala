@@ -11,6 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('analyze-with-ai', params),
   checkAIConfigured: () => ipcRenderer.invoke('check-ai-configured'),
   importFilters: () => ipcRenderer.invoke('import-filters'),
-  exportFilters: (filters: LogFilters) => ipcRenderer.invoke('export-filters', filters),
+  exportFilters: (filters: unknown) => ipcRenderer.invoke('export-filters', filters),
   deleteLogFile: (filePath: string) => ipcRenderer.invoke('delete-log-file', filePath),
 });

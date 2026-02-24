@@ -74,7 +74,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         <Form.Item
           label={t('apiEndpoint')}
           name="apiEndpoint"
-          rules={[{ required: true, message: 'Please enter API endpoint' }]}
+          rules={[{ required: true, message: t('apiEndpointRequired') }]}
         >
           <Input placeholder="https://api.openai.com/v1" />
         </Form.Item>
@@ -82,7 +82,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         <Form.Item
           label={t('apiKey')}
           name="apiKey"
-          rules={[{ required: true, message: 'Please enter API key' }]}
+          rules={[{ required: true, message: t('apiKeyRequired') }]}
         >
           <Input.Password placeholder="sk-..." />
         </Form.Item>
@@ -90,7 +90,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         <Form.Item
           label={t('model')}
           name="model"
-          rules={[{ required: true, message: 'Please enter model name' }]}
+          rules={[{ required: true, message: t('modelRequired') }]}
         >
           <Input placeholder="gpt-3.5-turbo" />
         </Form.Item>

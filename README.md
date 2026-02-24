@@ -6,14 +6,14 @@
 
 <p align="center">
   <strong>An Electron-based desktop application for analyzing Android logs with AI-powered insights.</strong><br>
-  Built with TypeScript, featuring a Node.js backend and a modern UI styled with TailwindCSS.
+  Built with TypeScript, featuring a Node.js backend and a modern UI powered by Ant Design.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/Electron-47848F?style=flat&logo=electron&logoColor=white" alt="Electron">
-  <img src="https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="TailwindCSS">
+  <img src="https://img.shields.io/badge/Ant%20Design-0170FE?style=flat&logo=antdesign&logoColor=white" alt="Ant Design">
   <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
 </p>
 
@@ -51,7 +51,7 @@
   - Webpack bundling for optimized builds
   - Context isolation for enhanced security
   - Props-based component communication
-- 💻 **Modern UI**: Clean, dark-themed interface styled with TailwindCSS featuring:
+- 💻 **Modern UI**: Clean, dark-themed interface powered by Ant Design featuring:
   - Real-time log viewer with syntax highlighting
   - Statistics dashboard
   - Tabbed interface for logs and AI analysis
@@ -234,12 +234,14 @@ ala/
 │       ├── App.tsx                # Main React component (TypeScript)
 │       ├── types.ts               # TypeScript type definitions
 │       ├── components/            # React components
-│       │   ├── Header.tsx         # Header component
-│       │   ├── ControlPanel.tsx   # Control panel with filters
-│       │   └── LogViewer.tsx      # Log display and AI analysis
+│       │   ├── Header.tsx         # Header with theme/language controls
+│       │   ├── AppSider.tsx       # Sidebar with all filter controls
+│       │   ├── LogViewer.tsx      # Log display and AI analysis
+│       │   ├── FilterPresetManager.tsx  # Preset management modal
+│       │   └── SettingsModal.tsx  # AI settings modal
+│       ├── i18n/                  # Internationalization (i18next)
 │       ├── index-template.html    # HTML template for Webpack
-│       ├── input.css              # TailwindCSS source
-│       └── styles.css             # Compiled CSS (gitignored)
+│       └── index.html             # Legacy static UI (deprecated)
 ├── test/
 │   └── test-backend.ts            # Backend unit tests (TypeScript)
 ├── scripts/
@@ -260,8 +262,6 @@ ala/
 ├── tsconfig.json                  # TypeScript configuration (main)
 ├── tsconfig.test.json             # TypeScript configuration (tests)
 ├── webpack.config.js              # Webpack configuration for React
-├── tailwind.config.js             # TailwindCSS configuration
-├── postcss.config.js              # PostCSS configuration
 ├── .eslintrc.js                   # ESLint configuration
 ├── .prettierrc.json               # Prettier configuration
 ├── package.json
@@ -275,7 +275,7 @@ ala/
 - **Electron 28.3+**: Desktop application framework
 - **Node.js**: Backend runtime
 - **Webpack 5**: Module bundler for React application
-- **TailwindCSS 3.4+**: Modern utility-first CSS framework for styling
+- **Ant Design**: Enterprise-grade React UI component library
 - **ESLint**: Code linting for TypeScript and React
 - **Prettier**: Code formatting
 - **OpenAI API**: AI-powered log analysis
