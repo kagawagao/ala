@@ -1,6 +1,7 @@
 import React from 'react';
 import { DatePicker } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
+import { t } from 'i18next';
 
 const { RangePicker } = DatePicker;
 
@@ -29,27 +30,29 @@ const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
     onEndChange(end ? end.toDate() : null);
   };
 
-  const value: [Dayjs | null, Dayjs | null] | null = 
-    startDate || endDate 
+  const value: [Dayjs | null, Dayjs | null] | null =
+    startDate || endDate
       ? [startDate ? dayjs(startDate) : null, endDate ? dayjs(endDate) : null]
       : null;
 
   return (
     <div>
-      <label style={{ 
-        fontSize: '12px', 
-        color: 'var(--ant-color-text-secondary)', 
-        marginBottom: '6px', 
-        display: 'block' 
-      }}>
-        Time Range:
+      <label
+        style={{
+          fontSize: '12px',
+          color: 'var(--ant-color-text-secondary)',
+          marginBottom: '6px',
+          display: 'block',
+        }}
+      >
+        {t('timeRange')}:
       </label>
       <RangePicker
         showTime={{
           format: 'HH:mm:ss',
         }}
         format="MM-DD HH:mm:ss"
-        placeholder={['Start time', 'End time']}
+        placeholder={[t('startTime'), t('endTime')]}
         value={value}
         onChange={handleChange}
         style={{ width: '100%' }}

@@ -1,6 +1,5 @@
 {
   "appTitle": "Android 日志分析器 (ALA)",
-  "appDescription": "使用时间范围过滤和 AI 智能分析 Android 日志",
   "switchToLightMode": "切换到浅色模式",
   "switchToDarkMode": "切换到深色模式",
   "openFiles": "打开日志文件",

@@ -1,6 +1,5 @@
 {
   "appTitle": "Android Log Analyzer (ALA)",
-  "appDescription": "Analyze Android logs with time range filtering and AI-powered insights",
   "switchToLightMode": "Switch to light mode",
   "switchToDarkMode": "Switch to dark mode",
   "openFiles": "Open Log File(s)",
