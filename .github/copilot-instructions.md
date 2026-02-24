@@ -26,7 +26,7 @@ src/
   renderer/
     index.tsx      – React entry point
     App.tsx        – Root component; Layout (Header + AppSider + LogViewer)
-    types.ts       – Shared TypeScript interfaces (LogEntry, LogFilters, …)
+    types.ts       – Renderer/IPC contract types (LogEntry, LogFilters, window.electronAPI, …); not shared with backend
     components/    – React components (Header, AppSider, LogViewer, …)
     i18n/          – i18next translation files
 test/
@@ -44,8 +44,12 @@ The app follows the standard Electron split:
 
 ## Key Interfaces
 
-- `LogEntry` – a single parsed log line (timestamp, pid, tid, level, tag, message, rawLine, sourceFile, lineNumber).
-- `LogFilters` – filter state (startTime, endTime, keywords, highlights, level, tag, pid).
+> **Note**: backend and renderer define *separate* `LogEntry`/`LogFilters` types. Do **not** import renderer types into backend code, or vice versa.
+
+- `LogEntry` (backend) – `src/backend/log-analyzer.ts`: `timestamp: string | null`, `pid/tid: string | null`, no `sourceFile`.
+- `LogEntry` (renderer IPC contract) – `src/renderer/types.ts`: `timestamp: string`, `pid/tid: string`, optional `sourceFile` and `lineNumber`.
+- `LogFilters` (backend) – all fields optional strings; `highlights` field absent.
+- `LogFilters` (renderer) – all fields present (including `highlights` for visual-only highlighting).
 - `window.electronAPI` – IPC surface exposed to the renderer (see `src/renderer/types.ts`).
 
 ## Development Commands
@@ -54,8 +58,8 @@ The app follows the standard Electron split:
 npm install            # install dependencies
 
 # Development
-npm run dev            # build + launch Electron in dev mode (with auto-reload)
-npm run watch          # watch and rebuild TypeScript + webpack in parallel
+npm run dev            # one-time build + launch Electron in dev mode (no auto-rebuild on change)
+npm run watch          # watch and rebuild TypeScript + webpack in parallel (run alongside dev for live reload)
 
 # Building
 npm run build:ts       # compile TypeScript (main + backend)
@@ -86,9 +90,9 @@ npm run format:check   # Prettier (check only)
 
 ## Testing
 
-- Backend tests live in `test/test-backend.ts` and are compiled via `tsconfig.test.json`.
-- Tests validate log parsing, filtering, and statistics; there are currently 8 test cases.
-- Run with `npm test`.
+- The primary backend test suite is `test/test-backend.ts` (log parsing, filtering, statistics), compiled via `tsconfig.test.json`.
+- Additional test files (e.g. `test/test-multiformat.ts`) exist but are **not** part of the default `npm test` run — invoke them manually if needed.
+- `npm test` builds the test bundle and executes only `dist/test/test-backend.js`.
 - There is no renderer test suite yet – do not add renderer tests unless explicitly asked.
 
 ## Adding Features
