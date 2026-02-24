@@ -33,8 +33,7 @@
 - 💾 **Filter Management**:
   - **Save/Load filter presets** with names and descriptions
   - Apply multiple presets at once
-  - **Import/Export filters** to/from JSON files
-  - Share filter configurations with your team
+  - **Export filters** to JSON files to share with your team
 - 🎯 **Keyword Highlighting**: Matched keywords highlighted in the log viewer
 - 🤖 **AI Analysis**: Integrate with any OpenAI-compatible API to analyze logs and get insights about:
   - Errors and warnings
