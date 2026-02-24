@@ -112,5 +112,8 @@
   "apiKey": "API 密钥",
   "model": "模型",
   "saveSettings": "保存设置",
-  "aiSettingsSaved": "AI 设置已保存"
+  "aiSettingsSaved": "AI 设置已保存",
+  "apiEndpointRequired": "请输入 API 端点",
+  "apiKeyRequired": "请输入 API 密钥",
+  "modelRequired": "请输入模型名称"
 }

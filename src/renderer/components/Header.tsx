@@ -16,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
   const onToggleLanguage = useCallback(() => {
     const newLang = i18n.language === 'en' ? 'zh' : 'en';
     i18n.changeLanguage(newLang);
-    localStorage.setItem('language', newLang);
+    localStorage.setItem('ala_language', newLang);
   }, [i18n]);
 
   return (

@@ -28,8 +28,9 @@ export interface LogStatistics {
 }
 
 export interface AIAnalysisResult {
-  analysis: string;
-  timestamp: string;
+  success: boolean;
+  analysis?: string;
+  error?: string;
 }
 
 export interface ParseLogResult {
@@ -45,10 +46,10 @@ declare global {
       parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
-      analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<string>;
+      analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<AIAnalysisResult>;
       checkAIConfigured: () => Promise<boolean>;
-      importFilters: () => Promise<LogFilters | null>;
-      exportFilters: (filters: LogFilters) => Promise<boolean>;
+      importFilters: () => Promise<unknown>;
+      exportFilters: (filters: unknown) => Promise<boolean>;
       deleteLogFile: (filePath: string) => Promise<boolean>;
     };
   }

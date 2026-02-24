@@ -38,7 +38,7 @@ module.exports = (env, argv) => {
       "url": false,
       "assert": false,
       "buffer": false,
-      "process": false,
+      "process": require.resolve('process/browser'),
     },
     alias: {
       'global': false,
