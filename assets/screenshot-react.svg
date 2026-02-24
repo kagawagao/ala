@@ -1,174 +1,259 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
   <defs>
     <style>
-      .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      .mono { font-family: 'Courier New', monospace; }
-      .label { font-size: 11px; fill: #858585; }
-      .text { font-size: 12px; fill: #d4d4d4; }
-      .button { font-size: 13px; font-weight: 500; }
-      .highlight { fill: #ffd700; opacity: 0.3; }
-      .react-badge { fill: #61dafb; }
-      .ts-badge { fill: #3178c6; }
+      .ui-font { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
     </style>
+    <!-- Clip for sider scrollable area -->
+    <clipPath id="sider-clip">
+      <rect x="0" y="64" width="380" height="836"/>
+    </clipPath>
+    <clipPath id="content-clip">
+      <rect x="380" y="64" width="1020" height="836"/>
+    </clipPath>
   </defs>
-  
-  <!-- Window background -->
-  <rect width="1200" height="800" fill="#1e1e1e"/>
-  
-  <!-- Header -->
-  <rect width="1200" height="80" fill="#2d2d2d"/>
-  <rect y="78" width="1200" height="2" fill="#007acc"/>
-  <text x="30" y="35" class="title" font-size="28" fill="#4ec9b0" font-weight="bold">🤖 Android Log Analyzer (ALA)</text>
-  <text x="30" y="60" class="title" font-size="14" fill="#858585">React + TypeScript • Import/Export Filters • Advanced Features</text>
-  
-  <!-- React + TypeScript badges -->
-  <g transform="translate(950, 15)">
-    <rect width="90" height="25" rx="12" class="react-badge"/>
-    <text x="45" y="17" text-anchor="middle" class="title" font-size="12" fill="#000" font-weight="bold">⚛️ React</text>
+
+  <!-- ===== WINDOW BACKGROUND ===== -->
+  <rect width="1400" height="900" fill="#1e1e1e"/>
+
+  <!-- ===== HEADER ===== -->
+  <rect x="0" y="0" width="1400" height="64" fill="#1e1e1e"/>
+  <rect x="0" y="62" width="1400" height="2" fill="#4ec9b0"/>
+  <!-- Title -->
+  <text x="32" y="40" class="ui-font" font-size="26" fill="#4ec9b0" font-weight="600">🤖 Android Log Analyzer (ALA)</text>
+  <!-- Language toggle button -->
+  <rect x="1190" y="14" width="108" height="36" rx="6" fill="transparent" stroke="#4ec9b0" stroke-width="1"/>
+  <text x="1244" y="37" class="ui-font" font-size="13" fill="#4ec9b0" text-anchor="middle">简体中文</text>
+  <!-- Theme toggle button -->
+  <rect x="1312" y="14" width="56" height="36" rx="6" fill="transparent" stroke="#4ec9b0" stroke-width="1"/>
+  <text x="1340" y="37" class="ui-font" font-size="18" fill="#4ec9b0" text-anchor="middle">💡</text>
+
+  <!-- ===== SIDER (380px) ===== -->
+  <rect x="0" y="64" width="380" height="836" fill="#252526"/>
+  <rect x="379" y="64" width="1" height="836" fill="#3e3e42"/>
+
+  <!-- Sider content (clipped) -->
+  <g clip-path="url(#sider-clip)">
+    <!-- Open Log File button -->
+    <rect x="16" y="80" width="348" height="40" rx="6" fill="#4ec9b0"/>
+    <text x="190" y="105" class="ui-font" font-size="14" fill="#1e1e1e" text-anchor="middle" font-weight="600">📁  Open Log File(s)</text>
+
+    <!-- Loaded files -->
+    <rect x="16" y="130" width="348" height="28" rx="4" fill="#2d2d2d"/>
+    <text x="26" y="149" class="ui-font" font-size="12" fill="#d4d4d4">📄 system.log</text>
+    <rect x="16" y="162" width="348" height="28" rx="4" fill="#2d2d2d"/>
+    <text x="26" y="181" class="ui-font" font-size="12" fill="#d4d4d4">📄 app.log</text>
+
+    <!-- Divider: Filters -->
+    <line x1="16" y1="203" x2="140" y2="203" stroke="#3e3e42" stroke-width="1"/>
+    <text x="190" y="207" class="ui-font" font-size="13" fill="#858585" text-anchor="middle">Filters</text>
+    <line x1="240" y1="203" x2="364" y2="203" stroke="#3e3e42" stroke-width="1"/>
+
+    <!-- Time Range label + RangePicker -->
+    <text x="16" y="228" class="ui-font" font-size="12" fill="#d4d4d4">Time Range</text>
+    <rect x="16" y="234" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="190" y="255" class="ui-font" font-size="11" fill="#858585" text-anchor="middle">Start Date ~ End Date</text>
+
+    <!-- Keywords label + input -->
+    <text x="16" y="284" class="ui-font" font-size="12" fill="#d4d4d4">Keywords (Filter)</text>
+    <rect x="16" y="290" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="26" y="311" class="ui-font" font-size="11" fill="#858585">e.g., error|crash|exception</text>
+
+    <!-- Highlights label + input -->
+    <text x="16" y="340" class="ui-font" font-size="12" fill="#d4d4d4">Highlights (Visual Only)</text>
+    <rect x="16" y="346" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#4ec9b0" stroke-width="1.5"/>
+    <text x="26" y="367" class="ui-font" font-size="11" fill="#d4d4d4">OOM|memory</text>
+
+    <!-- Log Level label + select -->
+    <text x="16" y="397" class="ui-font" font-size="12" fill="#d4d4d4">Log Level</text>
+    <rect x="16" y="403" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="26" y="424" class="ui-font" font-size="11" fill="#d4d4d4">All Levels</text>
+    <text x="350" y="424" class="ui-font" font-size="10" fill="#858585" text-anchor="end">▾</text>
+
+    <!-- Tag Filter label + input -->
+    <text x="16" y="453" class="ui-font" font-size="12" fill="#d4d4d4">Tag Filter (regex)</text>
+    <rect x="16" y="459" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="26" y="480" class="ui-font" font-size="11" fill="#858585">e.g., ActivityManager</text>
+
+    <!-- Process ID label + input -->
+    <text x="16" y="509" class="ui-font" font-size="12" fill="#d4d4d4">Process ID</text>
+    <rect x="16" y="515" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="26" y="536" class="ui-font" font-size="11" fill="#858585">e.g., 1234</text>
+
+    <!-- Search + Clear Filters buttons -->
+    <rect x="16" y="563" width="232" height="36" rx="6" fill="#4ec9b0"/>
+    <text x="132" y="586" class="ui-font" font-size="13" fill="#1e1e1e" text-anchor="middle" font-weight="600">🔍  Search</text>
+    <rect x="254" y="563" width="110" height="36" rx="6" fill="#2d2d2d" stroke="#3e3e42" stroke-width="1"/>
+    <text x="309" y="586" class="ui-font" font-size="13" fill="#d4d4d4" text-anchor="middle">✕  Clear</text>
+
+    <!-- Apply Preset divider -->
+    <line x1="16" y1="613" x2="115" y2="613" stroke="#3e3e42" stroke-width="1"/>
+    <text x="190" y="617" class="ui-font" font-size="13" fill="#858585" text-anchor="middle">Apply Preset</text>
+    <line x1="265" y1="613" x2="364" y2="613" stroke="#3e3e42" stroke-width="1"/>
+
+    <!-- Preset multi-select -->
+    <rect x="16" y="626" width="348" height="32" rx="6" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="26" y="647" class="ui-font" font-size="11" fill="#858585">Select preset(s) to apply...</text>
+    <text x="350" y="647" class="ui-font" font-size="10" fill="#858585" text-anchor="end">▾</text>
+
+    <!-- Separator -->
+    <line x1="16" y1="702" x2="364" y2="702" stroke="#3e3e42" stroke-width="1"/>
+
+    <!-- Bottom buttons: Manage Presets + Settings -->
+    <rect x="16" y="712" width="348" height="36" rx="6" fill="#2d2d2d" stroke="#3e3e42" stroke-width="1"/>
+    <text x="190" y="735" class="ui-font" font-size="13" fill="#d4d4d4" text-anchor="middle">⚙️  Manage Presets</text>
+    <rect x="16" y="756" width="348" height="36" rx="6" fill="#2d2d2d" stroke="#3e3e42" stroke-width="1"/>
+    <text x="190" y="779" class="ui-font" font-size="13" fill="#d4d4d4" text-anchor="middle">🔧  Settings</text>
   </g>
-  <g transform="translate(1050, 15)">
-    <rect width="120" height="25" rx="12" class="ts-badge"/>
-    <text x="60" y="17" text-anchor="middle" class="title" font-size="12" fill="#fff" font-weight="bold">TS TypeScript</text>
+
+  <!-- ===== CONTENT AREA ===== -->
+  <rect x="380" y="64" width="1020" height="836" fill="#1e1e1e"/>
+
+  <g clip-path="url(#content-clip)">
+    <!-- Tabs bar -->
+    <rect x="380" y="64" width="1020" height="46" fill="#252526"/>
+    <line x1="380" y1="110" x2="1400" y2="110" stroke="#3e3e42" stroke-width="1"/>
+    <!-- Log Viewer tab (active) -->
+    <text x="440" y="93" class="ui-font" font-size="14" fill="#4ec9b0" font-weight="600">Log Viewer</text>
+    <rect x="420" y="107" width="100" height="3" fill="#4ec9b0" rx="1"/>
+    <!-- AI Analysis tab -->
+    <text x="570" y="93" class="ui-font" font-size="14" fill="#858585">AI Analysis</text>
+
+    <!-- Stats bar -->
+    <rect x="380" y="110" width="1020" height="44" fill="#2d2d2d"/>
+    <line x1="380" y1="154" x2="1400" y2="154" stroke="#3e3e42" stroke-width="1"/>
+    <text x="400" y="136" class="ui-font" font-size="11" fill="#858585">Total:</text>
+    <text x="438" y="136" class="ui-font" font-size="13" fill="#4ec9b0" font-weight="600">248</text>
+    <text x="490" y="136" class="ui-font" font-size="11" fill="#858585">Shown:</text>
+    <text x="535" y="136" class="ui-font" font-size="13" fill="#4ec9b0" font-weight="600">87</text>
+    <text x="585" y="136" class="ui-font" font-size="11" fill="#858585">Files:</text>
+    <text x="618" y="136" class="ui-font" font-size="13" fill="#60a5fa" font-weight="600">2</text>
+    <text x="650" y="136" class="ui-font" font-size="11" fill="#858585">Error:</text>
+    <text x="688" y="136" class="ui-font" font-size="13" fill="#f87171" font-weight="600">12</text>
+    <text x="724" y="136" class="ui-font" font-size="11" fill="#858585">Warn:</text>
+    <text x="762" y="136" class="ui-font" font-size="13" fill="#facc15" font-weight="600">31</text>
+    <text x="798" y="136" class="ui-font" font-size="11" fill="#858585">Info:</text>
+    <text x="832" y="136" class="ui-font" font-size="13" fill="#60a5fa" font-weight="600">44</text>
+    <!-- Line break toggle -->
+    <rect x="1230" y="120" width="80" height="24" rx="4" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>
+    <text x="1270" y="136" class="ui-font" font-size="11" fill="#858585" text-anchor="middle">Word Wrap</text>
+    <!-- Collapse sider icon -->
+    <text x="1370" y="136" class="ui-font" font-size="14" fill="#858585" text-anchor="middle">◀</text>
+
+    <!-- Log lines area -->
+    <!-- Log line 1 — Error -->
+    <rect x="380" y="158" width="4" height="26" fill="#f87171"/>
+    <text x="392" y="175" class="mono" font-size="12" fill="#858585">#1</text>
+    <text x="418" y="175" class="mono" font-size="12" fill="#16a34a">01-15 10:30:24.512</text>
+    <text x="568" y="175" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="175" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="660" y="175" class="mono" font-size="12" fill="#f87171" font-weight="bold">E</text>
+    <text x="680" y="175" class="mono" font-size="12" fill="#c084fc">[NetworkManager]</text>
+    <text x="832" y="175" class="mono" font-size="12" fill="#d4d4d4">Connection refused: retry limit exceeded</text>
+
+    <!-- Log line 2 — Warning -->
+    <rect x="380" y="186" width="4" height="26" fill="#facc15"/>
+    <text x="392" y="203" class="mono" font-size="12" fill="#858585">#2</text>
+    <text x="418" y="203" class="mono" font-size="12" fill="#16a34a">01-15 10:30:25.123</text>
+    <text x="568" y="203" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="203" class="mono" font-size="12" fill="#f59e0b">5679</text>
+    <text x="660" y="203" class="mono" font-size="12" fill="#facc15" font-weight="bold">W</text>
+    <text x="680" y="203" class="mono" font-size="12" fill="#c084fc">[AuthService]</text>
+    <text x="800" y="203" class="mono" font-size="12" fill="#d4d4d4">Token expiry warning: refresh soon</text>
+
+    <!-- Log line 3 — Info -->
+    <rect x="380" y="214" width="4" height="26" fill="#60a5fa"/>
+    <text x="392" y="231" class="mono" font-size="12" fill="#858585">#3</text>
+    <text x="418" y="231" class="mono" font-size="12" fill="#16a34a">01-15 10:30:25.234</text>
+    <text x="568" y="231" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="231" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="660" y="231" class="mono" font-size="12" fill="#60a5fa" font-weight="bold">I</text>
+    <text x="680" y="231" class="mono" font-size="12" fill="#c084fc">[MainActivity]</text>
+    <text x="800" y="231" class="mono" font-size="12" fill="#d4d4d4">User session started successfully</text>
+
+    <!-- Log line 4 — Debug -->
+    <rect x="380" y="242" width="4" height="26" fill="#4ade80"/>
+    <text x="392" y="259" class="mono" font-size="12" fill="#858585">#4</text>
+    <text x="418" y="259" class="mono" font-size="12" fill="#16a34a">01-15 10:30:25.456</text>
+    <text x="568" y="259" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="259" class="mono" font-size="12" fill="#f59e0b">5680</text>
+    <text x="660" y="259" class="mono" font-size="12" fill="#4ade80" font-weight="bold">D</text>
+    <text x="680" y="259" class="mono" font-size="12" fill="#c084fc">[CacheManager]</text>
+    <text x="800" y="259" class="mono" font-size="12" fill="#d4d4d4">Cache hit ratio: 94.3%</text>
+
+    <!-- Log line 5 — Error with highlight -->
+    <rect x="380" y="270" width="4" height="26" fill="#f87171"/>
+    <text x="392" y="287" class="mono" font-size="12" fill="#858585">#5</text>
+    <text x="418" y="287" class="mono" font-size="12" fill="#16a34a">01-15 10:30:26.001</text>
+    <text x="568" y="287" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="287" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="660" y="287" class="mono" font-size="12" fill="#f87171" font-weight="bold">E</text>
+    <text x="680" y="287" class="mono" font-size="12" fill="#c084fc">[MemoryMonitor]</text>
+    <text x="800" y="287" class="mono" font-size="12" fill="#d4d4d4">OOM detected: </text>
+    <!-- Highlighted "OOM" -->
+    <rect x="800" y="273" width="34" height="16" fill="rgba(234,179,8,0.35)" rx="2"/>
+    <text x="817" y="287" class="mono" font-size="12" fill="#eab308" text-anchor="middle">OOM</text>
+    <text x="838" y="287" class="mono" font-size="12" fill="#d4d4d4"> detected: heap 98% used, GC overhead</text>
+
+    <!-- Log line 6 — Info -->
+    <rect x="380" y="298" width="4" height="26" fill="#60a5fa"/>
+    <text x="392" y="315" class="mono" font-size="12" fill="#858585">#6</text>
+    <text x="418" y="315" class="mono" font-size="12" fill="#16a34a">01-15 10:30:26.345</text>
+    <text x="568" y="315" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="315" class="mono" font-size="12" fill="#f59e0b">5681</text>
+    <text x="660" y="315" class="mono" font-size="12" fill="#60a5fa" font-weight="bold">I</text>
+    <text x="680" y="315" class="mono" font-size="12" fill="#c084fc">[DatabaseHelper]</text>
+    <text x="800" y="315" class="mono" font-size="12" fill="#d4d4d4">Query executed in 42ms (index scan)</text>
+
+    <!-- Log line 7 — Warning -->
+    <rect x="380" y="326" width="4" height="26" fill="#facc15"/>
+    <text x="392" y="343" class="mono" font-size="12" fill="#858585">#7</text>
+    <text x="418" y="343" class="mono" font-size="12" fill="#16a34a">01-15 10:30:27.111</text>
+    <text x="568" y="343" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="343" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="660" y="343" class="mono" font-size="12" fill="#facc15" font-weight="bold">W</text>
+    <text x="680" y="343" class="mono" font-size="12" fill="#c084fc">[NetworkManager]</text>
+    <text x="800" y="343" class="mono" font-size="12" fill="#d4d4d4">Slow network response: 2340ms</text>
+
+    <!-- Log line 8 — Debug -->
+    <rect x="380" y="354" width="4" height="26" fill="#4ade80"/>
+    <text x="392" y="371" class="mono" font-size="12" fill="#858585">#8</text>
+    <text x="418" y="371" class="mono" font-size="12" fill="#16a34a">01-15 10:30:27.678</text>
+    <text x="568" y="371" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="371" class="mono" font-size="12" fill="#f59e0b">5682</text>
+    <text x="660" y="371" class="mono" font-size="12" fill="#4ade80" font-weight="bold">D</text>
+    <text x="680" y="371" class="mono" font-size="12" fill="#c084fc">[UIThread]</text>
+    <text x="800" y="371" class="mono" font-size="12" fill="#d4d4d4">Frame rendered in 16ms (60fps target)</text>
+
+    <!-- Log line 9 — Error with highlight -->
+    <rect x="380" y="382" width="4" height="26" fill="#f87171"/>
+    <text x="392" y="399" class="mono" font-size="12" fill="#858585">#9</text>
+    <text x="418" y="399" class="mono" font-size="12" fill="#16a34a">01-15 10:30:28.002</text>
+    <text x="568" y="399" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="614" y="399" class="mono" font-size="12" fill="#f59e0b">5678</text>
+    <text x="660" y="399" class="mono" font-size="12" fill="#f87171" font-weight="bold">E</text>
+    <text x="680" y="399" class="mono" font-size="12" fill="#c084fc">[MemoryMonitor]</text>
+    <!-- Highlighted "memory" -->
+    <rect x="800" y="385" width="50" height="16" fill="rgba(234,179,8,0.35)" rx="2"/>
+    <text x="825" y="399" class="mono" font-size="12" fill="#eab308" text-anchor="middle">memory</text>
+    <text x="852" y="399" class="mono" font-size="12" fill="#d4d4d4"> leak detected in MediaPlayer component</text>
+
+    <!-- Log line 10 — Verbose -->
+    <rect x="380" y="410" width="4" height="26" fill="#9ca3af"/>
+    <text x="392" y="427" class="mono" font-size="12" fill="#858585">#10</text>
+    <text x="420" y="427" class="mono" font-size="12" fill="#16a34a">01-15 10:30:28.456</text>
+    <text x="568" y="427" class="mono" font-size="12" fill="#f59e0b">5679</text>
+    <text x="614" y="427" class="mono" font-size="12" fill="#f59e0b">5679</text>
+    <text x="660" y="427" class="mono" font-size="12" fill="#9ca3af" font-weight="bold">V</text>
+    <text x="680" y="427" class="mono" font-size="12" fill="#c084fc">[SensorManager]</text>
+    <text x="800" y="427" class="mono" font-size="12" fill="#d4d4d4">Accelerometer reading: x=0.02 y=9.81</text>
+
+    <!-- Scrollbar -->
+    <rect x="1388" y="154" width="12" height="836" fill="#2d2d2d" rx="6"/>
+    <rect x="1390" y="160" width="8" height="120" fill="#555" rx="4"/>
   </g>
-  
-  <!-- Left Panel (Control Panel) -->
-  <rect x="0" y="80" width="384" height="720" fill="#252526"/>
-  <line x1="384" y1="80" x2="384" y2="800" stroke="#3e3e42" stroke-width="1"/>
-  
-  <!-- File Controls -->
-  <rect x="20" y="100" width="344" height="40" rx="4" fill="#007acc"/>
-  <text x="192" y="125" text-anchor="middle" class="button" fill="#ffffff">📁 Open Log File(s)</text>
-  <text x="30" y="155" class="text" font-size="10" fill="#4ec9b0">📄 3 files loaded</text>
-  
-  <!-- Filters Section -->
-  <text x="20" y="190" class="title" font-size="16" fill="#4ec9b0" font-weight="bold">Filters</text>
-  <line x1="20" y1="195" x2="364" y2="195" stroke="#3e3e42" stroke-width="1"/>
-  
-  <!-- Keywords input -->
-  <text x="20" y="240" class="label">Keywords (regex supported):</text>
-  <rect x="20" y="245" width="160" height="32" rx="4" fill="#3c3c3c" stroke="#3e3e42" stroke-width="1"/>
-  <text x="25" y="265" class="text" font-size="11" fill="#d4d4d4">error|warning</text>
-  
-  <!-- Apply/Clear buttons -->
-  <rect x="20" y="295" width="260" height="40" rx="4" fill="#4ec9b0"/>
-  <text x="150" y="320" text-anchor="middle" class="button" fill="#1e1e1e" font-weight="600">🔍 Apply Filters</text>
-  
-  <!-- Save/Load buttons -->
-  <rect x="20" y="345" width="162" height="32" rx="4" fill="transparent" stroke="#007acc" stroke-width="1"/>
-  <text x="101" y="365" text-anchor="middle" class="button" fill="#007acc" font-size="11">💾 Save</text>
-  <rect x="192" y="345" width="172" height="32" rx="4" fill="transparent" stroke="#007acc" stroke-width="1"/>
-  <text x="278" y="365" text-anchor="middle" class="button" fill="#007acc" font-size="11">📂 Load</text>
-  
-  <!-- NEW: Import/Export buttons -->
-  <text x="20" y="400" class="title" font-size="12" fill="#c586c0" font-weight="bold">⭐ NEW: Import/Export</text>
-  <rect x="20" y="410" width="162" height="32" rx="4" fill="transparent" stroke="#c586c0" stroke-width="1"/>
-  <text x="101" y="430" text-anchor="middle" class="button" fill="#c586c0" font-size="11">📥 Import</text>
-  <rect x="192" y="410" width="172" height="32" rx="4" fill="transparent" stroke="#c586c0" stroke-width="1"/>
-  <text x="278" y="430" text-anchor="middle" class="button" fill="#c586c0" font-size="11">📤 Export</text>
-  
-  <!-- Architecture info -->
-  <text x="20" y="480" class="title" font-size="12" fill="#4ec9b0" font-weight="bold">✨ Architecture:</text>
-  <text x="30" y="500" class="text" font-size="10" fill="#d4d4d4">• React components</text>
-  <text x="30" y="515" class="text" font-size="10" fill="#d4d4d4">• TypeScript types</text>
-  <text x="30" y="530" class="text" font-size="10" fill="#d4d4d4">• Context isolation</text>
-  <text x="30" y="545" class="text" font-size="10" fill="#d4d4d4">• Webpack bundling</text>
-  
-  <!-- Right Panel -->
-  <!-- Stats Bar -->
-  <rect x="384" y="80" width="816" height="50" fill="#252526"/>
-  <line x1="384" y1="130" x2="1200" y2="130" stroke="#3e3e42" stroke-width="1"/>
-  
-  <text x="410" y="110" class="label">Total:</text>
-  <text x="455" y="110" class="text" fill="#4ec9b0" font-weight="600">125</text>
-  
-  <text x="530" y="110" class="label">Filtered:</text>
-  <text x="595" y="110" class="text" fill="#4ec9b0" font-weight="600">45</text>
-  
-  <text x="670" y="110" class="label">Files:</text>
-  <text x="715" y="110" class="text" fill="#007acc" font-weight="600">3</text>
-  
-  <text x="780" y="110" class="label">Errors:</text>
-  <text x="835" y="110" class="text" fill="#f48771" font-weight="600">8</text>
-  
-  <!-- Tabs -->
-  <rect x="384" y="130" width="816" height="45" fill="#252526"/>
-  <line x1="384" y1="175" x2="1200" y2="175" stroke="#3e3e42" stroke-width="1"/>
-  
-  <text x="420" y="158" class="button" fill="#4ec9b0" font-weight="600">Log Viewer</text>
-  <rect x="410" y="170" width="100" height="2" fill="#4ec9b0"/>
-  
-  <text x="550" y="158" class="button" fill="#858585">AI Analysis</text>
-  
-  <!-- Log Viewer Content -->
-  <g class="mono">
-    <!-- Log line 1 -->
-    <rect x="394" y="185" width="4" height="20" fill="#f48771"/>
-    <text x="405" y="199" font-size="12" fill="#608b4e">01-15 10:30:25.890</text>
-    <text x="530" y="199" font-size="12" fill="#f48771" font-weight="bold">E</text>
-    <text x="545" y="199" font-size="9" fill="#666">📄app1.log</text>
-    <text x="615" y="199" font-size="12" fill="#c586c0">[NetworkManager]</text>
-    <text x="750" y="199" font-size="12" fill="#f48771">Connection </text>
-    <rect x="830" y="187" width="35" height="14" class="highlight" fill="#ffd700"/>
-    <text x="830" y="199" font-size="12" fill="#ffd700">error</text>
-    
-    <!-- Log line 2 -->
-    <rect x="394" y="210" width="4" height="20" fill="#dcdcaa"/>
-    <text x="405" y="224" font-size="12" fill="#608b4e">01-15 10:30:26.123</text>
-    <text x="530" y="224" font-size="12" fill="#dcdcaa" font-weight="bold">W</text>
-    <text x="545" y="224" font-size="9" fill="#666">📄app2.log</text>
-    <text x="615" y="224" font-size="12" fill="#c586c0">[AuthService]</text>
-    <rect x="750" y="212" width="58" height="14" class="highlight" fill="#ffd700"/>
-    <text x="750" y="224" font-size="12" fill="#ffd700">Warning</text>
-    
-    <!-- Log line 3 -->
-    <rect x="394" y="235" width="4" height="20" fill="#9cdcfe"/>
-    <text x="405" y="249" font-size="12" fill="#608b4e">01-15 10:30:27.234</text>
-    <text x="530" y="249" font-size="12" fill="#9cdcfe" font-weight="bold">I</text>
-    <text x="545" y="249" font-size="9" fill="#666">📄app1.log</text>
-    <text x="615" y="249" font-size="12" fill="#c586c0">[MainActivity]</text>
-    <text x="750" y="249" font-size="12" fill="#9cdcfe">User session started</text>
-  </g>
-  
-  <!-- Feature annotations -->
-  <!-- Arrow to Import/Export -->
-  <line x1="370" y1="425" x2="420" y2="455" stroke="#c586c0" stroke-width="2" marker-end="url(#arrowpurple)"/>
-  <text x="280" y="420" font-size="10" fill="#c586c0" font-weight="bold">Import/Export</text>
-  <text x="280" y="432" font-size="10" fill="#c586c0" font-weight="bold">filters to JSON</text>
-  
-  <!-- Arrow to React badge -->
-  <line x1="930" y1="50" x2="980" y2="30" stroke="#61dafb" stroke-width="2" marker-end="url(#arrowreact)"/>
-  <text x="820" y="55" font-size="10" fill="#61dafb" font-weight="bold">React +</text>
-  <text x="820" y="67" font-size="10" fill="#61dafb" font-weight="bold">TypeScript</text>
-  
-  <!-- Component labels -->
-  <rect x="20" y="650" width="344" height="130" rx="4" fill="#1e1e1e" stroke="#c586c0" stroke-width="2" stroke-dasharray="5,5"/>
-  <text x="192" y="670" text-anchor="middle" font-size="11" fill="#c586c0" font-weight="bold">&lt;ControlPanel /&gt;</text>
-  <text x="30" y="690" font-size="9" fill="#858585">• React Component</text>
-  <text x="30" y="705" font-size="9" fill="#858585">• Props-based</text>
-  <text x="30" y="720" font-size="9" fill="#858585">• Type-safe</text>
-  <text x="30" y="735" font-size="9" fill="#858585">• All filter controls</text>
-  <text x="30" y="750" font-size="9" fill="#858585">• Import/Export UI</text>
-  <text x="30" y="765" font-size="9" fill="#858585">• AI trigger</text>
-  
-  <rect x="400" y="650" width="380" height="130" rx="4" fill="#1e1e1e" stroke="#c586c0" stroke-width="2" stroke-dasharray="5,5"/>
-  <text x="590" y="670" text-anchor="middle" font-size="11" fill="#c586c0" font-weight="bold">&lt;LogViewer /&gt;</text>
-  <text x="410" y="690" font-size="9" fill="#858585">• React Component</text>
-  <text x="410" y="705" font-size="9" fill="#858585">• Virtual DOM</text>
-  <text x="410" y="720" font-size="9" fill="#858585">• Keyword highlighting</text>
-  <text x="410" y="735" font-size="9" fill="#858585">• Statistics display</text>
-  <text x="410" y="750" font-size="9" fill="#858585">• Tab navigation</text>
-  <text x="410" y="765" font-size="9" fill="#858585">• Performance optimized</text>
-  
-  <!-- Bottom note -->
-  <text x="600" y="790" text-anchor="middle" font-size="10" fill="#666">React + TypeScript Architecture • Import/Export Filters • Production Ready</text>
-  
-  <!-- Arrow markers -->
-  <defs>
-    <marker id="arrowpurple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#c586c0" />
-    </marker>
-    <marker id="arrowreact" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#61dafb" />
-    </marker>
-  </defs>
+
+  <!-- ===== FLOATING AI BUTTON ===== -->
+  <circle cx="1360" cy="852" r="28" fill="#c084fc"/>
+  <text x="1360" y="860" class="ui-font" font-size="20" text-anchor="middle" fill="#fff">🤖</text>
 </svg>
