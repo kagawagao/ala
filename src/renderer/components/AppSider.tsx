@@ -106,24 +106,6 @@ const AppSider: React.FC<AppSiderProps> = ({
     setFilters(filterValues);
   };
 
-  const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('ala_language', lang);
-  };
-
-  const languageMenuItems = [
-    {
-      key: 'zh',
-      label: t('chinese'),
-      onClick: () => handleLanguageChange('zh')
-    },
-    {
-      key: 'en',
-      label: t('english'),
-      onClick: () => handleLanguageChange('en')
-    }
-  ];
-
   return (
     <>
       <Sider
@@ -365,15 +347,6 @@ const AppSider: React.FC<AppSiderProps> = ({
               >
                 {t('settings')}
               </Button>
-              <Select
-                style={{ width: '100%' }}
-                value={i18n.language}
-                onChange={handleLanguageChange}
-                options={[
-                  { value: 'zh', label: '🌐 ' + t('chinese') },
-                  { value: 'en', label: '🌐 ' + t('english') },
-                ]}
-              />
             </Space>
           </div>
         </div>

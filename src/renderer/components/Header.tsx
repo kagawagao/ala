@@ -1,6 +1,6 @@
 import React from 'react';
 import { BulbOutlined, BulbFilled } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Button, Select } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
@@ -9,7 +9,12 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const handleLanguageChange = (value: string) => {
+    i18n.changeLanguage(value);
+    localStorage.setItem('language', value);
+  };
 
   return (
     <header
@@ -34,6 +39,15 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
           🤖 {t('appTitle')}
         </h1>
       </div>
+      <Select
+        style={{ width: '150px' }}
+        value={i18n.language}
+        onChange={handleLanguageChange}
+        options={[
+          { value: 'zh', label: '🌐 ' + t('chinese') },
+          { value: 'en', label: '🌐 ' + t('english') },
+        ]}
+      />
       <Button
         type="text"
         icon={theme === 'dark' ? <BulbOutlined /> : <BulbFilled />}
