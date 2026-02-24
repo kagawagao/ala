@@ -6,14 +6,14 @@
 
 <p align="center">
   <strong>An Electron-based desktop application for analyzing Android logs with AI-powered insights.</strong><br>
-  Built with TypeScript, featuring a Node.js backend and a modern UI styled with TailwindCSS.
+  Built with TypeScript, featuring a Node.js backend and a modern UI powered by Ant Design.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/Electron-47848F?style=flat&logo=electron&logoColor=white" alt="Electron">
-  <img src="https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="TailwindCSS">
+  <img src="https://img.shields.io/badge/Ant%20Design-0170FE?style=flat&logo=antdesign&logoColor=white" alt="Ant Design">
   <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
 </p>
 
@@ -23,39 +23,45 @@
   <img src="assets/screenshot-react.svg" alt="ALA Screenshot" width="100%">
 </p>
 
-*Component-based React + TypeScript architecture with dark-themed interface, syntax-highlighted log viewer, advanced filtering controls, Import/Export filters, and AI-powered analysis*
+*Component-based React + TypeScript architecture with Ant Design UI, dark/light theme support, syntax-highlighted log viewer, advanced filtering controls, filter presets, Import/Export filters, and AI-powered analysis*
 
 ## Features
 
-- 📱 **Android Log Parsing**: Parse standard Android logcat format line by line
+- 📱 **Multi-Format Log Parsing**: Auto-detects and parses:
+  - Standard Android logcat format (`MM-DD HH:MM:SS.mmm PID TID LEVEL TAG: MESSAGE`, year omitted as per logcat convention)
+  - Generic timestamped log formats (ISO 8601, bracketed timestamps, etc.)
 - 🔍 **Advanced Filtering**: Filter logs by:
-  - Time range (start/end timestamps)
-  - Keywords with **regex support** (e.g., `error|crash|exception`)
+  - Time range (date/time range picker)
+  - Keywords with **regex support** (e.g., `error|crash|exception`) — reduces visible logs
+  - Visual highlights (highlights matching text without filtering)
   - Log level (Verbose, Debug, Info, Warning, Error, Fatal)
   - Tag patterns (regex support)
   - Process ID (PID)
 - 📁 **Multiple File Support**: Open and analyze multiple log files simultaneously
 - 💾 **Filter Management**:
-  - Save/Load filters in browser localStorage
+  - **Save/Load filter presets** with names and descriptions
+  - Apply multiple presets at once
   - **Import/Export filters** to/from JSON files
   - Share filter configurations with your team
-- 🎯 **Keyword Highlighting**: Matched keywords highlighted in yellow in the log viewer
-- 🤖 **AI Analysis**: Integrate with OpenAI to analyze logs and get insights about:
+- 🎯 **Keyword Highlighting**: Matched keywords highlighted in the log viewer
+- 🤖 **AI Analysis**: Integrate with any OpenAI-compatible API to analyze logs and get insights about:
   - Errors and warnings
   - Potential crashes
   - Performance concerns
   - Notable patterns
   - Debugging recommendations
+- 🌍 **Internationalization**: Full UI translation support for English and Chinese (简体中文)
+- 🌙 **Theme Support**: Toggle between dark and light themes
 - ⚛️ **Modern Architecture**:
   - **React + TypeScript** renderer with component-based design
+  - **Ant Design** UI component library
   - Webpack bundling for optimized builds
   - Context isolation for enhanced security
-  - Props-based component communication
-- 💻 **Modern UI**: Clean, dark-themed interface styled with TailwindCSS featuring:
-  - Real-time log viewer with syntax highlighting
+- 💻 **Modern UI**: Clean interface with Ant Design components featuring:
+  - Real-time log viewer with syntax highlighting and PID/TID display
   - Statistics dashboard
   - Tabbed interface for logs and AI analysis
-  - Responsive design
+  - Configurable line-break mode (word wrap / no wrap)
 
 ## Installation
 
@@ -77,11 +83,7 @@ cd ala
 npm install
 ```
 
-3. (Optional) Configure AI features:
-```bash
-# Set your OpenAI API key
-export OPENAI_API_KEY='your-api-key-here'
-```
+3. (Optional) Configure AI features in the Settings dialog after launching the app (API endpoint, API key, and model).
 
 ## Usage
 
@@ -180,7 +182,7 @@ The built application will be available in the `dist/build` directory. The app u
 npm test
 ```
 
-All 8 backend tests validate log parsing, filtering, and statistics functionality.
+The test suite validates log parsing, filtering, statistics functionality, and multi-format log detection.
 
 ### Using the Application
 
@@ -190,22 +192,32 @@ All 8 backend tests validate log parsing, filtering, and statistics functionalit
    - The log will be parsed and displayed
 
 2. **Filter Logs**
-   - **Time Range**: Enter start/end times in format `MM-DD HH:MM:SS.mmm`
-   - **Keywords**: Enter space-separated keywords to search
-   - **Log Level**: Select specific log level or "All"
+   - **Time Range**: Use the date/time range picker for start/end times
+   - **Keywords**: Enter regex pattern to filter logs (e.g., `error|crash`)
+   - **Highlights**: Enter regex pattern to highlight text without filtering
+   - **Log Level**: Select specific log level or "All Levels"
    - **Tag Filter**: Enter regex pattern to filter by tag
    - **PID**: Filter by specific process ID
-   - Click "Apply Filters" to filter, or "Clear" to reset
+   - Click "Search" to apply filters, or "Clear Filters" to reset
 
-3. **Analyze with AI**
+3. **Manage Filter Presets**
+   - Click "Manage Presets" to open the preset manager
+   - Save current filter settings as a named preset
+   - Load or apply multiple presets from the preset dropdown
+   - Import/Export presets to share with your team
+
+4. **Analyze with AI**
+   - Configure your AI settings via the Settings button (⚙️)
    - Load and optionally filter your logs
    - (Optional) Enter a specific question or analysis request
    - Click "Analyze with AI" button
    - View results in the "AI Analysis" tab
 
-### Example Log Format
+### Example Log Formats
 
-ALA supports standard Android logcat format:
+ALA auto-detects and supports multiple log formats.
+
+**Android Logcat format:**
 
 ```
 MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: MESSAGE
@@ -215,6 +227,19 @@ Example:
 ```
 01-15 10:30:25.123  5678  5678 I MyApp: Application started
 01-15 10:30:25.234  5678  5678 E MyApp: Connection failed
+```
+
+**Generic timestamped format:**
+
+```
+[YYYY-MM-DD HH:MM:SS] LEVEL: MESSAGE
+YYYY-MM-DD HH:MM:SS [LEVEL] MESSAGE
+```
+
+Example:
+```
+[2024-01-15 10:30:45] INFO: Application started
+2024-01-15 10:30:46 [ERROR] Connection failed
 ```
 
 See `examples/sample-android.log` for a complete example.
@@ -234,21 +259,26 @@ ala/
 │       ├── App.tsx                # Main React component (TypeScript)
 │       ├── types.ts               # TypeScript type definitions
 │       ├── components/            # React components
-│       │   ├── Header.tsx         # Header component
-│       │   ├── ControlPanel.tsx   # Control panel with filters
-│       │   └── LogViewer.tsx      # Log display and AI analysis
-│       ├── index-template.html    # HTML template for Webpack
-│       ├── input.css              # TailwindCSS source
-│       └── styles.css             # Compiled CSS (gitignored)
+│       │   ├── Header.tsx         # Header with theme toggle and language switcher
+│       │   ├── AppSider.tsx       # Sidebar with all filter controls and menus
+│       │   ├── LogViewer.tsx      # Log display and AI analysis
+│       │   ├── FilterPresetManager.tsx  # Filter preset save/load/manage
+│       │   └── SettingsModal.tsx  # AI configuration settings
+│       └── i18n/                  # Internationalization
+│           ├── config.ts          # i18next configuration
+│           └── locales/
+│               ├── en.json        # English translations
+│               └── zh.json        # Chinese translations
 ├── test/
-│   └── test-backend.ts            # Backend unit tests (TypeScript)
+│   ├── test-backend.ts            # Backend unit tests (TypeScript)
+│   └── test-multiformat.ts        # Multi-format log parsing tests (TypeScript)
 ├── scripts/
 │   └── generate-icon.js           # Icon generation script
 ├── assets/
 │   ├── logo.svg                   # Application logo
 │   ├── icon.svg                   # App icon (SVG)
 │   ├── icon.png                   # App icon (PNG)
-│   ├── ICON.md                    # Icon generation instructions
+│   ├── icons/                     # Platform-specific icons
 │   └── screenshot-react.svg       # UI screenshot
 ├── examples/
 │   └── sample-android.log         # Example log file
@@ -260,8 +290,6 @@ ala/
 ├── tsconfig.json                  # TypeScript configuration (main)
 ├── tsconfig.test.json             # TypeScript configuration (tests)
 ├── webpack.config.js              # Webpack configuration for React
-├── tailwind.config.js             # TailwindCSS configuration
-├── postcss.config.js              # PostCSS configuration
 ├── .eslintrc.js                   # ESLint configuration
 ├── .prettierrc.json               # Prettier configuration
 ├── package.json
@@ -273,12 +301,14 @@ ala/
 - **TypeScript 5.9+**: Strongly-typed programming language for backend and frontend
 - **React 19.2+**: Component-based UI library with hooks
 - **Electron 28.3+**: Desktop application framework
+- **Ant Design 6+**: Enterprise-level UI component library (`antd` + `@ant-design/x`)
 - **Node.js**: Backend runtime
 - **Webpack 5**: Module bundler for React application
-- **TailwindCSS 3.4+**: Modern utility-first CSS framework for styling
+- **i18next + react-i18next**: Internationalization framework (English / Chinese)
+- **dayjs**: Lightweight date/time manipulation library
 - **ESLint**: Code linting for TypeScript and React
 - **Prettier**: Code formatting
-- **OpenAI API**: AI-powered log analysis
+- **OpenAI API**: AI-powered log analysis (supports any OpenAI-compatible endpoint)
 
 ## Log Levels
 
@@ -291,9 +321,13 @@ ala/
 
 ## Configuration
 
-### Environment Variables
+### AI Settings
 
-- `OPENAI_API_KEY`: Your OpenAI API key (required for AI features)
+AI configuration is managed through the in-app Settings dialog (click the ⚙️ Settings button in the sidebar). The following settings are stored in `localStorage`:
+
+- **API Endpoint**: URL of the OpenAI-compatible API (e.g., `https://api.openai.com/v1`)
+- **API Key**: Your API key
+- **Model**: The model to use for analysis (e.g., `gpt-4o`)
 
 ## Development
 
@@ -308,8 +342,9 @@ The application follows a standard Electron architecture:
 ### Adding Features
 
 1. Backend logic goes in `src/backend/`
-2. UI components go in `src/renderer/`
-3. IPC handlers in `src/main.js`
+2. UI components go in `src/renderer/components/`
+3. IPC handlers in `src/main.ts`
+4. Translation strings go in `src/renderer/i18n/locales/en.json` and `zh.json`
 
 ## License
 
