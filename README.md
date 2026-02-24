@@ -17,14 +17,6 @@
   <img src="https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white" alt="OpenAI">
 </p>
 
-## 📸 Screenshot
-
-<p align="center">
-  <img src="assets/screenshot-react.svg" alt="ALA Screenshot" width="100%">
-</p>
-
-*Component-based React + TypeScript architecture with Ant Design UI, dark/light theme support, syntax-highlighted log viewer, advanced filtering controls, filter presets, Import/Export filters, and AI-powered analysis*
-
 ## Features
 
 - 📱 **Multi-Format Log Parsing**: Auto-detects and parses:
@@ -278,8 +270,7 @@ ala/
 │   ├── logo.svg                   # Application logo
 │   ├── icon.svg                   # App icon (SVG)
 │   ├── icon.png                   # App icon (PNG)
-│   ├── icons/                     # Platform-specific icons
-│   └── screenshot-react.svg       # UI screenshot
+│   └── icons/                     # Platform-specific icons
 ├── examples/
 │   └── sample-android.log         # Example log file
 ├── dist/                          # Compiled output (gitignored)
