@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout, Button, Space, Divider, Input, Select, Alert, FloatButton } from 'antd';
+import React, { useEffect } from 'react';
+import { Layout, Button, Space, Divider, Input, Select, Alert, FloatButton, Form } from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
@@ -67,12 +67,19 @@ const AppSider: React.FC<AppSiderProps> = ({
   themeMode,
 }) => {
   const { t, i18n } = useTranslation();
+  const [form] = Form.useForm();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
   const [selectedPresetIds, setSelectedPresetIds] = React.useState<string[]>([]);
 
-  const updateFilter = (key: keyof LogFilters, value: string) => {
-    setFilters({ ...filters, [key]: value });
+  // Initialize form with current filters
+  useEffect(() => {
+    form.setFieldsValue(filters);
+  }, [filters, form]);
+
+  // Handle form value changes
+  const handleValuesChange = (changedValues: Partial<LogFilters>, allValues: LogFilters) => {
+    setFilters(allValues);
   };
 
   const handleLanguageChange = (lang: string) => {
@@ -164,119 +171,78 @@ const AppSider: React.FC<AppSiderProps> = ({
 
               <Divider style={{ margin: '8px 0' }}>{t('filters')}</Divider>
 
-              {/* Time Range with DatePicker */}
-              <div>
-                <DateTimeRangePicker
-                  startDate={startDate}
-                  endDate={endDate}
-                  onStartChange={setStartDate}
-                  onEndChange={setEndDate}
-                />
-              </div>
+              {/* Filter Form */}
+              <Form
+                form={form}
+                layout="vertical"
+                onValuesChange={handleValuesChange}
+                initialValues={filters}
+              >
+                {/* Time Range with DatePicker */}
+                <div style={{ marginBottom: '16px' }}>
+                  <DateTimeRangePicker
+                    startDate={startDate}
+                    endDate={endDate}
+                    onStartChange={setStartDate}
+                    onEndChange={setEndDate}
+                  />
+                </div>
 
-              {/* Keywords (Filter) */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--ant-color-text-secondary)',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}
+                {/* Keywords (Filter) */}
+                <Form.Item
+                  name="keywords"
+                  label={t('keywords')}
+                  style={{ marginBottom: '16px' }}
                 >
-                  {t('keywords')}:
-                </label>
-                <Input
-                  value={filters.keywords}
-                  onChange={(e) => updateFilter('keywords', e.target.value)}
-                  placeholder={t('keywordsPlaceholder')}
-                />
-              </div>
+                  <Input placeholder={t('keywordsPlaceholder')} />
+                </Form.Item>
 
-              {/* Highlights (Visual Only) */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--ant-color-text-secondary)',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}
+                {/* Highlights (Visual Only) */}
+                <Form.Item
+                  name="highlights"
+                  label={t('highlights')}
+                  style={{ marginBottom: '16px' }}
                 >
-                  {t('highlights')}:
-                </label>
-                <Input
-                  value={filters.highlights}
-                  onChange={(e) => updateFilter('highlights', e.target.value)}
-                  placeholder={t('highlightsPlaceholder')}
-                />
-              </div>
+                  <Input placeholder={t('highlightsPlaceholder')} />
+                </Form.Item>
 
-              {/* Log Level */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--ant-color-text-secondary)',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}
+                {/* Log Level */}
+                <Form.Item
+                  name="level"
+                  label={t('logLevel')}
+                  style={{ marginBottom: '16px' }}
                 >
-                  {t('logLevel')}:
-                </label>
-                <Select
-                  value={filters.level}
-                  onChange={(value) => updateFilter('level', value)}
-                  style={{ width: '100%' }}
-                  options={[
-                    { value: 'ALL', label: t('allLevels') },
-                    { value: 'V', label: t('verbose') },
-                    { value: 'D', label: t('debug') },
-                    { value: 'I', label: t('info') },
-                    { value: 'W', label: t('warning') },
-                    { value: 'E', label: t('error') },
-                    { value: 'F', label: t('fatal') },
-                  ]}
-                />
-              </div>
+                  <Select
+                    options={[
+                      { value: 'ALL', label: t('allLevels') },
+                      { value: 'V', label: t('verbose') },
+                      { value: 'D', label: t('debug') },
+                      { value: 'I', label: t('info') },
+                      { value: 'W', label: t('warning') },
+                      { value: 'E', label: t('error') },
+                      { value: 'F', label: t('fatal') },
+                    ]}
+                  />
+                </Form.Item>
 
-              {/* Tag Filter */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--ant-color-text-secondary)',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}
+                {/* Tag Filter */}
+                <Form.Item
+                  name="tag"
+                  label={t('tagFilterRegex')}
+                  style={{ marginBottom: '16px' }}
                 >
-                  {t('tagFilterRegex')}
-                </label>
-                <Input
-                  value={filters.tag}
-                  onChange={(e) => updateFilter('tag', e.target.value)}
-                  placeholder={t('tagPlaceholder')}
-                />
-              </div>
+                  <Input placeholder={t('tagPlaceholder')} />
+                </Form.Item>
 
-              {/* PID */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--ant-color-text-secondary)',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}
+                {/* PID */}
+                <Form.Item
+                  name="pid"
+                  label={t('pid')}
+                  style={{ marginBottom: '16px' }}
                 >
-                  {t('pid')}:
-                </label>
-                <Input
-                  value={filters.pid}
-                  onChange={(e) => updateFilter('pid', e.target.value)}
-                  placeholder={t('pidPlaceholder')}
-                />
-              </div>
+                  <Input placeholder={t('pidPlaceholder')} />
+                </Form.Item>
+              </Form>
 
               {/* Search/Clear Buttons */}
               <Space.Compact block>

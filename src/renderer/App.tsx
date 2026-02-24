@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
 import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
@@ -484,8 +486,12 @@ const App: React.FC = () => {
     showStatus(`Removed ${fileName} from view`, 'info');
   };
 
+  // Get antd locale based on current language
+  const antdLocale = i18n.language === 'zh' ? zhCN : enUS;
+
   return (
     <ConfigProvider
+      locale={antdLocale}
       theme={{
         algorithm: themeMode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
