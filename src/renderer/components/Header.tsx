@@ -11,13 +11,13 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
   const { t, i18n } = useTranslation();
 
-  const currentLanguage = useMemo(() => i18n.language || 'en', [i18n.language]);
+  const currentLanguage = useMemo(() => i18n.language || 'zh', [i18n.language]);
 
   const onToggleLanguage = useCallback(() => {
-    const newLang = i18n.language === 'en' ? 'zh' : 'en';
+    const newLang = currentLanguage === 'en' ? 'zh' : 'en';
     i18n.changeLanguage(newLang);
     localStorage.setItem('ala_language', newLang);
-  }, [i18n]);
+  }, [i18n, currentLanguage]);
 
   return (
     <header
