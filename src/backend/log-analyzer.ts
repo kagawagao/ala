@@ -40,7 +40,7 @@ export interface LogStatistics {
 export enum LogFormat {
   ANDROID_LOGCAT = 'android_logcat',
   GENERIC_TIMESTAMPED = 'generic_timestamped',
-  UNKNOWN = 'unknown'
+  UNKNOWN = 'unknown',
 }
 
 /**
@@ -57,27 +57,29 @@ export class LogAnalyzer {
     // Capture groups: (1) timestamp, (2) PID, (3) TID, (4) level, (5) tag, (6) message
     // Format: MM-DD HH:MM:SS.mmmmmm PID TID LEVEL TAG: MESSAGE
     // Supports both milliseconds (.mmm) and microseconds (.mmmmmm)
-    this.androidLogcatPattern = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3,6})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)$/;
-    
+    this.androidLogcatPattern =
+      /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3,6})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s+(.*)$/;
+
     // Generic timestamped log format patterns
     // Supports various common formats like:
     // [2024-01-15 10:30:45] INFO: Message
     // 2024-01-15 10:30:45.123 [ERROR] Message
     // [INFO] 2024-01-15 10:30:45 - Message
-    this.genericTimestampedPattern = /^(?:\[)?(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\]?\s*(?:\[)?([A-Z]+|VERBOSE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)\]?:?\s*(?:-\s*)?(.+)$/i;
+    this.genericTimestampedPattern =
+      /^(?:\[)?(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)\]?\s*(?:\[)?([A-Z]+|VERBOSE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)\]?:?\s*(?:-\s*)?(.+)$/i;
   }
 
   /**
    * Detect the log format from the content
    */
   detectLogFormat(content: string): LogFormat {
-    const lines = content.split('\n').filter(line => line.trim());
-    
+    const lines = content.split('\n').filter((line) => line.trim());
+
     // Try to match first 10 lines to determine format
     const sampleSize = Math.min(10, lines.length);
     let androidMatches = 0;
     let genericMatches = 0;
-    
+
     for (let i = 0; i < sampleSize; i++) {
       const line = lines[i].trim();
       if (this.androidLogcatPattern.test(line)) {
@@ -87,17 +89,17 @@ export class LogAnalyzer {
         genericMatches++;
       }
     }
-    
+
     // If majority matches Android format, it's Android logcat
     if (androidMatches >= sampleSize * 0.6) {
       return LogFormat.ANDROID_LOGCAT;
     }
-    
+
     // If majority matches generic format, it's generic timestamped
     if (genericMatches >= sampleSize * 0.6) {
       return LogFormat.GENERIC_TIMESTAMPED;
     }
-    
+
     return LogFormat.UNKNOWN;
   }
 
@@ -106,9 +108,9 @@ export class LogAnalyzer {
    * Auto-detects format and parses accordingly
    * Returns an object with parsed logs and truncation status
    */
-  parseLog(content: string): { logs: LogEntry[], truncated: boolean, totalLines: number } {
+  parseLog(content: string): { logs: LogEntry[]; truncated: boolean; totalLines: number } {
     const format = this.detectLogFormat(content);
-    
+
     let logs: LogEntry[];
     switch (format) {
       case LogFormat.ANDROID_LOGCAT:
@@ -120,15 +122,15 @@ export class LogAnalyzer {
       default:
         logs = this.parseUnknownFormat(content);
     }
-    
+
     const totalLines = logs.length;
     const truncated = totalLines > this.MAX_LOG_LINES;
-    
+
     // Truncate if exceeds limit
     if (truncated) {
       logs = logs.slice(0, this.MAX_LOG_LINES);
     }
-    
+
     return { logs, truncated, totalLines };
   }
 
@@ -154,7 +156,7 @@ export class LogAnalyzer {
           level: match[4].trim(),
           tag: match[5].trim(),
           message: match[6].trim(),
-          rawLine: line
+          rawLine: line,
         });
       } else {
         // Handle multi-line logs or non-standard format
@@ -166,7 +168,7 @@ export class LogAnalyzer {
           level: 'U', // Unknown
           tag: 'Unknown',
           message: line,
-          rawLine: line
+          rawLine: line,
         });
       }
     }
@@ -199,7 +201,7 @@ export class LogAnalyzer {
           level: level,
           tag: 'Generic',
           message: match[3].trim(),
-          rawLine: line
+          rawLine: line,
         });
       } else {
         // Treat as continuation or unknown format
@@ -211,7 +213,7 @@ export class LogAnalyzer {
           level: 'U',
           tag: 'Unknown',
           message: line,
-          rawLine: line
+          rawLine: line,
         });
       }
     }
@@ -238,7 +240,7 @@ export class LogAnalyzer {
         level: 'U',
         tag: 'Unknown',
         message: line,
-        rawLine: line
+        rawLine: line,
       });
     }
 
@@ -250,14 +252,14 @@ export class LogAnalyzer {
    */
   private normalizeLogLevel(level: string): string {
     const levelUpper = level.toUpperCase();
-    
+
     if (levelUpper.startsWith('V') || levelUpper === 'VERBOSE') return 'V';
     if (levelUpper.startsWith('D') || levelUpper === 'DEBUG') return 'D';
     if (levelUpper.startsWith('I') || levelUpper === 'INFO') return 'I';
     if (levelUpper.startsWith('W') || levelUpper === 'WARN' || levelUpper === 'WARNING') return 'W';
     if (levelUpper.startsWith('E') || levelUpper === 'ERROR') return 'E';
     if (levelUpper.startsWith('F') || levelUpper === 'FATAL') return 'F';
-    
+
     return 'U'; // Unknown
   }
 
@@ -271,14 +273,14 @@ export class LogAnalyzer {
       if (isNaN(date.getTime())) {
         return timestamp; // Return as-is if can't parse
       }
-      
+
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
       const seconds = String(date.getSeconds()).padStart(2, '0');
       const ms = String(date.getMilliseconds()).padStart(3, '0');
-      
+
       return `${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`;
     } catch (e) {
       return timestamp; // Return as-is if error
@@ -293,9 +295,9 @@ export class LogAnalyzer {
 
     // Filter by time range
     if (filters.startTime || filters.endTime) {
-      filtered = filtered.filter(log => {
+      filtered = filtered.filter((log) => {
         if (!log.timestamp) return false;
-        
+
         const logTime = this.parseTimestamp(log.timestamp);
         if (!logTime) return true;
 
@@ -318,34 +320,37 @@ export class LogAnalyzer {
       try {
         // Try to interpret as regex first
         const keywordPattern = new RegExp(filters.keywords, 'i');
-        filtered = filtered.filter(log => {
+        filtered = filtered.filter((log) => {
           const searchText = `${log.tag} ${log.message}`;
           return keywordPattern.test(searchText);
         });
       } catch (e) {
         // If regex fails, fall back to space-separated keyword search
-        const keywords = filters.keywords.toLowerCase().split(/\s+/).filter(k => k);
-        filtered = filtered.filter(log => {
+        const keywords = filters.keywords
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((k) => k);
+        filtered = filtered.filter((log) => {
           const searchText = `${log.tag} ${log.message}`.toLowerCase();
-          return keywords.some(keyword => searchText.includes(keyword));
+          return keywords.some((keyword) => searchText.includes(keyword));
         });
       }
     }
 
     // Filter by log level
     if (filters.level && filters.level !== 'ALL') {
-      filtered = filtered.filter(log => log.level === filters.level);
+      filtered = filtered.filter((log) => log.level === filters.level);
     }
 
     // Filter by tag
     if (filters.tag && filters.tag.trim()) {
       const tagPattern = new RegExp(filters.tag, 'i');
-      filtered = filtered.filter(log => tagPattern.test(log.tag));
+      filtered = filtered.filter((log) => tagPattern.test(log.tag));
     }
 
     // Filter by PID
     if (filters.pid && filters.pid.trim()) {
-      filtered = filtered.filter(log => log.pid === filters.pid);
+      filtered = filtered.filter((log) => log.pid === filters.pid);
     }
 
     return filtered;
@@ -362,8 +367,15 @@ export class LogAnalyzer {
 
       const [, month, day, hour, minute, second, ms] = parts;
       const year = new Date().getFullYear();
-      return new Date(year, parseInt(month) - 1, parseInt(day), 
-                     parseInt(hour), parseInt(minute), parseInt(second), parseInt(ms));
+      return new Date(
+        year,
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second),
+        parseInt(ms)
+      );
     } catch (e) {
       return null;
     }
@@ -377,10 +389,10 @@ export class LogAnalyzer {
       total: logs.length,
       byLevel: { V: 0, D: 0, I: 0, W: 0, E: 0, F: 0, U: 0 },
       tags: {},
-      pids: {}
+      pids: {},
     };
 
-    logs.forEach(log => {
+    logs.forEach((log) => {
       stats.byLevel[log.level] = (stats.byLevel[log.level] || 0) + 1;
       stats.tags[log.tag] = (stats.tags[log.tag] || 0) + 1;
       if (log.pid) {

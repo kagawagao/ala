@@ -20,7 +20,9 @@ const parseResult = logAnalyzer.parseLog(logContent);
 const parsedLogs = parseResult.logs;
 console.log(`✓ Parsed ${parsedLogs.length} log lines`);
 if (parseResult.truncated) {
-  console.log(`⚠ Warning: Log file truncated at ${parsedLogs.length} lines (total: ${parseResult.totalLines})`);
+  console.log(
+    `⚠ Warning: Log file truncated at ${parsedLogs.length} lines (total: ${parseResult.totalLines})`
+  );
 }
 console.log();
 
@@ -39,7 +41,7 @@ console.log(`✓ Unique PIDs: ${Object.keys(stats.pids).length}\n`);
 console.log('Test 3: Filtering by log level (Errors only)...');
 const errorLogs = logAnalyzer.filterLogs(parsedLogs, { level: 'E' });
 console.log(`✓ Found ${errorLogs.length} error logs`);
-errorLogs.slice(0, 3).forEach(log => {
+errorLogs.slice(0, 3).forEach((log) => {
   console.log(`  - [${log.timestamp}] ${log.tag}: ${log.message.substring(0, 60)}...`);
 });
 console.log();
@@ -48,7 +50,7 @@ console.log();
 console.log('Test 4: Filtering by keywords ("login")...');
 const loginLogs = logAnalyzer.filterLogs(parsedLogs, { keywords: 'login' });
 console.log(`✓ Found ${loginLogs.length} logs containing "login"`);
-loginLogs.slice(0, 3).forEach(log => {
+loginLogs.slice(0, 3).forEach((log) => {
   console.log(`  - [${log.timestamp}] ${log.level}/${log.tag}: ${log.message.substring(0, 60)}...`);
 });
 console.log();
@@ -57,7 +59,7 @@ console.log();
 console.log('Test 5: Filtering by time range...');
 const timeFilteredLogs = logAnalyzer.filterLogs(parsedLogs, {
   startTime: '01-15 10:30:30.000',
-  endTime: '01-15 10:30:40.000'
+  endTime: '01-15 10:30:40.000',
 });
 console.log(`✓ Found ${timeFilteredLogs.length} logs in time range`);
 console.log(`  From: 01-15 10:30:30.000`);
@@ -67,7 +69,7 @@ console.log(`  To:   01-15 10:30:40.000\n`);
 console.log('Test 6: Filtering by tag (NetworkManager)...');
 const tagFilteredLogs = logAnalyzer.filterLogs(parsedLogs, { tag: 'NetworkManager' });
 console.log(`✓ Found ${tagFilteredLogs.length} logs with tag "NetworkManager"`);
-tagFilteredLogs.slice(0, 3).forEach(log => {
+tagFilteredLogs.slice(0, 3).forEach((log) => {
   console.log(`  - [${log.timestamp}] ${log.level}: ${log.message.substring(0, 60)}...`);
 });
 console.log();
@@ -76,10 +78,10 @@ console.log();
 console.log('Test 7: Combined filters (Errors + "Network")...');
 const combinedLogs = logAnalyzer.filterLogs(parsedLogs, {
   level: 'E',
-  keywords: 'Network'
+  keywords: 'Network',
 });
 console.log(`✓ Found ${combinedLogs.length} error logs containing "Network"`);
-combinedLogs.forEach(log => {
+combinedLogs.forEach((log) => {
   console.log(`  - [${log.timestamp}] ${log.tag}: ${log.message}`);
 });
 console.log();
@@ -88,7 +90,7 @@ console.log();
 console.log('Test 8: Regex keyword filtering ("login|logout")...');
 const regexLogs = logAnalyzer.filterLogs(parsedLogs, { keywords: 'login|logout' });
 console.log(`✓ Found ${regexLogs.length} logs matching regex "login|logout"`);
-regexLogs.slice(0, 5).forEach(log => {
+regexLogs.slice(0, 5).forEach((log) => {
   console.log(`  - [${log.timestamp}] ${log.level}/${log.tag}: ${log.message.substring(0, 60)}...`);
 });
 console.log();

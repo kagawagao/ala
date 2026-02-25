@@ -20,7 +20,9 @@ const App: React.FC = () => {
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [currentFiles, setCurrentFiles] = useState<string[]>([]);
-  const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>([]);
+  const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>(
+    []
+  );
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -31,7 +33,7 @@ const App: React.FC = () => {
     highlights: '',
     level: 'ALL',
     tag: '',
-    pid: ''
+    pid: '',
   });
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [statusType, setStatusType] = useState<'info' | 'error'>('info');
@@ -84,7 +86,7 @@ const App: React.FC = () => {
           ...parsed,
           startTime: '',
           endTime: '',
-          pid: ''
+          pid: '',
         });
       } catch (e) {
         console.error('Failed to load saved filters:', e);
@@ -197,14 +199,14 @@ const App: React.FC = () => {
   const handleOpenFiles = async () => {
     const results = await window.electronAPI.openLogFiles();
     if (results && results.length > 0) {
-      const fileNames = results.map(r => r.filePath);
+      const fileNames = results.map((r) => r.filePath);
       setCurrentFiles(fileNames);
       setRawFileContents(results);
-      
+
       // Clear existing logs
       setAllLogs([]);
       setFilteredLogs([]);
-      
+
       showStatus(t('filesLoaded', { count: results.length }), 'info');
     }
   };
@@ -216,54 +218,57 @@ const App: React.FC = () => {
     }
 
     setIsSearching(true);
-    
+
     // Parse files on first search if not already parsed
     if (rawFileContents.length > 0 && allLogs.length === 0) {
       showStatus(`Parsing ${rawFileContents.length} log file(s)...`, 'info');
-      
+
       let allParsedLogs: LogEntry[] = [];
       let anyTruncated = false;
       let totalLinesCount = 0;
       let maxLinesLimit = 0;
-      
+
       for (const result of rawFileContents) {
         const parseResult = await window.electronAPI.parseLog(result.content);
         // Extract logs and truncation info
         const logs = parseResult.logs;
         const truncated = parseResult.truncated;
         const totalLines = parseResult.totalLines;
-        
+
         if (truncated) {
           anyTruncated = true;
           maxLinesLimit = logs.length; // This is the limit
         }
         totalLinesCount += totalLines;
-        
+
         // Add file source to each log entry
-        logs.forEach(log => {
+        logs.forEach((log) => {
           log.sourceFile = result.filePath.split(/[\\/]/).pop();
         });
         allParsedLogs = allParsedLogs.concat(logs);
       }
-      
+
       setAllLogs(allParsedLogs);
       // Clear raw contents after parsing
       setRawFileContents([]);
-      
+
       if (anyTruncated) {
         showStatus(
-          t('logFilesTruncated', { total: totalLinesCount.toLocaleString(), limit: maxLinesLimit.toLocaleString() }),
+          t('logFilesTruncated', {
+            total: totalLinesCount.toLocaleString(),
+            limit: maxLinesLimit.toLocaleString(),
+          }),
           'error'
         );
       } else {
         showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
       }
-      
+
       // Now filter the parsed logs
       const filterData = {
         ...filters,
         startTime: startDate ? formatDateToTimestamp(startDate) : '',
-        endTime: endDate ? formatDateToTimestamp(endDate) : ''
+        endTime: endDate ? formatDateToTimestamp(endDate) : '',
       };
 
       // Use Web Worker for non-blocking search
@@ -277,7 +282,7 @@ const App: React.FC = () => {
       const filterData = {
         ...filters,
         startTime: startDate ? formatDateToTimestamp(startDate) : '',
-        endTime: endDate ? formatDateToTimestamp(endDate) : ''
+        endTime: endDate ? formatDateToTimestamp(endDate) : '',
       };
 
       // Use Web Worker for non-blocking search
@@ -305,7 +310,7 @@ const App: React.FC = () => {
       highlights: '',
       level: 'ALL',
       tag: '',
-      pid: ''
+      pid: '',
     };
     setFilters(clearedFilters);
     setStartDate(null);
@@ -343,11 +348,11 @@ const App: React.FC = () => {
 
     showStatus('Analyzing logs with AI...', 'info');
     setActiveTab('ai');
-    
+
     try {
-      const result = await window.electronAPI.analyzeWithAI({ 
-        logs: filteredLogs, 
-        prompt 
+      const result = await window.electronAPI.analyzeWithAI({
+        logs: filteredLogs,
+        prompt,
       });
       if (result.success && result.analysis) {
         setAiAnalysis(result.analysis);
@@ -372,29 +377,35 @@ const App: React.FC = () => {
 
   const handleLoadPreset = (preset: FilterPreset) => {
     // Extract keywords, highlights, and tag from config
-    const keywordTexts = preset.config.keywords.map(k => k.text).join(KEYWORD_SEPARATOR);
-    const highlightTexts = preset.config.highlights.map(h => h.text).join(KEYWORD_SEPARATOR);
+    const keywordTexts = preset.config.keywords.map((k) => k.text).join(KEYWORD_SEPARATOR);
+    const highlightTexts = preset.config.highlights.map((h) => h.text).join(KEYWORD_SEPARATOR);
     const tagText = preset.config.tag?.text || '';
-    
+
     setFilters({
       ...filters,
       keywords: keywordTexts,
       highlights: highlightTexts,
-      tag: tagText
+      tag: tagText,
     });
-    
+
     // Set descriptions from the preset
     setActivePresetDescriptions({
-      keywordDescriptions: preset.config.keywords.map(k => ({ keyword: k.text, description: k.description })),
-      highlightDescriptions: preset.config.highlights.map(h => ({ keyword: h.text, description: h.description })),
-      tagDescription: preset.config.tag?.description || ''
+      keywordDescriptions: preset.config.keywords.map((k) => ({
+        keyword: k.text,
+        description: k.description,
+      })),
+      highlightDescriptions: preset.config.highlights.map((h) => ({
+        keyword: h.text,
+        description: h.description,
+      })),
+      tagDescription: preset.config.tag?.description || '',
     });
     showStatus('Preset loaded successfully!', 'info');
   };
 
   const handleApplyMultiplePresets = (presets: FilterPreset[]) => {
     if (presets.length === 0) return;
-    
+
     // Merge multiple presets - combine keywords, highlights, and tags with OR operator (|)
     // Note: Log level is not merged from presets - it remains at ALL or user's manual selection
     const mergedFilters: LogFilters = {
@@ -404,57 +415,57 @@ const App: React.FC = () => {
       highlights: '',
       level: 'ALL',
       tag: '',
-      pid: ''
+      pid: '',
     };
 
     // Merge keyword descriptions
     const allKeywordDescriptions: { keyword: string; description: string }[] = [];
-    presets.forEach(p => {
-      p.config.keywords.forEach(k => {
+    presets.forEach((p) => {
+      p.config.keywords.forEach((k) => {
         allKeywordDescriptions.push({ keyword: k.text, description: k.description });
       });
     });
 
     // Merge highlight descriptions
     const allHighlightDescriptions: { keyword: string; description: string }[] = [];
-    presets.forEach(p => {
-      p.config.highlights.forEach(h => {
+    presets.forEach((p) => {
+      p.config.highlights.forEach((h) => {
         allHighlightDescriptions.push({ keyword: h.text, description: h.description });
       });
     });
 
     // Merge tag descriptions (join with semicolon if multiple)
     const allTagDescriptions = presets
-      .map(p => p.config.tag?.description)
-      .filter(d => d && d.trim())
+      .map((p) => p.config.tag?.description)
+      .filter((d) => d && d.trim())
       .join('; ');
 
     // Combine keywords with OR operator
     const allKeywords = presets
-      .flatMap(p => p.config.keywords.map(k => k.text))
-      .filter(k => k && k.trim())
+      .flatMap((p) => p.config.keywords.map((k) => k.text))
+      .filter((k) => k && k.trim())
       .join(KEYWORD_SEPARATOR);
-    
+
     if (allKeywords) {
       mergedFilters.keywords = allKeywords;
     }
 
     // Combine highlights with OR operator
     const allHighlights = presets
-      .flatMap(p => p.config.highlights.map(h => h.text))
-      .filter(h => h && h.trim())
+      .flatMap((p) => p.config.highlights.map((h) => h.text))
+      .filter((h) => h && h.trim())
       .join(KEYWORD_SEPARATOR);
-    
+
     if (allHighlights) {
       mergedFilters.highlights = allHighlights;
     }
 
     // Combine tags with OR operator
     const allTags = presets
-      .map(p => p.config.tag?.text)
-      .filter(t => t && t.trim())
+      .map((p) => p.config.tag?.text)
+      .filter((t) => t && t.trim())
       .join(KEYWORD_SEPARATOR);
-    
+
     if (allTags) {
       mergedFilters.tag = allTags;
     }
@@ -463,9 +474,12 @@ const App: React.FC = () => {
     setActivePresetDescriptions({
       keywordDescriptions: allKeywordDescriptions,
       highlightDescriptions: allHighlightDescriptions,
-      tagDescription: allTagDescriptions
+      tagDescription: allTagDescriptions,
     });
-    showStatus(`Applied ${presets.length} presets. Keywords, highlights, and tags combined with OR.`, 'info');
+    showStatus(
+      `Applied ${presets.length} presets. Keywords, highlights, and tags combined with OR.`,
+      'info'
+    );
   };
 
   const handleToggleTheme = () => {
@@ -476,24 +490,24 @@ const App: React.FC = () => {
 
   const handleDeleteFile = async (filePath: string) => {
     // Remove from currentFiles
-    const updatedFiles = currentFiles.filter(f => f !== filePath);
+    const updatedFiles = currentFiles.filter((f) => f !== filePath);
     setCurrentFiles(updatedFiles);
-    
+
     // Remove from raw file contents if not yet parsed
-    const updatedRawContents = rawFileContents.filter(f => f.filePath !== filePath);
+    const updatedRawContents = rawFileContents.filter((f) => f.filePath !== filePath);
     setRawFileContents(updatedRawContents);
-    
+
     // Remove logs from this file
     const fileName = filePath.split(/[\\/]/).pop();
-    const updatedAllLogs = allLogs.filter(log => log.sourceFile !== fileName);
-    const updatedFilteredLogs = filteredLogs.filter(log => log.sourceFile !== fileName);
-    
+    const updatedAllLogs = allLogs.filter((log) => log.sourceFile !== fileName);
+    const updatedFilteredLogs = filteredLogs.filter((log) => log.sourceFile !== fileName);
+
     setAllLogs(updatedAllLogs);
     setFilteredLogs(updatedFilteredLogs);
-    
+
     // Call IPC to confirm deletion (just returns success)
     await window.electronAPI.deleteLogFile(filePath);
-    
+
     showStatus(`Removed ${fileName} from view`, 'info');
   };
 
@@ -515,11 +529,8 @@ const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header 
-          theme={themeMode}
-          onToggleTheme={handleToggleTheme}
-        />
-        
+        <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
+
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
           <AppSider
             filters={filters}
@@ -545,7 +556,7 @@ const App: React.FC = () => {
             onOpenSettings={() => setSettingsModalVisible(true)}
             themeMode={themeMode}
           />
-          
+
           <Content style={{ overflow: 'hidden' }}>
             <LogViewer
               logs={filteredLogs}
@@ -566,7 +577,7 @@ const App: React.FC = () => {
             />
           </Content>
         </Layout>
-        
+
         <FilterPresetManager
           visible={presetManagerVisible}
           onClose={() => {

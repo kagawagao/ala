@@ -19,7 +19,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
   const [config, setConfig] = useState<AIConfig>({
     apiEndpoint: 'https://api.openai.com/v1',
     apiKey: '',
-    model: 'gpt-3.5-turbo'
+    model: 'gpt-3.5-turbo',
   });
 
   // Load settings from localStorage on mount
@@ -41,9 +41,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       const newConfig: AIConfig = {
         apiEndpoint: values.apiEndpoint || 'https://api.openai.com/v1',
         apiKey: values.apiKey || '',
-        model: values.model || 'gpt-3.5-turbo'
+        model: values.model || 'gpt-3.5-turbo',
       };
-      
+
       setConfig(newConfig);
       localStorage.setItem('aiConfig', JSON.stringify(newConfig));
       message.success(t('aiSettingsSaved'));
@@ -62,15 +62,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         </Button>,
         <Button key="save" type="primary" onClick={handleSave}>
           {t('saveSettings')}
-        </Button>
+        </Button>,
       ]}
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={config}
-      >
+      <Form form={form} layout="vertical" initialValues={config}>
         <Form.Item
           label={t('apiEndpoint')}
           name="apiEndpoint"

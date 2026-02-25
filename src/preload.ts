@@ -4,10 +4,10 @@ import { LogEntry, LogFilters, LogStatistics } from './renderer/types';
 contextBridge.exposeInMainWorld('electronAPI', {
   openLogFiles: () => ipcRenderer.invoke('open-log-files'),
   parseLog: (content: string) => ipcRenderer.invoke('parse-log', content),
-  filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => 
+  filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) =>
     ipcRenderer.invoke('filter-logs', params),
   getStatistics: (logs: LogEntry[]) => ipcRenderer.invoke('get-statistics', logs),
-  analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => 
+  analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) =>
     ipcRenderer.invoke('analyze-with-ai', params),
   checkAIConfigured: () => ipcRenderer.invoke('check-ai-configured'),
   importFilters: () => ipcRenderer.invoke('import-filters'),

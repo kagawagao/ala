@@ -22,12 +22,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "src/renderer/**/*"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/renderer/**/*"]
 }
