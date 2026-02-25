@@ -64,12 +64,14 @@
 ### Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/kagawagao/ala.git
 cd ala
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -90,6 +92,7 @@ npm run dev
 ```
 
 This will:
+
 1. Compile the TypeScript backend
 2. Build the React renderer in production mode
 3. Launch Electron with auto-reload enabled
@@ -106,6 +109,7 @@ npm run dev
 ```
 
 The `watch` command will:
+
 - Watch TypeScript backend files and recompile on changes
 - Watch React renderer files and rebuild on changes
 - `electron-reloader` will detect changes and restart the app
@@ -215,6 +219,7 @@ MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: MESSAGE
 ```
 
 Example:
+
 ```
 01-15 10:30:25.123  5678  5678 I MyApp: Application started
 01-15 10:30:25.234  5678  5678 E MyApp: Connection failed
@@ -228,6 +233,7 @@ YYYY-MM-DD HH:MM:SS [LEVEL] MESSAGE
 ```
 
 Example:
+
 ```
 [2024-01-15 10:30:45] INFO: Application started
 2024-01-15 10:30:46 [ERROR] Connection failed

@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, CheckOutlined, ImportOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons';
+import {
+  Modal,
+  List,
+  Button,
+  Input,
+  Space,
+  Popconfirm,
+  Tag,
+  message,
+  Checkbox,
+  Tooltip,
+} from 'antd';
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  CheckOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  EditOutlined,
+} from '@ant-design/icons';
 import { LogFilters } from '../types';
 import { useTranslation } from 'react-i18next';
 
@@ -76,17 +94,19 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   // Migration function to convert old presets to new format
   const migrateOldPreset = (oldPreset: OldFilterPreset): FilterPreset => {
     const keywords: Array<{ text: string; description: string }> = [];
-    
+
     // Extract keywords from filters.keywords
     // In old format, keywords were used for highlighting, so migrate to highlights
     if (oldPreset.filters.keywords) {
-      const keywordTexts = oldPreset.filters.keywords.split(KEYWORD_SEPARATOR).filter(k => k.trim());
-      keywordTexts.forEach(kw => {
+      const keywordTexts = oldPreset.filters.keywords
+        .split(KEYWORD_SEPARATOR)
+        .filter((k) => k.trim());
+      keywordTexts.forEach((kw) => {
         const trimmedKw = kw.trim();
-        const desc = oldPreset.keywordDescriptions?.find(kd => kd.keyword === trimmedKw);
+        const desc = oldPreset.keywordDescriptions?.find((kd) => kd.keyword === trimmedKw);
         keywords.push({
           text: trimmedKw,
-          description: desc?.description || ''
+          description: desc?.description || '',
         });
       });
     }
@@ -98,14 +118,16 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       config: {
         keywords: [], // Empty keywords for filtering (old format didn't have this)
         highlights: keywords, // Old keywords become highlights
-        ...(oldPreset.filters.tag ? {
-          tag: {
-            text: oldPreset.filters.tag,
-            description: oldPreset.tagDescription || ''
-          }
-        } : {})
+        ...(oldPreset.filters.tag
+          ? {
+              tag: {
+                text: oldPreset.filters.tag,
+                description: oldPreset.tagDescription || '',
+              },
+            }
+          : {}),
       },
-      createdAt: oldPreset.createdAt
+      createdAt: oldPreset.createdAt,
     };
 
     return newPreset;
@@ -124,8 +146,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
         }
 
         // Check if any presets need migration (old format has 'filters' property)
-        const needsMigration = parsed.some(p => 'filters' in p);
-        
+        const needsMigration = parsed.some((p) => 'filters' in p);
+
         if (needsMigration) {
           // Migrate all presets, handling both old and new formats
           const migratedPresets = parsed.map((p: any) => {
@@ -169,22 +191,24 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
     if (editingPresetId) {
       // Update existing preset
-      const updatedPresets = presets.map(p => {
+      const updatedPresets = presets.map((p) => {
         if (p.id === editingPresetId) {
           return {
             ...p,
             name: newName.trim(),
             description: newDescription.trim(),
             config: {
-              keywords: keywords.filter(k => k.text.trim()),
-              highlights: highlights.filter(h => h.text.trim()),
-              ...(tagText.trim() ? {
-                tag: {
-                  text: tagText.trim(),
-                  description: tagDescription.trim()
-                }
-              } : {})
-            }
+              keywords: keywords.filter((k) => k.text.trim()),
+              highlights: highlights.filter((h) => h.text.trim()),
+              ...(tagText.trim()
+                ? {
+                    tag: {
+                      text: tagText.trim(),
+                      description: tagDescription.trim(),
+                    },
+                  }
+                : {}),
+            },
           };
         }
         return p;
@@ -198,14 +222,16 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
         name: newName.trim(),
         description: newDescription.trim(),
         config: {
-          keywords: keywords.filter(k => k.text.trim()),
-          highlights: highlights.filter(h => h.text.trim()),
-          ...(tagText.trim() ? {
-            tag: {
-              text: tagText.trim(),
-              description: tagDescription.trim()
-            }
-          } : {})
+          keywords: keywords.filter((k) => k.text.trim()),
+          highlights: highlights.filter((h) => h.text.trim()),
+          ...(tagText.trim()
+            ? {
+                tag: {
+                  text: tagText.trim(),
+                  description: tagDescription.trim(),
+                },
+              }
+            : {}),
         },
         createdAt: new Date().toISOString(),
       };
@@ -213,7 +239,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       savePresets([...presets, newPreset]);
       message.success(t('savePreset'));
     }
-    
+
     resetForm();
   };
 
@@ -261,10 +287,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   };
 
   const handleToggleSelection = (presetId: string) => {
-    setSelectedPresetIds(prev => 
-      prev.includes(presetId) 
-        ? prev.filter(id => id !== presetId)
-        : [...prev, presetId]
+    setSelectedPresetIds((prev) =>
+      prev.includes(presetId) ? prev.filter((id) => id !== presetId) : [...prev, presetId]
     );
   };
 
@@ -274,8 +298,8 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       return;
     }
 
-    const selectedPresets = presets.filter(p => selectedPresetIds.includes(p.id));
-    
+    const selectedPresets = presets.filter((p) => selectedPresetIds.includes(p.id));
+
     onApplyMultiplePresets(selectedPresets);
     message.success(t('applyPresets', { count: selectedPresetIds.length }));
     setSelectedPresetIds([]);
@@ -285,7 +309,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
   const getFilterSummary = (preset: FilterPreset): string[] => {
     const summary: string[] = [];
     if (preset.config.keywords.length > 0) {
-      const keywordTexts = preset.config.keywords.map(k => k.text).join(KEYWORD_SEPARATOR);
+      const keywordTexts = preset.config.keywords.map((k) => k.text).join(KEYWORD_SEPARATOR);
       summary.push(`Keywords: ${keywordTexts}`);
     }
     if (preset.config.tag) {
@@ -314,9 +338,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
           </Button>
           {selectedPresetIds.length > 0 && (
             <>
-              <Button onClick={() => setSelectedPresetIds([])}>
-                {t('clearSelection')}
-              </Button>
+              <Button onClick={() => setSelectedPresetIds([])}>{t('clearSelection')}</Button>
               <Button type="primary" icon={<CheckOutlined />} onClick={handleApplyMultiple}>
                 {t('applyPresets', { count: selectedPresetIds.length })}
               </Button>
@@ -329,12 +351,14 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {/* Add New Preset */}
         {showAddForm ? (
-          <div style={{
-            backgroundColor: 'var(--ant-color-bg-elevated)',
-            padding: '16px',
-            borderRadius: '4px',
-            border: '1px solid var(--ant-color-border)'
-          }}>
+          <div
+            style={{
+              backgroundColor: 'var(--ant-color-bg-elevated)',
+              padding: '16px',
+              borderRadius: '4px',
+              border: '1px solid var(--ant-color-border)',
+            }}
+          >
             <div style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
               {editingPresetId ? t('editPreset') : t('createNewPreset')}
             </div>
@@ -351,7 +375,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 onChange={(e) => setNewDescription(e.target.value)}
                 rows={2}
               />
-              
+
               {/* Tag configuration */}
               <div>
                 <div style={{ marginBottom: '8px', fontWeight: 500 }}>
@@ -374,7 +398,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
               {/* Keywords configuration */}
               <div>
-                <div style={{ marginBottom: '8px', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div
+                  style={{
+                    marginBottom: '8px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <span>{t('keywords')} (Filter)</span>
                   <Button
                     type="dashed"
@@ -386,7 +418,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   </Button>
                 </div>
                 {keywords.map((kw, idx) => (
-                  <div key={idx} style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexDirection: 'column' }}>
+                  <div
+                    key={idx}
+                    style={{
+                      marginBottom: '8px',
+                      display: 'flex',
+                      gap: '4px',
+                      flexDirection: 'column',
+                    }}
+                  >
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <Input
                         placeholder={t('keywordsPlaceholder')}
@@ -421,7 +461,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
               {/* Highlights configuration */}
               <div>
-                <div style={{ marginBottom: '8px', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div
+                  style={{
+                    marginBottom: '8px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <span>{t('highlights')} (Visual)</span>
                   <Button
                     type="dashed"
@@ -433,7 +481,15 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   </Button>
                 </div>
                 {highlights.map((hl, idx) => (
-                  <div key={idx} style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexDirection: 'column' }}>
+                  <div
+                    key={idx}
+                    style={{
+                      marginBottom: '8px',
+                      display: 'flex',
+                      gap: '4px',
+                      flexDirection: 'column',
+                    }}
+                  >
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <Input
                         placeholder={t('highlightsPlaceholder')}
@@ -470,19 +526,12 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 <Button type="primary" onClick={handleSaveNew}>
                   {editingPresetId ? t('update') : t('save')}
                 </Button>
-                <Button onClick={resetForm}>
-                  {t('cancel')}
-                </Button>
+                <Button onClick={resetForm}>{t('cancel')}</Button>
               </Space>
             </Space>
           </div>
         ) : (
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={() => setShowAddForm(true)}
-            block
-          >
+          <Button type="dashed" icon={<PlusOutlined />} onClick={() => setShowAddForm(true)} block>
             {t('createNewPreset')}
           </Button>
         )}
@@ -504,12 +553,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                 >
                   {t('edit')}
                 </Button>,
-                <Button
-                  key="load"
-                  type="link"
-                  size="small"
-                  onClick={() => handleLoad(preset)}
-                >
+                <Button key="load" type="link" size="small" onClick={() => handleLoad(preset)}>
                   {t('load')}
                 </Button>,
                 <Popconfirm
@@ -519,16 +563,13 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
                   okText={t('yes')}
                   cancelText={t('no')}
                 >
-                  <Button
-                    type="link"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                  />
+                  <Button type="link" danger size="small" icon={<DeleteOutlined />} />
                 </Popconfirm>,
               ]}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%', gap: '12px' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'flex-start', width: '100%', gap: '12px' }}
+              >
                 <Checkbox
                   checked={selectedPresetIds.includes(preset.id)}
                   onChange={() => handleToggleSelection(preset.id)}
