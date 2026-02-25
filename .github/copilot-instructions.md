@@ -44,7 +44,7 @@ The app follows the standard Electron split:
 
 ## Key Interfaces
 
-> **Note**: backend and renderer define *separate* `LogEntry`/`LogFilters` types. Do **not** import renderer types into backend code, or vice versa.
+> **Note**: backend and renderer define _separate_ `LogEntry`/`LogFilters` types. Do **not** import renderer types into backend code, or vice versa.
 
 - `LogEntry` (backend) – `src/backend/log-analyzer.ts`: `timestamp: string | null`, `pid/tid: string | null`, no `sourceFile`.
 - `LogEntry` (renderer IPC contract) – `src/renderer/types.ts`: `timestamp: string`, `pid/tid: string`, optional `sourceFile` and `lineNumber`.

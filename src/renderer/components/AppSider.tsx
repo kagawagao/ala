@@ -1,5 +1,16 @@
 import React, { useEffect } from 'react';
-import { Layout, Button, Space, Divider, Input, Select, Alert, FloatButton, Form, DatePicker } from 'antd';
+import {
+  Layout,
+  Button,
+  Space,
+  Divider,
+  Input,
+  Select,
+  Alert,
+  FloatButton,
+  Form,
+  DatePicker,
+} from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
@@ -79,7 +90,7 @@ const AppSider: React.FC<AppSiderProps> = ({
       startDate || endDate
         ? [startDate ? dayjs(startDate) : null, endDate ? dayjs(endDate) : null]
         : null;
-    
+
     form.setFieldsValue({
       ...filters,
       timeRange,
@@ -100,7 +111,7 @@ const AppSider: React.FC<AppSiderProps> = ({
         setEndDate(end ? end.toDate() : null);
       }
     }
-    
+
     // Update filters (excluding timeRange which is not part of LogFilters)
     const { timeRange, ...filterValues } = allValues;
     setFilters(filterValues);
@@ -141,7 +152,12 @@ const AppSider: React.FC<AppSiderProps> = ({
                 </Button>
                 {currentFiles.length > 0 && (
                   <div
-                    style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                    style={{
+                      marginTop: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
                   >
                     {currentFiles.map((file, index) => (
                       <div
@@ -185,11 +201,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                 initialValues={filters}
               >
                 {/* Time Range with DatePicker */}
-                <Form.Item
-                  name="timeRange"
-                  label={t('timeRange')}
-                  style={{ marginBottom: '16px' }}
-                >
+                <Form.Item name="timeRange" label={t('timeRange')} style={{ marginBottom: '16px' }}>
                   <RangePicker
                     showTime={{
                       format: 'HH:mm:ss',
@@ -202,11 +214,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                 </Form.Item>
 
                 {/* Keywords (Filter) */}
-                <Form.Item
-                  name="keywords"
-                  label={t('keywords')}
-                  style={{ marginBottom: '16px' }}
-                >
+                <Form.Item name="keywords" label={t('keywords')} style={{ marginBottom: '16px' }}>
                   <Input placeholder={t('keywordsPlaceholder')} />
                 </Form.Item>
 
@@ -220,11 +228,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                 </Form.Item>
 
                 {/* Log Level */}
-                <Form.Item
-                  name="level"
-                  label={t('logLevel')}
-                  style={{ marginBottom: '16px' }}
-                >
+                <Form.Item name="level" label={t('logLevel')} style={{ marginBottom: '16px' }}>
                   <Select
                     options={[
                       { value: 'ALL', label: t('allLevels') },
@@ -239,20 +243,12 @@ const AppSider: React.FC<AppSiderProps> = ({
                 </Form.Item>
 
                 {/* Tag Filter */}
-                <Form.Item
-                  name="tag"
-                  label={t('tagFilterRegex')}
-                  style={{ marginBottom: '16px' }}
-                >
+                <Form.Item name="tag" label={t('tagFilterRegex')} style={{ marginBottom: '16px' }}>
                   <Input placeholder={t('tagPlaceholder')} />
                 </Form.Item>
 
                 {/* PID */}
-                <Form.Item
-                  name="pid"
-                  label={t('pid')}
-                  style={{ marginBottom: '16px' }}
-                >
+                <Form.Item name="pid" label={t('pid')} style={{ marginBottom: '16px' }}>
                   <Input placeholder={t('pidPlaceholder')} />
                 </Form.Item>
               </Form>
@@ -329,22 +325,18 @@ const AppSider: React.FC<AppSiderProps> = ({
           </div>
 
           {/* Bottom menu buttons */}
-          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${themeMode === 'dark' ? '#3e3e42' : '#d9d9d9'}` }}>
+          <div
+            style={{
+              marginTop: '16px',
+              paddingTop: '16px',
+              borderTop: `1px solid ${themeMode === 'dark' ? '#3e3e42' : '#d9d9d9'}`,
+            }}
+          >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Button
-                type="default"
-                icon={<SettingOutlined />}
-                onClick={onManagePresets}
-                block
-              >
+              <Button type="default" icon={<SettingOutlined />} onClick={onManagePresets} block>
                 {t('managePresets')}
               </Button>
-              <Button
-                type="default"
-                icon={<ToolOutlined />}
-                onClick={onOpenSettings}
-                block
-              >
+              <Button type="default" icon={<ToolOutlined />} onClick={onOpenSettings} block>
                 {t('settings')}
               </Button>
             </Space>

@@ -2,7 +2,7 @@
 
 /**
  * Generate app icons from logo.svg using electron-icon-builder
- * 
+ *
  * This script generates all required icon sizes for:
  * - macOS (.icns)
  * - Windows (.ico)
@@ -28,10 +28,10 @@ try {
   // First, convert SVG to high-res PNG (1024x1024) for icon generation
   // electron-icon-builder expects PNG input
   const tempPngPath = path.join(assetsDir, 'icon-temp-1024.png');
-  
+
   // Try to use ImageMagick if available, otherwise use a simpler approach
   let conversionSuccess = false;
-  
+
   try {
     execSync(
       `convert -background none -density 1024 "${logoPath}" -resize 1024x1024 "${tempPngPath}"`,
@@ -42,7 +42,7 @@ try {
   } catch (e) {
     // ImageMagick not available, try alternative
     console.log('⚠ ImageMagick not found, trying alternative method...');
-    
+
     // Try using Inkscape if available
     try {
       execSync(
@@ -55,7 +55,7 @@ try {
       console.log('⚠ Inkscape not found either');
     }
   }
-  
+
   if (conversionSuccess && fs.existsSync(tempPngPath)) {
     // Now use electron-icon-builder to generate all icon formats
     // Use npx for cross-platform compatibility
@@ -64,10 +64,10 @@ try {
         `npx electron-icon-builder --input="${tempPngPath}" --output="${assetsDir}" --flatten`,
         { stdio: 'inherit', cwd: path.join(__dirname, '..') }
       );
-      
+
       // Clean up temp file
       fs.unlinkSync(tempPngPath);
-      
+
       console.log('\n✓ Successfully generated app icons:');
       console.log('  - macOS: icon.icns');
       console.log('  - Windows: icon.ico');
@@ -88,21 +88,21 @@ try {
 } catch (error) {
   console.error('✗ Error generating icons:', error.message);
   console.error('\nFalling back to simple copy method...');
-  
+
   // Fallback: just copy the SVG as placeholder
   const iconSvgPath = path.join(assetsDir, 'icon.svg');
   const iconPngPath = path.join(assetsDir, 'icon.png');
-  
+
   fs.copyFileSync(logoPath, iconSvgPath);
   console.log('✓ Created icon.svg from logo.svg');
-  
+
   try {
     fs.copyFileSync(logoPath, iconPngPath);
     console.log('✓ Created icon.png placeholder');
   } catch (e) {
     // Ignore error
   }
-  
+
   console.log('\n⚠ Note: For production builds, install ImageMagick or Inkscape:');
   console.log('  - Ubuntu/Debian: sudo apt-get install imagemagick');
   console.log('  - macOS: brew install imagemagick');
