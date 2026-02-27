@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 dist/
 src/**/*.js
 src/**/*.js.map
+
+# Electron-builder output
+release/

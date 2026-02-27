@@ -73,7 +73,7 @@
     "appId": "com.kagawagao.ala",
     "productName": "ALA",
     "directories": {
-      "output": "dist/build"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
