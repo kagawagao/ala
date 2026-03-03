@@ -76,7 +76,7 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
+      "dist/**",
       "assets/icons/**/*",
       "package.json"
     ],
