@@ -79,12 +79,16 @@
       {
         "from": "dist",
         "to": "dist",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "assets/icons",
         "to": "assets/icons",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       "package.json"
     ],
