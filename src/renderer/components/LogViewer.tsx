@@ -56,19 +56,50 @@ const LogViewer: React.FC<LogViewerProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Track the scrollable container height for VirtualList
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Track the scrollable container height for VirtualList.
+  // Use refs so the ResizeObserver can be re-attached whenever the container
+  // node mounts / unmounts (it is conditionally rendered).
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerHeight, setContainerHeight] = useState(600);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const observedElementRef = useRef<HTMLDivElement | null>(null);
 
+  // The container is only rendered when there are logs and we're not searching.
+  // Track this as a boolean so useEffect can use it without a complex expression.
+  const containerVisible = !isSearching && logs.length > 0;
+
+  // Create the ResizeObserver once and disconnect on unmount.
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
+    resizeObserverRef.current = new ResizeObserver(([entry]) => {
       setContainerHeight(entry.contentRect.height);
     });
-    observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
+      observedElementRef.current = null;
+    };
   }, []);
+
+  // Re-attach the observer whenever the scroll container mounts or remounts.
+  useEffect(() => {
+    const el = containerRef.current;
+    const observer = resizeObserverRef.current;
+    if (!observer || !el) return;
+
+    if (observedElementRef.current && observedElementRef.current !== el) {
+      observer.unobserve(observedElementRef.current);
+    }
+
+    observer.observe(el);
+    observedElementRef.current = el;
+
+    return () => {
+      if (observedElementRef.current === el) {
+        observer.unobserve(el);
+        observedElementRef.current = null;
+      }
+    };
+  }, [containerVisible]);
 
   const escapeRegex = useCallback((str: string): string => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -250,12 +281,14 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
     const flushGroup = () => {
       if (groupLogs.length === 0) return;
-      items.push({
-        type: 'divider',
-        key: `divider-${groupIndex}`,
-        file: currentFile,
-        count: groupLogs.length,
-      });
+      if (currentFile) {
+        items.push({
+          type: 'divider',
+          key: `divider-${groupIndex}`,
+          file: currentFile,
+          count: groupLogs.length,
+        });
+      }
       groupLogs.forEach((log, idx) => {
         items.push({ type: 'log', key: `log-${startIndex + idx}`, log, index: startIndex + idx });
       });
@@ -277,6 +310,17 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
     return items;
   }, [logs, currentFiles]);
+
+  // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
+  // for every log entry.  Falls back to null when currentTag is empty or invalid.
+  const currentTagRegex = useMemo<RegExp | null>(() => {
+    if (!currentTag) return null;
+    try {
+      return new RegExp(currentTag, 'i');
+    } catch {
+      return null;
+    }
+  }, [currentTag]);
 
   const renderLogLine = useCallback(
     (log: LogEntry, index: number, extraStyle?: React.CSSProperties) => {
@@ -313,10 +357,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
       );
 
       // Check if current log tag matches the filtered tag and has description
-      const showTagTooltip =
-        currentTag &&
-        tagDescription &&
-        (log.tag === currentTag || new RegExp(currentTag, 'i').test(log.tag));
+      const tagMatchesFilter = currentTag
+        ? log.tag === currentTag ||
+          (currentTagRegex
+            ? currentTagRegex.test(log.tag)
+            : log.tag.toLowerCase().includes(currentTag.toLowerCase()))
+        : false;
+      const showTagTooltip = currentTag && tagDescription && tagMatchesFilter;
 
       const tag =
         log.tag !== 'Unknown' ? (
@@ -365,6 +412,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       renderMessageWithHighlights,
       highlights,
       currentTag,
+      currentTagRegex,
       tagDescription,
       lineBreakMode,
     ]
