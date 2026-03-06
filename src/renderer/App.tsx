@@ -557,7 +557,7 @@ const App: React.FC = () => {
             themeMode={themeMode}
           />
 
-          <Content style={{ overflow: 'hidden' }}>
+          <Content style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <LogViewer
               logs={filteredLogs}
               allLogsCount={allLogs.length}

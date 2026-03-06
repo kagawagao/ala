@@ -1,6 +1,7 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, theme, Tooltip } from 'antd';
-import React from 'react';
+import { Divider, FloatButton, Tabs, Tooltip } from 'antd';
+import VirtualList from 'rc-virtual-list';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LogEntry, LogStatistics } from '../types';
 
@@ -10,6 +11,13 @@ const spinnerStyles = `
     to { transform: rotate(360deg); }
   }
 `;
+
+// Item types for the flattened virtual list
+type DividerItem = { type: 'divider'; key: string; file: string; count: number };
+type LogItem = { type: 'log'; key: string; log: LogEntry; index: number };
+type ListItem = DividerItem | LogItem;
+
+const LOG_ITEM_HEIGHT = 28;
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -47,154 +55,199 @@ const LogViewer: React.FC<LogViewerProps> = ({
   currentTag = '',
 }) => {
   const { t } = useTranslation();
-  const { token } = theme.useToken();
-  const escapeRegex = (str: string): string => {
+
+  // Track the scrollable container height for VirtualList.
+  // Use refs so the ResizeObserver can be re-attached whenever the container
+  // node mounts / unmounts (it is conditionally rendered).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerHeight, setContainerHeight] = useState(600);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const observedElementRef = useRef<HTMLDivElement | null>(null);
+
+  // The container is only rendered when there are logs and we're not searching.
+  // Track this as a boolean so useEffect can use it without a complex expression.
+  const containerVisible = !isSearching && logs.length > 0;
+
+  // Create the ResizeObserver once and disconnect on unmount.
+  useEffect(() => {
+    resizeObserverRef.current = new ResizeObserver(([entry]) => {
+      setContainerHeight(entry.contentRect.height);
+    });
+    return () => {
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
+      observedElementRef.current = null;
+    };
+  }, []);
+
+  // Re-attach the observer whenever the scroll container mounts or remounts.
+  useEffect(() => {
+    const el = containerRef.current;
+    const observer = resizeObserverRef.current;
+    if (!observer || !el) return;
+
+    if (observedElementRef.current && observedElementRef.current !== el) {
+      observer.unobserve(observedElementRef.current);
+    }
+
+    observer.observe(el);
+    observedElementRef.current = el;
+
+    return () => {
+      if (observedElementRef.current === el) {
+        observer.unobserve(el);
+        observedElementRef.current = null;
+      }
+    };
+  }, [containerVisible]);
+
+  const escapeRegex = useCallback((str: string): string => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  };
+  }, []);
 
   // Render message with highlight highlighting and tooltips
-  const renderMessageWithHighlights = (message: string, highlights: string): React.ReactNode => {
-    if (!highlights || !highlights.trim()) return message;
+  const renderMessageWithHighlights = useCallback(
+    (message: string, hlText: string): React.ReactNode => {
+      if (!hlText || !hlText.trim()) return message;
 
-    // Theme-aware colors for highlight highlighting
-    const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
-    const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+      // Theme-aware colors for highlight highlighting
+      const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
+      const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
 
-    try {
-      // Try regex pattern first
-      const pattern = new RegExp(`(${highlights})`, 'gi');
-      const parts: React.ReactNode[] = [];
-      let lastIndex = 0;
-      let match;
-      const regex = new RegExp(pattern);
+      try {
+        // Try regex pattern first
+        const parts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
 
-      // Reset regex for exec
-      const execRegex = new RegExp(`(${highlights})`, 'gi');
-      while ((match = execRegex.exec(message)) !== null) {
-        // Add text before match
-        if (match.index > lastIndex) {
-          parts.push(message.substring(lastIndex, match.index));
-        }
-
-        // Find description for this highlight
-        const matchText = match[0];
-        const desc = highlightDescriptions.find(
-          (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
-        );
-
-        // Add highlighted highlight with optional tooltip
-        const highlightedSpan = (
-          <mark
-            key={`highlight-${match.index}`}
-            style={{
-              backgroundColor: bgColor,
-              color: textColor,
-              padding: '0 4px',
-              borderRadius: '2px',
-              cursor: desc ? 'help' : 'default',
-            }}
-          >
-            {matchText}
-          </mark>
-        );
-
-        if (desc && desc.description) {
-          parts.push(
-            <Tooltip key={`tooltip-${match.index}`} title={desc.description} placement="top">
-              {highlightedSpan}
-            </Tooltip>
-          );
-        } else {
-          parts.push(highlightedSpan);
-        }
-
-        lastIndex = execRegex.lastIndex;
-      }
-
-      // Add remaining text
-      if (lastIndex < message.length) {
-        parts.push(message.substring(lastIndex));
-      }
-
-      return <>{parts}</>;
-    } catch (e) {
-      // Fallback to space-separated highlights
-      const highlightList = highlights
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((k) => k);
-      let result: React.ReactNode[] = [message];
-
-      highlightList.forEach((highlight) => {
-        const newResult: React.ReactNode[] = [];
-        result.forEach((part, partIdx) => {
-          if (typeof part === 'string') {
-            const regex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
-            let lastIndex = 0;
-            let match;
-            const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
-
-            while ((match = execRegex.exec(part)) !== null) {
-              // Add text before match
-              if (match.index > lastIndex) {
-                newResult.push(part.substring(lastIndex, match.index));
-              }
-
-              // Find description for this highlight
-              const matchText = match[0];
-              const desc = highlightDescriptions.find(
-                (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
-              );
-
-              // Add highlighted highlight with optional tooltip
-              const highlightedSpan = (
-                <mark
-                  key={`highlight-${partIdx}-${match.index}`}
-                  style={{
-                    backgroundColor: bgColor,
-                    color: textColor,
-                    padding: '0 4px',
-                    borderRadius: '2px',
-                    cursor: desc ? 'help' : 'default',
-                  }}
-                >
-                  {matchText}
-                </mark>
-              );
-
-              if (desc && desc.description) {
-                newResult.push(
-                  <Tooltip
-                    key={`tooltip-${partIdx}-${match.index}`}
-                    title={desc.description}
-                    placement="top"
-                  >
-                    {highlightedSpan}
-                  </Tooltip>
-                );
-              } else {
-                newResult.push(highlightedSpan);
-              }
-
-              lastIndex = execRegex.lastIndex;
-            }
-
-            // Add remaining text
-            if (lastIndex < part.length) {
-              newResult.push(part.substring(lastIndex));
-            }
-          } else {
-            newResult.push(part);
+        // Reset regex for exec
+        const execRegex = new RegExp(`(${hlText})`, 'gi');
+        while ((match = execRegex.exec(message)) !== null) {
+          // Add text before match
+          if (match.index > lastIndex) {
+            parts.push(message.substring(lastIndex, match.index));
           }
+
+          // Find description for this highlight
+          const matchText = match[0];
+          const desc = highlightDescriptions.find(
+            (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+          );
+
+          // Add highlighted highlight with optional tooltip
+          const highlightedSpan = (
+            <mark
+              key={`highlight-${match.index}`}
+              style={{
+                backgroundColor: bgColor,
+                color: textColor,
+                padding: '0 4px',
+                borderRadius: '2px',
+                cursor: desc ? 'help' : 'default',
+              }}
+            >
+              {matchText}
+            </mark>
+          );
+
+          if (desc && desc.description) {
+            parts.push(
+              <Tooltip key={`tooltip-${match.index}`} title={desc.description} placement="top">
+                {highlightedSpan}
+              </Tooltip>
+            );
+          } else {
+            parts.push(highlightedSpan);
+          }
+
+          lastIndex = execRegex.lastIndex;
+        }
+
+        // Add remaining text
+        if (lastIndex < message.length) {
+          parts.push(message.substring(lastIndex));
+        }
+
+        return <>{parts}</>;
+      } catch (e) {
+        // Fallback to space-separated highlights
+        const highlightList = hlText
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((k) => k);
+        let result: React.ReactNode[] = [message];
+
+        highlightList.forEach((highlight) => {
+          const newResult: React.ReactNode[] = [];
+          result.forEach((part, partIdx) => {
+            if (typeof part === 'string') {
+              let innerLastIndex = 0;
+              let innerMatch;
+              const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
+
+              while ((innerMatch = execRegex.exec(part)) !== null) {
+                // Add text before match
+                if (innerMatch.index > innerLastIndex) {
+                  newResult.push(part.substring(innerLastIndex, innerMatch.index));
+                }
+
+                // Find description for this highlight
+                const matchText = innerMatch[0];
+                const desc = highlightDescriptions.find(
+                  (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+                );
+
+                // Add highlighted highlight with optional tooltip
+                const highlightedSpan = (
+                  <mark
+                    key={`highlight-${partIdx}-${innerMatch.index}`}
+                    style={{
+                      backgroundColor: bgColor,
+                      color: textColor,
+                      padding: '0 4px',
+                      borderRadius: '2px',
+                      cursor: desc ? 'help' : 'default',
+                    }}
+                  >
+                    {matchText}
+                  </mark>
+                );
+
+                if (desc && desc.description) {
+                  newResult.push(
+                    <Tooltip
+                      key={`tooltip-${partIdx}-${innerMatch.index}`}
+                      title={desc.description}
+                      placement="top"
+                    >
+                      {highlightedSpan}
+                    </Tooltip>
+                  );
+                } else {
+                  newResult.push(highlightedSpan);
+                }
+
+                innerLastIndex = execRegex.lastIndex;
+              }
+
+              // Add remaining text
+              if (innerLastIndex < part.length) {
+                newResult.push(part.substring(innerLastIndex));
+              }
+            } else {
+              newResult.push(part);
+            }
+          });
+          result = newResult;
         });
-        result = newResult;
-      });
 
-      return <>{result}</>;
-    }
-  };
+        return <>{result}</>;
+      }
+    },
+    [themeMode, highlightDescriptions, escapeRegex]
+  );
 
-  const getLevelClass = (level: string): { color: string; borderColor: string } => {
+  const getLevelClass = useCallback((level: string): { color: string; borderColor: string } => {
     const levelColors: Record<string, { color: string; borderColor: string }> = {
       E: { color: '#f87171', borderColor: '#f87171' },
       W: { color: '#facc15', borderColor: '#facc15' },
@@ -204,129 +257,166 @@ const LogViewer: React.FC<LogViewerProps> = ({
       F: { color: '#dc2626', borderColor: '#dc2626' },
     };
     return levelColors[level] || { color: '#9ca3af', borderColor: '#6b7280' };
-  };
+  }, []);
 
-  // Group logs by source file - always returns groups
-  const groupLogsByFile = (
-    logs: LogEntry[]
-  ): { file: string; logs: LogEntry[]; startIndex: number }[] => {
-    const groups: { file: string; logs: LogEntry[]; startIndex: number }[] = [];
+  // Flatten logs (with optional file-group dividers) into a single array for VirtualList
+  const flatItems = useMemo<ListItem[]>(() => {
+    if (logs.length === 0) return [];
+
+    const items: ListItem[] = [];
 
     if (currentFiles.length <= 1) {
-      // Single file or no files - create one group
-      if (logs.length > 0) {
-        groups.push({
-          file: logs[0]?.sourceFile || '',
-          logs: logs,
-          startIndex: 0,
-        });
-      }
-      return groups;
+      // Single file or no files – no dividers needed
+      logs.forEach((log, index) => {
+        items.push({ type: 'log', key: `log-${index}`, log, index });
+      });
+      return items;
     }
 
-    // Multiple files - group by source file
+    // Multiple files – interleave divider items
     let currentFile = '';
-    let currentGroup: LogEntry[] = [];
+    let groupIndex = 0;
     let startIndex = 0;
+    let groupLogs: LogEntry[] = [];
+
+    const flushGroup = () => {
+      if (groupLogs.length === 0) return;
+      if (currentFile) {
+        items.push({
+          type: 'divider',
+          key: `divider-${groupIndex}`,
+          file: currentFile,
+          count: groupLogs.length,
+        });
+      }
+      groupLogs.forEach((log, idx) => {
+        items.push({ type: 'log', key: `log-${startIndex + idx}`, log, index: startIndex + idx });
+      });
+      groupIndex++;
+    };
 
     logs.forEach((log, index) => {
       const logFile = log.sourceFile || '';
       if (logFile !== currentFile) {
-        if (currentGroup.length > 0) {
-          groups.push({ file: currentFile, logs: currentGroup, startIndex });
-        }
+        flushGroup();
         currentFile = logFile;
-        currentGroup = [log];
+        groupLogs = [log];
         startIndex = index;
       } else {
-        currentGroup.push(log);
+        groupLogs.push(log);
       }
     });
+    flushGroup();
 
-    // Add the last group
-    if (currentGroup.length > 0) {
-      groups.push({ file: currentFile, logs: currentGroup, startIndex });
+    return items;
+  }, [logs, currentFiles]);
+
+  // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
+  // for every log entry.  Falls back to null when currentTag is empty or invalid.
+  const currentTagRegex = useMemo<RegExp | null>(() => {
+    if (!currentTag) return null;
+    try {
+      return new RegExp(currentTag, 'i');
+    } catch {
+      return null;
     }
+  }, [currentTag]);
 
-    return groups;
-  };
-
-  const renderLogLine = (log: LogEntry, index: number) => {
-    const levelStyle = getLevelClass(log.level);
-    const lineNumber = log.lineNumber ? (
-      <span
-        style={{
-          color: '#858585',
-          marginRight: '10px',
-          userSelect: 'none',
-          minWidth: '50px',
-          display: 'inline-block',
-        }}
-      >
-        #{log.lineNumber}
-      </span>
-    ) : null;
-    const timestamp = log.timestamp ? (
-      <span style={{ color: '#16a34a', marginRight: '10px' }}>{log.timestamp}</span>
-    ) : null;
-
-    // Display PID and TID
-    const pid = log.pid ? (
-      <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.pid}</span>
-    ) : null;
-    const tid = log.tid ? (
-      <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.tid}</span>
-    ) : null;
-
-    const level = (
-      <span style={{ fontWeight: 'bold', marginRight: '10px', color: levelStyle.color }}>
-        {log.level}
-      </span>
-    );
-
-    // Check if current log tag matches the filtered tag and has description
-    const showTagTooltip =
-      currentTag &&
-      tagDescription &&
-      (log.tag === currentTag || new RegExp(currentTag, 'i').test(log.tag));
-
-    const tag =
-      log.tag !== 'Unknown' ? (
-        showTagTooltip ? (
-          <Tooltip title={tagDescription} placement="top">
-            <span style={{ color: '#c084fc', marginRight: '10px', cursor: 'help' }}>
-              [{log.tag}]
-            </span>
-          </Tooltip>
-        ) : (
-          <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
-        )
+  const renderLogLine = useCallback(
+    (log: LogEntry, index: number, extraStyle?: React.CSSProperties) => {
+      const levelStyle = getLevelClass(log.level);
+      const lineNumber = log.lineNumber ? (
+        <span
+          style={{
+            color: '#858585',
+            marginRight: '10px',
+            userSelect: 'none',
+            minWidth: '50px',
+            display: 'inline-block',
+          }}
+        >
+          #{log.lineNumber}
+        </span>
+      ) : null;
+      const timestamp = log.timestamp ? (
+        <span style={{ color: '#16a34a', marginRight: '10px' }}>{log.timestamp}</span>
       ) : null;
 
-    // Render message with highlight highlighting and tooltips
-    const message = highlights ? renderMessageWithHighlights(log.message, highlights) : log.message;
+      // Display PID and TID
+      const pid = log.pid ? (
+        <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.pid}</span>
+      ) : null;
+      const tid = log.tid ? (
+        <span style={{ color: '#f59e0b', marginRight: '10px' }}>{log.tid}</span>
+      ) : null;
 
-    return (
-      <div
-        key={index}
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '14px',
-          padding: '4px 8px',
-          borderLeft: `4px solid ${levelStyle.borderColor}`,
-          marginBottom: '2px',
-        }}
-      >
-        {lineNumber}
-        {timestamp}
-        {pid}
-        {tid}
-        {level}
-        {tag}
-        <span>{message}</span>
-      </div>
-    );
-  };
+      const level = (
+        <span style={{ fontWeight: 'bold', marginRight: '10px', color: levelStyle.color }}>
+          {log.level}
+        </span>
+      );
+
+      // Check if current log tag matches the filtered tag and has description
+      const tagMatchesFilter = currentTag
+        ? log.tag === currentTag ||
+          (currentTagRegex
+            ? currentTagRegex.test(log.tag)
+            : log.tag.toLowerCase().includes(currentTag.toLowerCase()))
+        : false;
+      const showTagTooltip = currentTag && tagDescription && tagMatchesFilter;
+
+      const tag =
+        log.tag !== 'Unknown' ? (
+          showTagTooltip ? (
+            <Tooltip title={tagDescription} placement="top">
+              <span style={{ color: '#c084fc', marginRight: '10px', cursor: 'help' }}>
+                [{log.tag}]
+              </span>
+            </Tooltip>
+          ) : (
+            <span style={{ color: '#c084fc', marginRight: '10px' }}>[{log.tag}]</span>
+          )
+        ) : null;
+
+      // Render message with highlight highlighting and tooltips
+      const message = highlights
+        ? renderMessageWithHighlights(log.message, highlights)
+        : log.message;
+
+      return (
+        <div
+          key={`log-${index}`}
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '14px',
+            padding: '4px 8px',
+            borderLeft: `4px solid ${levelStyle.borderColor}`,
+            marginBottom: '2px',
+            whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal',
+            boxSizing: 'border-box',
+            ...extraStyle,
+          }}
+        >
+          {lineNumber}
+          {timestamp}
+          {pid}
+          {tid}
+          {level}
+          {tag}
+          <span>{message}</span>
+        </div>
+      );
+    },
+    [
+      getLevelClass,
+      renderMessageWithHighlights,
+      highlights,
+      currentTag,
+      currentTagRegex,
+      tagDescription,
+      lineBreakMode,
+    ]
+  );
 
   const tabItems = [
     {
@@ -378,97 +468,75 @@ const LogViewer: React.FC<LogViewerProps> = ({
               <p>{t('noLogsMatchFilter')}</p>
             </div>
           ) : (
-            // Render logs with optional file grouping
+            // Virtualised log list – only visible rows are rendered
             <div
+              ref={containerRef}
               style={{
                 height: '100%',
-                overflowY: 'auto',
+                position: 'relative',
                 overflowX: lineBreakMode === 'nowrap' ? 'auto' : 'hidden',
-                padding: '16px',
-                whiteSpace: lineBreakMode === 'nowrap' ? 'nowrap' : 'normal',
               }}
             >
-              {groupLogsByFile(logs).map((group, groupIndex) => (
-                <React.Fragment key={`group-${groupIndex}`}>
-                  {currentFiles.length > 1 && groupIndex > 0 && (
-                    <Divider
-                      style={{
-                        margin: '16px 0',
-                        borderColor: 'var(--ant-color-border-secondary)',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: 'var(--ant-color-text)',
-                          marginRight: '8px',
-                        }}
-                      >
-                        📄
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: '#4ec9b0',
-                        }}
-                      >
-                        {group.file}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          color: 'var(--ant-color-text-secondary)',
-                          marginLeft: '12px',
-                        }}
-                      >
-                        ({group.logs.length} {t('logs')})
-                      </span>
-                    </Divider>
-                  )}
-                  {currentFiles.length > 1 && groupIndex === 0 && group.file && (
-                    <Divider
-                      style={{
-                        margin: '0 0 16px 0',
-                        borderColor: 'var(--ant-color-border-secondary)',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: 'var(--ant-color-text)',
-                          marginRight: '8px',
-                        }}
-                      >
-                        📄
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: '#4ec9b0',
-                        }}
-                      >
-                        {group.file}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          color: 'var(--ant-color-text-secondary)',
-                          marginLeft: '12px',
-                        }}
-                      >
-                        ({group.logs.length} {t('logs')})
-                      </span>
-                    </Divider>
-                  )}
-                  {group.logs.map((log: LogEntry, index: number) =>
-                    renderLogLine(log, group.startIndex + index)
-                  )}
-                </React.Fragment>
-              ))}
+              <VirtualList<ListItem>
+                data={flatItems}
+                height={containerHeight}
+                itemHeight={LOG_ITEM_HEIGHT}
+                itemKey="key"
+                styles={{
+                  verticalScrollBar: { right: 0 },
+                }}
+              >
+                {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
+                  // Exclude the height from the positioning style so items can
+                  // size themselves naturally; rc-virtual-list measures the
+                  // actual rendered height via ResizeObserver and corrects the
+                  // scroll calculation automatically.
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { height: _height, ...posStyle } = style;
+                  if (item.type === 'divider') {
+                    return (
+                      <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
+                        <Divider
+                          style={{
+                            margin: '8px 0',
+                            borderColor: 'var(--ant-color-border-secondary)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: 'var(--ant-color-text)',
+                              marginRight: '8px',
+                            }}
+                          >
+                            📄
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#4ec9b0',
+                            }}
+                          >
+                            {item.file}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              color: 'var(--ant-color-text-secondary)',
+                              marginLeft: '12px',
+                            }}
+                          >
+                            ({item.count} {t('logs')})
+                          </span>
+                        </Divider>
+                      </div>
+                    );
+                  }
+                  return renderLogLine(item.log, item.index, posStyle);
+                }}
+              </VirtualList>
               <FloatButton
                 icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
                 tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
