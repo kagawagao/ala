@@ -76,8 +76,16 @@
       "output": "release"
     },
     "files": [
-      "dist/**",
-      "assets/icons/**/*",
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "assets/icons",
+        "to": "assets/icons",
+        "filter": ["**/*"]
+      },
       "package.json"
     ],
     "mac": {
