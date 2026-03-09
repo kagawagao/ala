@@ -224,22 +224,10 @@ const App: React.FC = () => {
       showStatus(`Parsing ${rawFileContents.length} log file(s)...`, 'info');
 
       let allParsedLogs: LogEntry[] = [];
-      let anyTruncated = false;
-      let totalLinesCount = 0;
-      let maxLinesLimit = 0;
 
       for (const result of rawFileContents) {
         const parseResult = await window.electronAPI.parseLog(result.content);
-        // Extract logs and truncation info
         const logs = parseResult.logs;
-        const truncated = parseResult.truncated;
-        const totalLines = parseResult.totalLines;
-
-        if (truncated) {
-          anyTruncated = true;
-          maxLinesLimit = logs.length; // This is the limit
-        }
-        totalLinesCount += totalLines;
 
         // Add file source to each log entry
         logs.forEach((log) => {
@@ -252,17 +240,7 @@ const App: React.FC = () => {
       // Clear raw contents after parsing
       setRawFileContents([]);
 
-      if (anyTruncated) {
-        showStatus(
-          t('logFilesTruncated', {
-            total: totalLinesCount.toLocaleString(),
-            limit: maxLinesLimit.toLocaleString(),
-          }),
-          'error'
-        );
-      } else {
-        showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
-      }
+      showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
 
       // Now filter the parsed logs
       const filterData = {

@@ -18,6 +18,15 @@ type LogItem = { type: 'log'; key: string; log: LogEntry; index: number };
 type ListItem = DividerItem | LogItem;
 
 const LOG_ITEM_HEIGHT = 28;
+// JetBrains Mono at 14 px – approximate pixel width per character used to
+// estimate the horizontal scroll range when lineBreakMode is 'nowrap'.
+const MONO_CHAR_WIDTH = 8.4;
+// Left padding (8px) + right padding (8px) + border-left (4px) + a small buffer.
+const LOG_LINE_PADDING = 24;
+// Character widths of field separators / delimiters in the rendered log line.
+const LINE_NUMBER_OVERHEAD = 2; // '#' prefix + trailing space
+const FIELD_SEPARATOR = 1; // space between fields
+const TAG_OVERHEAD = 3; // '[' + ']' + trailing space
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -311,6 +320,30 @@ const LogViewer: React.FC<LogViewerProps> = ({
     return items;
   }, [logs, currentFiles]);
 
+  // Estimate the maximum content width (in px) for horizontal scrolling in nowrap
+  // mode.  VirtualList positions items with CSS transforms so the outer container's
+  // overflow-x: auto has no effect – we must pass scrollWidth to VirtualList so it
+  // can render its own horizontal scrollbar.
+  const maxContentWidth = useMemo(() => {
+    if (lineBreakMode !== 'nowrap' || flatItems.length === 0) return 0;
+    let maxLen = 0;
+    for (const item of flatItems) {
+      if (item.type === 'log') {
+        const log = item.log;
+        let len = 0;
+        if (log.lineNumber) len += String(log.lineNumber).length + LINE_NUMBER_OVERHEAD;
+        if (log.timestamp) len += log.timestamp.length + FIELD_SEPARATOR;
+        if (log.pid) len += log.pid.length + FIELD_SEPARATOR;
+        if (log.tid) len += log.tid.length + FIELD_SEPARATOR;
+        if (log.level) len += log.level.length + FIELD_SEPARATOR;
+        if (log.tag && log.tag !== 'Unknown') len += log.tag.length + TAG_OVERHEAD;
+        len += log.message.length;
+        if (len > maxLen) maxLen = len;
+      }
+    }
+    return maxLen * MONO_CHAR_WIDTH + LOG_LINE_PADDING;
+  }, [flatItems, lineBreakMode]);
+
   // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
   // for every log entry.  Falls back to null when currentTag is empty or invalid.
   const currentTagRegex = useMemo<RegExp | null>(() => {
@@ -474,7 +507,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
               style={{
                 height: '100%',
                 position: 'relative',
-                overflowX: lineBreakMode === 'nowrap' ? 'auto' : 'hidden',
+                overflow: 'hidden',
               }}
             >
               <VirtualList<ListItem>
@@ -482,6 +515,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 height={containerHeight}
                 itemHeight={LOG_ITEM_HEIGHT}
                 itemKey="key"
+                scrollWidth={lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined}
                 styles={{
                   verticalScrollBar: { right: 0 },
                 }}
