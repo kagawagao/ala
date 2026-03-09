@@ -80,7 +80,11 @@
         "from": "dist",
         "to": "dist",
         "filter": [
-          "**/*"
+          "**/*",
+          "!test/**/*",
+          "!src/**/*",
+          "!renderer/**/*.map",
+          "!renderer/types.js"
         ]
       },
       {
