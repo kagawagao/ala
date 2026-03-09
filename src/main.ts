@@ -162,6 +162,17 @@ ipcMain.handle('check-ai-configured', async (): Promise<boolean> => {
   return aiService.isConfigured();
 });
 
+ipcMain.handle(
+  'update-ai-config',
+  async (_event: IpcMainInvokeEvent, config: { apiEndpoint: string; apiKey: string; model: string }): Promise<boolean> => {
+    return aiService.updateConfig(config);
+  }
+);
+
+ipcMain.handle('get-ai-config', async (): Promise<{ apiEndpoint: string; apiKey: string; model: string } | null> => {
+  return aiService.getConfig();
+});
+
 // Import filters from file
 ipcMain.handle('import-filters', async (): Promise<any | null> => {
   if (!mainWindow) return null;

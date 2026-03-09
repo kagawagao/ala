@@ -37,6 +37,13 @@ export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
   error?: string;
+  usage?: any;
+}
+
+export interface AIConfig {
+  apiEndpoint: string;
+  apiKey: string;
+  model: string;
 }
 
 export interface ParseLogResult {
@@ -54,6 +61,8 @@ declare global {
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
       analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<AIAnalysisResult>;
       checkAIConfigured: () => Promise<boolean>;
+      updateAIConfig: (config: AIConfig) => Promise<boolean>;
+      getAIConfig: () => Promise<AIConfig | null>;
       importFilters: () => Promise<unknown>;
       exportFilters: (filters: unknown) => Promise<boolean>;
       deleteLogFile: (filePath: string) => Promise<boolean>;

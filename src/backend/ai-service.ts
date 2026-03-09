@@ -1,6 +1,15 @@
 import { LogEntry } from './log-analyzer';
 
 /**
+ * AI configuration
+ */
+export interface AIConfig {
+  apiEndpoint: string;
+  apiKey: string;
+  model: string;
+}
+
+/**
  * AI analysis result
  */
 export interface AIAnalysisResult {
@@ -12,52 +21,72 @@ export interface AIAnalysisResult {
 
 /**
  * AI Service for analyzing Android logs
- * Supports OpenAI API integration
+ * Supports OpenAI API integration and OpenAI-compatible APIs
  */
 export class AIService {
   private openai: any;
-  private apiKey: string | null;
+  private config: AIConfig | null;
   private MAX_LOGS_FOR_ANALYSIS: number;
   private MAX_SUMMARY_LENGTH: number;
 
   constructor() {
     this.openai = null;
-    this.apiKey = process.env.OPENAI_API_KEY || null;
+    this.config = null;
 
     // Configuration constants
     this.MAX_LOGS_FOR_ANALYSIS = 100; // Maximum number of logs to send to AI
     this.MAX_SUMMARY_LENGTH = 8000; // Maximum character length for AI input
 
-    if (this.apiKey) {
-      this.initializeOpenAI();
+    // Try to initialize with environment variable for backward compatibility
+    const envApiKey = process.env.OPENAI_API_KEY;
+    if (envApiKey) {
+      this.updateConfig({
+        apiEndpoint: 'https://api.openai.com/v1',
+        apiKey: envApiKey,
+        model: 'gpt-3.5-turbo',
+      });
     }
   }
 
-  initializeOpenAI(): void {
+  /**
+   * Update AI configuration dynamically
+   */
+  updateConfig(config: AIConfig): boolean {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { OpenAI } = require('openai');
+
+      this.config = config;
       this.openai = new OpenAI({
-        apiKey: this.apiKey,
+        apiKey: config.apiKey,
+        baseURL: config.apiEndpoint,
       });
+
+      return true;
     } catch (error) {
-      console.error('Failed to initialize OpenAI:', error);
+      console.error('Failed to initialize OpenAI with config:', error);
       this.openai = null;
+      this.config = null;
+      return false;
     }
   }
 
   isConfigured(): boolean {
-    return this.openai !== null && this.apiKey !== null;
+    return this.openai !== null && this.config !== null && this.config.apiKey !== '';
+  }
+
+  getConfig(): AIConfig | null {
+    return this.config;
   }
 
   /**
    * Analyze logs using AI
    */
   async analyzeLogs(logs: LogEntry[], prompt: string = ''): Promise<AIAnalysisResult> {
-    if (!this.isConfigured()) {
+    if (!this.isConfigured() || !this.config) {
       return {
         success: false,
-        error: 'AI service is not configured. Please set OPENAI_API_KEY environment variable.',
+        error: 'AI service is not configured. Please configure API settings in Settings.',
       };
     }
 
@@ -77,7 +106,7 @@ Be concise and focus on actionable insights.`;
       const userPrompt = prompt || 'Analyze these Android logs and provide insights.';
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: this.config.model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `${userPrompt}\n\nLogs:\n${logSummary}` },

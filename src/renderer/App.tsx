@@ -136,15 +136,26 @@ const App: React.FC = () => {
       setThemeMode(savedTheme);
     }
 
-    // Check AI configuration on mount
-    const checkAI = async () => {
+    // Load and apply AI configuration from localStorage on mount
+    const initAI = async () => {
+      const savedConfig = localStorage.getItem('aiConfig');
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          await window.electronAPI.updateAIConfig(config);
+        } catch (e) {
+          console.error('Failed to parse AI config:', e);
+        }
+      }
+
+      // Check AI configuration
       const configured = await window.electronAPI.checkAIConfigured();
       setAiConfigured(configured);
       if (!configured) {
-        showStatus('AI features require OPENAI_API_KEY environment variable', 'info');
+        showStatus('AI features are not configured. Please configure in Settings.', 'info');
       }
     };
-    checkAI();
+    initAI();
 
     // Load saved filters from localStorage (excluding time and PID fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
@@ -528,6 +539,14 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
+  const handleConfigUpdated = async () => {
+    const configured = await window.electronAPI.checkAIConfigured();
+    setAiConfigured(configured);
+    if (configured) {
+      showStatus('AI configuration updated successfully', 'info');
+    }
+  };
+
   const handleDeleteFile = async (filePath: string) => {
     // Remove from currentFiles
     const updatedFiles = currentFiles.filter((f) => f !== filePath);
@@ -647,6 +666,7 @@ const App: React.FC = () => {
         <SettingsModal
           visible={settingsModalVisible}
           onClose={() => setSettingsModalVisible(false)}
+          onConfigUpdated={handleConfigUpdated}
         />
       </Layout>
     </ConfigProvider>
