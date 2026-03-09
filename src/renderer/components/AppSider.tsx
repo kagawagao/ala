@@ -41,7 +41,7 @@ interface AppSiderProps {
   onOpenFiles: () => void;
   onSearch: () => void;
   onClearFilters: () => void;
-  onAnalyzeWithAI: (prompt?: string) => void;
+  onAnalyzeWithAI: (prompt?: string, presetId?: string) => void;
   currentFiles: string[];
   aiConfigured: boolean;
   statusMessage: string;
