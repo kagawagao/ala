@@ -153,8 +153,8 @@ ipcMain.handle('get-statistics', async (_event: IpcMainInvokeEvent, logs: LogEnt
 
 ipcMain.handle(
   'analyze-with-ai',
-  async (_event: IpcMainInvokeEvent, { logs, prompt }: { logs: LogEntry[]; prompt: string }) => {
-    return await aiService.analyzeLogs(logs, prompt);
+  async (_event: IpcMainInvokeEvent, { logs, prompt, presetId }: { logs: LogEntry[]; prompt?: string; presetId?: string }) => {
+    return await aiService.analyzeLogs(logs, prompt, presetId);
   }
 );
 

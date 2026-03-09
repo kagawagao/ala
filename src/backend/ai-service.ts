@@ -1,4 +1,5 @@
 import { LogEntry } from './log-analyzer';
+import { getPresetById, AIPromptPreset } from './ai-prompts';
 
 /**
  * AI configuration
@@ -82,7 +83,7 @@ export class AIService {
   /**
    * Analyze logs using AI
    */
-  async analyzeLogs(logs: LogEntry[], prompt: string = ''): Promise<AIAnalysisResult> {
+  async analyzeLogs(logs: LogEntry[], prompt: string = '', presetId?: string): Promise<AIAnalysisResult> {
     if (!this.isConfigured() || !this.config) {
       return {
         success: false,
@@ -94,16 +95,28 @@ export class AIService {
       // Prepare log summary for AI analysis
       const logSummary = this.prepareLogSummary(logs);
 
-      const systemPrompt = `You are an expert Android log analyzer. Analyze the provided Android logs and provide insights about:
-1. Errors and warnings
-2. Potential issues or crashes
-3. Performance concerns
-4. Notable patterns or anomalies
-5. Recommendations for debugging
+      // Use preset if provided, otherwise use default
+      let systemPrompt: string;
+      let userPrompt: string;
+      let maxTokens = 1000;
+      let temperature = 0.7;
 
-Be concise and focus on actionable insights.`;
-
-      const userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+      if (presetId) {
+        const preset = getPresetById(presetId);
+        if (preset) {
+          systemPrompt = preset.systemPrompt;
+          userPrompt = prompt || preset.userPrompt;
+          maxTokens = preset.maxTokens || 1000;
+          temperature = preset.temperature || 0.7;
+        } else {
+          // Fallback to default if preset not found
+          systemPrompt = this.getDefaultSystemPrompt();
+          userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+        }
+      } else {
+        systemPrompt = this.getDefaultSystemPrompt();
+        userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+      }
 
       const response = await this.openai.chat.completions.create({
         model: this.config.model,
@@ -111,8 +124,8 @@ Be concise and focus on actionable insights.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `${userPrompt}\n\nLogs:\n${logSummary}` },
         ],
-        max_tokens: 1000,
-        temperature: 0.7,
+        max_tokens: maxTokens,
+        temperature: temperature,
       });
 
       return {
@@ -127,6 +140,20 @@ Be concise and focus on actionable insights.`;
         error: error.message || 'Failed to analyze logs with AI',
       };
     }
+  }
+
+  /**
+   * Get default system prompt
+   */
+  private getDefaultSystemPrompt(): string {
+    return `You are an expert Android log analyzer. Analyze the provided Android logs and provide insights about:
+1. Errors and warnings
+2. Potential issues or crashes
+3. Performance concerns
+4. Notable patterns or anomalies
+5. Recommendations for debugging
+
+Be concise and focus on actionable insights.`;
   }
 
   /**

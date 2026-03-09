@@ -87,6 +87,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
   const [selectedPresetIds, setSelectedPresetIds] = React.useState<string[]>([]);
+  const [selectedAIPreset, setSelectedAIPreset] = React.useState<string>('general');
 
   // Initialize form with current filters and time range
   useEffect(() => {
@@ -437,6 +438,21 @@ const AppSider: React.FC<AppSiderProps> = ({
             </Button>
           </div>
 
+          <Select
+            value={selectedAIPreset}
+            onChange={setSelectedAIPreset}
+            style={{ width: '100%' }}
+            placeholder={t('selectAIPreset')}
+          >
+            <Select.Option value="general">{t('aiPresetGeneral')}</Select.Option>
+            <Select.Option value="crash">{t('aiPresetCrash')}</Select.Option>
+            <Select.Option value="performance">{t('aiPresetPerformance')}</Select.Option>
+            <Select.Option value="security">{t('aiPresetSecurity')}</Select.Option>
+            <Select.Option value="network">{t('aiPresetNetwork')}</Select.Option>
+            <Select.Option value="lifecycle">{t('aiPresetLifecycle')}</Select.Option>
+            <Select.Option value="ui">{t('aiPresetUI')}</Select.Option>
+          </Select>
+
           <Input.TextArea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
@@ -449,7 +465,7 @@ const AppSider: React.FC<AppSiderProps> = ({
             type="primary"
             icon={<RobotOutlined />}
             onClick={() => {
-              onAnalyzeWithAI(aiPrompt);
+              onAnalyzeWithAI(aiPrompt, selectedAIPreset);
               setAiPanelOpen(false);
             }}
             disabled={!aiConfigured}

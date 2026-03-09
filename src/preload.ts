@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) =>
     ipcRenderer.invoke('filter-logs', params),
   getStatistics: (logs: LogEntry[]) => ipcRenderer.invoke('get-statistics', logs),
-  analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) =>
+  analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string; presetId?: string }) =>
     ipcRenderer.invoke('analyze-with-ai', params),
   checkAIConfigured: () => ipcRenderer.invoke('check-ai-configured'),
   updateAIConfig: (config: { apiEndpoint: string; apiKey: string; model: string }) =>

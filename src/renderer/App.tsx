@@ -391,7 +391,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAnalyzeWithAI = async (prompt?: string) => {
+  const handleAnalyzeWithAI = async (prompt?: string, presetId?: string) => {
     if (filteredLogs.length === 0) {
       showStatus('No logs to analyze', 'error');
       return;
@@ -404,6 +404,7 @@ const App: React.FC = () => {
       const result = await window.electronAPI.analyzeWithAI({
         logs: filteredLogs,
         prompt,
+        presetId,
       });
       if (result.success && result.analysis) {
         setAiAnalysis(result.analysis);
