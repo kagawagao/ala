@@ -104,6 +104,7 @@
   "noLogFileLoaded": "未加载日志文件",
   "logFilesTruncated": "警告：日志文件包含 {total} 行。为防止内存问题，仅加载了前 {limit} 行。建议在打开前先过滤日志文件。",
   "logLinesParsed": "已解析 {count} 行日志。正在应用过滤器...",
+  "filteredLogLines": "已过滤至 {count} 行日志",
   "filtersCleared": "过滤器已清除。点击\"搜索\"以显示所有日志。",
   "importPresetsThroughManager": "通过预设管理器导入预设",
   "settings": "设置",
