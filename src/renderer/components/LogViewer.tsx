@@ -515,7 +515,9 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 height={containerHeight}
                 itemHeight={LOG_ITEM_HEIGHT}
                 itemKey="key"
-                scrollWidth={lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined}
+                scrollWidth={
+                  lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
+                }
                 styles={{
                   verticalScrollBar: { right: 0 },
                 }}
