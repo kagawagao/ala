@@ -306,6 +306,22 @@ const App: React.FC = () => {
     showStatus(t('filtersCleared'), 'info');
   };
 
+  const handleAddHighlight = (text: string) => {
+    // Escape special regex characters for safe pattern matching
+    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Add to existing highlights with separator
+    const currentHighlights = filters.highlights.trim();
+    const newHighlights = currentHighlights
+      ? `${currentHighlights}|${escapedText}`
+      : escapedText;
+
+    setFilters({
+      ...filters,
+      highlights: newHighlights,
+    });
+  };
+
   const handleImportPresetsToManager = async () => {
     const imported = await window.electronAPI.importFilters();
     if (imported) {
@@ -561,6 +577,7 @@ const App: React.FC = () => {
               highlightDescriptions={activePresetDescriptions.highlightDescriptions}
               tagDescription={activePresetDescriptions.tagDescription}
               currentTag={filters.tag}
+              onAddHighlight={handleAddHighlight}
             />
           </Content>
         </Layout>

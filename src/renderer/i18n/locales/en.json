@@ -116,5 +116,6 @@
   "aiSettingsSaved": "AI settings saved successfully",
   "apiEndpointRequired": "Please enter API endpoint",
   "apiKeyRequired": "Please enter API key",
-  "modelRequired": "Please enter model name"
+  "modelRequired": "Please enter model name",
+  "addToHighlights": "Add to Highlights"
 }

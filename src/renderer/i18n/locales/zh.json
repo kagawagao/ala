@@ -116,5 +116,6 @@
   "aiSettingsSaved": "AI 设置已保存",
   "apiEndpointRequired": "请输入 API 端点",
   "apiKeyRequired": "请输入 API 密钥",
-  "modelRequired": "请输入模型名称"
+  "modelRequired": "请输入模型名称",
+  "addToHighlights": "添加到高亮"
 }

@@ -1,5 +1,6 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, Tooltip } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
+import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message } from 'antd';
+import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,7 @@ interface LogViewerProps {
   highlightDescriptions?: { keyword: string; description: string }[];
   tagDescription?: string;
   currentTag?: string;
+  onAddHighlight?: (text: string) => void; // New callback for adding highlights
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -62,8 +64,17 @@ const LogViewer: React.FC<LogViewerProps> = ({
   highlightDescriptions = [],
   tagDescription = '',
   currentTag = '',
+  onAddHighlight,
 }) => {
   const { t } = useTranslation();
+
+  // Context menu state
+  const [contextMenuVisible, setContextMenuVisible] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const [selectedText, setSelectedText] = useState<string>('');
 
   // Track the scrollable container height for VirtualList.
   // Use refs so the ResizeObserver can be re-attached whenever the container
@@ -355,6 +366,52 @@ const LogViewer: React.FC<LogViewerProps> = ({
     }
   }, [currentTag]);
 
+  // Handle right-click context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+
+    if (text && text.length > 0) {
+      setSelectedText(text);
+      setContextMenuPosition({ x: e.clientX, y: e.clientY });
+      setContextMenuVisible(true);
+    }
+  }, []);
+
+  // Handle adding selected text to highlights
+  const handleAddToHighlights = useCallback(() => {
+    if (selectedText && onAddHighlight) {
+      onAddHighlight(selectedText);
+      message.success(t('addToHighlights'));
+    }
+    setContextMenuVisible(false);
+  }, [selectedText, onAddHighlight, t]);
+
+  // Context menu items
+  const contextMenuItems: MenuProps['items'] = [
+    {
+      key: 'addToHighlights',
+      icon: <HighlightOutlined />,
+      label: t('addToHighlights'),
+      onClick: handleAddToHighlights,
+    },
+  ];
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setContextMenuVisible(false);
+    };
+    if (contextMenuVisible) {
+      document.addEventListener('click', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+    return undefined;
+  }, [contextMenuVisible]);
+
   const renderLogLine = useCallback(
     (log: LogEntry, index: number, extraStyle?: React.CSSProperties) => {
       const levelStyle = getLevelClass(log.level);
@@ -502,15 +559,21 @@ const LogViewer: React.FC<LogViewerProps> = ({
             </div>
           ) : (
             // Virtualised log list – only visible rows are rendered
-            <div
-              ref={containerRef}
-              style={{
-                height: '100%',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
+            <Dropdown
+              menu={{ items: contextMenuItems }}
+              open={contextMenuVisible}
+              trigger={[]}
             >
-              <VirtualList<ListItem>
+              <div
+                ref={containerRef}
+                onContextMenu={handleContextMenu}
+                style={{
+                  height: '100%',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <VirtualList<ListItem>
                 data={flatItems}
                 height={containerHeight}
                 itemHeight={LOG_ITEM_HEIGHT}
@@ -585,7 +648,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
                   zIndex: 100,
                 }}
               />
-            </div>
+              </div>
+            </Dropdown>
           )}
         </div>
       ),
