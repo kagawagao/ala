@@ -10,18 +10,29 @@ const globalStyles = `
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace !important;
   }
   
-  /* Fix Ant Design Tabs scrolling issue */
-  .log-viewer-tabs .ant-tabs-content-holder {
-    overflow: auto;
+  /* Make Ant Design Tabs fill available height so VirtualList gets the full area */
+  .log-viewer-tabs {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
-  
+
+  .log-viewer-tabs .ant-tabs-content-holder {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
   .log-viewer-tabs .ant-tabs-content {
     height: 100%;
+    display: flex;
+    flex-direction: column;
   }
-  
+
   .log-viewer-tabs .ant-tabs-tabpane {
     height: 100%;
-    overflow: auto;
+    overflow: hidden;
   }
 
   /* macOS-style scrollbar for all platforms */

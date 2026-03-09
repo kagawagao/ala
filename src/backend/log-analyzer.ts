@@ -50,8 +50,6 @@ export enum LogFormat {
 export class LogAnalyzer {
   private androidLogcatPattern: RegExp;
   private genericTimestampedPattern: RegExp;
-  private readonly MAX_LOG_LINES = 100000; // Maximum log lines to prevent OOM
-
   constructor() {
     // Android logcat format regex pattern
     // Capture groups: (1) timestamp, (2) PID, (3) TID, (4) level, (5) tag, (6) message
@@ -124,14 +122,8 @@ export class LogAnalyzer {
     }
 
     const totalLines = logs.length;
-    const truncated = totalLines > this.MAX_LOG_LINES;
 
-    // Truncate if exceeds limit
-    if (truncated) {
-      logs = logs.slice(0, this.MAX_LOG_LINES);
-    }
-
-    return { logs, truncated, totalLines };
+    return { logs, truncated: false, totalLines };
   }
 
   /**

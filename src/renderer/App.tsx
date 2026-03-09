@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
@@ -14,6 +14,76 @@ const { Content } = Layout;
 
 // Constants
 const KEYWORD_SEPARATOR = '|';
+const FILTER_CHUNK_SIZE = 10000;
+
+/**
+ * Filter logs asynchronously in chunks to avoid blocking the UI thread.
+ * Operates on the existing in-memory array — no structured-clone / postMessage
+ * serialization, so it works with arbitrarily large datasets.
+ */
+async function filterLogsAsync(logs: LogEntry[], filters: LogFilters): Promise<LogEntry[]> {
+  // Pre-compile regexes once to avoid per-entry cost
+  let keywordRegex: RegExp | null = null;
+  if (filters.keywords && filters.keywords.trim()) {
+    try {
+      keywordRegex = new RegExp(filters.keywords, 'i');
+    } catch {
+      /* fall back to includes below */
+    }
+  }
+  let tagRegex: RegExp | null = null;
+  if (filters.tag && filters.tag.trim()) {
+    try {
+      tagRegex = new RegExp(filters.tag, 'i');
+    } catch {
+      /* fall back to includes below */
+    }
+  }
+
+  const filtered: LogEntry[] = [];
+
+  for (let i = 0; i < logs.length; i += FILTER_CHUNK_SIZE) {
+    const end = Math.min(i + FILTER_CHUNK_SIZE, logs.length);
+    for (let j = i; j < end; j++) {
+      const log = logs[j];
+
+      // Exclude entries with no timestamp when time filters are active
+      const ts = log.timestamp;
+      if ((filters.startTime || filters.endTime) && (ts === null || ts === undefined)) {
+        continue;
+      }
+      if (filters.startTime && ts! < filters.startTime) continue;
+      if (filters.endTime && ts! > filters.endTime) continue;
+
+      // Keywords filter
+      if (keywordRegex) {
+        if (!keywordRegex.test(log.message)) continue;
+      } else if (filters.keywords && filters.keywords.trim()) {
+        if (!log.message.toLowerCase().includes(filters.keywords.toLowerCase())) continue;
+      }
+
+      // Level filter
+      if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) continue;
+
+      // Tag filter
+      if (tagRegex) {
+        if (!tagRegex.test(log.tag)) continue;
+      } else if (filters.tag && filters.tag.trim()) {
+        if (!log.tag.toLowerCase().includes(filters.tag.toLowerCase())) continue;
+      }
+
+      // PID filter
+      if (filters.pid && filters.pid.trim() && log.pid !== filters.pid) continue;
+
+      filtered.push(log);
+    }
+
+    // Yield to the event loop between chunks to keep the UI responsive
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+
+  return filtered;
+}
 
 const App: React.FC = () => {
   const { i18n, t } = useTranslation();
@@ -51,7 +121,6 @@ const App: React.FC = () => {
     highlightDescriptions: { keyword: string; description: string }[];
     tagDescription: string;
   }>({ keywordDescriptions: [], highlightDescriptions: [], tagDescription: '' });
-  const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     // Load language preference from localStorage
@@ -108,78 +177,6 @@ const App: React.FC = () => {
       }
     };
     loadPresets();
-
-    // Initialize Web Worker for filtering
-    const workerCode = `
-      self.onmessage = function(e) {
-        const { logs, filters } = e.data;
-        
-        try {
-          const filtered = logs.filter((log) => {
-            // Exclude logs without timestamps when time filters are applied,
-            // mirroring backend behavior for unknown/multiline lines
-            if ((filters.startTime || filters.endTime) && (log.timestamp === null || log.timestamp === undefined)) {
-              return false;
-            }
-            if (filters.startTime && log.timestamp < filters.startTime) return false;
-            if (filters.endTime && log.timestamp > filters.endTime) return false;
-
-            // Keywords filter (reduces visible logs)
-            if (filters.keywords && filters.keywords.trim()) {
-              try {
-                const keywordRegex = new RegExp(filters.keywords, 'i');
-                if (!keywordRegex.test(log.message)) return false;
-              } catch (e) {
-                // Fallback to case-insensitive contains search
-                if (!log.message.toLowerCase().includes(filters.keywords.toLowerCase())) return false;
-              }
-            }
-
-            if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) return false;
-
-            if (filters.tag && filters.tag.trim()) {
-              try {
-                const tagRegex = new RegExp(filters.tag, 'i');
-                if (!tagRegex.test(log.tag)) return false;
-              } catch (e) {
-                // Fallback to case-insensitive contains search
-                if (!log.tag.toLowerCase().includes(filters.tag.toLowerCase())) return false;
-              }
-            }
-
-            if (filters.pid && filters.pid.trim() && log.pid !== filters.pid) return false;
-
-            return true;
-          });
-          
-          self.postMessage({ success: true, filtered });
-        } catch (error) {
-          self.postMessage({ success: false, error: error.message });
-        }
-      };
-    `;
-
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    workerRef.current = new Worker(URL.createObjectURL(blob));
-
-    workerRef.current.onmessage = (e) => {
-      const { success, filtered, error } = e.data;
-      if (success) {
-        setFilteredLogs(filtered);
-        setIsSearching(false);
-        showStatus(`Filtered to ${filtered.length} log lines`, 'info');
-      } else {
-        setIsSearching(false);
-        showStatus(`Filter error: ${error}`, 'error');
-      }
-    };
-
-    return () => {
-      // Cleanup worker on unmount
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -224,22 +221,10 @@ const App: React.FC = () => {
       showStatus(`Parsing ${rawFileContents.length} log file(s)...`, 'info');
 
       let allParsedLogs: LogEntry[] = [];
-      let anyTruncated = false;
-      let totalLinesCount = 0;
-      let maxLinesLimit = 0;
 
       for (const result of rawFileContents) {
         const parseResult = await window.electronAPI.parseLog(result.content);
-        // Extract logs and truncation info
         const logs = parseResult.logs;
-        const truncated = parseResult.truncated;
-        const totalLines = parseResult.totalLines;
-
-        if (truncated) {
-          anyTruncated = true;
-          maxLinesLimit = logs.length; // This is the limit
-        }
-        totalLinesCount += totalLines;
 
         // Add file source to each log entry
         logs.forEach((log) => {
@@ -252,17 +237,7 @@ const App: React.FC = () => {
       // Clear raw contents after parsing
       setRawFileContents([]);
 
-      if (anyTruncated) {
-        showStatus(
-          t('logFilesTruncated', {
-            total: totalLinesCount.toLocaleString(),
-            limit: maxLinesLimit.toLocaleString(),
-          }),
-          'error'
-        );
-      } else {
-        showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
-      }
+      showStatus(t('logLinesParsed', { count: allParsedLogs.length }), 'info');
 
       // Now filter the parsed logs
       const filterData = {
@@ -271,9 +246,15 @@ const App: React.FC = () => {
         endTime: endDate ? formatDateToTimestamp(endDate) : '',
       };
 
-      // Use Web Worker for non-blocking search
-      if (workerRef.current) {
-        workerRef.current.postMessage({ logs: allParsedLogs, filters: filterData });
+      // Filter the parsed logs asynchronously (no postMessage / clone)
+      try {
+        const filtered = await filterLogsAsync(allParsedLogs, filterData);
+        setFilteredLogs(filtered);
+        setIsSearching(false);
+        showStatus(t('filteredLogLines', { count: filtered.length }), 'info');
+      } catch (err) {
+        setIsSearching(false);
+        showStatus(`Filter error: ${err instanceof Error ? err.message : String(err)}`, 'error');
       }
     } else {
       showStatus('Searching...', 'info');
@@ -285,9 +266,15 @@ const App: React.FC = () => {
         endTime: endDate ? formatDateToTimestamp(endDate) : '',
       };
 
-      // Use Web Worker for non-blocking search
-      if (workerRef.current) {
-        workerRef.current.postMessage({ logs: allLogs, filters: filterData });
+      // Filter logs asynchronously (no postMessage / clone)
+      try {
+        const filtered = await filterLogsAsync(allLogs, filterData);
+        setFilteredLogs(filtered);
+        setIsSearching(false);
+        showStatus(t('filteredLogLines', { count: filtered.length }), 'info');
+      } catch (err) {
+        setIsSearching(false);
+        showStatus(`Filter error: ${err instanceof Error ? err.message : String(err)}`, 'error');
       }
     }
   };
@@ -557,7 +544,7 @@ const App: React.FC = () => {
             themeMode={themeMode}
           />
 
-          <Content style={{ overflow: 'hidden' }}>
+          <Content style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <LogViewer
               logs={filteredLogs}
               allLogsCount={allLogs.length}
