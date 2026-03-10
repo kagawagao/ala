@@ -513,6 +513,8 @@ const AppSider: React.FC<AppSiderProps> = ({
                         danger
                         onClick={() => onRemoveSourceFile(file.filePath)}
                         style={{ padding: '0 4px', minWidth: 'auto' }}
+                        aria-label={t('removeSourceFile', { name: fileName })}
+                        title={t('removeSourceFile', { name: fileName })}
                       >
                         ✕
                       </Button>

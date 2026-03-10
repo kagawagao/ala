@@ -153,7 +153,7 @@ const App: React.FC = () => {
       const configured = await window.electronAPI.checkAIConfigured();
       setAiConfigured(configured);
       if (!configured) {
-        showStatus('AI features are not configured. Please configure in Settings.', 'info');
+        showStatus(t('aiNotConfigured'), 'info');
       }
     };
     initAI();
@@ -395,9 +395,18 @@ const App: React.FC = () => {
   const handleOpenSourceFiles = async () => {
     const files = await window.electronAPI.openSourceFiles();
     if (files && files.length > 0) {
-      setSourceFiles(files);
-      const fileNames = files.map((f) => f.filePath.split(/[\\/]/).pop()).join(', ');
-      showStatus(`Loaded ${files.length} source file(s): ${fileNames}`, 'info');
+      // Merge newly selected files into existing list (avoid duplicates)
+      const existingPaths = new Set(sourceFiles.map((f) => f.filePath));
+      const newFiles = files.filter((f) => !existingPaths.has(f.filePath));
+
+      if (newFiles.length > 0) {
+        const mergedFiles = [...sourceFiles, ...newFiles];
+        setSourceFiles(mergedFiles);
+        const fileNames = newFiles.map((f) => f.filePath.split(/[\\/]/).pop()).join(', ');
+        showStatus(t('sourceFilesAdded', { count: newFiles.length, names: fileNames }), 'info');
+      } else {
+        showStatus(t('noNewSourceFiles'), 'info');
+      }
     }
   };
 
@@ -418,14 +427,31 @@ const App: React.FC = () => {
 
     try {
       // Combine source files into a single string if available
+      // with size limit protection (max 100KB of source code)
       let sourceCode: string | undefined = undefined;
+      const MAX_SOURCE_CODE_SIZE = 100 * 1024; // 100 KB
+
       if (sourceFiles.length > 0) {
-        sourceCode = sourceFiles
-          .map((file) => {
+        let combinedSize = 0;
+        const includedFiles: string[] = [];
+
+        for (const file of sourceFiles) {
+          const fileSize = new Blob([file.content]).size;
+          if (combinedSize + fileSize <= MAX_SOURCE_CODE_SIZE) {
+            combinedSize += fileSize;
             const fileName = file.filePath.split(/[\\/]/).pop();
-            return `// File: ${fileName}\n${file.content}`;
-          })
-          .join('\n\n');
+            includedFiles.push(`// File: ${fileName}\n${file.content}`);
+          } else {
+            // Size limit exceeded
+            const sizeKB = Math.round(combinedSize / 1024);
+            showStatus(t('sourceCodeSizeLimitExceeded', { size: sizeKB }), 'info');
+            break;
+          }
+        }
+
+        if (includedFiles.length > 0) {
+          sourceCode = includedFiles.join('\n\n');
+        }
       }
 
       const result = await window.electronAPI.analyzeWithAI({
@@ -572,7 +598,7 @@ const App: React.FC = () => {
     const configured = await window.electronAPI.checkAIConfigured();
     setAiConfigured(configured);
     if (configured) {
-      showStatus('AI configuration updated successfully', 'info');
+      showStatus(t('aiConfigUpdated'), 'info');
     }
   };
 

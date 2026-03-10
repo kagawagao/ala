@@ -74,7 +74,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose, onConfi
 
         onClose();
       } else {
-        message.error('Failed to update AI configuration. Please check your settings.');
+        message.error(t('aiSettingsUpdateFailed'));
       }
     } catch (error) {
       console.error('Failed to save AI config:', error);

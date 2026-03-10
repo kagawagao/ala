@@ -1,5 +1,5 @@
 import { LogEntry } from './log-analyzer';
-import { getPresetById, AIPromptPreset } from './ai-prompts';
+import { getPresetById } from './ai-prompts';
 
 /**
  * AI configuration
@@ -11,12 +11,21 @@ export interface AIConfig {
 }
 
 /**
+ * AI usage statistics
+ */
+export interface AIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
+/**
  * AI analysis result
  */
 export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
-  usage?: any;
+  usage?: AIUsage;
   error?: string;
 }
 
@@ -111,8 +120,8 @@ export class AIService {
         if (preset) {
           systemPrompt = preset.systemPrompt;
           userPrompt = prompt || preset.userPrompt;
-          maxTokens = preset.maxTokens || 1000;
-          temperature = preset.temperature || 0.7;
+          maxTokens = preset.maxTokens ?? 1000;
+          temperature = preset.temperature ?? 0.7;
         } else {
           // Fallback to default if preset not found
           systemPrompt = this.getDefaultSystemPrompt();

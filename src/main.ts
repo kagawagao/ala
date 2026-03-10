@@ -160,7 +160,7 @@ ipcMain.handle(
     if (!mainWindow) return null;
 
     const result = (await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile', 'multiSelections'] as any,
+      properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>,
       filters: sourceCodeFilters,
     })) as { canceled: boolean; filePaths: string[] };
 

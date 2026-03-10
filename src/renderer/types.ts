@@ -33,11 +33,17 @@ export interface LogStatistics {
   pids: Record<string, number>;
 }
 
+export interface AIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
   error?: string;
-  usage?: any;
+  usage?: AIUsage;
 }
 
 export interface AIConfig {
