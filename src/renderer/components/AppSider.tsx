@@ -21,7 +21,6 @@ import {
   GlobalOutlined,
   SettingOutlined,
   ToolOutlined,
-  CloseOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import dayjs, { Dayjs } from 'dayjs';
@@ -263,7 +262,6 @@ const AppSider: React.FC<AppSiderProps> = ({
                               border: 'none',
                               marginRight: 0,
                             }}
-                            icon={<CloseOutlined />}
                           >
                             {highlight.pattern}
                           </Tag>

@@ -299,6 +299,7 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      coloredHighlights: [],
     };
     setFilters(clearedFilters);
     setStartDate(null);
@@ -320,7 +321,10 @@ const App: React.FC = () => {
 
       if (existingIndex >= 0) {
         // Update existing highlight's color
-        newColoredHighlights[existingIndex].color = color;
+        newColoredHighlights[existingIndex] = {
+          ...newColoredHighlights[existingIndex],
+          color,
+        };
       } else {
         // Add new colored highlight
         newColoredHighlights.push({
@@ -613,7 +617,6 @@ const App: React.FC = () => {
               tagDescription={activePresetDescriptions.tagDescription}
               currentTag={filters.tag}
               onAddHighlight={handleAddHighlight}
-              onRemoveColoredHighlight={handleRemoveColoredHighlight}
             />
           </Content>
         </Layout>
