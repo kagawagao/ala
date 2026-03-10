@@ -10,6 +10,7 @@ import {
   FloatButton,
   Form,
   DatePicker,
+  Tag,
 } from 'antd';
 import {
   FolderOpenOutlined,
@@ -23,8 +24,9 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import dayjs, { Dayjs } from 'dayjs';
-import { LogFilters } from '../types';
+import { LogFilters, HighlightItem } from '../types';
 import { FilterPreset } from './FilterPresetManager';
+import { getHighlightColorById } from '../constants/highlightColors';
 
 const { Sider } = Layout;
 const { RangePicker } = DatePicker;
@@ -52,6 +54,7 @@ interface AppSiderProps {
   onManagePresets: () => void;
   onOpenSettings: () => void;
   themeMode: 'dark' | 'light';
+  onRemoveColoredHighlight?: (pattern: string) => void;
 }
 
 const AppSider: React.FC<AppSiderProps> = ({
@@ -77,6 +80,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   onManagePresets,
   onOpenSettings,
   themeMode,
+  onRemoveColoredHighlight,
 }) => {
   const { t, i18n } = useTranslation();
   const [form] = Form.useForm();
@@ -226,6 +230,46 @@ const AppSider: React.FC<AppSiderProps> = ({
                 >
                   <Input placeholder={t('highlightsPlaceholder')} />
                 </Form.Item>
+
+                {/* Colored Highlights Display */}
+                {filters.coloredHighlights && filters.coloredHighlights.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      style={{
+                        fontSize: '14px',
+                        color: 'var(--ant-color-text)',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      {t('coloredHighlights')}:
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {filters.coloredHighlights.map((highlight, index) => {
+                        const colors = getHighlightColorById(highlight.color, themeMode);
+                        return (
+                          <Tag
+                            key={`${highlight.pattern}-${index}`}
+                            closable
+                            onClose={(e) => {
+                              e.preventDefault();
+                              if (onRemoveColoredHighlight) {
+                                onRemoveColoredHighlight(highlight.pattern);
+                              }
+                            }}
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              border: 'none',
+                              marginRight: 0,
+                            }}
+                          >
+                            {highlight.pattern}
+                          </Tag>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Log Level */}
                 <Form.Item name="level" label={t('logLevel')} style={{ marginBottom: '16px' }}>

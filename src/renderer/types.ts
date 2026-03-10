@@ -10,11 +10,17 @@ export interface LogEntry {
   sourceFile?: string;
 }
 
+export interface HighlightItem {
+  pattern: string;
+  color: string;
+}
+
 export interface LogFilters {
   startTime: string;
   endTime: string;
   keywords: string; // For filtering logs (reduces visible logs)
-  highlights: string; // For visual highlighting only (no filtering)
+  highlights: string; // For visual highlighting only (no filtering) - legacy format
+  coloredHighlights?: HighlightItem[]; // New format with colors
   level: string;
   tag: string;
   pid: string;

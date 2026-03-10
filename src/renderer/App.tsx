@@ -101,6 +101,7 @@ const App: React.FC = () => {
     endTime: '',
     keywords: '',
     highlights: '',
+    coloredHighlights: [],
     level: 'ALL',
     tag: '',
     pid: '',
@@ -298,12 +299,64 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      coloredHighlights: [],
     };
     setFilters(clearedFilters);
     setStartDate(null);
     setEndDate(null);
     setFilteredLogs([]);
     showStatus(t('filtersCleared'), 'info');
+  };
+
+  const handleAddHighlight = (text: string, color?: string) => {
+    // Escape special regex characters for safe pattern matching
+    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    if (color) {
+      // Use new colored highlights format
+      const newColoredHighlights = [...(filters.coloredHighlights || [])];
+
+      // Check if this pattern already exists
+      const existingIndex = newColoredHighlights.findIndex((h) => h.pattern === escapedText);
+
+      if (existingIndex >= 0) {
+        // Update existing highlight's color
+        newColoredHighlights[existingIndex] = {
+          ...newColoredHighlights[existingIndex],
+          color,
+        };
+      } else {
+        // Add new colored highlight
+        newColoredHighlights.push({
+          pattern: escapedText,
+          color: color,
+        });
+      }
+
+      setFilters({
+        ...filters,
+        coloredHighlights: newColoredHighlights,
+      });
+    } else {
+      // Fallback to legacy highlights format (for backward compatibility)
+      const currentHighlights = filters.highlights.trim();
+      const newHighlights = currentHighlights ? `${currentHighlights}|${escapedText}` : escapedText;
+
+      setFilters({
+        ...filters,
+        highlights: newHighlights,
+      });
+    }
+  };
+
+  const handleRemoveColoredHighlight = (pattern: string) => {
+    const newColoredHighlights = (filters.coloredHighlights || []).filter(
+      (h) => h.pattern !== pattern
+    );
+    setFilters({
+      ...filters,
+      coloredHighlights: newColoredHighlights,
+    });
   };
 
   const handleImportPresetsToManager = async () => {
@@ -542,6 +595,7 @@ const App: React.FC = () => {
             onManagePresets={() => setPresetManagerVisible(true)}
             onOpenSettings={() => setSettingsModalVisible(true)}
             themeMode={themeMode}
+            onRemoveColoredHighlight={handleRemoveColoredHighlight}
           />
 
           <Content style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -551,6 +605,7 @@ const App: React.FC = () => {
               statistics={statistics}
               currentFiles={currentFiles}
               highlights={filters.highlights}
+              coloredHighlights={filters.coloredHighlights || []}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               aiAnalysis={aiAnalysis}
@@ -561,6 +616,7 @@ const App: React.FC = () => {
               highlightDescriptions={activePresetDescriptions.highlightDescriptions}
               tagDescription={activePresetDescriptions.tagDescription}
               currentTag={filters.tag}
+              onAddHighlight={handleAddHighlight}
             />
           </Content>
         </Layout>

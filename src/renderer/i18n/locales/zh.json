@@ -116,5 +116,16 @@
   "aiSettingsSaved": "AI 设置已保存",
   "apiEndpointRequired": "请输入 API 端点",
   "apiKeyRequired": "请输入 API 密钥",
-  "modelRequired": "请输入模型名称"
+  "modelRequired": "请输入模型名称",
+  "addToHighlights": "添加到高亮",
+  "addToHighlightsWithColor": "添加到高亮（{{color}}）",
+  "coloredHighlights": "彩色高亮",
+  "color_yellow": "黄色",
+  "color_red": "红色",
+  "color_green": "绿色",
+  "color_blue": "蓝色",
+  "color_purple": "紫色",
+  "color_orange": "橙色",
+  "color_pink": "粉色",
+  "color_cyan": "青色"
 }

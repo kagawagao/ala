@@ -116,5 +116,16 @@
   "aiSettingsSaved": "AI settings saved successfully",
   "apiEndpointRequired": "Please enter API endpoint",
   "apiKeyRequired": "Please enter API key",
-  "modelRequired": "Please enter model name"
+  "modelRequired": "Please enter model name",
+  "addToHighlights": "Add to Highlights",
+  "addToHighlightsWithColor": "Add to Highlights ({{color}})",
+  "coloredHighlights": "Colored Highlights",
+  "color_yellow": "Yellow",
+  "color_red": "Red",
+  "color_green": "Green",
+  "color_blue": "Blue",
+  "color_purple": "Purple",
+  "color_orange": "Orange",
+  "color_pink": "Pink",
+  "color_cyan": "Cyan"
 }
