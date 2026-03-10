@@ -1,10 +1,11 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message } from 'antd';
+import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message, Tag } from 'antd';
 import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogEntry, LogStatistics } from '../types';
+import { LogEntry, LogStatistics, HighlightItem } from '../types';
+import { getHighlightColorById, HIGHLIGHT_COLORS } from '../constants/highlightColors';
 
 // CSS for animations
 const spinnerStyles = `
@@ -34,7 +35,8 @@ interface LogViewerProps {
   allLogsCount: number;
   statistics: LogStatistics | null;
   currentFiles: string[];
-  highlights: string; // For visual highlighting only
+  highlights: string; // For visual highlighting only (legacy)
+  coloredHighlights: HighlightItem[]; // New colored highlights
   activeTab: 'logs' | 'ai';
   setActiveTab: (tab: 'logs' | 'ai') => void;
   aiAnalysis: string;
@@ -45,7 +47,8 @@ interface LogViewerProps {
   highlightDescriptions?: { keyword: string; description: string }[];
   tagDescription?: string;
   currentTag?: string;
-  onAddHighlight?: (text: string) => void; // New callback for adding highlights
+  onAddHighlight?: (text: string, color?: string) => void; // Updated to accept color
+  onRemoveColoredHighlight?: (pattern: string) => void;
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -54,6 +57,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   statistics,
   currentFiles,
   highlights,
+  coloredHighlights,
   activeTab,
   setActiveTab,
   aiAnalysis,
@@ -65,6 +69,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   tagDescription = '',
   currentTag = '',
   onAddHighlight,
+  onRemoveColoredHighlight,
 }) => {
   const { t } = useTranslation();
 
@@ -128,143 +133,232 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // Render message with highlight highlighting and tooltips
   const renderMessageWithHighlights = useCallback(
     (message: string, hlText: string): React.ReactNode => {
-      if (!hlText || !hlText.trim()) return message;
+      // First apply colored highlights if any
+      let result: React.ReactNode = message;
 
-      // Theme-aware colors for highlight highlighting
-      const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
-      const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+      // Apply colored highlights
+      if (coloredHighlights && coloredHighlights.length > 0) {
+        const parts: React.ReactNode[] = [message];
 
-      try {
-        // Try regex pattern first
-        const parts: React.ReactNode[] = [];
-        let lastIndex = 0;
-        let match;
+        coloredHighlights.forEach((highlightItem, highlightIdx) => {
+          const newParts: React.ReactNode[] = [];
+          const colors = getHighlightColorById(highlightItem.color, themeMode);
 
-        // Reset regex for exec
-        const execRegex = new RegExp(`(${hlText})`, 'gi');
-        while ((match = execRegex.exec(message)) !== null) {
-          // Add text before match
-          if (match.index > lastIndex) {
-            parts.push(message.substring(lastIndex, match.index));
-          }
-
-          // Find description for this highlight
-          const matchText = match[0];
-          const desc = highlightDescriptions.find(
-            (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
-          );
-
-          // Add highlighted highlight with optional tooltip
-          const highlightedSpan = (
-            <mark
-              key={`highlight-${match.index}`}
-              style={{
-                backgroundColor: bgColor,
-                color: textColor,
-                padding: '0 4px',
-                borderRadius: '2px',
-                cursor: desc ? 'help' : 'default',
-              }}
-            >
-              {matchText}
-            </mark>
-          );
-
-          if (desc && desc.description) {
-            parts.push(
-              <Tooltip key={`tooltip-${match.index}`} title={desc.description} placement="top">
-                {highlightedSpan}
-              </Tooltip>
-            );
-          } else {
-            parts.push(highlightedSpan);
-          }
-
-          lastIndex = execRegex.lastIndex;
-        }
-
-        // Add remaining text
-        if (lastIndex < message.length) {
-          parts.push(message.substring(lastIndex));
-        }
-
-        return <>{parts}</>;
-      } catch (e) {
-        // Fallback to space-separated highlights
-        const highlightList = hlText
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((k) => k);
-        let result: React.ReactNode[] = [message];
-
-        highlightList.forEach((highlight) => {
-          const newResult: React.ReactNode[] = [];
-          result.forEach((part, partIdx) => {
+          parts.forEach((part, partIdx) => {
             if (typeof part === 'string') {
-              let innerLastIndex = 0;
-              let innerMatch;
-              const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
+              try {
+                const execRegex = new RegExp(`(${highlightItem.pattern})`, 'gi');
+                let lastIndex = 0;
+                let match;
 
-              while ((innerMatch = execRegex.exec(part)) !== null) {
-                // Add text before match
-                if (innerMatch.index > innerLastIndex) {
-                  newResult.push(part.substring(innerLastIndex, innerMatch.index));
-                }
+                while ((match = execRegex.exec(part)) !== null) {
+                  // Add text before match
+                  if (match.index > lastIndex) {
+                    newParts.push(part.substring(lastIndex, match.index));
+                  }
 
-                // Find description for this highlight
-                const matchText = innerMatch[0];
-                const desc = highlightDescriptions.find(
-                  (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
-                );
-
-                // Add highlighted highlight with optional tooltip
-                const highlightedSpan = (
-                  <mark
-                    key={`highlight-${partIdx}-${innerMatch.index}`}
-                    style={{
-                      backgroundColor: bgColor,
-                      color: textColor,
-                      padding: '0 4px',
-                      borderRadius: '2px',
-                      cursor: desc ? 'help' : 'default',
-                    }}
-                  >
-                    {matchText}
-                  </mark>
-                );
-
-                if (desc && desc.description) {
-                  newResult.push(
-                    <Tooltip
-                      key={`tooltip-${partIdx}-${innerMatch.index}`}
-                      title={desc.description}
-                      placement="top"
-                    >
-                      {highlightedSpan}
-                    </Tooltip>
+                  // Find description for this highlight
+                  const matchText = match[0];
+                  const desc = highlightDescriptions.find(
+                    (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
                   );
-                } else {
-                  newResult.push(highlightedSpan);
+
+                  // Add highlighted text with color
+                  const highlightedSpan = (
+                    <mark
+                      key={`colored-${highlightIdx}-${partIdx}-${match.index}`}
+                      style={{
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        padding: '0 4px',
+                        borderRadius: '2px',
+                        cursor: desc ? 'help' : 'default',
+                      }}
+                    >
+                      {matchText}
+                    </mark>
+                  );
+
+                  if (desc && desc.description) {
+                    newParts.push(
+                      <Tooltip
+                        key={`tooltip-colored-${highlightIdx}-${partIdx}-${match.index}`}
+                        title={desc.description}
+                        placement="top"
+                      >
+                        {highlightedSpan}
+                      </Tooltip>
+                    );
+                  } else {
+                    newParts.push(highlightedSpan);
+                  }
+
+                  lastIndex = execRegex.lastIndex;
                 }
 
-                innerLastIndex = execRegex.lastIndex;
-              }
-
-              // Add remaining text
-              if (innerLastIndex < part.length) {
-                newResult.push(part.substring(innerLastIndex));
+                // Add remaining text
+                if (lastIndex < part.length) {
+                  newParts.push(part.substring(lastIndex));
+                }
+              } catch (e) {
+                // If regex fails, keep the part as is
+                newParts.push(part);
               }
             } else {
-              newResult.push(part);
+              newParts.push(part);
             }
           });
-          result = newResult;
+
+          parts.length = 0;
+          parts.push(...newParts);
         });
 
-        return <>{result}</>;
+        result = <>{parts}</>;
       }
+
+      // Then apply legacy highlights if any
+      if (!hlText || !hlText.trim()) return result;
+
+      // Convert result to string or parts array for legacy highlighting
+      if (typeof result === 'string') {
+        // Theme-aware colors for legacy highlight highlighting
+        const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
+        const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+
+        try {
+          // Try regex pattern first
+          const parts: React.ReactNode[] = [];
+          let lastIndex = 0;
+          let match;
+
+          // Reset regex for exec
+          const execRegex = new RegExp(`(${hlText})`, 'gi');
+          while ((match = execRegex.exec(result)) !== null) {
+            // Add text before match
+            if (match.index > lastIndex) {
+              parts.push(result.substring(lastIndex, match.index));
+            }
+
+            // Find description for this highlight
+            const matchText = match[0];
+            const desc = highlightDescriptions.find(
+              (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+            );
+
+            // Add highlighted highlight with optional tooltip
+            const highlightedSpan = (
+              <mark
+                key={`legacy-highlight-${match.index}`}
+                style={{
+                  backgroundColor: bgColor,
+                  color: textColor,
+                  padding: '0 4px',
+                  borderRadius: '2px',
+                  cursor: desc ? 'help' : 'default',
+                }}
+              >
+                {matchText}
+              </mark>
+            );
+
+            if (desc && desc.description) {
+              parts.push(
+                <Tooltip key={`legacy-tooltip-${match.index}`} title={desc.description} placement="top">
+                  {highlightedSpan}
+                </Tooltip>
+              );
+            } else {
+              parts.push(highlightedSpan);
+            }
+
+            lastIndex = execRegex.lastIndex;
+          }
+
+          // Add remaining text
+          if (lastIndex < result.length) {
+            parts.push(result.substring(lastIndex));
+          }
+
+          return <>{parts}</>;
+        } catch (e) {
+          // Fallback to space-separated highlights
+          const highlightList = hlText
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((k) => k);
+          let resultParts: React.ReactNode[] = [result];
+
+          highlightList.forEach((highlight) => {
+            const newResult: React.ReactNode[] = [];
+            resultParts.forEach((part, partIdx) => {
+              if (typeof part === 'string') {
+                let innerLastIndex = 0;
+                let innerMatch;
+                const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
+
+                while ((innerMatch = execRegex.exec(part)) !== null) {
+                  // Add text before match
+                  if (innerMatch.index > innerLastIndex) {
+                    newResult.push(part.substring(innerLastIndex, innerMatch.index));
+                  }
+
+                  // Find description for this highlight
+                  const matchText = innerMatch[0];
+                  const desc = highlightDescriptions.find(
+                    (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+                  );
+
+                  // Add highlighted highlight with optional tooltip
+                  const highlightedSpan = (
+                    <mark
+                      key={`legacy-highlight-${partIdx}-${innerMatch.index}`}
+                      style={{
+                        backgroundColor: bgColor,
+                        color: textColor,
+                        padding: '0 4px',
+                        borderRadius: '2px',
+                        cursor: desc ? 'help' : 'default',
+                      }}
+                    >
+                      {matchText}
+                    </mark>
+                  );
+
+                  if (desc && desc.description) {
+                    newResult.push(
+                      <Tooltip
+                        key={`legacy-tooltip-${partIdx}-${innerMatch.index}`}
+                        title={desc.description}
+                        placement="top"
+                      >
+                        {highlightedSpan}
+                      </Tooltip>
+                    );
+                  } else {
+                    newResult.push(highlightedSpan);
+                  }
+
+                  innerLastIndex = execRegex.lastIndex;
+                }
+
+                // Add remaining text
+                if (innerLastIndex < part.length) {
+                  newResult.push(part.substring(innerLastIndex));
+                }
+              } else {
+                newResult.push(part);
+              }
+            });
+            resultParts = newResult;
+          });
+
+          return <>{resultParts}</>;
+        }
+      }
+
+      return result;
     },
-    [themeMode, highlightDescriptions, escapeRegex]
+    [themeMode, highlightDescriptions, escapeRegex, coloredHighlights]
   );
 
   const getLevelClass = useCallback((level: string): { color: string; borderColor: string } => {
@@ -379,7 +473,20 @@ const LogViewer: React.FC<LogViewerProps> = ({
     }
   }, []);
 
-  // Handle adding selected text to highlights
+  // Handle adding selected text to highlights with color
+  const handleAddToHighlightsWithColor = useCallback(
+    (colorId: string) => {
+      if (selectedText && onAddHighlight) {
+        onAddHighlight(selectedText, colorId);
+        const colorName = HIGHLIGHT_COLORS.find((c) => c.id === colorId)?.name || colorId;
+        message.success(t('addToHighlightsWithColor', { color: colorName }));
+      }
+      setContextMenuVisible(false);
+    },
+    [selectedText, onAddHighlight, t]
+  );
+
+  // Handle adding selected text to legacy highlights (no color)
   const handleAddToHighlights = useCallback(() => {
     if (selectedText && onAddHighlight) {
       onAddHighlight(selectedText);
@@ -388,15 +495,38 @@ const LogViewer: React.FC<LogViewerProps> = ({
     setContextMenuVisible(false);
   }, [selectedText, onAddHighlight, t]);
 
-  // Context menu items
-  const contextMenuItems: MenuProps['items'] = [
-    {
-      key: 'addToHighlights',
-      icon: <HighlightOutlined />,
-      label: t('addToHighlights'),
-      onClick: handleAddToHighlights,
-    },
-  ];
+  // Context menu items with color submenu
+  const contextMenuItems: MenuProps['items'] = useMemo(
+    () => [
+      {
+        key: 'addToHighlights',
+        icon: <HighlightOutlined />,
+        label: t('addToHighlightsWithColor', { color: '' }).replace(/\s*$/, ''),
+        children: HIGHLIGHT_COLORS.map((color) => {
+          const colors = getHighlightColorById(color.id, themeMode);
+          return {
+            key: `color-${color.id}`,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Tag
+                  color={colors.background}
+                  style={{
+                    color: colors.text,
+                    border: 'none',
+                    margin: 0,
+                  }}
+                >
+                  {color.name}
+                </Tag>
+              </div>
+            ),
+            onClick: () => handleAddToHighlightsWithColor(color.id),
+          };
+        }),
+      },
+    ],
+    [t, themeMode, handleAddToHighlightsWithColor]
+  );
 
   // Close context menu when clicking outside
   useEffect(() => {

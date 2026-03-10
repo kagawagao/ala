@@ -117,5 +117,7 @@
   "apiEndpointRequired": "Please enter API endpoint",
   "apiKeyRequired": "Please enter API key",
   "modelRequired": "Please enter model name",
-  "addToHighlights": "Add to Highlights"
+  "addToHighlights": "Add to Highlights",
+  "addToHighlightsWithColor": "Add to Highlights",
+  "coloredHighlights": "Colored Highlights"
 }
