@@ -1,9 +1,11 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, Tooltip } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
+import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message, Tag } from 'antd';
+import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogEntry, LogStatistics } from '../types';
+import { LogEntry, LogStatistics, HighlightItem } from '../types';
+import { getHighlightColorById, HIGHLIGHT_COLORS } from '../constants/highlightColors';
 
 // CSS for animations
 const spinnerStyles = `
@@ -33,7 +35,8 @@ interface LogViewerProps {
   allLogsCount: number;
   statistics: LogStatistics | null;
   currentFiles: string[];
-  highlights: string; // For visual highlighting only
+  highlights: string; // For visual highlighting only (legacy)
+  coloredHighlights: HighlightItem[]; // New colored highlights
   activeTab: 'logs' | 'ai';
   setActiveTab: (tab: 'logs' | 'ai') => void;
   aiAnalysis: string;
@@ -44,6 +47,7 @@ interface LogViewerProps {
   highlightDescriptions?: { keyword: string; description: string }[];
   tagDescription?: string;
   currentTag?: string;
+  onAddHighlight?: (text: string, color?: string) => void; // Updated to accept color
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -52,6 +56,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   statistics,
   currentFiles,
   highlights,
+  coloredHighlights,
   activeTab,
   setActiveTab,
   aiAnalysis,
@@ -62,8 +67,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
   highlightDescriptions = [],
   tagDescription = '',
   currentTag = '',
+  onAddHighlight,
 }) => {
   const { t } = useTranslation();
+
+  // Context menu state
+  const [contextMenuVisible, setContextMenuVisible] = useState(false);
+  const [selectedText, setSelectedText] = useState<string>('');
 
   // Track the scrollable container height for VirtualList.
   // Use refs so the ResizeObserver can be re-attached whenever the container
@@ -117,91 +127,108 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // Render message with highlight highlighting and tooltips
   const renderMessageWithHighlights = useCallback(
     (message: string, hlText: string): React.ReactNode => {
-      if (!hlText || !hlText.trim()) return message;
+      // Start with message as a single-element parts array
+      let parts: React.ReactNode[] = [message];
 
-      // Theme-aware colors for highlight highlighting
-      const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
-      const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+      // Apply colored highlights if any
+      if (coloredHighlights && coloredHighlights.length > 0) {
+        coloredHighlights.forEach((highlightItem, highlightIdx) => {
+          const newParts: React.ReactNode[] = [];
+          const colors = getHighlightColorById(highlightItem.color, themeMode);
 
-      try {
-        // Try regex pattern first
-        const parts: React.ReactNode[] = [];
-        let lastIndex = 0;
-        let match;
-
-        // Reset regex for exec
-        const execRegex = new RegExp(`(${hlText})`, 'gi');
-        while ((match = execRegex.exec(message)) !== null) {
-          // Add text before match
-          if (match.index > lastIndex) {
-            parts.push(message.substring(lastIndex, match.index));
-          }
-
-          // Find description for this highlight
-          const matchText = match[0];
-          const desc = highlightDescriptions.find(
-            (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
-          );
-
-          // Add highlighted highlight with optional tooltip
-          const highlightedSpan = (
-            <mark
-              key={`highlight-${match.index}`}
-              style={{
-                backgroundColor: bgColor,
-                color: textColor,
-                padding: '0 4px',
-                borderRadius: '2px',
-                cursor: desc ? 'help' : 'default',
-              }}
-            >
-              {matchText}
-            </mark>
-          );
-
-          if (desc && desc.description) {
-            parts.push(
-              <Tooltip key={`tooltip-${match.index}`} title={desc.description} placement="top">
-                {highlightedSpan}
-              </Tooltip>
-            );
-          } else {
-            parts.push(highlightedSpan);
-          }
-
-          lastIndex = execRegex.lastIndex;
-        }
-
-        // Add remaining text
-        if (lastIndex < message.length) {
-          parts.push(message.substring(lastIndex));
-        }
-
-        return <>{parts}</>;
-      } catch (e) {
-        // Fallback to space-separated highlights
-        const highlightList = hlText
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((k) => k);
-        let result: React.ReactNode[] = [message];
-
-        highlightList.forEach((highlight) => {
-          const newResult: React.ReactNode[] = [];
-          result.forEach((part, partIdx) => {
+          parts.forEach((part, partIdx) => {
             if (typeof part === 'string') {
-              let innerLastIndex = 0;
-              let innerMatch;
-              const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
+              try {
+                const execRegex = new RegExp(`(${highlightItem.pattern})`, 'gi');
+                let lastIndex = 0;
+                let match;
 
-              while ((innerMatch = execRegex.exec(part)) !== null) {
+                while ((match = execRegex.exec(part)) !== null) {
+                  // Add text before match
+                  if (match.index > lastIndex) {
+                    newParts.push(part.substring(lastIndex, match.index));
+                  }
+
+                  // Find description for this highlight
+                  const matchText = match[0];
+                  const desc = highlightDescriptions.find(
+                    (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+                  );
+
+                  // Add highlighted text with color
+                  const highlightedSpan = (
+                    <mark
+                      key={`colored-${highlightIdx}-${partIdx}-${match.index}`}
+                      style={{
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        padding: '0 4px',
+                        borderRadius: '2px',
+                        cursor: desc ? 'help' : 'default',
+                      }}
+                    >
+                      {matchText}
+                    </mark>
+                  );
+
+                  if (desc && desc.description) {
+                    newParts.push(
+                      <Tooltip
+                        key={`tooltip-colored-${highlightIdx}-${partIdx}-${match.index}`}
+                        title={desc.description}
+                        placement="top"
+                      >
+                        {highlightedSpan}
+                      </Tooltip>
+                    );
+                  } else {
+                    newParts.push(highlightedSpan);
+                  }
+
+                  lastIndex = execRegex.lastIndex;
+                }
+
+                // Add remaining text
+                if (lastIndex < part.length) {
+                  newParts.push(part.substring(lastIndex));
+                }
+              } catch (e) {
+                // If regex fails, keep the part as is
+                newParts.push(part);
+              }
+            } else {
+              newParts.push(part);
+            }
+          });
+
+          parts = newParts;
+        });
+      }
+
+      // Then apply legacy highlights if any
+      if (hlText && hlText.trim()) {
+        // Theme-aware colors for legacy highlight highlighting
+        const bgColor = themeMode === 'dark' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255, 215, 0, 0.5)';
+        const textColor = themeMode === 'dark' ? '#fef08a' : '#8b6914';
+
+        try {
+          // Try regex pattern first
+          const newParts: React.ReactNode[] = [];
+
+          parts.forEach((part, partIdx) => {
+            if (typeof part === 'string') {
+              let lastIndex = 0;
+              let match;
+              const partRegex = new RegExp(`(${hlText})`, 'gi');
+
+              while ((match = partRegex.exec(part)) !== null) {
                 // Add text before match
-                if (innerMatch.index > innerLastIndex) {
-                  newResult.push(part.substring(innerLastIndex, innerMatch.index));
+                if (match.index > lastIndex) {
+                  newParts.push(part.substring(lastIndex, match.index));
                 }
 
                 // Find description for this highlight
-                const matchText = innerMatch[0];
+                const matchText = match[0];
                 const desc = highlightDescriptions.find(
                   (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
                 );
@@ -209,7 +236,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 // Add highlighted highlight with optional tooltip
                 const highlightedSpan = (
                   <mark
-                    key={`highlight-${partIdx}-${innerMatch.index}`}
+                    key={`legacy-highlight-${partIdx}-${match.index}`}
                     style={{
                       backgroundColor: bgColor,
                       color: textColor,
@@ -223,9 +250,9 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 );
 
                 if (desc && desc.description) {
-                  newResult.push(
+                  newParts.push(
                     <Tooltip
-                      key={`tooltip-${partIdx}-${innerMatch.index}`}
+                      key={`legacy-tooltip-${partIdx}-${match.index}`}
                       title={desc.description}
                       placement="top"
                     >
@@ -233,27 +260,100 @@ const LogViewer: React.FC<LogViewerProps> = ({
                     </Tooltip>
                   );
                 } else {
-                  newResult.push(highlightedSpan);
+                  newParts.push(highlightedSpan);
                 }
 
-                innerLastIndex = execRegex.lastIndex;
+                lastIndex = partRegex.lastIndex;
               }
 
               // Add remaining text
-              if (innerLastIndex < part.length) {
-                newResult.push(part.substring(innerLastIndex));
+              if (lastIndex < part.length) {
+                newParts.push(part.substring(lastIndex));
               }
             } else {
-              newResult.push(part);
+              newParts.push(part);
             }
           });
-          result = newResult;
-        });
 
-        return <>{result}</>;
+          parts = newParts;
+        } catch (e) {
+          // Fallback to space-separated highlights
+          const highlightList = hlText
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((k) => k);
+
+          highlightList.forEach((highlight) => {
+            const newParts: React.ReactNode[] = [];
+
+            parts.forEach((part, partIdx) => {
+              if (typeof part === 'string') {
+                let innerLastIndex = 0;
+                let innerMatch;
+                const execRegex = new RegExp(`(${escapeRegex(highlight)})`, 'gi');
+
+                while ((innerMatch = execRegex.exec(part)) !== null) {
+                  // Add text before match
+                  if (innerMatch.index > innerLastIndex) {
+                    newParts.push(part.substring(innerLastIndex, innerMatch.index));
+                  }
+
+                  // Find description for this highlight
+                  const matchText = innerMatch[0];
+                  const desc = highlightDescriptions.find(
+                    (kd) => kd.keyword.toLowerCase() === matchText.toLowerCase()
+                  );
+
+                  // Add highlighted highlight with optional tooltip
+                  const highlightedSpan = (
+                    <mark
+                      key={`legacy-highlight-${partIdx}-${innerMatch.index}`}
+                      style={{
+                        backgroundColor: bgColor,
+                        color: textColor,
+                        padding: '0 4px',
+                        borderRadius: '2px',
+                        cursor: desc ? 'help' : 'default',
+                      }}
+                    >
+                      {matchText}
+                    </mark>
+                  );
+
+                  if (desc && desc.description) {
+                    newParts.push(
+                      <Tooltip
+                        key={`legacy-tooltip-${partIdx}-${innerMatch.index}`}
+                        title={desc.description}
+                        placement="top"
+                      >
+                        {highlightedSpan}
+                      </Tooltip>
+                    );
+                  } else {
+                    newParts.push(highlightedSpan);
+                  }
+
+                  innerLastIndex = execRegex.lastIndex;
+                }
+
+                // Add remaining text
+                if (innerLastIndex < part.length) {
+                  newParts.push(part.substring(innerLastIndex));
+                }
+              } else {
+                newParts.push(part);
+              }
+            });
+
+            parts = newParts;
+          });
+        }
       }
+
+      return <>{parts}</>;
     },
-    [themeMode, highlightDescriptions, escapeRegex]
+    [themeMode, highlightDescriptions, escapeRegex, coloredHighlights]
   );
 
   const getLevelClass = useCallback((level: string): { color: string; borderColor: string } => {
@@ -355,6 +455,78 @@ const LogViewer: React.FC<LogViewerProps> = ({
     }
   }, [currentTag]);
 
+  // Handle right-click context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+
+    if (text && text.length > 0) {
+      setSelectedText(text);
+      setContextMenuVisible(true);
+    }
+  }, []);
+
+  // Handle adding selected text to highlights with color
+  const handleAddToHighlightsWithColor = useCallback(
+    (colorId: string) => {
+      if (selectedText && onAddHighlight) {
+        onAddHighlight(selectedText, colorId);
+        const colorName = t(`color_${colorId}`);
+        message.success(t('addToHighlightsWithColor', { color: colorName }));
+      }
+      setContextMenuVisible(false);
+    },
+    [selectedText, onAddHighlight, t]
+  );
+
+  // Context menu items with color submenu
+  const contextMenuItems: MenuProps['items'] = useMemo(
+    () => [
+      {
+        key: 'addToHighlights',
+        icon: <HighlightOutlined />,
+        label: t('addToHighlightsWithColor', { color: '' }).replace(/\s*$/, ''),
+        children: HIGHLIGHT_COLORS.map((color) => {
+          const colors = getHighlightColorById(color.id, themeMode);
+          return {
+            key: `color-${color.id}`,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Tag
+                  color={colors.background}
+                  style={{
+                    color: colors.text,
+                    border: 'none',
+                    margin: 0,
+                  }}
+                >
+                  {t(`color_${color.id}`)}
+                </Tag>
+              </div>
+            ),
+            onClick: () => handleAddToHighlightsWithColor(color.id),
+          };
+        }),
+      },
+    ],
+    [t, themeMode, handleAddToHighlightsWithColor]
+  );
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setContextMenuVisible(false);
+    };
+    if (contextMenuVisible) {
+      document.addEventListener('click', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+    return undefined;
+  }, [contextMenuVisible]);
+
   const renderLogLine = useCallback(
     (log: LogEntry, index: number, extraStyle?: React.CSSProperties) => {
       const levelStyle = getLevelClass(log.level);
@@ -412,9 +584,10 @@ const LogViewer: React.FC<LogViewerProps> = ({
         ) : null;
 
       // Render message with highlight highlighting and tooltips
-      const message = highlights
-        ? renderMessageWithHighlights(log.message, highlights)
-        : log.message;
+      const message =
+        highlights || (coloredHighlights && coloredHighlights.length > 0)
+          ? renderMessageWithHighlights(log.message, highlights)
+          : log.message;
 
       return (
         <div
@@ -502,90 +675,95 @@ const LogViewer: React.FC<LogViewerProps> = ({
             </div>
           ) : (
             // Virtualised log list – only visible rows are rendered
-            <div
-              ref={containerRef}
-              style={{
-                height: '100%',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <VirtualList<ListItem>
-                data={flatItems}
-                height={containerHeight}
-                itemHeight={LOG_ITEM_HEIGHT}
-                itemKey="key"
-                scrollWidth={
-                  lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
-                }
-                styles={{
-                  verticalScrollBar: { right: 0 },
+            <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
+              <div
+                ref={containerRef}
+                onContextMenu={handleContextMenu}
+                style={{
+                  height: '100%',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
-                  // Exclude the height from the positioning style so items can
-                  // size themselves naturally; rc-virtual-list measures the
-                  // actual rendered height via ResizeObserver and corrects the
-                  // scroll calculation automatically.
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  const { height: _height, ...posStyle } = style;
-                  if (item.type === 'divider') {
-                    return (
-                      <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
-                        <Divider
-                          style={{
-                            margin: '8px 0',
-                            borderColor: 'var(--ant-color-border-secondary)',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: 'var(--ant-color-text)',
-                              marginRight: '8px',
-                            }}
-                          >
-                            📄
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#4ec9b0',
-                            }}
-                          >
-                            {item.file}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '12px',
-                              color: 'var(--ant-color-text-secondary)',
-                              marginLeft: '12px',
-                            }}
-                          >
-                            ({item.count} {t('logs')})
-                          </span>
-                        </Divider>
-                      </div>
-                    );
+                <VirtualList<ListItem>
+                  data={flatItems}
+                  height={containerHeight}
+                  itemHeight={LOG_ITEM_HEIGHT}
+                  itemKey="key"
+                  scrollWidth={
+                    lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
                   }
-                  return renderLogLine(item.log, item.index, posStyle);
-                }}
-              </VirtualList>
-              <FloatButton
-                icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
-                onClick={() => onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')}
-                style={{
-                  position: 'absolute',
-                  right: 24,
-                  top: 24,
-                  bottom: 'unset',
-                  zIndex: 100,
-                }}
-              />
-            </div>
+                  styles={{
+                    verticalScrollBar: { right: 0 },
+                  }}
+                >
+                  {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
+                    // Exclude the height from the positioning style so items can
+                    // size themselves naturally; rc-virtual-list measures the
+                    // actual rendered height via ResizeObserver and corrects the
+                    // scroll calculation automatically.
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { height: _height, ...posStyle } = style;
+                    if (item.type === 'divider') {
+                      return (
+                        <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
+                          <Divider
+                            style={{
+                              margin: '8px 0',
+                              borderColor: 'var(--ant-color-border-secondary)',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: 'var(--ant-color-text)',
+                                marginRight: '8px',
+                              }}
+                            >
+                              📄
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: '#4ec9b0',
+                              }}
+                            >
+                              {item.file}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '12px',
+                                color: 'var(--ant-color-text-secondary)',
+                                marginLeft: '12px',
+                              }}
+                            >
+                              ({item.count} {t('logs')})
+                            </span>
+                          </Divider>
+                        </div>
+                      );
+                    }
+                    return renderLogLine(item.log, item.index, posStyle);
+                  }}
+                </VirtualList>
+                <FloatButton
+                  icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                  tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
+                  onClick={() =>
+                    onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')
+                  }
+                  style={{
+                    position: 'absolute',
+                    right: 24,
+                    top: 24,
+                    bottom: 'unset',
+                    zIndex: 100,
+                  }}
+                />
+              </div>
+            </Dropdown>
           )}
         </div>
       ),
