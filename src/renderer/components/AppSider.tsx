@@ -21,6 +21,7 @@ import {
   GlobalOutlined,
   SettingOutlined,
   ToolOutlined,
+  FileAddOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import dayjs, { Dayjs } from 'dayjs';
@@ -43,6 +44,9 @@ interface AppSiderProps {
   onClearFilters: () => void;
   onAnalyzeWithAI: (prompt?: string, presetId?: string) => void;
   currentFiles: string[];
+  sourceFiles: { filePath: string; content: string }[];
+  onOpenSourceFiles: () => void;
+  onRemoveSourceFile: (filePath: string) => void;
   aiConfigured: boolean;
   statusMessage: string;
   statusType: 'info' | 'error';
@@ -69,6 +73,9 @@ const AppSider: React.FC<AppSiderProps> = ({
   onClearFilters,
   onAnalyzeWithAI,
   currentFiles,
+  sourceFiles,
+  onOpenSourceFiles,
+  onRemoveSourceFile,
   aiConfigured,
   statusMessage,
   statusType,
@@ -452,6 +459,69 @@ const AppSider: React.FC<AppSiderProps> = ({
             <Select.Option value="lifecycle">{t('aiPresetLifecycle')}</Select.Option>
             <Select.Option value="ui">{t('aiPresetUI')}</Select.Option>
           </Select>
+
+          {/* Source Code Files Section */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 500 }}>{t('sourceCodeFiles')}</span>
+              <Button
+                type="default"
+                size="small"
+                icon={<FileAddOutlined />}
+                onClick={onOpenSourceFiles}
+              >
+                {t('addSourceFiles')}
+              </Button>
+            </div>
+            {sourceFiles.length > 0 ? (
+              <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '12px' }}>
+                {sourceFiles.map((file) => {
+                  const fileName = file.filePath.split(/[\\/]/).pop();
+                  return (
+                    <div
+                      key={file.filePath}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        backgroundColor: themeMode === 'dark' ? '#3e3e42' : '#f0f0f0',
+                        borderRadius: '4px',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        📄 {fileName}
+                      </span>
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        onClick={() => onRemoveSourceFile(file.filePath)}
+                        style={{ padding: '0 4px', minWidth: 'auto' }}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '12px',
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  color: 'var(--ant-color-text-secondary)',
+                  backgroundColor: themeMode === 'dark' ? '#3e3e42' : '#f0f0f0',
+                  borderRadius: '4px',
+                  marginBottom: '12px',
+                }}
+              >
+                {t('noSourceFilesAdded')}
+              </div>
+            )}
+          </div>
 
           <Input.TextArea
             value={aiPrompt}

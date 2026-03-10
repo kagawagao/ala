@@ -56,10 +56,16 @@ declare global {
   interface Window {
     electronAPI: {
       openLogFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
+      openSourceFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
       parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
-      analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string; presetId?: string }) => Promise<AIAnalysisResult>;
+      analyzeWithAI: (params: {
+        logs: LogEntry[];
+        prompt?: string;
+        presetId?: string;
+        sourceCode?: string;
+      }) => Promise<AIAnalysisResult>;
       checkAIConfigured: () => Promise<boolean>;
       updateAIConfig: (config: AIConfig) => Promise<boolean>;
       getAIConfig: () => Promise<AIConfig | null>;

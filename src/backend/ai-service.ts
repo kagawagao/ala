@@ -81,9 +81,14 @@ export class AIService {
   }
 
   /**
-   * Analyze logs using AI
+   * Analyze logs using AI with optional source code context
    */
-  async analyzeLogs(logs: LogEntry[], prompt: string = '', presetId?: string): Promise<AIAnalysisResult> {
+  async analyzeLogs(
+    logs: LogEntry[],
+    prompt: string = '',
+    presetId?: string,
+    sourceCode?: string
+  ): Promise<AIAnalysisResult> {
     if (!this.isConfigured() || !this.config) {
       return {
         success: false,
@@ -118,11 +123,24 @@ export class AIService {
         userPrompt = prompt || 'Analyze these Android logs and provide insights.';
       }
 
+      // If source code is provided, enhance the system prompt and include code in context
+      if (sourceCode) {
+        systemPrompt += '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
+        maxTokens = Math.max(maxTokens, 1500); // Increase tokens when source code is included
+      }
+
+      // Build the user message with logs and optional source code
+      let userMessage = `${userPrompt}\n\nLogs:\n${logSummary}`;
+
+      if (sourceCode) {
+        userMessage += `\n\n=== RELEVANT SOURCE CODE ===\n${sourceCode}`;
+      }
+
       const response = await this.openai.chat.completions.create({
         model: this.config.model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${userPrompt}\n\nLogs:\n${logSummary}` },
+          { role: 'user', content: userMessage },
         ],
         max_tokens: maxTokens,
         temperature: temperature,

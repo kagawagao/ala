@@ -93,6 +93,7 @@ const App: React.FC = () => {
   const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>(
     []
   );
+  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -391,6 +392,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOpenSourceFiles = async () => {
+    const files = await window.electronAPI.openSourceFiles();
+    if (files && files.length > 0) {
+      setSourceFiles(files);
+      const fileNames = files.map((f) => f.filePath.split(/[\\/]/).pop()).join(', ');
+      showStatus(`Loaded ${files.length} source file(s): ${fileNames}`, 'info');
+    }
+  };
+
+  const handleRemoveSourceFile = (filePath: string) => {
+    setSourceFiles((prev) => prev.filter((f) => f.filePath !== filePath));
+    const fileName = filePath.split(/[\\/]/).pop();
+    showStatus(`Removed source file: ${fileName}`, 'info');
+  };
+
   const handleAnalyzeWithAI = async (prompt?: string, presetId?: string) => {
     if (filteredLogs.length === 0) {
       showStatus('No logs to analyze', 'error');
@@ -401,10 +417,22 @@ const App: React.FC = () => {
     setActiveTab('ai');
 
     try {
+      // Combine source files into a single string if available
+      let sourceCode: string | undefined = undefined;
+      if (sourceFiles.length > 0) {
+        sourceCode = sourceFiles
+          .map((file) => {
+            const fileName = file.filePath.split(/[\\/]/).pop();
+            return `// File: ${fileName}\n${file.content}`;
+          })
+          .join('\n\n');
+      }
+
       const result = await window.electronAPI.analyzeWithAI({
         logs: filteredLogs,
         prompt,
         presetId,
+        sourceCode,
       });
       if (result.success && result.analysis) {
         setAiAnalysis(result.analysis);
@@ -604,6 +632,9 @@ const App: React.FC = () => {
             onClearFilters={handleClearFilters}
             onAnalyzeWithAI={handleAnalyzeWithAI}
             currentFiles={currentFiles}
+            sourceFiles={sourceFiles}
+            onOpenSourceFiles={handleOpenSourceFiles}
+            onRemoveSourceFile={handleRemoveSourceFile}
             aiConfigured={aiConfigured}
             statusMessage={statusMessage}
             statusType={statusType}
