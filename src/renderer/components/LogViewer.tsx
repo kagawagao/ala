@@ -263,7 +263,11 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
             if (desc && desc.description) {
               parts.push(
-                <Tooltip key={`legacy-tooltip-${match.index}`} title={desc.description} placement="top">
+                <Tooltip
+                  key={`legacy-tooltip-${match.index}`}
+                  title={desc.description}
+                  placement="top"
+                >
                   {highlightedSpan}
                 </Tooltip>
               );
@@ -689,11 +693,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             </div>
           ) : (
             // Virtualised log list – only visible rows are rendered
-            <Dropdown
-              menu={{ items: contextMenuItems }}
-              open={contextMenuVisible}
-              trigger={[]}
-            >
+            <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
               <div
                 ref={containerRef}
                 onContextMenu={handleContextMenu}
@@ -704,80 +704,82 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 }}
               >
                 <VirtualList<ListItem>
-                data={flatItems}
-                height={containerHeight}
-                itemHeight={LOG_ITEM_HEIGHT}
-                itemKey="key"
-                scrollWidth={
-                  lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
-                }
-                styles={{
-                  verticalScrollBar: { right: 0 },
-                }}
-              >
-                {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
-                  // Exclude the height from the positioning style so items can
-                  // size themselves naturally; rc-virtual-list measures the
-                  // actual rendered height via ResizeObserver and corrects the
-                  // scroll calculation automatically.
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  const { height: _height, ...posStyle } = style;
-                  if (item.type === 'divider') {
-                    return (
-                      <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
-                        <Divider
-                          style={{
-                            margin: '8px 0',
-                            borderColor: 'var(--ant-color-border-secondary)',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: 'var(--ant-color-text)',
-                              marginRight: '8px',
-                            }}
-                          >
-                            📄
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#4ec9b0',
-                            }}
-                          >
-                            {item.file}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '12px',
-                              color: 'var(--ant-color-text-secondary)',
-                              marginLeft: '12px',
-                            }}
-                          >
-                            ({item.count} {t('logs')})
-                          </span>
-                        </Divider>
-                      </div>
-                    );
+                  data={flatItems}
+                  height={containerHeight}
+                  itemHeight={LOG_ITEM_HEIGHT}
+                  itemKey="key"
+                  scrollWidth={
+                    lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
                   }
-                  return renderLogLine(item.log, item.index, posStyle);
-                }}
-              </VirtualList>
-              <FloatButton
-                icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
-                onClick={() => onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')}
-                style={{
-                  position: 'absolute',
-                  right: 24,
-                  top: 24,
-                  bottom: 'unset',
-                  zIndex: 100,
-                }}
-              />
+                  styles={{
+                    verticalScrollBar: { right: 0 },
+                  }}
+                >
+                  {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
+                    // Exclude the height from the positioning style so items can
+                    // size themselves naturally; rc-virtual-list measures the
+                    // actual rendered height via ResizeObserver and corrects the
+                    // scroll calculation automatically.
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { height: _height, ...posStyle } = style;
+                    if (item.type === 'divider') {
+                      return (
+                        <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
+                          <Divider
+                            style={{
+                              margin: '8px 0',
+                              borderColor: 'var(--ant-color-border-secondary)',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: 'var(--ant-color-text)',
+                                marginRight: '8px',
+                              }}
+                            >
+                              📄
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: '#4ec9b0',
+                              }}
+                            >
+                              {item.file}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '12px',
+                                color: 'var(--ant-color-text-secondary)',
+                                marginLeft: '12px',
+                              }}
+                            >
+                              ({item.count} {t('logs')})
+                            </span>
+                          </Divider>
+                        </div>
+                      );
+                    }
+                    return renderLogLine(item.log, item.index, posStyle);
+                  }}
+                </VirtualList>
+                <FloatButton
+                  icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                  tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
+                  onClick={() =>
+                    onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')
+                  }
+                  style={{
+                    position: 'absolute',
+                    right: 24,
+                    top: 24,
+                    bottom: 'unset',
+                    zIndex: 100,
+                  }}
+                />
               </div>
             </Dropdown>
           )}

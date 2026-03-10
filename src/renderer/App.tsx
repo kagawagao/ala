@@ -316,9 +316,7 @@ const App: React.FC = () => {
       const newColoredHighlights = [...(filters.coloredHighlights || [])];
 
       // Check if this pattern already exists
-      const existingIndex = newColoredHighlights.findIndex(
-        (h) => h.pattern === escapedText
-      );
+      const existingIndex = newColoredHighlights.findIndex((h) => h.pattern === escapedText);
 
       if (existingIndex >= 0) {
         // Update existing highlight's color
@@ -338,9 +336,7 @@ const App: React.FC = () => {
     } else {
       // Fallback to legacy highlights format (for backward compatibility)
       const currentHighlights = filters.highlights.trim();
-      const newHighlights = currentHighlights
-        ? `${currentHighlights}|${escapedText}`
-        : escapedText;
+      const newHighlights = currentHighlights ? `${currentHighlights}|${escapedText}` : escapedText;
 
       setFilters({
         ...filters,
