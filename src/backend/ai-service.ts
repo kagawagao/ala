@@ -125,7 +125,8 @@ export class AIService {
 
       // If source code is provided, enhance the system prompt and include code in context
       if (sourceCode) {
-        systemPrompt += '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
+        systemPrompt +=
+          '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
         maxTokens = Math.max(maxTokens, 1500); // Increase tokens when source code is included
       }
 

@@ -136,7 +136,8 @@ Explain lifecycle-related bugs and best practices.`,
     id: 'ui',
     name: 'UI/UX Analysis',
     nameKey: 'aiPresetUI',
-    description: 'Focus on UI rendering, layout issues, touch events, and user interaction problems',
+    description:
+      'Focus on UI rendering, layout issues, touch events, and user interaction problems',
     descriptionKey: 'aiPresetUIDesc',
     systemPrompt: `You are a UI/UX specialist for Android. Analyze logs for:
 1. UI rendering errors and inflation issues
@@ -164,7 +165,13 @@ export function getPresetById(id: string): AIPromptPreset | undefined {
 /**
  * Get all preset IDs and names for UI selection
  */
-export function getPresetList(): Array<{ id: string; name: string; nameKey: string; description: string; descriptionKey: string }> {
+export function getPresetList(): Array<{
+  id: string;
+  name: string;
+  nameKey: string;
+  description: string;
+  descriptionKey: string;
+}> {
   return AI_PROMPT_PRESETS.map((p) => ({
     id: p.id,
     name: p.name,

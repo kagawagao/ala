@@ -88,7 +88,24 @@ const fileFilters: FileFilter[] = [
 
 const sourceCodeFilters: FileFilter[] = [
   { name: 'All Files', extensions: ['*'] },
-  { name: 'Source Code Files', extensions: ['ts', 'tsx', 'js', 'jsx', 'java', 'kt', 'cpp', 'c', 'h', 'hpp', 'py', 'm', 'swift'] },
+  {
+    name: 'Source Code Files',
+    extensions: [
+      'ts',
+      'tsx',
+      'js',
+      'jsx',
+      'java',
+      'kt',
+      'cpp',
+      'c',
+      'h',
+      'hpp',
+      'py',
+      'm',
+      'swift',
+    ],
+  },
   { name: 'TypeScript', extensions: ['ts', 'tsx'] },
   { name: 'JavaScript', extensions: ['js', 'jsx'] },
   { name: 'Java/Kotlin', extensions: ['java', 'kt'] },
@@ -188,7 +205,12 @@ ipcMain.handle(
   'analyze-with-ai',
   async (
     _event: IpcMainInvokeEvent,
-    { logs, prompt, presetId, sourceCode }: { logs: LogEntry[]; prompt?: string; presetId?: string; sourceCode?: string }
+    {
+      logs,
+      prompt,
+      presetId,
+      sourceCode,
+    }: { logs: LogEntry[]; prompt?: string; presetId?: string; sourceCode?: string }
   ) => {
     return await aiService.analyzeLogs(logs, prompt, presetId, sourceCode);
   }
@@ -200,14 +222,20 @@ ipcMain.handle('check-ai-configured', async (): Promise<boolean> => {
 
 ipcMain.handle(
   'update-ai-config',
-  async (_event: IpcMainInvokeEvent, config: { apiEndpoint: string; apiKey: string; model: string }): Promise<boolean> => {
+  async (
+    _event: IpcMainInvokeEvent,
+    config: { apiEndpoint: string; apiKey: string; model: string }
+  ): Promise<boolean> => {
     return aiService.updateConfig(config);
   }
 );
 
-ipcMain.handle('get-ai-config', async (): Promise<{ apiEndpoint: string; apiKey: string; model: string } | null> => {
-  return aiService.getConfig();
-});
+ipcMain.handle(
+  'get-ai-config',
+  async (): Promise<{ apiEndpoint: string; apiKey: string; model: string } | null> => {
+    return aiService.getConfig();
+  }
+);
 
 // Import filters from file
 ipcMain.handle('import-filters', async (): Promise<any | null> => {

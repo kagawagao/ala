@@ -462,7 +462,14 @@ const AppSider: React.FC<AppSiderProps> = ({
 
           {/* Source Code Files Section */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '8px',
+              }}
+            >
               <span style={{ fontSize: '14px', fontWeight: 500 }}>{t('sourceCodeFiles')}</span>
               <Button
                 type="default"
@@ -490,7 +497,14 @@ const AppSider: React.FC<AppSiderProps> = ({
                         marginBottom: '4px',
                       }}
                     >
-                      <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         📄 {fileName}
                       </span>
                       <Button
