@@ -1,7 +1,6 @@
 // Predefined highlight colors for user selection
 export interface HighlightColor {
   id: string;
-  name: string;
   light: {
     background: string;
     text: string;
@@ -15,7 +14,6 @@ export interface HighlightColor {
 export const HIGHLIGHT_COLORS: HighlightColor[] = [
   {
     id: 'yellow',
-    name: 'Yellow',
     light: {
       background: 'rgba(255, 215, 0, 0.5)', // Gold
       text: '#8b6914', // Dark brown/olive
@@ -27,7 +25,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'red',
-    name: 'Red',
     light: {
       background: 'rgba(239, 68, 68, 0.25)', // Light red
       text: '#991b1b', // Dark red
@@ -39,7 +36,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'green',
-    name: 'Green',
     light: {
       background: 'rgba(34, 197, 94, 0.25)', // Light green
       text: '#14532d', // Dark green
@@ -51,7 +47,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'blue',
-    name: 'Blue',
     light: {
       background: 'rgba(59, 130, 246, 0.25)', // Light blue
       text: '#1e3a8a', // Dark blue
@@ -63,7 +58,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'purple',
-    name: 'Purple',
     light: {
       background: 'rgba(168, 85, 247, 0.25)', // Light purple
       text: '#581c87', // Dark purple
@@ -75,7 +69,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'orange',
-    name: 'Orange',
     light: {
       background: 'rgba(249, 115, 22, 0.25)', // Light orange
       text: '#7c2d12', // Dark orange
@@ -87,7 +80,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'pink',
-    name: 'Pink',
     light: {
       background: 'rgba(236, 72, 153, 0.25)', // Light pink
       text: '#831843', // Dark pink
@@ -99,7 +91,6 @@ export const HIGHLIGHT_COLORS: HighlightColor[] = [
   },
   {
     id: 'cyan',
-    name: 'Cyan',
     light: {
       background: 'rgba(6, 182, 212, 0.25)', // Light cyan
       text: '#164e63', // Dark cyan
