@@ -117,7 +117,7 @@ ipcMain.handle('open-log-file', async (): Promise<{ filePath: string; content: s
   if (!mainWindow) return null;
 
   const result = (await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections'] as any,
+    properties: ['openFile', 'multiSelections'] as ('openFile' | 'multiSelections')[],
     filters: fileFilters,
   })) as { canceled: boolean; filePaths: string[] };
 
@@ -136,7 +136,7 @@ ipcMain.handle(
     if (!mainWindow) return null;
 
     const result = (await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile', 'multiSelections'] as any,
+      properties: ['openFile', 'multiSelections'] as ('openFile' | 'multiSelections')[],
       filters: fileFilters,
     })) as { canceled: boolean; filePaths: string[] };
 
@@ -238,11 +238,11 @@ ipcMain.handle(
 );
 
 // Import filters from file
-ipcMain.handle('import-filters', async (): Promise<any | null> => {
+ipcMain.handle('import-filters', async (): Promise<unknown | null> => {
   if (!mainWindow) return null;
 
   const result = (await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'] as any,
+    properties: ['openFile'] as ('openFile')[],
     filters: [
       { name: 'JSON Files', extensions: ['json'] },
       { name: 'All Files', extensions: ['*'] },
@@ -264,7 +264,7 @@ ipcMain.handle('import-filters', async (): Promise<any | null> => {
 // Export filters to file
 ipcMain.handle(
   'export-filters',
-  async (_event: IpcMainInvokeEvent, filters: any): Promise<boolean> => {
+  async (_event: IpcMainInvokeEvent, filters: unknown): Promise<boolean> => {
     if (!mainWindow) return false;
 
     const result = (await dialog.showSaveDialog(mainWindow, {

@@ -109,7 +109,10 @@ const AppSider: React.FC<AppSiderProps> = ({
   }, [filters, startDate, endDate, form]);
 
   // Handle form value changes
-  const handleValuesChange = (changedValues: any, allValues: any) => {
+  const handleValuesChange = (
+    changedValues: Record<string, unknown>,
+    allValues: Record<string, unknown>
+  ) => {
     // Handle time range separately
     if ('timeRange' in changedValues) {
       const timeRange = changedValues.timeRange;
