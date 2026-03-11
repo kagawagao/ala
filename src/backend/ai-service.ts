@@ -1,4 +1,23 @@
 import { LogEntry } from './log-analyzer';
+import { getPresetById } from './ai-prompts';
+
+/**
+ * AI configuration
+ */
+export interface AIConfig {
+  apiEndpoint: string;
+  apiKey: string;
+  model: string;
+}
+
+/**
+ * AI usage statistics
+ */
+export interface AIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
 
 /**
  * AI analysis result
@@ -6,58 +25,83 @@ import { LogEntry } from './log-analyzer';
 export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
-  usage?: any;
+  usage?: AIUsage;
   error?: string;
 }
 
 /**
  * AI Service for analyzing Android logs
- * Supports OpenAI API integration
+ * Supports OpenAI API integration and OpenAI-compatible APIs
  */
 export class AIService {
   private openai: any;
-  private apiKey: string | null;
+  private config: AIConfig | null;
   private MAX_LOGS_FOR_ANALYSIS: number;
   private MAX_SUMMARY_LENGTH: number;
 
   constructor() {
     this.openai = null;
-    this.apiKey = process.env.OPENAI_API_KEY || null;
+    this.config = null;
 
     // Configuration constants
     this.MAX_LOGS_FOR_ANALYSIS = 100; // Maximum number of logs to send to AI
     this.MAX_SUMMARY_LENGTH = 8000; // Maximum character length for AI input
 
-    if (this.apiKey) {
-      this.initializeOpenAI();
+    // Try to initialize with environment variable for backward compatibility
+    const envApiKey = process.env.OPENAI_API_KEY;
+    if (envApiKey) {
+      this.updateConfig({
+        apiEndpoint: 'https://api.openai.com/v1',
+        apiKey: envApiKey,
+        model: 'gpt-3.5-turbo',
+      });
     }
   }
 
-  initializeOpenAI(): void {
+  /**
+   * Update AI configuration dynamically
+   */
+  updateConfig(config: AIConfig): boolean {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { OpenAI } = require('openai');
+
+      this.config = config;
       this.openai = new OpenAI({
-        apiKey: this.apiKey,
+        apiKey: config.apiKey,
+        baseURL: config.apiEndpoint,
       });
+
+      return true;
     } catch (error) {
-      console.error('Failed to initialize OpenAI:', error);
+      console.error('Failed to initialize OpenAI with config:', error);
       this.openai = null;
+      this.config = null;
+      return false;
     }
   }
 
   isConfigured(): boolean {
-    return this.openai !== null && this.apiKey !== null;
+    return this.openai !== null && this.config !== null && this.config.apiKey !== '';
+  }
+
+  getConfig(): AIConfig | null {
+    return this.config;
   }
 
   /**
-   * Analyze logs using AI
+   * Analyze logs using AI with optional source code context
    */
-  async analyzeLogs(logs: LogEntry[], prompt: string = ''): Promise<AIAnalysisResult> {
-    if (!this.isConfigured()) {
+  async analyzeLogs(
+    logs: LogEntry[],
+    prompt: string = '',
+    presetId?: string,
+    sourceCode?: string
+  ): Promise<AIAnalysisResult> {
+    if (!this.isConfigured() || !this.config) {
       return {
         success: false,
-        error: 'AI service is not configured. Please set OPENAI_API_KEY environment variable.',
+        error: 'AI service is not configured. Please configure API settings in Settings.',
       };
     }
 
@@ -65,25 +109,51 @@ export class AIService {
       // Prepare log summary for AI analysis
       const logSummary = this.prepareLogSummary(logs);
 
-      const systemPrompt = `You are an expert Android log analyzer. Analyze the provided Android logs and provide insights about:
-1. Errors and warnings
-2. Potential issues or crashes
-3. Performance concerns
-4. Notable patterns or anomalies
-5. Recommendations for debugging
+      // Use preset if provided, otherwise use default
+      let systemPrompt: string;
+      let userPrompt: string;
+      let maxTokens = 1000;
+      let temperature = 0.7;
 
-Be concise and focus on actionable insights.`;
+      if (presetId) {
+        const preset = getPresetById(presetId);
+        if (preset) {
+          systemPrompt = preset.systemPrompt;
+          userPrompt = prompt || preset.userPrompt;
+          maxTokens = preset.maxTokens ?? 1000;
+          temperature = preset.temperature ?? 0.7;
+        } else {
+          // Fallback to default if preset not found
+          systemPrompt = this.getDefaultSystemPrompt();
+          userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+        }
+      } else {
+        systemPrompt = this.getDefaultSystemPrompt();
+        userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+      }
 
-      const userPrompt = prompt || 'Analyze these Android logs and provide insights.';
+      // If source code is provided, enhance the system prompt and include code in context
+      if (sourceCode) {
+        systemPrompt +=
+          '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
+        maxTokens = Math.max(maxTokens, 1500); // Increase tokens when source code is included
+      }
+
+      // Build the user message with logs and optional source code
+      let userMessage = `${userPrompt}\n\nLogs:\n${logSummary}`;
+
+      if (sourceCode) {
+        userMessage += `\n\n=== RELEVANT SOURCE CODE ===\n${sourceCode}`;
+      }
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: this.config.model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${userPrompt}\n\nLogs:\n${logSummary}` },
+          { role: 'user', content: userMessage },
         ],
-        max_tokens: 1000,
-        temperature: 0.7,
+        max_tokens: maxTokens,
+        temperature: temperature,
       });
 
       return {
@@ -98,6 +168,20 @@ Be concise and focus on actionable insights.`;
         error: error.message || 'Failed to analyze logs with AI',
       };
     }
+  }
+
+  /**
+   * Get default system prompt
+   */
+  private getDefaultSystemPrompt(): string {
+    return `You are an expert Android log analyzer. Analyze the provided Android logs and provide insights about:
+1. Errors and warnings
+2. Potential issues or crashes
+3. Performance concerns
+4. Notable patterns or anomalies
+5. Recommendations for debugging
+
+Be concise and focus on actionable insights.`;
   }
 
   /**

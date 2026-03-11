@@ -93,6 +93,7 @@ const App: React.FC = () => {
   const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>(
     []
   );
+  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -136,15 +137,26 @@ const App: React.FC = () => {
       setThemeMode(savedTheme);
     }
 
-    // Check AI configuration on mount
-    const checkAI = async () => {
+    // Load and apply AI configuration from localStorage on mount
+    const initAI = async () => {
+      const savedConfig = localStorage.getItem('aiConfig');
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          await window.electronAPI.updateAIConfig(config);
+        } catch (e) {
+          console.error('Failed to parse AI config:', e);
+        }
+      }
+
+      // Check AI configuration
       const configured = await window.electronAPI.checkAIConfigured();
       setAiConfigured(configured);
       if (!configured) {
-        showStatus('AI features require OPENAI_API_KEY environment variable', 'info');
+        showStatus(t('aiNotConfigured'), 'info');
       }
     };
-    checkAI();
+    initAI();
 
     // Load saved filters from localStorage (excluding time and PID fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
@@ -380,7 +392,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAnalyzeWithAI = async (prompt?: string) => {
+  const handleOpenSourceFiles = async () => {
+    const files = await window.electronAPI.openSourceFiles();
+    if (files && files.length > 0) {
+      // Merge newly selected files into existing list (avoid duplicates)
+      const existingPaths = new Set(sourceFiles.map((f) => f.filePath));
+      const newFiles = files.filter((f) => !existingPaths.has(f.filePath));
+
+      if (newFiles.length > 0) {
+        const mergedFiles = [...sourceFiles, ...newFiles];
+        setSourceFiles(mergedFiles);
+        const fileNames = newFiles.map((f) => f.filePath.split(/[\\/]/).pop()).join(', ');
+        showStatus(t('sourceFilesAdded', { count: newFiles.length, names: fileNames }), 'info');
+      } else {
+        showStatus(t('noNewSourceFiles'), 'info');
+      }
+    }
+  };
+
+  const handleRemoveSourceFile = (filePath: string) => {
+    setSourceFiles((prev) => prev.filter((f) => f.filePath !== filePath));
+    const fileName = filePath.split(/[\\/]/).pop();
+    showStatus(`Removed source file: ${fileName}`, 'info');
+  };
+
+  const handleAnalyzeWithAI = async (prompt?: string, presetId?: string) => {
     if (filteredLogs.length === 0) {
       showStatus('No logs to analyze', 'error');
       return;
@@ -390,9 +426,39 @@ const App: React.FC = () => {
     setActiveTab('ai');
 
     try {
+      // Combine source files into a single string if available
+      // with size limit protection (max 100KB of source code)
+      let sourceCode: string | undefined = undefined;
+      const MAX_SOURCE_CODE_SIZE = 100 * 1024; // 100 KB
+
+      if (sourceFiles.length > 0) {
+        let combinedSize = 0;
+        const includedFiles: string[] = [];
+
+        for (const file of sourceFiles) {
+          const fileSize = new Blob([file.content]).size;
+          if (combinedSize + fileSize <= MAX_SOURCE_CODE_SIZE) {
+            combinedSize += fileSize;
+            const fileName = file.filePath.split(/[\\/]/).pop();
+            includedFiles.push(`// File: ${fileName}\n${file.content}`);
+          } else {
+            // Size limit exceeded
+            const sizeKB = Math.round(combinedSize / 1024);
+            showStatus(t('sourceCodeSizeLimitExceeded', { size: sizeKB }), 'info');
+            break;
+          }
+        }
+
+        if (includedFiles.length > 0) {
+          sourceCode = includedFiles.join('\n\n');
+        }
+      }
+
       const result = await window.electronAPI.analyzeWithAI({
         logs: filteredLogs,
         prompt,
+        presetId,
+        sourceCode,
       });
       if (result.success && result.analysis) {
         setAiAnalysis(result.analysis);
@@ -528,6 +594,14 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
+  const handleConfigUpdated = async () => {
+    const configured = await window.electronAPI.checkAIConfigured();
+    setAiConfigured(configured);
+    if (configured) {
+      showStatus(t('aiConfigUpdated'), 'info');
+    }
+  };
+
   const handleDeleteFile = async (filePath: string) => {
     // Remove from currentFiles
     const updatedFiles = currentFiles.filter((f) => f !== filePath);
@@ -584,6 +658,9 @@ const App: React.FC = () => {
             onClearFilters={handleClearFilters}
             onAnalyzeWithAI={handleAnalyzeWithAI}
             currentFiles={currentFiles}
+            sourceFiles={sourceFiles}
+            onOpenSourceFiles={handleOpenSourceFiles}
+            onRemoveSourceFile={handleRemoveSourceFile}
             aiConfigured={aiConfigured}
             statusMessage={statusMessage}
             statusType={statusType}
@@ -647,6 +724,7 @@ const App: React.FC = () => {
         <SettingsModal
           visible={settingsModalVisible}
           onClose={() => setSettingsModalVisible(false)}
+          onConfigUpdated={handleConfigUpdated}
         />
       </Layout>
     </ConfigProvider>

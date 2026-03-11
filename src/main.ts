@@ -86,6 +86,32 @@ const fileFilters: FileFilter[] = [
   { name: 'Log Files', extensions: ['log', 'txt'] },
 ];
 
+const sourceCodeFilters: FileFilter[] = [
+  { name: 'All Files', extensions: ['*'] },
+  {
+    name: 'Source Code Files',
+    extensions: [
+      'ts',
+      'tsx',
+      'js',
+      'jsx',
+      'java',
+      'kt',
+      'cpp',
+      'c',
+      'h',
+      'hpp',
+      'py',
+      'm',
+      'swift',
+    ],
+  },
+  { name: 'TypeScript', extensions: ['ts', 'tsx'] },
+  { name: 'JavaScript', extensions: ['js', 'jsx'] },
+  { name: 'Java/Kotlin', extensions: ['java', 'kt'] },
+  { name: 'C/C++', extensions: ['cpp', 'c', 'h', 'hpp'] },
+];
+
 // IPC handlers
 ipcMain.handle('open-log-file', async (): Promise<{ filePath: string; content: string } | null> => {
   if (!mainWindow) return null;
@@ -127,6 +153,30 @@ ipcMain.handle(
   }
 );
 
+// Support opening source code files
+ipcMain.handle(
+  'open-source-files',
+  async (): Promise<Array<{ filePath: string; content: string }> | null> => {
+    if (!mainWindow) return null;
+
+    const result = (await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>,
+      filters: sourceCodeFilters,
+    })) as { canceled: boolean; filePaths: string[] };
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const files = await Promise.all(
+        result.filePaths.map(async (filePath) => {
+          const content = await fs.readFile(filePath, 'utf-8');
+          return { filePath, content };
+        })
+      );
+      return files;
+    }
+    return null;
+  }
+);
+
 ipcMain.handle(
   'parse-log',
   async (
@@ -153,14 +203,39 @@ ipcMain.handle('get-statistics', async (_event: IpcMainInvokeEvent, logs: LogEnt
 
 ipcMain.handle(
   'analyze-with-ai',
-  async (_event: IpcMainInvokeEvent, { logs, prompt }: { logs: LogEntry[]; prompt: string }) => {
-    return await aiService.analyzeLogs(logs, prompt);
+  async (
+    _event: IpcMainInvokeEvent,
+    {
+      logs,
+      prompt,
+      presetId,
+      sourceCode,
+    }: { logs: LogEntry[]; prompt?: string; presetId?: string; sourceCode?: string }
+  ) => {
+    return await aiService.analyzeLogs(logs, prompt, presetId, sourceCode);
   }
 );
 
 ipcMain.handle('check-ai-configured', async (): Promise<boolean> => {
   return aiService.isConfigured();
 });
+
+ipcMain.handle(
+  'update-ai-config',
+  async (
+    _event: IpcMainInvokeEvent,
+    config: { apiEndpoint: string; apiKey: string; model: string }
+  ): Promise<boolean> => {
+    return aiService.updateConfig(config);
+  }
+);
+
+ipcMain.handle(
+  'get-ai-config',
+  async (): Promise<{ apiEndpoint: string; apiKey: string; model: string } | null> => {
+    return aiService.getConfig();
+  }
+);
 
 // Import filters from file
 ipcMain.handle('import-filters', async (): Promise<any | null> => {
