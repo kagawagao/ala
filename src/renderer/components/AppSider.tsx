@@ -18,7 +18,6 @@ import {
   ClearOutlined,
   RobotOutlined,
   LoadingOutlined,
-  GlobalOutlined,
   SettingOutlined,
   ToolOutlined,
   FileAddOutlined,
@@ -89,7 +88,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   themeMode,
   onRemoveColoredHighlight,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
@@ -125,7 +124,8 @@ const AppSider: React.FC<AppSiderProps> = ({
     }
 
     // Update filters (excluding timeRange which is not part of LogFilters)
-    const { timeRange, ...filterValues } = allValues;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { timeRange: _timeRange, ...filterValues } = allValues;
     setFilters(filterValues);
   };
 

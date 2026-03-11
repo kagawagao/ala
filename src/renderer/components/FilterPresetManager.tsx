@@ -9,7 +9,6 @@ import {
   Tag,
   message,
   Checkbox,
-  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,

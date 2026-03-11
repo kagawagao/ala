@@ -291,7 +291,7 @@ ipcMain.handle(
 // Delete log file from memory (just returns success as files are already in memory)
 ipcMain.handle(
   'delete-log-file',
-  async (_event: IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+  async (_event: IpcMainInvokeEvent, _filePath: string): Promise<boolean> => {
     // Files are already in memory, so we just return success
     // The renderer will handle removing the file from its state
     return true;
