@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  List,
-  Button,
-  Input,
-  Space,
-  Popconfirm,
-  Tag,
-  message,
-  Checkbox,
-} from 'antd';
+import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,

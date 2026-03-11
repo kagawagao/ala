@@ -242,7 +242,7 @@ ipcMain.handle('import-filters', async (): Promise<unknown | null> => {
   if (!mainWindow) return null;
 
   const result = (await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'] as ('openFile')[],
+    properties: ['openFile'] as 'openFile'[],
     filters: [
       { name: 'JSON Files', extensions: ['json'] },
       { name: 'All Files', extensions: ['*'] },
