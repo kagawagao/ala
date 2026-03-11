@@ -1,16 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  List,
-  Button,
-  Input,
-  Space,
-  Popconfirm,
-  Tag,
-  message,
-  Checkbox,
-  Tooltip,
-} from 'antd';
+import { Modal, List, Button, Input, Space, Popconfirm, Tag, message, Checkbox } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -89,6 +78,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
   useEffect(() => {
     loadPresets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Migration function to convert old presets to new format
@@ -150,7 +140,7 @@ const FilterPresetManager: React.FC<FilterPresetManagerProps> = ({
 
         if (needsMigration) {
           // Migrate all presets, handling both old and new formats
-          const migratedPresets = parsed.map((p: any) => {
+          const migratedPresets = parsed.map((p: FilterPreset | OldFilterPreset) => {
             // If already in new format, keep as is
             if ('config' in p) {
               return p as FilterPreset;

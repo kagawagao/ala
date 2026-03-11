@@ -1,5 +1,6 @@
 import { LogEntry } from './log-analyzer';
 import { getPresetById } from './ai-prompts';
+import type { OpenAI } from 'openai';
 
 /**
  * AI configuration
@@ -11,7 +12,7 @@ export interface AIConfig {
 }
 
 /**
- * AI usage statistics
+ * AI usage information
  */
 export interface AIUsage {
   prompt_tokens?: number;
@@ -34,7 +35,7 @@ export interface AIAnalysisResult {
  * Supports OpenAI API integration and OpenAI-compatible APIs
  */
 export class AIService {
-  private openai: any;
+  private openai: OpenAI | null;
   private config: AIConfig | null;
   private MAX_LOGS_FOR_ANALYSIS: number;
   private MAX_SUMMARY_LENGTH: number;
@@ -146,6 +147,13 @@ export class AIService {
         userMessage += `\n\n=== RELEVANT SOURCE CODE ===\n${sourceCode}`;
       }
 
+      if (!this.openai) {
+        return {
+          success: false,
+          error: 'OpenAI client is not initialized.',
+        };
+      }
+
       const response = await this.openai.chat.completions.create({
         model: this.config.model,
         messages: [
@@ -158,14 +166,14 @@ export class AIService {
 
       return {
         success: true,
-        analysis: response.choices[0].message.content,
+        analysis: response.choices[0].message.content ?? undefined,
         usage: response.usage,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('AI analysis error:', error);
       return {
         success: false,
-        error: error.message || 'Failed to analyze logs with AI',
+        error: error instanceof Error ? error.message : 'Failed to analyze logs with AI',
       };
     }
   }

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { LogEntry, LogFilters, LogStatistics } from './renderer/types';
+import { LogEntry, LogFilters } from './renderer/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openLogFiles: () => ipcRenderer.invoke('open-log-files'),

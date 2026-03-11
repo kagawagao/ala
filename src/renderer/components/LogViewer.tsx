@@ -617,6 +617,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       getLevelClass,
       renderMessageWithHighlights,
       highlights,
+      coloredHighlights,
       currentTag,
       currentTagRegex,
       tagDescription,

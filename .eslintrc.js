@@ -34,5 +34,13 @@ module.exports = {
     'react/prop-types': 'off',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
   },
+  overrides: [
+    {
+      files: ['test/**/*.ts', 'test/**/*.tsx'],
+      rules: {
+        'no-console': 'off',
+      },
+    },
+  ],
   ignorePatterns: ['dist', 'node_modules', '*.config.js', 'scripts/**'],
 };

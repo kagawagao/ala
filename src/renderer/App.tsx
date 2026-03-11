@@ -190,6 +190,7 @@ const App: React.FC = () => {
       }
     };
     loadPresets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
