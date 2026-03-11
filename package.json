@@ -2,6 +2,7 @@
   "name": "ala",
   "version": "1.0.0",
   "description": "Android Log Analyzer - An Electron-based tool for analyzing Android logs with AI",
+  "private": true,
   "main": "dist/main.js",
   "scripts": {
     "build:ts": "tsc",
@@ -83,7 +84,7 @@
           "**/*",
           "!test/**/*",
           "!src/**/*",
-          "!renderer/**/*.map",
+          "!**/*.map",
           "!renderer/types.js"
         ]
       },

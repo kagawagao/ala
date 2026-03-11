@@ -40,9 +40,9 @@ jobs:
             !release/**/*.blockmap
             !release/**/builder-debug.yml
             !release/**/builder-effective-config.yaml
-            !release/**/mac
-            !release/**/linux-unpacked
-            !release/**/win-unpacked
+            !release/**/mac/**
+            !release/**/linux-unpacked/**
+            !release/**/win-unpacked/**
           if-no-files-found: error
 
   publish:
