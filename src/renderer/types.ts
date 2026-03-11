@@ -33,10 +33,23 @@ export interface LogStatistics {
   pids: Record<string, number>;
 }
 
+export interface AIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
   error?: string;
+  usage?: AIUsage;
+}
+
+export interface AIConfig {
+  apiEndpoint: string;
+  apiKey: string;
+  model: string;
 }
 
 export interface ParseLogResult {
@@ -49,11 +62,19 @@ declare global {
   interface Window {
     electronAPI: {
       openLogFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
+      openSourceFiles: () => Promise<Array<{ filePath: string; content: string }> | null>;
       parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
-      analyzeWithAI: (params: { logs: LogEntry[]; prompt?: string }) => Promise<AIAnalysisResult>;
+      analyzeWithAI: (params: {
+        logs: LogEntry[];
+        prompt?: string;
+        presetId?: string;
+        sourceCode?: string;
+      }) => Promise<AIAnalysisResult>;
       checkAIConfigured: () => Promise<boolean>;
+      updateAIConfig: (config: AIConfig) => Promise<boolean>;
+      getAIConfig: () => Promise<AIConfig | null>;
       importFilters: () => Promise<unknown>;
       exportFilters: (filters: unknown) => Promise<boolean>;
       deleteLogFile: (filePath: string) => Promise<boolean>;
