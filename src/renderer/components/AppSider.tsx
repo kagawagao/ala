@@ -18,14 +18,13 @@ import {
   ClearOutlined,
   RobotOutlined,
   LoadingOutlined,
-  GlobalOutlined,
   SettingOutlined,
   ToolOutlined,
   FileAddOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import dayjs, { Dayjs } from 'dayjs';
-import { LogFilters, HighlightItem } from '../types';
+import { LogFilters } from '../types';
 import { FilterPreset } from './FilterPresetManager';
 import { getHighlightColorById } from '../constants/highlightColors';
 
@@ -89,7 +88,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   themeMode,
   onRemoveColoredHighlight,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [aiPrompt, setAiPrompt] = React.useState<string>('');
   const [aiPanelOpen, setAiPanelOpen] = React.useState<boolean>(false);
@@ -110,10 +109,13 @@ const AppSider: React.FC<AppSiderProps> = ({
   }, [filters, startDate, endDate, form]);
 
   // Handle form value changes
-  const handleValuesChange = (changedValues: any, allValues: any) => {
+  const handleValuesChange = (
+    changedValues: Record<string, unknown>,
+    allValues: Record<string, unknown>
+  ) => {
     // Handle time range separately
     if ('timeRange' in changedValues) {
-      const timeRange = changedValues.timeRange;
+      const timeRange = changedValues.timeRange as [Dayjs, Dayjs] | null | undefined;
       if (!timeRange) {
         setStartDate(null);
         setEndDate(null);
@@ -125,8 +127,9 @@ const AppSider: React.FC<AppSiderProps> = ({
     }
 
     // Update filters (excluding timeRange which is not part of LogFilters)
-    const { timeRange, ...filterValues } = allValues;
-    setFilters(filterValues);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { timeRange: _timeRange, ...filterValues } = allValues;
+    setFilters(filterValues as unknown as LogFilters);
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { BulbOutlined, BulbFilled } from '@ant-design/icons';
-import { Button, Dropdown, Select } from 'antd';
+import { Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {

@@ -35,7 +35,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
-          path: release/**
+          path: |
+            release/**
+            !release/**/*.blockmap
+            !release/**/builder-debug.yml
+            !release/**/builder-effective-config.yaml
+            !release/**/mac/**
+            !release/**/linux-unpacked/**
+            !release/**/win-unpacked/**
           if-no-files-found: error
 
   publish:
