@@ -20,14 +20,31 @@ type LogItem = { type: 'log'; key: string; log: LogEntry; index: number };
 type ListItem = DividerItem | LogItem;
 
 const LOG_ITEM_HEIGHT = 28;
-// JetBrains Mono at 14 px – approximate pixel width per character used to
-// estimate the horizontal scroll range when lineBreakMode is 'nowrap'.
-const MONO_CHAR_WIDTH = 8.4;
+// Fallback character width for JetBrains Mono at 14 px.  The actual width is
+// measured at runtime via <canvas> so this constant is only used if measurement
+// fails.
+const FALLBACK_CHAR_WIDTH = 8.4;
 // Pixel-based layout constants that match the rendered CSS in renderLogLine.
 const FIELD_MARGIN_PX = 10; // marginRight on each field element
 const LINE_NUMBER_MIN_WIDTH_PX = 50; // CSS minWidth of the lineNumber span
 // border-left (4px) + left padding (8px) + right padding (8px) + safety buffer.
 const LOG_LINE_PADDING_PX = 32;
+
+/** Measure the average monospace character width using a <canvas> context. */
+function measureCharWidth(): number {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return FALLBACK_CHAR_WIDTH;
+    ctx.font = "14px 'JetBrains Mono', monospace";
+    const sample =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789[]:#/ ';
+    const measured = ctx.measureText(sample).width / sample.length;
+    return measured > 0 ? measured : FALLBACK_CHAR_WIDTH;
+  } catch {
+    return FALLBACK_CHAR_WIDTH;
+  }
+}
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -67,6 +84,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // Context menu state
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedText, setSelectedText] = useState<string>('');
+
+  // Runtime-measured character width for accurate horizontal scroll estimation.
+  const [charWidth, setCharWidth] = useState(measureCharWidth);
+  useEffect(() => {
+    // Re-measure after all fonts (e.g. JetBrains Mono) have loaded.
+    document.fonts?.ready.then(() => setCharWidth(measureCharWidth()));
+  }, []);
 
   // Track the scrollable container height for VirtualList.
   // Use refs so the ResizeObserver can be re-attached whenever the container
@@ -422,6 +446,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // so the scroll range is never shorter than the actual content.
   const maxContentWidth = useMemo(() => {
     if (lineBreakMode !== 'nowrap' || flatItems.length === 0) return 0;
+    const cw = charWidth; // runtime-measured character width
     let maxWidth = 0;
     for (const item of flatItems) {
       if (item.type === 'log') {
@@ -429,21 +454,21 @@ const LogViewer: React.FC<LogViewerProps> = ({
         let width = LOG_LINE_PADDING_PX;
         if (log.lineNumber) {
           // '#' prefix + digits; the span has minWidth: 50px
-          const textWidth = (String(log.lineNumber).length + 1) * MONO_CHAR_WIDTH;
+          const textWidth = (String(log.lineNumber).length + 1) * cw;
           width += Math.max(textWidth, LINE_NUMBER_MIN_WIDTH_PX) + FIELD_MARGIN_PX;
         }
-        if (log.timestamp) width += log.timestamp.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
-        if (log.pid) width += log.pid.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
-        if (log.tid) width += log.tid.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
-        if (log.level) width += log.level.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
+        if (log.timestamp) width += log.timestamp.length * cw + FIELD_MARGIN_PX;
+        if (log.pid) width += log.pid.length * cw + FIELD_MARGIN_PX;
+        if (log.tid) width += log.tid.length * cw + FIELD_MARGIN_PX;
+        if (log.level) width += log.level.length * cw + FIELD_MARGIN_PX;
         if (log.tag && log.tag !== 'Unknown')
-          width += (log.tag.length + 2) * MONO_CHAR_WIDTH + FIELD_MARGIN_PX; // +2 for [ ]
-        width += log.message.length * MONO_CHAR_WIDTH;
+          width += (log.tag.length + 2) * cw + FIELD_MARGIN_PX; // +2 for [ ]
+        width += log.message.length * cw;
         if (width > maxWidth) maxWidth = width;
       }
     }
     return maxWidth;
-  }, [flatItems, lineBreakMode]);
+  }, [flatItems, lineBreakMode, charWidth]);
 
   // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
   // for every log entry.  Falls back to null when currentTag is empty or invalid.

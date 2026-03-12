@@ -114,8 +114,7 @@ const App: React.FC = () => {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('nowrap');
-  const [siderWidth, setSiderWidth] = useState<number>(380);
-  const siderCollapsed = siderWidth === 0;
+  const [siderCollapsed, setSiderCollapsed] = useState<boolean>(false);
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
     keywordDescriptions: { keyword: string; description: string }[];
     highlightDescriptions: { keyword: string; description: string }[];
@@ -515,7 +514,7 @@ const App: React.FC = () => {
   };
 
   const handleToggleSider = useCallback(() => {
-    setSiderWidth((prev) => (prev === 0 ? 380 : 0));
+    setSiderCollapsed((prev) => !prev);
   }, []);
 
   const handleConfigUpdated = () => {
@@ -571,11 +570,14 @@ const App: React.FC = () => {
           onToggleSider={handleToggleSider}
         />
 
-        <Splitter
-          style={{ flex: 1, overflow: 'hidden' }}
-          onResizeEnd={(sizes) => setSiderWidth(sizes[0])}
-        >
-          <Splitter.Panel size={siderWidth} min={siderCollapsed ? 0 : 280} max={500}>
+        <Layout style={{ flex: 1, overflow: 'hidden' }}>
+          <Layout.Sider
+            collapsed={siderCollapsed}
+            collapsedWidth={0}
+            width={380}
+            trigger={null}
+            style={{ overflow: 'auto' }}
+          >
             <AppSider
               filters={filters}
               setFilters={setFilters}
@@ -599,49 +601,51 @@ const App: React.FC = () => {
               themeMode={themeMode}
               onRemoveColoredHighlight={handleRemoveColoredHighlight}
             />
-          </Splitter.Panel>
+          </Layout.Sider>
 
-          <Splitter.Panel min={300}>
-            <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <LogViewer
-                logs={filteredLogs}
-                allLogsCount={allLogs.length}
-                statistics={statistics}
-                currentFiles={currentFiles}
-                highlights={filters.highlights}
-                coloredHighlights={filters.coloredHighlights || []}
-                isSearching={isSearching}
-                lineBreakMode={lineBreakMode}
-                onLineBreakModeChange={setLineBreakMode}
-                themeMode={themeMode}
-                highlightDescriptions={activePresetDescriptions.highlightDescriptions}
-                tagDescription={activePresetDescriptions.tagDescription}
-                currentTag={filters.tag}
-                onAddHighlight={handleAddHighlight}
-              />
-            </div>
-          </Splitter.Panel>
+          <Splitter style={{ flex: 1, overflow: 'hidden' }}>
+            <Splitter.Panel min={300}>
+              <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <LogViewer
+                  logs={filteredLogs}
+                  allLogsCount={allLogs.length}
+                  statistics={statistics}
+                  currentFiles={currentFiles}
+                  highlights={filters.highlights}
+                  coloredHighlights={filters.coloredHighlights || []}
+                  isSearching={isSearching}
+                  lineBreakMode={lineBreakMode}
+                  onLineBreakModeChange={setLineBreakMode}
+                  themeMode={themeMode}
+                  highlightDescriptions={activePresetDescriptions.highlightDescriptions}
+                  tagDescription={activePresetDescriptions.tagDescription}
+                  currentTag={filters.tag}
+                  onAddHighlight={handleAddHighlight}
+                />
+              </div>
+            </Splitter.Panel>
 
-          <Splitter.Panel defaultSize={420} min={300} max="50%">
-            <div
-              style={{
-                backgroundColor: 'var(--ant-color-bg-container)',
-                borderLeft: '1px solid var(--ant-color-border)',
-                overflow: 'hidden',
-                height: '100%',
-              }}
-            >
-              <AiPanel
-                filteredLogs={filteredLogs}
-                sourceFiles={sourceFiles}
-                onOpenSourceFiles={handleOpenSourceFiles}
-                onRemoveSourceFile={handleRemoveSourceFile}
-                onOpenSettings={() => setSettingsModalVisible(true)}
-                language={i18n.language}
-              />
-            </div>
-          </Splitter.Panel>
-        </Splitter>
+            <Splitter.Panel defaultSize={420} min={300} max="50%">
+              <div
+                style={{
+                  backgroundColor: 'var(--ant-color-bg-container)',
+                  borderLeft: '1px solid var(--ant-color-border)',
+                  overflow: 'hidden',
+                  height: '100%',
+                }}
+              >
+                <AiPanel
+                  filteredLogs={filteredLogs}
+                  sourceFiles={sourceFiles}
+                  onOpenSourceFiles={handleOpenSourceFiles}
+                  onRemoveSourceFile={handleRemoveSourceFile}
+                  onOpenSettings={() => setSettingsModalVisible(true)}
+                  language={i18n.language}
+                />
+              </div>
+            </Splitter.Panel>
+          </Splitter>
+        </Layout>
 
         <FilterPresetManager
           visible={presetManagerVisible}
