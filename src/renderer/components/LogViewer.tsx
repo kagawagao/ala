@@ -23,12 +23,11 @@ const LOG_ITEM_HEIGHT = 28;
 // JetBrains Mono at 14 px – approximate pixel width per character used to
 // estimate the horizontal scroll range when lineBreakMode is 'nowrap'.
 const MONO_CHAR_WIDTH = 8.4;
-// Left padding (8px) + right padding (8px) + border-left (4px) + a small buffer.
-const LOG_LINE_PADDING = 24;
-// Character widths of field separators / delimiters in the rendered log line.
-const LINE_NUMBER_OVERHEAD = 2; // '#' prefix + trailing space
-const FIELD_SEPARATOR = 1; // space between fields
-const TAG_OVERHEAD = 3; // '[' + ']' + trailing space
+// Pixel-based layout constants that match the rendered CSS in renderLogLine.
+const FIELD_MARGIN_PX = 10; // marginRight on each field element
+const LINE_NUMBER_MIN_WIDTH_PX = 50; // CSS minWidth of the lineNumber span
+// border-left (4px) + left padding (8px) + right padding (8px) + safety buffer.
+const LOG_LINE_PADDING_PX = 32;
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -418,24 +417,32 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // mode.  VirtualList positions items with CSS transforms so the outer container's
   // overflow-x: auto has no effect – we must pass scrollWidth to VirtualList so it
   // can render its own horizontal scrollbar.
+  //
+  // Uses pixel-accurate margins / minWidth values that match the CSS in renderLogLine
+  // so the scroll range is never shorter than the actual content.
   const maxContentWidth = useMemo(() => {
     if (lineBreakMode !== 'nowrap' || flatItems.length === 0) return 0;
-    let maxLen = 0;
+    let maxWidth = 0;
     for (const item of flatItems) {
       if (item.type === 'log') {
         const log = item.log;
-        let len = 0;
-        if (log.lineNumber) len += String(log.lineNumber).length + LINE_NUMBER_OVERHEAD;
-        if (log.timestamp) len += log.timestamp.length + FIELD_SEPARATOR;
-        if (log.pid) len += log.pid.length + FIELD_SEPARATOR;
-        if (log.tid) len += log.tid.length + FIELD_SEPARATOR;
-        if (log.level) len += log.level.length + FIELD_SEPARATOR;
-        if (log.tag && log.tag !== 'Unknown') len += log.tag.length + TAG_OVERHEAD;
-        len += log.message.length;
-        if (len > maxLen) maxLen = len;
+        let width = LOG_LINE_PADDING_PX;
+        if (log.lineNumber) {
+          // '#' prefix + digits; the span has minWidth: 50px
+          const textWidth = (String(log.lineNumber).length + 1) * MONO_CHAR_WIDTH;
+          width += Math.max(textWidth, LINE_NUMBER_MIN_WIDTH_PX) + FIELD_MARGIN_PX;
+        }
+        if (log.timestamp) width += log.timestamp.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
+        if (log.pid) width += log.pid.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
+        if (log.tid) width += log.tid.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
+        if (log.level) width += log.level.length * MONO_CHAR_WIDTH + FIELD_MARGIN_PX;
+        if (log.tag && log.tag !== 'Unknown')
+          width += (log.tag.length + 2) * MONO_CHAR_WIDTH + FIELD_MARGIN_PX; // +2 for [ ]
+        width += log.message.length * MONO_CHAR_WIDTH;
+        if (width > maxWidth) maxWidth = width;
       }
     }
-    return maxLen * MONO_CHAR_WIDTH + LOG_LINE_PADDING;
+    return maxWidth;
   }, [flatItems, lineBreakMode]);
 
   // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
