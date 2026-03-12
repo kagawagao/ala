@@ -74,6 +74,10 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // Context menu state
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedText, setSelectedText] = useState<string>('');
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
 
   // Track the scrollable container height for VirtualList.
   // Use refs so the ResizeObserver can be re-attached whenever the container
@@ -463,6 +467,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
     if (text && text.length > 0) {
       setSelectedText(text);
+      setContextMenuPosition({ x: e.clientX, y: e.clientY });
       setContextMenuVisible(true);
     }
   }, []);
@@ -676,7 +681,22 @@ const LogViewer: React.FC<LogViewerProps> = ({
             </div>
           ) : (
             // Virtualised log list – only visible rows are rendered
-            <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
+            <>
+              <Dropdown
+                menu={{ items: contextMenuItems }}
+                open={contextMenuVisible}
+                trigger={[]}
+              >
+                <span
+                  style={{
+                    position: 'fixed',
+                    left: contextMenuPosition.x,
+                    top: contextMenuPosition.y,
+                    width: 0,
+                    height: 0,
+                  }}
+                />
+              </Dropdown>
               <div
                 ref={containerRef}
                 onContextMenu={handleContextMenu}
@@ -764,7 +784,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
                   }}
                 />
               </div>
-            </Dropdown>
+            </>
           )}
         </div>
       ),
