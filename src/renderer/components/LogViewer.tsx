@@ -491,7 +491,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       {
         key: 'addToHighlights',
         icon: <HighlightOutlined />,
-        label: t('addToHighlightsWithColor', { color: '' }).replace(/\s*$/, ''),
+        label: t('addToHighlights'),
         children: HIGHLIGHT_COLORS.map((color) => {
           const colors = getHighlightColorById(color.id, themeMode);
           return {
@@ -682,11 +682,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           ) : (
             // Virtualised log list – only visible rows are rendered
             <>
-              <Dropdown
-                menu={{ items: contextMenuItems }}
-                open={contextMenuVisible}
-                trigger={[]}
-              >
+              <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
                 <span
                   style={{
                     position: 'fixed',
