@@ -455,7 +455,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           background-color: var(--ant-color-bg-elevated);
           padding: 2px 6px;
           border-radius: 4px;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'JetBrains Mono', 'Courier New', monospace;
           font-size: 13px;
         }
         .ai-markdown-content pre {
