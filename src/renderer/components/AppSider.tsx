@@ -133,7 +133,6 @@ const AppSider: React.FC<AppSiderProps> = ({
                 icon={<FolderOpenOutlined />}
                 onClick={onOpenFiles}
                 block
-                size="large"
               >
                 {t('openFiles')}
               </Button>

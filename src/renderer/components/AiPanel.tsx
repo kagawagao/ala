@@ -185,7 +185,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
             value={selectedAIPreset}
             onChange={setSelectedAIPreset}
             style={{ width: '100%' }}
-            size="small"
             disabled={isAnalyzing}
             options={presetList.map((preset) => ({
               value: preset.id,
@@ -209,11 +208,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
             </Text>
             <Button
               type="link"
-              size="small"
               icon={<FileAddOutlined />}
               onClick={onOpenSourceFiles}
               disabled={isAnalyzing}
-              style={{ padding: 0, height: 'auto', fontSize: '12px' }}
+              style={{ padding: 0, height: 'auto' }}
             >
               {t('addSourceFiles')}
             </Button>
@@ -238,7 +236,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                       e.preventDefault();
                       onRemoveSourceFile(file.filePath);
                     }}
-                    style={{ margin: 0, maxWidth: '180px', fontSize: '11px' }}
+                    style={{ margin: 0, maxWidth: '180px' }}
                   >
                     <span
                       style={{
@@ -260,7 +258,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             <Text
               type="secondary"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 display: 'block',
                 padding: '6px',
                 textAlign: 'center',
@@ -280,7 +278,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             onChange={(e) => setAiPrompt(e.target.value)}
             placeholder={t('aiPromptOptional')}
             rows={2}
-            style={{ resize: 'vertical', fontSize: '12px' }}
+            style={{ resize: 'vertical' }}
             disabled={isAnalyzing}
           />
         </div>
@@ -294,7 +292,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
               icon={<StopOutlined />}
               onClick={handleStop}
               block
-              size="small"
             >
               {t('stopAnalysis')}
             </Button>
@@ -305,7 +302,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
               onClick={handleAnalyze}
               disabled={!aiConfigured || filteredLogs.length === 0}
               block
-              size="small"
             >
               {t('analyzeWithAI')}
             </Button>
@@ -315,7 +311,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
               icon={<DeleteOutlined />}
               onClick={handleClear}
               title={t('clearResults')}
-              size="small"
             />
           )}
         </div>

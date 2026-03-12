@@ -1,16 +1,14 @@
 import React, { useCallback, useMemo } from 'react';
-import { BulbOutlined, BulbFilled, RobotOutlined } from '@ant-design/icons';
+import { BulbOutlined, BulbFilled } from '@ant-design/icons';
 import { Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  aiPanelOpen: boolean;
-  onToggleAiPanel: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme, aiPanelOpen, onToggleAiPanel }) => {
+const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
   const { t, i18n } = useTranslation();
 
   const currentLanguage = useMemo(() => i18n.language || 'zh', [i18n.language]);
@@ -45,23 +43,8 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme, aiPanelOpen, onTo
         </h1>
       </div>
       <Button
-        type={aiPanelOpen ? 'primary' : 'text'}
-        icon={<RobotOutlined />}
-        onClick={onToggleAiPanel}
-        size="large"
-        title={t('aiAnalysisTooltip')}
-        style={
-          aiPanelOpen
-            ? undefined
-            : { color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }
-        }
-      >
-        {t('aiAnalysis')}
-      </Button>
-      <Button
         type="text"
         onClick={onToggleLanguage}
-        size="large"
         title={currentLanguage === 'en' ? '简体中文' : 'English'}
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       >
@@ -71,7 +54,6 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme, aiPanelOpen, onTo
         type="text"
         icon={theme === 'dark' ? <BulbOutlined /> : <BulbFilled />}
         onClick={onToggleTheme}
-        size="large"
         title={t(theme === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       />

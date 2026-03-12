@@ -110,7 +110,6 @@ const App: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [statusType, setStatusType] = useState<'info' | 'error'>('info');
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [aiPanelOpen, setAiPanelOpen] = useState<boolean>(false);
   const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
@@ -561,12 +560,7 @@ const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header
-          theme={themeMode}
-          onToggleTheme={handleToggleTheme}
-          aiPanelOpen={aiPanelOpen}
-          onToggleAiPanel={() => setAiPanelOpen((prev) => !prev)}
-        />
+        <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
           <AppSider
@@ -612,26 +606,24 @@ const App: React.FC = () => {
             />
           </Content>
 
-          {/* AI Analysis Panel - collapsible right sider */}
-          {aiPanelOpen && (
-            <Sider
-              width={420}
-              style={{
-                backgroundColor: 'var(--ant-color-bg-container)',
-                borderLeft: '1px solid var(--ant-color-border)',
-                overflow: 'hidden',
-              }}
-            >
-              <AiPanel
-                filteredLogs={filteredLogs}
-                sourceFiles={sourceFiles}
-                onOpenSourceFiles={handleOpenSourceFiles}
-                onRemoveSourceFile={handleRemoveSourceFile}
-                onOpenSettings={() => setSettingsModalVisible(true)}
-                language={i18n.language}
-              />
-            </Sider>
-          )}
+          {/* AI Analysis Panel - always visible right sider */}
+          <Sider
+            width={420}
+            style={{
+              backgroundColor: 'var(--ant-color-bg-container)',
+              borderLeft: '1px solid var(--ant-color-border)',
+              overflow: 'hidden',
+            }}
+          >
+            <AiPanel
+              filteredLogs={filteredLogs}
+              sourceFiles={sourceFiles}
+              onOpenSourceFiles={handleOpenSourceFiles}
+              onRemoveSourceFile={handleRemoveSourceFile}
+              onOpenSettings={() => setSettingsModalVisible(true)}
+              language={i18n.language}
+            />
+          </Sider>
         </Layout>
 
         <FilterPresetManager
