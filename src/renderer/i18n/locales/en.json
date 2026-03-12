@@ -2,6 +2,8 @@
   "appTitle": "Android Log Analyzer (ALA)",
   "switchToLightMode": "Switch to light mode",
   "switchToDarkMode": "Switch to dark mode",
+  "showSidebar": "Show sidebar",
+  "hideSidebar": "Hide sidebar",
   "openFiles": "Open Log File(s)",
   "search": "Search",
   "clearFilters": "Clear Filters",

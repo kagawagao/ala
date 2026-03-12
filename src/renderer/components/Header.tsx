@@ -1,14 +1,16 @@
 import React, { useCallback, useMemo } from 'react';
-import { BulbOutlined, BulbFilled } from '@ant-design/icons';
+import { BulbOutlined, BulbFilled, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  siderCollapsed?: boolean;
+  onToggleSider?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
+const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme, siderCollapsed, onToggleSider }) => {
   const { t, i18n } = useTranslation();
 
   const currentLanguage = useMemo(() => i18n.language || 'zh', [i18n.language]);
@@ -30,7 +32,16 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
         gap: '16px',
       }}
     >
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {onToggleSider && (
+          <Button
+            type="text"
+            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={onToggleSider}
+            title={t(siderCollapsed ? 'showSidebar' : 'hideSidebar')}
+            style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff', fontSize: '18px' }}
+          />
+        )}
         <h1
           style={{
             color: theme === 'dark' ? '#4ec9b0' : '#1890ff',

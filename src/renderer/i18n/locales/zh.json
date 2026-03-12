@@ -2,6 +2,8 @@
   "appTitle": "Android 日志分析器 (ALA)",
   "switchToLightMode": "切换到浅色模式",
   "switchToDarkMode": "切换到深色模式",
+  "showSidebar": "显示侧边栏",
+  "hideSidebar": "隐藏侧边栏",
   "openFiles": "打开日志文件",
   "search": "搜索",
   "clearFilters": "清除过滤",

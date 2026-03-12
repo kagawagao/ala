@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigProvider, theme as antdTheme, Layout, Splitter } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
@@ -114,6 +114,8 @@ const App: React.FC = () => {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('nowrap');
+  const [siderWidth, setSiderWidth] = useState<number>(380);
+  const siderCollapsed = siderWidth === 0;
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
     keywordDescriptions: { keyword: string; description: string }[];
     highlightDescriptions: { keyword: string; description: string }[];
@@ -512,6 +514,10 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
+  const handleToggleSider = useCallback(() => {
+    setSiderWidth((prev) => (prev === 0 ? 380 : 0));
+  }, []);
+
   const handleConfigUpdated = () => {
     // Config is now managed entirely in localStorage by the renderer AI service
     showStatus(t('aiConfigUpdated'), 'info');
@@ -558,10 +564,18 @@ const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
+        <Header
+          theme={themeMode}
+          onToggleTheme={handleToggleTheme}
+          siderCollapsed={siderCollapsed}
+          onToggleSider={handleToggleSider}
+        />
 
-        <Splitter style={{ flex: 1, overflow: 'hidden' }}>
-          <Splitter.Panel defaultSize={380} min={280} max={500} collapsible>
+        <Splitter
+          style={{ flex: 1, overflow: 'hidden' }}
+          onResizeEnd={(sizes) => setSiderWidth(sizes[0])}
+        >
+          <Splitter.Panel size={siderWidth} min={siderCollapsed ? 0 : 280} max={500}>
             <AppSider
               filters={filters}
               setFilters={setFilters}
