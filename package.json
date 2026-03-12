@@ -1,6 +1,6 @@
 {
   "name": "ala",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Android Log Analyzer - An Electron-based tool for analyzing Android logs with AI",
   "private": true,
   "main": "dist/main.js",
