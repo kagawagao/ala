@@ -392,6 +392,8 @@ const App: React.FC = () => {
 
   const handleRemoveSourceFile = (filePath: string) => {
     setSourceFiles((prev) => prev.filter((f) => f.filePath !== filePath));
+    const fileName = filePath.split(/[\\/]/).pop();
+    showStatus(t('removeSourceFile', { name: fileName }), 'info');
   };
 
   const updateStatistics = async () => {

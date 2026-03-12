@@ -12,7 +12,12 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { LogEntry } from '../types';
-import { analyzeLogsStream, getPresetList, isAIConfigured } from '../services/ai-service';
+import {
+  analyzeLogsStream,
+  getPresetList,
+  isAIConfigured,
+  MAX_SOURCE_CODE_SIZE,
+} from '../services/ai-service';
 
 const { Text } = Typography;
 
@@ -75,7 +80,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
     // Build source code string with size limit
     let sourceCode: string | undefined = undefined;
-    const MAX_SOURCE_CODE_SIZE = 100 * 1024;
 
     if (sourceFiles.length > 0) {
       let combinedSize = 0;

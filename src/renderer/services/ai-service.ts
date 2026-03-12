@@ -197,6 +197,15 @@ export function getPresetList(): Array<{
 // Configuration constants
 const MAX_LOGS_FOR_ANALYSIS = 100;
 const MAX_SUMMARY_LENGTH = 8000;
+export const MAX_SOURCE_CODE_SIZE = 100 * 1024; // 100 KB
+
+/**
+ * Language instruction map for AI prompts
+ */
+const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
+  zh: '\n\nIMPORTANT: You MUST respond in Chinese (简体中文).',
+  en: '\n\nIMPORTANT: You MUST respond in English.',
+};
 
 /**
  * Get AI config from localStorage
@@ -293,14 +302,7 @@ export function prepareLogSummary(logs: LogEntryForAI[]): string {
  * Get the language instruction for the AI prompt
  */
 function getLanguageInstruction(language: string): string {
-  switch (language) {
-    case 'zh':
-      return '\n\nIMPORTANT: You MUST respond in Chinese (简体中文).';
-    case 'en':
-      return '\n\nIMPORTANT: You MUST respond in English.';
-    default:
-      return '';
-  }
+  return LANGUAGE_INSTRUCTIONS[language] ?? '';
 }
 
 /**
