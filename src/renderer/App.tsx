@@ -113,7 +113,7 @@ const App: React.FC = () => {
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
-  const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
+  const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('nowrap');
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
     keywordDescriptions: { keyword: string; description: string }[];
     highlightDescriptions: { keyword: string; description: string }[];
@@ -561,7 +561,7 @@ const App: React.FC = () => {
         <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
 
         <Splitter style={{ flex: 1, overflow: 'hidden' }}>
-          <Splitter.Panel defaultSize={380} min={280} max={500}>
+          <Splitter.Panel defaultSize={380} min={280} max={500} collapsible>
             <AppSider
               filters={filters}
               setFilters={setFilters}
@@ -608,7 +608,7 @@ const App: React.FC = () => {
             </div>
           </Splitter.Panel>
 
-          <Splitter.Panel defaultSize={420} min={300} max={600}>
+          <Splitter.Panel defaultSize={420} min={300} max="50%">
             <div
               style={{
                 backgroundColor: 'var(--ant-color-bg-container)',
