@@ -559,10 +559,7 @@ const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header
-          theme={themeMode}
-          onToggleTheme={handleToggleTheme}
-        />
+        <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
           <Layout.Sider
@@ -571,6 +568,7 @@ const App: React.FC = () => {
             onCollapse={setSiderCollapsed}
             collapsedWidth={0}
             width={380}
+            trigger={null}
             style={{ overflow: 'auto' }}
           >
             <AppSider
@@ -600,8 +598,17 @@ const App: React.FC = () => {
 
           <Splitter style={{ flex: 1, overflow: 'hidden' }}>
             <Splitter.Panel min={300}>
-              <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div
+                style={{
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                }}
+              >
                 <LogViewer
+                  siderCollapsed={siderCollapsed}
+                  onSiderCollapseClick={setSiderCollapsed}
                   logs={filteredLogs}
                   allLogsCount={allLogs.length}
                   statistics={statistics}

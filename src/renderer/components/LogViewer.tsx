@@ -1,5 +1,5 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tooltip, Dropdown, message, Tag } from 'antd';
+import { Divider, FloatButton, Tooltip, Dropdown, message, Tag, Button, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -37,8 +37,7 @@ function measureCharWidth(): number {
     const ctx = canvas.getContext('2d');
     if (!ctx) return FALLBACK_CHAR_WIDTH;
     ctx.font = "14px 'JetBrains Mono', monospace";
-    const sample =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789[]:#/ ';
+    const sample = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789[]:#/ ';
     const measured = ctx.measureText(sample).width / sample.length;
     return measured > 0 ? measured : FALLBACK_CHAR_WIDTH;
   } catch {
@@ -61,6 +60,8 @@ interface LogViewerProps {
   tagDescription?: string;
   currentTag?: string;
   onAddHighlight?: (text: string, color?: string) => void; // Updated to accept color
+  siderCollapsed?: boolean;
+  onSiderCollapseClick?: (collapsed: boolean) => void;
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -78,6 +79,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
   tagDescription = '',
   currentTag = '',
   onAddHighlight,
+  siderCollapsed,
+  onSiderCollapseClick,
 }) => {
   const { t } = useTranslation();
 
@@ -461,8 +464,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         if (log.pid) width += log.pid.length * cw + FIELD_MARGIN_PX;
         if (log.tid) width += log.tid.length * cw + FIELD_MARGIN_PX;
         if (log.level) width += log.level.length * cw + FIELD_MARGIN_PX;
-        if (log.tag && log.tag !== 'Unknown')
-          width += (log.tag.length + 2) * cw + FIELD_MARGIN_PX; // +2 for [ ]
+        if (log.tag && log.tag !== 'Unknown') width += (log.tag.length + 2) * cw + FIELD_MARGIN_PX; // +2 for [ ]
         width += log.message.length * cw;
         if (width > maxWidth) maxWidth = width;
       }
@@ -651,6 +653,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
     ]
   );
 
+  const { token } = theme.useToken();
+
   return (
     <section
       style={{
@@ -671,7 +675,24 @@ const LogViewer: React.FC<LogViewerProps> = ({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
+        <div style={{ display: 'flex', gap: '24px', fontSize: '14px', alignItems: 'center' }}>
+          <div>
+            {siderCollapsed ? (
+              <Button
+                type="link"
+                style={{ color: token.colorPrimary }}
+                onClick={() => onSiderCollapseClick?.(false)}
+                icon={<MenuUnfoldOutlined />}
+              />
+            ) : (
+              <Button
+                type="link"
+                style={{ color: token.colorPrimary }}
+                onClick={() => onSiderCollapseClick?.(true)}
+                icon={<MenuFoldOutlined />}
+              />
+            )}
+          </div>
           <div>
             <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('totalLogs')}: </span>
             <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{allLogsCount}</span>

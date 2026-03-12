@@ -14,7 +14,6 @@ import { LogFilters } from '../types';
 import { FilterPreset } from './FilterPresetManager';
 import { getHighlightColorById } from '../constants/highlightColors';
 
-
 const { RangePicker } = DatePicker;
 
 interface AppSiderProps {
@@ -127,12 +126,7 @@ const AppSider: React.FC<AppSiderProps> = ({
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             {/* File Controls */}
             <div>
-              <Button
-                type="primary"
-                icon={<FolderOpenOutlined />}
-                onClick={onOpenFiles}
-                block
-              >
+              <Button type="primary" icon={<FolderOpenOutlined />} onClick={onOpenFiles} block>
                 {t('openFiles')}
               </Button>
               {currentFiles.length > 0 && (
@@ -353,7 +347,7 @@ const AppSider: React.FC<AppSiderProps> = ({
             borderTop: `1px solid ${themeMode === 'dark' ? '#3e3e42' : '#d9d9d9'}`,
           }}
         >
-          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Space orientation="vertical" size="small" style={{ width: '100%' }}>
             <Button type="default" icon={<SettingOutlined />} onClick={onManagePresets} block>
               {t('managePresets')}
             </Button>
