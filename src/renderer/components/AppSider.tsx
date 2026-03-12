@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Layout, Button, Space, Divider, Input, Select, Alert, Form, DatePicker, Tag } from 'antd';
+import { Button, Space, Divider, Input, Select, Alert, Form, DatePicker, Tag } from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
@@ -14,7 +14,7 @@ import { LogFilters } from '../types';
 import { FilterPreset } from './FilterPresetManager';
 import { getHighlightColorById } from '../constants/highlightColors';
 
-const { Sider } = Layout;
+
 const { RangePicker } = DatePicker;
 
 interface AppSiderProps {
@@ -106,8 +106,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   };
 
   return (
-    <Sider
-      width={380}
+    <div
       style={{
         backgroundColor: themeMode === 'dark' ? '#252526' : '#f5f5f5',
         overflow: 'auto',
@@ -364,7 +363,7 @@ const AppSider: React.FC<AppSiderProps> = ({
           </Space>
         </div>
       </div>
-    </Sider>
+    </div>
   );
 };
 
