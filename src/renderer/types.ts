@@ -66,15 +66,6 @@ declare global {
       parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
-      analyzeWithAI: (params: {
-        logs: LogEntry[];
-        prompt?: string;
-        presetId?: string;
-        sourceCode?: string;
-      }) => Promise<AIAnalysisResult>;
-      checkAIConfigured: () => Promise<boolean>;
-      updateAIConfig: (config: AIConfig) => Promise<boolean>;
-      getAIConfig: () => Promise<AIConfig | null>;
       importFilters: () => Promise<unknown>;
       exportFilters: (filters: unknown) => Promise<boolean>;
       deleteLogFile: (filePath: string) => Promise<boolean>;

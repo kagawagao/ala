@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
+import { ConfigProvider, theme as antdTheme, Layout, FloatButton } from 'antd';
+import { RobotOutlined } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +8,7 @@ import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import AppSider from './components/AppSider';
 import LogViewer from './components/LogViewer';
+import AiPanel from './components/AiPanel';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 import SettingsModal from './components/SettingsModal';
 
@@ -93,7 +95,6 @@ const App: React.FC = () => {
   const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>(
     []
   );
-  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -109,10 +110,9 @@ const App: React.FC = () => {
   });
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [statusType, setStatusType] = useState<'info' | 'error'>('info');
-  const [aiConfigured, setAiConfigured] = useState<boolean>(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'logs' | 'ai'>('logs');
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState<boolean>(false);
+  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -136,27 +136,6 @@ const App: React.FC = () => {
     if (savedTheme) {
       setThemeMode(savedTheme);
     }
-
-    // Load and apply AI configuration from localStorage on mount
-    const initAI = async () => {
-      const savedConfig = localStorage.getItem('aiConfig');
-      if (savedConfig) {
-        try {
-          const config = JSON.parse(savedConfig);
-          await window.electronAPI.updateAIConfig(config);
-        } catch (e) {
-          console.error('Failed to parse AI config:', e);
-        }
-      }
-
-      // Check AI configuration
-      const configured = await window.electronAPI.checkAIConfigured();
-      setAiConfigured(configured);
-      if (!configured) {
-        showStatus(t('aiNotConfigured'), 'info');
-      }
-    };
-    initAI();
 
     // Load saved filters from localStorage (excluding time and PID fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
@@ -413,66 +392,6 @@ const App: React.FC = () => {
 
   const handleRemoveSourceFile = (filePath: string) => {
     setSourceFiles((prev) => prev.filter((f) => f.filePath !== filePath));
-    const fileName = filePath.split(/[\\/]/).pop();
-    showStatus(`Removed source file: ${fileName}`, 'info');
-  };
-
-  const handleAnalyzeWithAI = async (prompt?: string, presetId?: string) => {
-    if (filteredLogs.length === 0) {
-      showStatus('No logs to analyze', 'error');
-      return;
-    }
-
-    showStatus('Analyzing logs with AI...', 'info');
-    setActiveTab('ai');
-
-    try {
-      // Combine source files into a single string if available
-      // with size limit protection (max 100KB of source code)
-      let sourceCode: string | undefined = undefined;
-      const MAX_SOURCE_CODE_SIZE = 100 * 1024; // 100 KB
-
-      if (sourceFiles.length > 0) {
-        let combinedSize = 0;
-        const includedFiles: string[] = [];
-
-        for (const file of sourceFiles) {
-          const fileSize = new Blob([file.content]).size;
-          if (combinedSize + fileSize <= MAX_SOURCE_CODE_SIZE) {
-            combinedSize += fileSize;
-            const fileName = file.filePath.split(/[\\/]/).pop();
-            includedFiles.push(`// File: ${fileName}\n${file.content}`);
-          } else {
-            // Size limit exceeded
-            const sizeKB = Math.round(combinedSize / 1024);
-            showStatus(t('sourceCodeSizeLimitExceeded', { size: sizeKB }), 'info');
-            break;
-          }
-        }
-
-        if (includedFiles.length > 0) {
-          sourceCode = includedFiles.join('\n\n');
-        }
-      }
-
-      const result = await window.electronAPI.analyzeWithAI({
-        logs: filteredLogs,
-        prompt,
-        presetId,
-        sourceCode,
-      });
-      if (result.success && result.analysis) {
-        setAiAnalysis(result.analysis);
-        showStatus('AI analysis completed', 'info');
-      } else {
-        const errMsg = result.error || 'Unknown error';
-        showStatus(`AI analysis failed: ${errMsg}`, 'error');
-        setAiAnalysis(`Failed to analyze logs: ${errMsg}`);
-      }
-    } catch (error) {
-      showStatus('AI analysis failed', 'error');
-      setAiAnalysis('Failed to analyze logs. Please check your API key and try again.');
-    }
   };
 
   const updateStatistics = async () => {
@@ -595,12 +514,9 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
-  const handleConfigUpdated = async () => {
-    const configured = await window.electronAPI.checkAIConfigured();
-    setAiConfigured(configured);
-    if (configured) {
-      showStatus(t('aiConfigUpdated'), 'info');
-    }
+  const handleConfigUpdated = () => {
+    // Config is now managed entirely in localStorage by the renderer AI service
+    showStatus(t('aiConfigUpdated'), 'info');
   };
 
   const handleDeleteFile = async (filePath: string) => {
@@ -657,12 +573,7 @@ const App: React.FC = () => {
             onOpenFiles={handleOpenFiles}
             onSearch={handleSearch}
             onClearFilters={handleClearFilters}
-            onAnalyzeWithAI={handleAnalyzeWithAI}
             currentFiles={currentFiles}
-            sourceFiles={sourceFiles}
-            onOpenSourceFiles={handleOpenSourceFiles}
-            onRemoveSourceFile={handleRemoveSourceFile}
-            aiConfigured={aiConfigured}
             statusMessage={statusMessage}
             statusType={statusType}
             isSearching={isSearching}
@@ -684,9 +595,6 @@ const App: React.FC = () => {
               currentFiles={currentFiles}
               highlights={filters.highlights}
               coloredHighlights={filters.coloredHighlights || []}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              aiAnalysis={aiAnalysis}
               isSearching={isSearching}
               lineBreakMode={lineBreakMode}
               onLineBreakModeChange={setLineBreakMode}
@@ -726,6 +634,35 @@ const App: React.FC = () => {
           visible={settingsModalVisible}
           onClose={() => setSettingsModalVisible(false)}
           onConfigUpdated={handleConfigUpdated}
+        />
+
+        {/* AI Analysis Floating Button */}
+        <FloatButton
+          icon={<RobotOutlined />}
+          type="primary"
+          style={{
+            right: 24,
+            bottom: 24,
+            width: 56,
+            height: 56,
+          }}
+          onClick={() => setAiPanelOpen(true)}
+          tooltip={t('aiAnalysisTooltip')}
+        />
+
+        {/* AI Analysis Panel (Drawer) */}
+        <AiPanel
+          open={aiPanelOpen}
+          onClose={() => setAiPanelOpen(false)}
+          filteredLogs={filteredLogs}
+          sourceFiles={sourceFiles}
+          onOpenSourceFiles={handleOpenSourceFiles}
+          onRemoveSourceFile={handleRemoveSourceFile}
+          onOpenSettings={() => {
+            setAiPanelOpen(false);
+            setSettingsModalVisible(true);
+          }}
+          language={i18n.language}
         />
       </Layout>
     </ConfigProvider>

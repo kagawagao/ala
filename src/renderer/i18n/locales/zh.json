@@ -152,5 +152,13 @@
   "color_purple": "紫色",
   "color_orange": "橙色",
   "color_pink": "粉色",
-  "color_cyan": "青色"
+  "color_cyan": "青色",
+  "noLogsToAnalyze": "没有可分析的日志。请先加载并过滤日志。",
+  "stopAnalysis": "停止",
+  "clearResults": "清除结果",
+  "aiAnalyzing": "AI 分析中...",
+  "aiEmptyState": "点击\"使用 AI 分析\"开始分析。请确保已加载并过滤日志。",
+  "aiAnalysisCompleted": "AI 分析完成",
+  "aiAnalysisFailed": "AI 分析失败：{{error}}",
+  "aiAnalysisStopped": "AI 分析已停止"
 }

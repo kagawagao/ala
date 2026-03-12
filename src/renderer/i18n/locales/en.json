@@ -152,5 +152,13 @@
   "color_purple": "Purple",
   "color_orange": "Orange",
   "color_pink": "Pink",
-  "color_cyan": "Cyan"
+  "color_cyan": "Cyan",
+  "noLogsToAnalyze": "No logs to analyze. Please load and filter logs first.",
+  "stopAnalysis": "Stop",
+  "clearResults": "Clear Results",
+  "aiAnalyzing": "AI is analyzing...",
+  "aiEmptyState": "Click \"Analyze with AI\" to start analysis. Make sure logs are loaded and filtered first.",
+  "aiAnalysisCompleted": "AI analysis completed",
+  "aiAnalysisFailed": "AI analysis failed: {{error}}",
+  "aiAnalysisStopped": "AI analysis stopped"
 }

@@ -1,5 +1,5 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message, Tag } from 'antd';
+import { Divider, FloatButton, Tooltip, Dropdown, message, Tag } from 'antd';
 import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -37,9 +37,6 @@ interface LogViewerProps {
   currentFiles: string[];
   highlights: string; // For visual highlighting only (legacy)
   coloredHighlights: HighlightItem[]; // New colored highlights
-  activeTab: 'logs' | 'ai';
-  setActiveTab: (tab: 'logs' | 'ai') => void;
-  aiAnalysis: string;
   isSearching: boolean;
   lineBreakMode: 'wrap' | 'nowrap';
   onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
@@ -57,9 +54,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
   currentFiles,
   highlights,
   coloredHighlights,
-  activeTab,
-  setActiveTab,
-  aiAnalysis,
   isSearching,
   lineBreakMode,
   onLineBreakModeChange,
@@ -625,184 +619,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
     ]
   );
 
-  const tabItems = [
-    {
-      key: 'logs',
-      label: t('logViewer'),
-      children: (
-        <div
-          style={{
-            flex: 1,
-            height: '100%',
-            backgroundColor: 'var(--ant-color-bg-container)',
-          }}
-        >
-          {isSearching ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    display: 'inline-block',
-                    width: '48px',
-                    height: '48px',
-                    border: '4px solid #4ec9b0',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                    marginBottom: '16px',
-                  }}
-                ></div>
-                <p style={{ color: 'var(--ant-color-text-secondary)' }}>{t('searchingLogs')}</p>
-              </div>
-            </div>
-          ) : logs.length === 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-                color: 'var(--ant-color-text-secondary)',
-              }}
-            >
-              <p>{t('noLogsMatchFilter')}</p>
-            </div>
-          ) : (
-            // Virtualised log list – only visible rows are rendered
-            <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
-              <div
-                ref={containerRef}
-                onContextMenu={handleContextMenu}
-                style={{
-                  height: '100%',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                <VirtualList<ListItem>
-                  data={flatItems}
-                  height={containerHeight}
-                  itemHeight={LOG_ITEM_HEIGHT}
-                  itemKey="key"
-                  scrollWidth={
-                    lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
-                  }
-                  styles={{
-                    verticalScrollBar: { right: 0 },
-                  }}
-                >
-                  {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
-                    // Exclude the height from the positioning style so items can
-                    // size themselves naturally; rc-virtual-list measures the
-                    // actual rendered height via ResizeObserver and corrects the
-                    // scroll calculation automatically.
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    const { height: _height, ...posStyle } = style;
-                    if (item.type === 'divider') {
-                      return (
-                        <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
-                          <Divider
-                            style={{
-                              margin: '8px 0',
-                              borderColor: 'var(--ant-color-border-secondary)',
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: 'var(--ant-color-text)',
-                                marginRight: '8px',
-                              }}
-                            >
-                              📄
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: '#4ec9b0',
-                              }}
-                            >
-                              {item.file}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '12px',
-                                color: 'var(--ant-color-text-secondary)',
-                                marginLeft: '12px',
-                              }}
-                            >
-                              ({item.count} {t('logs')})
-                            </span>
-                          </Divider>
-                        </div>
-                      );
-                    }
-                    return renderLogLine(item.log, item.index, posStyle);
-                  }}
-                </VirtualList>
-                <FloatButton
-                  icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                  tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
-                  onClick={() =>
-                    onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')
-                  }
-                  style={{
-                    position: 'absolute',
-                    right: 24,
-                    top: 24,
-                    bottom: 'unset',
-                    zIndex: 100,
-                  }}
-                />
-              </div>
-            </Dropdown>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'ai',
-      label: t('aiAnalysis'),
-      children: (
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            backgroundColor: 'var(--ant-color-bg-container)',
-            padding: '16px',
-          }}
-        >
-          {aiAnalysis ? (
-            <div style={{ whiteSpace: 'pre-wrap', color: 'var(--ant-color-text)' }}>
-              {aiAnalysis}
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-                color: 'var(--ant-color-text-secondary)',
-              }}
-            >
-              <p>{t('clickSearchToFilter')}</p>
-            </div>
-          )}
-        </div>
-      ),
-    },
-  ];
-
   return (
     <section
       style={{
@@ -820,6 +636,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           backgroundColor: 'var(--ant-color-bg-elevated)',
           padding: '12px 24px',
           borderBottom: '1px solid var(--ant-color-border)',
+          flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
@@ -856,21 +673,142 @@ const LogViewer: React.FC<LogViewerProps> = ({
         </div>
       </div>
 
-      {/* Tabs with Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as 'logs' | 'ai')}
-          items={tabItems}
-          style={{ height: '100%' }}
-          tabBarStyle={{
-            backgroundColor: 'var(--ant-color-bg-container)',
-            margin: 0,
-            paddingLeft: '24px',
-            flexShrink: 0,
-          }}
-          className="log-viewer-tabs"
-        />
+      {/* Log Content */}
+      <div
+        style={{
+          flex: 1,
+          height: '100%',
+          backgroundColor: 'var(--ant-color-bg-container)',
+          overflow: 'hidden',
+        }}
+      >
+        {isSearching ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  display: 'inline-block',
+                  width: '48px',
+                  height: '48px',
+                  border: '4px solid #4ec9b0',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '16px',
+                }}
+              ></div>
+              <p style={{ color: 'var(--ant-color-text-secondary)' }}>{t('searchingLogs')}</p>
+            </div>
+          </div>
+        ) : logs.length === 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+              color: 'var(--ant-color-text-secondary)',
+            }}
+          >
+            <p>{t('noLogsMatchFilter')}</p>
+          </div>
+        ) : (
+          // Virtualised log list – only visible rows are rendered
+          <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
+            <div
+              ref={containerRef}
+              onContextMenu={handleContextMenu}
+              style={{
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <VirtualList<ListItem>
+                data={flatItems}
+                height={containerHeight}
+                itemHeight={LOG_ITEM_HEIGHT}
+                itemKey="key"
+                scrollWidth={
+                  lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
+                }
+                styles={{
+                  verticalScrollBar: { right: 0 },
+                }}
+              >
+                {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
+                  // Exclude the height from the positioning style so items can
+                  // size themselves naturally; rc-virtual-list measures the
+                  // actual rendered height via ResizeObserver and corrects the
+                  // scroll calculation automatically.
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { height: _height, ...posStyle } = style;
+                  if (item.type === 'divider') {
+                    return (
+                      <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
+                        <Divider
+                          style={{
+                            margin: '8px 0',
+                            borderColor: 'var(--ant-color-border-secondary)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: 'var(--ant-color-text)',
+                              marginRight: '8px',
+                            }}
+                          >
+                            📄
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#4ec9b0',
+                            }}
+                          >
+                            {item.file}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              color: 'var(--ant-color-text-secondary)',
+                              marginLeft: '12px',
+                            }}
+                          >
+                            ({item.count} {t('logs')})
+                          </span>
+                        </Divider>
+                      </div>
+                    );
+                  }
+                  return renderLogLine(item.log, item.index, posStyle);
+                }}
+              </VirtualList>
+              <FloatButton
+                icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
+                onClick={() => onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')}
+                style={{
+                  position: 'absolute',
+                  right: 24,
+                  top: 24,
+                  bottom: 'unset',
+                  zIndex: 100,
+                }}
+              />
+            </div>
+          </Dropdown>
+        )}
       </div>
     </section>
   );
