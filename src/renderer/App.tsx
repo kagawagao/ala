@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ConfigProvider, theme as antdTheme, Layout, FloatButton } from 'antd';
-import { RobotOutlined } from '@ant-design/icons';
+import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +11,7 @@ import AiPanel from './components/AiPanel';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 import SettingsModal from './components/SettingsModal';
 
-const { Content } = Layout;
+const { Content, Sider } = Layout;
 
 // Constants
 const KEYWORD_SEPARATOR = '|';
@@ -562,7 +561,12 @@ const App: React.FC = () => {
       }}
     >
       <Layout style={{ height: '100vh' }}>
-        <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
+        <Header
+          theme={themeMode}
+          onToggleTheme={handleToggleTheme}
+          aiPanelOpen={aiPanelOpen}
+          onToggleAiPanel={() => setAiPanelOpen((prev) => !prev)}
+        />
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
           <AppSider
@@ -607,6 +611,27 @@ const App: React.FC = () => {
               onAddHighlight={handleAddHighlight}
             />
           </Content>
+
+          {/* AI Analysis Panel - collapsible right sider */}
+          {aiPanelOpen && (
+            <Sider
+              width={420}
+              style={{
+                backgroundColor: 'var(--ant-color-bg-container)',
+                borderLeft: '1px solid var(--ant-color-border)',
+                overflow: 'hidden',
+              }}
+            >
+              <AiPanel
+                filteredLogs={filteredLogs}
+                sourceFiles={sourceFiles}
+                onOpenSourceFiles={handleOpenSourceFiles}
+                onRemoveSourceFile={handleRemoveSourceFile}
+                onOpenSettings={() => setSettingsModalVisible(true)}
+                language={i18n.language}
+              />
+            </Sider>
+          )}
         </Layout>
 
         <FilterPresetManager
@@ -636,35 +661,6 @@ const App: React.FC = () => {
           visible={settingsModalVisible}
           onClose={() => setSettingsModalVisible(false)}
           onConfigUpdated={handleConfigUpdated}
-        />
-
-        {/* AI Analysis Floating Button */}
-        <FloatButton
-          icon={<RobotOutlined />}
-          type="primary"
-          style={{
-            right: 24,
-            bottom: 24,
-            width: 56,
-            height: 56,
-          }}
-          onClick={() => setAiPanelOpen(true)}
-          tooltip={t('aiAnalysisTooltip')}
-        />
-
-        {/* AI Analysis Panel (Drawer) */}
-        <AiPanel
-          open={aiPanelOpen}
-          onClose={() => setAiPanelOpen(false)}
-          filteredLogs={filteredLogs}
-          sourceFiles={sourceFiles}
-          onOpenSourceFiles={handleOpenSourceFiles}
-          onRemoveSourceFile={handleRemoveSourceFile}
-          onOpenSettings={() => {
-            setAiPanelOpen(false);
-            setSettingsModalVisible(true);
-          }}
-          language={i18n.language}
         />
       </Layout>
     </ConfigProvider>

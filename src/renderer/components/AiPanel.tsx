@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Drawer, Input, Select, Tag, Typography } from 'antd';
+import { Alert, Button, Input, Select, Tag, Typography } from 'antd';
 import {
-  CloseOutlined,
   FileAddOutlined,
   RobotOutlined,
   SendOutlined,
@@ -22,8 +21,6 @@ import {
 const { Text } = Typography;
 
 interface AiPanelProps {
-  open: boolean;
-  onClose: () => void;
   filteredLogs: LogEntry[];
   sourceFiles: { filePath: string; content: string }[];
   onOpenSourceFiles: () => void;
@@ -33,8 +30,6 @@ interface AiPanelProps {
 }
 
 const AiPanel: React.FC<AiPanelProps> = ({
-  open,
-  onClose,
   filteredLogs,
   sourceFiles,
   onOpenSourceFiles,
@@ -145,261 +140,266 @@ const AiPanel: React.FC<AiPanelProps> = ({
   };
 
   return (
-    <Drawer
-      title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <RobotOutlined style={{ color: '#c586c0', fontSize: '18px' }} />
-          <span>{t('aiAnalysis')}</span>
-        </div>
-      }
-      placement="right"
-      width={520}
-      open={open}
-      onClose={onClose}
-      closeIcon={<CloseOutlined />}
-      styles={{
-        body: {
-          padding: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        },
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
       }}
     >
+      {/* Header */}
       <div
         style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--ant-color-border)',
           display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden',
+          alignItems: 'center',
+          gap: '8px',
+          flexShrink: 0,
         }}
       >
-        {/* Configuration Section */}
-        <div
-          style={{
-            padding: '16px',
-            borderBottom: '1px solid var(--ant-color-border)',
-            flexShrink: 0,
-          }}
-        >
-          {/* Preset Selector */}
-          <div style={{ marginBottom: '12px' }}>
+        <RobotOutlined style={{ color: 'var(--ant-color-primary)', fontSize: '18px' }} />
+        <Text strong style={{ fontSize: '14px' }}>
+          {t('aiAnalysis')}
+        </Text>
+      </div>
+
+      {/* Configuration Section */}
+      <div
+        style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--ant-color-border)',
+          flexShrink: 0,
+        }}
+      >
+        {/* Preset Selector */}
+        <div style={{ marginBottom: '8px' }}>
+          <Text
+            type="secondary"
+            style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}
+          >
+            {t('selectAIPreset')}
+          </Text>
+          <Select
+            value={selectedAIPreset}
+            onChange={setSelectedAIPreset}
+            style={{ width: '100%' }}
+            size="small"
+            disabled={isAnalyzing}
+            options={presetList.map((preset) => ({
+              value: preset.id,
+              label: t(preset.nameKey),
+            }))}
+          />
+        </div>
+
+        {/* Source Code Files */}
+        <div style={{ marginBottom: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '4px',
+            }}
+          >
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {t('sourceCodeFiles')}
+            </Text>
+            <Button
+              type="link"
+              size="small"
+              icon={<FileAddOutlined />}
+              onClick={onOpenSourceFiles}
+              disabled={isAnalyzing}
+              style={{ padding: 0, height: 'auto', fontSize: '12px' }}
+            >
+              {t('addSourceFiles')}
+            </Button>
+          </div>
+          {sourceFiles.length > 0 ? (
+            <div
+              style={{
+                maxHeight: '60px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '4px',
+              }}
+            >
+              {sourceFiles.map((file) => {
+                const fileName = file.filePath.split(/[\\/]/).pop();
+                return (
+                  <Tag
+                    key={file.filePath}
+                    closable={!isAnalyzing}
+                    onClose={(e) => {
+                      e.preventDefault();
+                      onRemoveSourceFile(file.filePath);
+                    }}
+                    style={{ margin: 0, maxWidth: '180px', fontSize: '11px' }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-block',
+                        maxWidth: '140px',
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      {fileName}
+                    </span>
+                  </Tag>
+                );
+              })}
+            </div>
+          ) : (
             <Text
               type="secondary"
-              style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}
-            >
-              {t('selectAIPreset')}
-            </Text>
-            <Select
-              value={selectedAIPreset}
-              onChange={setSelectedAIPreset}
-              style={{ width: '100%' }}
-              disabled={isAnalyzing}
-              options={presetList.map((preset) => ({
-                value: preset.id,
-                label: t(preset.nameKey),
-              }))}
-            />
-          </div>
-
-          {/* Source Code Files */}
-          <div style={{ marginBottom: '12px' }}>
-            <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '4px',
-              }}
-            >
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {t('sourceCodeFiles')}
-              </Text>
-              <Button
-                type="link"
-                size="small"
-                icon={<FileAddOutlined />}
-                onClick={onOpenSourceFiles}
-                disabled={isAnalyzing}
-                style={{ padding: 0, height: 'auto' }}
-              >
-                {t('addSourceFiles')}
-              </Button>
-            </div>
-            {sourceFiles.length > 0 ? (
-              <div
-                style={{
-                  maxHeight: '80px',
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '4px',
-                }}
-              >
-                {sourceFiles.map((file) => {
-                  const fileName = file.filePath.split(/[\\/]/).pop();
-                  return (
-                    <Tag
-                      key={file.filePath}
-                      closable={!isAnalyzing}
-                      onClose={(e) => {
-                        e.preventDefault();
-                        onRemoveSourceFile(file.filePath);
-                      }}
-                      style={{ margin: 0, maxWidth: '200px' }}
-                    >
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          display: 'inline-block',
-                          maxWidth: '160px',
-                          verticalAlign: 'middle',
-                        }}
-                      >
-                        {fileName}
-                      </span>
-                    </Tag>
-                  );
-                })}
-              </div>
-            ) : (
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: '12px',
-                  display: 'block',
-                  padding: '8px',
-                  textAlign: 'center',
-                  backgroundColor: 'var(--ant-color-bg-elevated)',
-                  borderRadius: '6px',
-                }}
-              >
-                {t('noSourceFilesAdded')}
-              </Text>
-            )}
-          </div>
-
-          {/* Prompt Input */}
-          <div style={{ marginBottom: '12px' }}>
-            <Input.TextArea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder={t('aiPromptOptional')}
-              rows={3}
-              style={{ resize: 'vertical' }}
-              disabled={isAnalyzing}
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {isAnalyzing ? (
-              <Button type="primary" danger icon={<StopOutlined />} onClick={handleStop} block>
-                {t('stopAnalysis')}
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                onClick={handleAnalyze}
-                disabled={!aiConfigured || filteredLogs.length === 0}
-                block
-                style={{
-                  backgroundColor: aiConfigured && filteredLogs.length > 0 ? '#c586c0' : undefined,
-                  borderColor: aiConfigured && filteredLogs.length > 0 ? '#c586c0' : undefined,
-                }}
-              >
-                {t('analyzeWithAI')}
-              </Button>
-            )}
-            {streamContent && !isAnalyzing && (
-              <Button icon={<DeleteOutlined />} onClick={handleClear} title={t('clearResults')} />
-            )}
-          </div>
-
-          {/* Not configured warning */}
-          {!aiConfigured && (
-            <Alert
-              message={t('aiNotConfigured')}
-              type="warning"
-              showIcon
-              style={{ marginTop: '8px', fontSize: '12px' }}
-              action={
-                <Button size="small" type="link" onClick={onOpenSettings}>
-                  {t('settings')}
-                </Button>
-              }
-            />
-          )}
-        </div>
-
-        {/* Results Section - scrollable */}
-        <div
-          ref={resultContainerRef}
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px',
-            minHeight: 0,
-          }}
-        >
-          {errorMessage && (
-            <Alert
-              message={errorMessage}
-              type="error"
-              showIcon
-              closable
-              onClose={() => setErrorMessage('')}
-              style={{ marginBottom: '12px' }}
-            />
-          )}
-
-          {streamContent ? (
-            <div className="ai-markdown-content" style={markdownStyles}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamContent}</ReactMarkdown>
-            </div>
-          ) : !isAnalyzing && !errorMessage ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: 'var(--ant-color-text-secondary)',
+                fontSize: '11px',
+                display: 'block',
+                padding: '6px',
                 textAlign: 'center',
-                padding: '24px',
+                backgroundColor: 'var(--ant-color-bg-elevated)',
+                borderRadius: '6px',
               }}
             >
-              <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }} />
-              <Text type="secondary">{t('aiEmptyState')}</Text>
-            </div>
-          ) : null}
-
-          {/* Streaming indicator */}
-          {isAnalyzing && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 0',
-                color: 'var(--ant-color-text-secondary)',
-              }}
-            >
-              <span className="ai-typing-indicator">
-                <span className="ai-dot" />
-                <span className="ai-dot" />
-                <span className="ai-dot" />
-              </span>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {t('aiAnalyzing')}
-              </Text>
-            </div>
+              {t('noSourceFilesAdded')}
+            </Text>
           )}
         </div>
+
+        {/* Prompt Input */}
+        <div style={{ marginBottom: '8px' }}>
+          <Input.TextArea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder={t('aiPromptOptional')}
+            rows={2}
+            style={{ resize: 'vertical', fontSize: '12px' }}
+            disabled={isAnalyzing}
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {isAnalyzing ? (
+            <Button
+              type="primary"
+              danger
+              icon={<StopOutlined />}
+              onClick={handleStop}
+              block
+              size="small"
+            >
+              {t('stopAnalysis')}
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleAnalyze}
+              disabled={!aiConfigured || filteredLogs.length === 0}
+              block
+              size="small"
+            >
+              {t('analyzeWithAI')}
+            </Button>
+          )}
+          {streamContent && !isAnalyzing && (
+            <Button
+              icon={<DeleteOutlined />}
+              onClick={handleClear}
+              title={t('clearResults')}
+              size="small"
+            />
+          )}
+        </div>
+
+        {/* Not configured warning */}
+        {!aiConfigured && (
+          <Alert
+            message={t('aiNotConfigured')}
+            type="warning"
+            showIcon
+            style={{ marginTop: '8px', fontSize: '12px' }}
+            action={
+              <Button size="small" type="link" onClick={onOpenSettings}>
+                {t('settings')}
+              </Button>
+            }
+          />
+        )}
+      </div>
+
+      {/* Results Section - scrollable */}
+      <div
+        ref={resultContainerRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '12px 16px',
+          minHeight: 0,
+        }}
+      >
+        {errorMessage && (
+          <Alert
+            message={errorMessage}
+            type="error"
+            showIcon
+            closable
+            onClose={() => setErrorMessage('')}
+            style={{ marginBottom: '12px' }}
+          />
+        )}
+
+        {streamContent ? (
+          <div className="ai-markdown-content" style={markdownStyles}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamContent}</ReactMarkdown>
+          </div>
+        ) : !isAnalyzing && !errorMessage ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: 'var(--ant-color-text-secondary)',
+              textAlign: 'center',
+              padding: '24px',
+            }}
+          >
+            <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }} />
+            <Text type="secondary">{t('aiEmptyState')}</Text>
+          </div>
+        ) : null}
+
+        {/* Streaming indicator */}
+        {isAnalyzing && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 0',
+              color: 'var(--ant-color-text-secondary)',
+            }}
+          >
+            <span className="ai-typing-indicator">
+              <span className="ai-dot" />
+              <span className="ai-dot" />
+              <span className="ai-dot" />
+            </span>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {t('aiAnalyzing')}
+            </Text>
+          </div>
+        )}
       </div>
 
       {/* CSS animations */}
@@ -413,7 +413,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           width: 6px;
           height: 6px;
           border-radius: 50%;
-          background-color: #c586c0;
+          background-color: var(--ant-color-primary);
           animation: ai-bounce 1.4s ease-in-out infinite;
         }
         .ai-dot:nth-child(1) { animation-delay: 0s; }
@@ -485,7 +485,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           font-weight: 600;
         }
         .ai-markdown-content blockquote {
-          border-left: 4px solid #c586c0;
+          border-left: 4px solid var(--ant-color-primary);
           margin: 8px 0;
           padding: 8px 16px;
           color: var(--ant-color-text-secondary);
@@ -501,7 +501,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           margin: 16px 0;
         }
       `}</style>
-    </Drawer>
+    </div>
   );
 };
 
