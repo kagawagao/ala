@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ConfigProvider, theme as antdTheme, Layout, Splitter } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
@@ -513,10 +513,6 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
-  const handleToggleSider = useCallback(() => {
-    setSiderCollapsed((prev) => !prev);
-  }, []);
-
   const handleConfigUpdated = () => {
     // Config is now managed entirely in localStorage by the renderer AI service
     showStatus(t('aiConfigUpdated'), 'info');
@@ -566,16 +562,15 @@ const App: React.FC = () => {
         <Header
           theme={themeMode}
           onToggleTheme={handleToggleTheme}
-          siderCollapsed={siderCollapsed}
-          onToggleSider={handleToggleSider}
         />
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
           <Layout.Sider
+            collapsible
             collapsed={siderCollapsed}
+            onCollapse={setSiderCollapsed}
             collapsedWidth={0}
             width={380}
-            trigger={null}
             style={{ overflow: 'auto' }}
           >
             <AppSider
