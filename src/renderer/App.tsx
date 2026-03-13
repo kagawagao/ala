@@ -23,21 +23,27 @@ const FILTER_CHUNK_SIZE = 10000;
 async function filterLogsAsync(logs: LogEntry[], filters: LogFilters): Promise<LogEntry[]> {
   // Pre-compile regexes once to avoid per-entry cost
   let keywordRegex: RegExp | null = null;
+  let keywordFallback: string | null = null;
   if (filters.keywords && filters.keywords.trim()) {
     try {
       keywordRegex = new RegExp(filters.keywords, 'i');
     } catch {
-      /* fall back to includes below */
+      keywordFallback = filters.keywords.toLowerCase();
     }
   }
   let tagRegex: RegExp | null = null;
+  let tagFallback: string | null = null;
   if (filters.tag && filters.tag.trim()) {
     try {
       tagRegex = new RegExp(filters.tag, 'i');
     } catch {
-      /* fall back to includes below */
+      tagFallback = filters.tag.toLowerCase();
     }
   }
+
+  const hasKeywordFilter = !!(keywordRegex || keywordFallback);
+  const hasTagFilter = !!(tagRegex || tagFallback);
+  const useOrRelation = filters.tagKeywordRelation === 'OR';
 
   const filtered: LogEntry[] = [];
 
@@ -54,25 +60,37 @@ async function filterLogsAsync(logs: LogEntry[], filters: LogFilters): Promise<L
       if (filters.startTime && ts! < filters.startTime) continue;
       if (filters.endTime && ts! > filters.endTime) continue;
 
-      // Keywords filter
-      if (keywordRegex) {
-        if (!keywordRegex.test(log.message)) continue;
-      } else if (filters.keywords && filters.keywords.trim()) {
-        if (!log.message.toLowerCase().includes(filters.keywords.toLowerCase())) continue;
+      // Keyword + Tag filter with AND/OR relationship
+      if (hasKeywordFilter || hasTagFilter) {
+        const keywordMatch = hasKeywordFilter
+          ? keywordRegex
+            ? keywordRegex.test(log.message)
+            : log.message.toLowerCase().includes(keywordFallback!)
+          : true;
+
+        const tagMatch = hasTagFilter
+          ? tagRegex
+            ? tagRegex.test(log.tag)
+            : log.tag.toLowerCase().includes(tagFallback!)
+          : true;
+
+        if (useOrRelation && hasKeywordFilter && hasTagFilter) {
+          // OR: at least one must match
+          if (!keywordMatch && !tagMatch) continue;
+        } else {
+          // AND: both must match (when both are active)
+          if (!keywordMatch || !tagMatch) continue;
+        }
       }
 
       // Level filter
       if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) continue;
 
-      // Tag filter
-      if (tagRegex) {
-        if (!tagRegex.test(log.tag)) continue;
-      } else if (filters.tag && filters.tag.trim()) {
-        if (!log.tag.toLowerCase().includes(filters.tag.toLowerCase())) continue;
-      }
-
       // PID filter
       if (filters.pid && filters.pid.trim() && log.pid !== filters.pid) continue;
+
+      // TID filter
+      if (filters.tid && filters.tid.trim() && log.tid !== filters.tid) continue;
 
       filtered.push(log);
     }
@@ -104,6 +122,8 @@ const App: React.FC = () => {
     level: 'ALL',
     tag: '',
     pid: '',
+    tid: '',
+    tagKeywordRelation: 'AND',
   });
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [statusType, setStatusType] = useState<'info' | 'error'>('info');
@@ -139,12 +159,13 @@ const App: React.FC = () => {
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        // Don't restore time and PID fields
+        // Don't restore time, PID, and TID fields
         setFilters({
           ...parsed,
           startTime: '',
           endTime: '',
           pid: '',
+          tid: '',
         });
       } catch (e) {
         console.error('Failed to load saved filters:', e);
@@ -288,6 +309,8 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      tid: '',
+      tagKeywordRelation: 'AND',
       coloredHighlights: [],
     };
     setFilters(clearedFilters);
@@ -441,6 +464,8 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      tid: '',
+      tagKeywordRelation: 'AND',
     };
 
     // Merge keyword descriptions

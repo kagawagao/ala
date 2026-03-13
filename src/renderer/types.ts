@@ -24,6 +24,8 @@ export interface LogFilters {
   level: string;
   tag: string;
   pid: string;
+  tid: string;
+  tagKeywordRelation: 'AND' | 'OR'; // Relationship between tag and keyword filters
 }
 
 export interface LogStatistics {

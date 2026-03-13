@@ -22,6 +22,8 @@ export interface LogFilters {
   level?: string;
   tag?: string;
   pid?: string;
+  tid?: string;
+  tagKeywordRelation?: 'AND' | 'OR';
 }
 
 /**
@@ -307,26 +309,52 @@ export class LogAnalyzer {
       });
     }
 
-    // Filter by keywords (supports regex)
-    if (filters.keywords && filters.keywords.trim()) {
-      try {
-        // Try to interpret as regex first
-        const keywordPattern = new RegExp(filters.keywords, 'i');
-        filtered = filtered.filter((log) => {
-          const searchText = `${log.tag} ${log.message}`;
-          return keywordPattern.test(searchText);
-        });
-      } catch (e) {
-        // If regex fails, fall back to space-separated keyword search
-        const keywords = filters.keywords
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((k) => k);
-        filtered = filtered.filter((log) => {
-          const searchText = `${log.tag} ${log.message}`.toLowerCase();
-          return keywords.some((keyword) => searchText.includes(keyword));
-        });
+    // Filter by keywords and tag (supports AND/OR relationship)
+    const hasKeywords = !!(filters.keywords && filters.keywords.trim());
+    const hasTag = !!(filters.tag && filters.tag.trim());
+    const useOrRelation = filters.tagKeywordRelation === 'OR';
+
+    if (hasKeywords || hasTag) {
+      let keywordRegex: RegExp | null = null;
+      let keywordFallbackTerms: string[] | null = null;
+      if (hasKeywords) {
+        try {
+          keywordRegex = new RegExp(filters.keywords!, 'i');
+        } catch {
+          keywordFallbackTerms = filters
+            .keywords!.toLowerCase()
+            .split(/\s+/)
+            .filter((k) => k);
+        }
       }
+
+      let tagRegex: RegExp | null = null;
+      if (hasTag) {
+        try {
+          tagRegex = new RegExp(filters.tag!, 'i');
+        } catch {
+          /* ignore invalid regex */
+        }
+      }
+
+      filtered = filtered.filter((log) => {
+        const keywordMatch = hasKeywords
+          ? keywordRegex
+            ? keywordRegex.test(`${log.tag} ${log.message}`)
+            : keywordFallbackTerms
+              ? keywordFallbackTerms.some((keyword) =>
+                  `${log.tag} ${log.message}`.toLowerCase().includes(keyword)
+                )
+              : true
+          : true;
+
+        const tagMatch = hasTag ? (tagRegex ? tagRegex.test(log.tag) : true) : true;
+
+        if (useOrRelation && hasKeywords && hasTag) {
+          return keywordMatch || tagMatch;
+        }
+        return keywordMatch && tagMatch;
+      });
     }
 
     // Filter by log level
@@ -334,15 +362,14 @@ export class LogAnalyzer {
       filtered = filtered.filter((log) => log.level === filters.level);
     }
 
-    // Filter by tag
-    if (filters.tag && filters.tag.trim()) {
-      const tagPattern = new RegExp(filters.tag, 'i');
-      filtered = filtered.filter((log) => tagPattern.test(log.tag));
-    }
-
     // Filter by PID
     if (filters.pid && filters.pid.trim()) {
       filtered = filtered.filter((log) => log.pid === filters.pid);
+    }
+
+    // Filter by TID
+    if (filters.tid && filters.tid.trim()) {
+      filtered = filtered.filter((log) => log.tid === filters.tid);
     }
 
     return filtered;

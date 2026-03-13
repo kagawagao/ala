@@ -1,5 +1,18 @@
 import React, { useEffect } from 'react';
-import { Button, Space, Divider, Input, Select, Alert, Form, DatePicker, Tag } from 'antd';
+import {
+  Button,
+  Space,
+  Divider,
+  Input,
+  Select,
+  Alert,
+  Form,
+  DatePicker,
+  Tag,
+  Radio,
+  Row,
+  Col,
+} from 'antd';
 import {
   FolderOpenOutlined,
   SearchOutlined,
@@ -180,7 +193,7 @@ const AppSider: React.FC<AppSiderProps> = ({
               initialValues={filters}
             >
               {/* Time Range with DatePicker */}
-              <Form.Item name="timeRange" label={t('timeRange')} style={{ marginBottom: '16px' }}>
+              <Form.Item name="timeRange" label={t('timeRange')} style={{ marginBottom: '12px' }}>
                 <RangePicker
                   showTime={{
                     format: 'HH:mm:ss',
@@ -193,12 +206,31 @@ const AppSider: React.FC<AppSiderProps> = ({
               </Form.Item>
 
               {/* Keywords (Filter) */}
-              <Form.Item name="keywords" label={t('keywords')} style={{ marginBottom: '16px' }}>
+              <Form.Item name="keywords" label={t('keywords')} style={{ marginBottom: '12px' }}>
                 <Input placeholder={t('keywordsPlaceholder')} />
               </Form.Item>
 
+              {/* Tag Filter + AND/OR toggle */}
+              <Form.Item label={t('tagFilterRegex')} style={{ marginBottom: '12px' }}>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Form.Item name="tag" noStyle>
+                    <Input placeholder={t('tagPlaceholder')} style={{ flex: 1 }} />
+                  </Form.Item>
+                  <Form.Item name="tagKeywordRelation" noStyle>
+                    <Radio.Group
+                      optionType="button"
+                      buttonStyle="solid"
+                      size="middle"
+                    >
+                      <Radio.Button value="AND">{t('relationAnd')}</Radio.Button>
+                      <Radio.Button value="OR">{t('relationOr')}</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                </Space.Compact>
+              </Form.Item>
+
               {/* Highlights (Visual Only) */}
-              <Form.Item name="highlights" label={t('highlights')} style={{ marginBottom: '16px' }}>
+              <Form.Item name="highlights" label={t('highlights')} style={{ marginBottom: '12px' }}>
                 <Input placeholder={t('highlightsPlaceholder')} />
               </Form.Item>
 
@@ -243,7 +275,7 @@ const AppSider: React.FC<AppSiderProps> = ({
               )}
 
               {/* Log Level */}
-              <Form.Item name="level" label={t('logLevel')} style={{ marginBottom: '16px' }}>
+              <Form.Item name="level" label={t('logLevel')} style={{ marginBottom: '12px' }}>
                 <Select
                   options={[
                     { value: 'ALL', label: t('allLevels') },
@@ -257,15 +289,19 @@ const AppSider: React.FC<AppSiderProps> = ({
                 />
               </Form.Item>
 
-              {/* Tag Filter */}
-              <Form.Item name="tag" label={t('tagFilterRegex')} style={{ marginBottom: '16px' }}>
-                <Input placeholder={t('tagPlaceholder')} />
-              </Form.Item>
-
-              {/* PID */}
-              <Form.Item name="pid" label={t('pid')} style={{ marginBottom: '16px' }}>
-                <Input placeholder={t('pidPlaceholder')} />
-              </Form.Item>
+              {/* PID and TID in two columns */}
+              <Row gutter={8}>
+                <Col span={12}>
+                  <Form.Item name="pid" label={t('pid')} style={{ marginBottom: '12px' }}>
+                    <Input placeholder={t('pidPlaceholder')} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="tid" label={t('tid')} style={{ marginBottom: '12px' }}>
+                    <Input placeholder={t('tidPlaceholder')} />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Form>
 
             {/* Search/Clear Buttons */}
