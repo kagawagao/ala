@@ -217,11 +217,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                     <Input placeholder={t('tagPlaceholder')} style={{ flex: 1 }} />
                   </Form.Item>
                   <Form.Item name="tagKeywordRelation" noStyle>
-                    <Radio.Group
-                      optionType="button"
-                      buttonStyle="solid"
-                      size="middle"
-                    >
+                    <Radio.Group optionType="button" buttonStyle="solid" size="middle">
                       <Radio.Button value="AND">{t('relationAnd')}</Radio.Button>
                       <Radio.Button value="OR">{t('relationOr')}</Radio.Button>
                     </Radio.Group>

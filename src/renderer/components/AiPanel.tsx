@@ -286,13 +286,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '8px' }}>
           {isAnalyzing ? (
-            <Button
-              type="primary"
-              danger
-              icon={<StopOutlined />}
-              onClick={handleStop}
-              block
-            >
+            <Button type="primary" danger icon={<StopOutlined />} onClick={handleStop} block>
               {t('stopAnalysis')}
             </Button>
           ) : (
@@ -307,11 +301,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             </Button>
           )}
           {streamContent && !isAnalyzing && (
-            <Button
-              icon={<DeleteOutlined />}
-              onClick={handleClear}
-              title={t('clearResults')}
-            />
+            <Button icon={<DeleteOutlined />} onClick={handleClear} title={t('clearResults')} />
           )}
         </div>
 
