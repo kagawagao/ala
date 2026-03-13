@@ -383,7 +383,7 @@ const AppSider: React.FC<AppSiderProps> = ({
             borderTop: `1px solid ${themeMode === 'dark' ? '#3e3e42' : '#d9d9d9'}`,
           }}
         >
-          <Space orientation="vertical" size="small" style={{ width: '100%' }}>
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
             <Button type="default" icon={<SettingOutlined />} onClick={onManagePresets} block>
               {t('managePresets')}
             </Button>
