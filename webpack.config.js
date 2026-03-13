@@ -8,7 +8,7 @@ module.exports = (env, argv) => {
   return {
     mode: isProduction ? 'production' : 'development',
     entry: './src/renderer/index.tsx',
-    target: 'electron-renderer',
+    target: 'web',
     devtool: 'source-map',
     module: {
       rules: [
