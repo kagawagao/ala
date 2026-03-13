@@ -29,7 +29,6 @@ export interface AIPromptPreset {
   descriptionKey: string;
   systemPrompt: string;
   userPrompt: string;
-  maxTokens?: number;
   temperature?: number;
 }
 
@@ -49,7 +48,6 @@ export const AI_PROMPT_PRESETS: AIPromptPreset[] = [
 
 Be concise and focus on actionable insights.`,
     userPrompt: 'Analyze these Android logs and provide insights.',
-    maxTokens: 1000,
     temperature: 0.7,
   },
   {
@@ -68,7 +66,6 @@ Be concise and focus on actionable insights.`,
 
 Provide detailed analysis with line references where possible.`,
     userPrompt: 'Analyze these logs to identify crashes and their root causes.',
-    maxTokens: 1500,
     temperature: 0.5,
   },
   {
@@ -88,7 +85,6 @@ Provide detailed analysis with line references where possible.`,
 
 Focus on measurable metrics and specific improvements.`,
     userPrompt: 'Analyze these logs for performance issues and optimization opportunities.',
-    maxTokens: 1200,
     temperature: 0.6,
   },
   {
@@ -108,7 +104,6 @@ Focus on measurable metrics and specific improvements.`,
 
 Provide severity ratings and mitigation strategies.`,
     userPrompt: 'Analyze these logs for security vulnerabilities and risks.',
-    maxTokens: 1200,
     temperature: 0.5,
   },
   {
@@ -128,7 +123,6 @@ Provide severity ratings and mitigation strategies.`,
 
 Identify patterns and suggest improvements.`,
     userPrompt: 'Analyze these logs for network-related issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
   {
@@ -148,7 +142,6 @@ Identify patterns and suggest improvements.`,
 
 Explain lifecycle-related bugs and best practices.`,
     userPrompt: 'Analyze these logs for app lifecycle and state management issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
   {
@@ -169,7 +162,6 @@ Explain lifecycle-related bugs and best practices.`,
 
 Provide UI-specific recommendations.`,
     userPrompt: 'Analyze these logs for UI/UX issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
 ];
@@ -331,7 +323,6 @@ export async function analyzeLogsStream(params: {
   // Determine system prompt and user prompt from preset
   let systemPrompt: string;
   let userPrompt: string;
-  let maxTokens = 1000;
   let temperature = 0.7;
 
   if (params.presetId) {
@@ -339,7 +330,6 @@ export async function analyzeLogsStream(params: {
     if (preset) {
       systemPrompt = preset.systemPrompt;
       userPrompt = params.prompt || preset.userPrompt;
-      maxTokens = preset.maxTokens ?? 1000;
       temperature = preset.temperature ?? 0.7;
     } else {
       systemPrompt = AI_PROMPT_PRESETS[0].systemPrompt;
@@ -354,7 +344,6 @@ export async function analyzeLogsStream(params: {
   if (params.sourceCode) {
     systemPrompt +=
       '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
-    maxTokens = Math.max(maxTokens, 1500);
   }
 
   // Add language instruction
@@ -385,7 +374,6 @@ export async function analyzeLogsStream(params: {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        max_tokens: maxTokens,
         temperature,
         stream: true,
       }),
