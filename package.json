@@ -20,6 +20,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
     "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'"
   },
   "keywords": [
@@ -38,6 +39,8 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "concurrently": "^9.1.2",
+    "conventional-changelog": "^7.2.0",
+    "conventional-changelog-angular": "^8.3.0",
     "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "electron": "^35.7.5",
