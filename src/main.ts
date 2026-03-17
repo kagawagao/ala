@@ -10,7 +10,6 @@ import {
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import LogAnalyzer, { LogEntry, LogFilters } from './backend/log-analyzer';
-import AIService from './backend/ai-service';
 
 // Enable hot-reload in development
 try {
@@ -27,7 +26,6 @@ try {
 
 let mainWindow: BrowserWindow | null;
 const logAnalyzer = new LogAnalyzer();
-const aiService = new AIService();
 
 function createWindow(): void {
   const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -200,42 +198,6 @@ ipcMain.handle(
 ipcMain.handle('get-statistics', async (_event: IpcMainInvokeEvent, logs: LogEntry[]) => {
   return logAnalyzer.getStatistics(logs);
 });
-
-ipcMain.handle(
-  'analyze-with-ai',
-  async (
-    _event: IpcMainInvokeEvent,
-    {
-      logs,
-      prompt,
-      presetId,
-      sourceCode,
-    }: { logs: LogEntry[]; prompt?: string; presetId?: string; sourceCode?: string }
-  ) => {
-    return await aiService.analyzeLogs(logs, prompt, presetId, sourceCode);
-  }
-);
-
-ipcMain.handle('check-ai-configured', async (): Promise<boolean> => {
-  return aiService.isConfigured();
-});
-
-ipcMain.handle(
-  'update-ai-config',
-  async (
-    _event: IpcMainInvokeEvent,
-    config: { apiEndpoint: string; apiKey: string; model: string }
-  ): Promise<boolean> => {
-    return aiService.updateConfig(config);
-  }
-);
-
-ipcMain.handle(
-  'get-ai-config',
-  async (): Promise<{ apiEndpoint: string; apiKey: string; model: string } | null> => {
-    return aiService.getConfig();
-  }
-);
 
 // Import filters from file
 ipcMain.handle('import-filters', async (): Promise<unknown | null> => {

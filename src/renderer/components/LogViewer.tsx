@@ -1,5 +1,5 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined } from '@ant-design/icons';
-import { Divider, FloatButton, Tabs, Tooltip, Dropdown, message, Tag } from 'antd';
+import { Divider, FloatButton, Tooltip, Dropdown, message, Tag, Button, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import VirtualList from 'rc-virtual-list';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,15 +20,30 @@ type LogItem = { type: 'log'; key: string; log: LogEntry; index: number };
 type ListItem = DividerItem | LogItem;
 
 const LOG_ITEM_HEIGHT = 28;
-// JetBrains Mono at 14 px – approximate pixel width per character used to
-// estimate the horizontal scroll range when lineBreakMode is 'nowrap'.
-const MONO_CHAR_WIDTH = 8.4;
-// Left padding (8px) + right padding (8px) + border-left (4px) + a small buffer.
-const LOG_LINE_PADDING = 24;
-// Character widths of field separators / delimiters in the rendered log line.
-const LINE_NUMBER_OVERHEAD = 2; // '#' prefix + trailing space
-const FIELD_SEPARATOR = 1; // space between fields
-const TAG_OVERHEAD = 3; // '[' + ']' + trailing space
+// Fallback character width for JetBrains Mono at 14 px.  The actual width is
+// measured at runtime via <canvas> so this constant is only used if measurement
+// fails.
+const FALLBACK_CHAR_WIDTH = 8.4;
+// Pixel-based layout constants that match the rendered CSS in renderLogLine.
+const FIELD_MARGIN_PX = 10; // marginRight on each field element
+const LINE_NUMBER_MIN_WIDTH_PX = 50; // CSS minWidth of the lineNumber span
+// border-left (4px) + left padding (8px) + right padding (8px) + safety buffer.
+const LOG_LINE_PADDING_PX = 32;
+
+/** Measure the average monospace character width using a <canvas> context. */
+function measureCharWidth(): number {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return FALLBACK_CHAR_WIDTH;
+    ctx.font = "14px 'JetBrains Mono', monospace";
+    const sample = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789[]:#/ ';
+    const measured = ctx.measureText(sample).width / sample.length;
+    return measured > 0 ? measured : FALLBACK_CHAR_WIDTH;
+  } catch {
+    return FALLBACK_CHAR_WIDTH;
+  }
+}
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -37,9 +52,6 @@ interface LogViewerProps {
   currentFiles: string[];
   highlights: string; // For visual highlighting only (legacy)
   coloredHighlights: HighlightItem[]; // New colored highlights
-  activeTab: 'logs' | 'ai';
-  setActiveTab: (tab: 'logs' | 'ai') => void;
-  aiAnalysis: string;
   isSearching: boolean;
   lineBreakMode: 'wrap' | 'nowrap';
   onLineBreakModeChange: (mode: 'wrap' | 'nowrap') => void;
@@ -48,6 +60,8 @@ interface LogViewerProps {
   tagDescription?: string;
   currentTag?: string;
   onAddHighlight?: (text: string, color?: string) => void; // Updated to accept color
+  siderCollapsed?: boolean;
+  onSiderCollapseClick?: (collapsed: boolean) => void;
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({
@@ -57,9 +71,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
   currentFiles,
   highlights,
   coloredHighlights,
-  activeTab,
-  setActiveTab,
-  aiAnalysis,
   isSearching,
   lineBreakMode,
   onLineBreakModeChange,
@@ -68,6 +79,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
   tagDescription = '',
   currentTag = '',
   onAddHighlight,
+  siderCollapsed,
+  onSiderCollapseClick,
 }) => {
   const { t } = useTranslation();
 
@@ -78,6 +91,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
     x: 0,
     y: 0,
   });
+
+  // Runtime-measured character width for accurate horizontal scroll estimation.
+  const [charWidth, setCharWidth] = useState(measureCharWidth);
+  useEffect(() => {
+    // Re-measure after all fonts (e.g. JetBrains Mono) have loaded.
+    document.fonts?.ready.then(() => setCharWidth(measureCharWidth()));
+  }, []);
 
   // Track the scrollable container height for VirtualList.
   // Use refs so the ResizeObserver can be re-attached whenever the container
@@ -428,25 +448,33 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // mode.  VirtualList positions items with CSS transforms so the outer container's
   // overflow-x: auto has no effect – we must pass scrollWidth to VirtualList so it
   // can render its own horizontal scrollbar.
+  //
+  // Uses pixel-accurate margins / minWidth values that match the CSS in renderLogLine
+  // so the scroll range is never shorter than the actual content.
   const maxContentWidth = useMemo(() => {
     if (lineBreakMode !== 'nowrap' || flatItems.length === 0) return 0;
-    let maxLen = 0;
+    const cw = charWidth; // runtime-measured character width
+    let maxWidth = 0;
     for (const item of flatItems) {
       if (item.type === 'log') {
         const log = item.log;
-        let len = 0;
-        if (log.lineNumber) len += String(log.lineNumber).length + LINE_NUMBER_OVERHEAD;
-        if (log.timestamp) len += log.timestamp.length + FIELD_SEPARATOR;
-        if (log.pid) len += log.pid.length + FIELD_SEPARATOR;
-        if (log.tid) len += log.tid.length + FIELD_SEPARATOR;
-        if (log.level) len += log.level.length + FIELD_SEPARATOR;
-        if (log.tag && log.tag !== 'Unknown') len += log.tag.length + TAG_OVERHEAD;
-        len += log.message.length;
-        if (len > maxLen) maxLen = len;
+        let width = LOG_LINE_PADDING_PX;
+        if (log.lineNumber) {
+          // '#' prefix + digits; the span has minWidth: 50px
+          const textWidth = (String(log.lineNumber).length + 1) * cw;
+          width += Math.max(textWidth, LINE_NUMBER_MIN_WIDTH_PX) + FIELD_MARGIN_PX;
+        }
+        if (log.timestamp) width += log.timestamp.length * cw + FIELD_MARGIN_PX;
+        if (log.pid) width += log.pid.length * cw + FIELD_MARGIN_PX;
+        if (log.tid) width += log.tid.length * cw + FIELD_MARGIN_PX;
+        if (log.level) width += log.level.length * cw + FIELD_MARGIN_PX;
+        if (log.tag && log.tag !== 'Unknown') width += (log.tag.length + 2) * cw + FIELD_MARGIN_PX; // +2 for [ ]
+        width += log.message.length * cw;
+        if (width > maxWidth) maxWidth = width;
       }
     }
-    return maxLen * MONO_CHAR_WIDTH + LOG_LINE_PADDING;
-  }, [flatItems, lineBreakMode]);
+    return maxWidth;
+  }, [flatItems, lineBreakMode, charWidth]);
 
   // Pre-compile the tag filter regex once so renderLogLine doesn't recreate it
   // for every log entry.  Falls back to null when currentTag is empty or invalid.
@@ -630,194 +658,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
     ]
   );
 
-  const tabItems = [
-    {
-      key: 'logs',
-      label: t('logViewer'),
-      children: (
-        <div
-          style={{
-            flex: 1,
-            height: '100%',
-            backgroundColor: 'var(--ant-color-bg-container)',
-          }}
-        >
-          {isSearching ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    display: 'inline-block',
-                    width: '48px',
-                    height: '48px',
-                    border: '4px solid #4ec9b0',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                    marginBottom: '16px',
-                  }}
-                ></div>
-                <p style={{ color: 'var(--ant-color-text-secondary)' }}>{t('searchingLogs')}</p>
-              </div>
-            </div>
-          ) : logs.length === 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-                color: 'var(--ant-color-text-secondary)',
-              }}
-            >
-              <p>{t('noLogsMatchFilter')}</p>
-            </div>
-          ) : (
-            // Virtualised log list – only visible rows are rendered
-            <>
-              <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
-                <span
-                  style={{
-                    position: 'fixed',
-                    left: contextMenuPosition.x,
-                    top: contextMenuPosition.y,
-                    width: 0,
-                    height: 0,
-                  }}
-                />
-              </Dropdown>
-              <div
-                ref={containerRef}
-                onContextMenu={handleContextMenu}
-                style={{
-                  height: '100%',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                <VirtualList<ListItem>
-                  data={flatItems}
-                  height={containerHeight}
-                  itemHeight={LOG_ITEM_HEIGHT}
-                  itemKey="key"
-                  scrollWidth={
-                    lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
-                  }
-                  styles={{
-                    verticalScrollBar: { right: 0 },
-                  }}
-                >
-                  {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
-                    // Exclude the height from the positioning style so items can
-                    // size themselves naturally; rc-virtual-list measures the
-                    // actual rendered height via ResizeObserver and corrects the
-                    // scroll calculation automatically.
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    const { height: _height, ...posStyle } = style;
-                    if (item.type === 'divider') {
-                      return (
-                        <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
-                          <Divider
-                            style={{
-                              margin: '8px 0',
-                              borderColor: 'var(--ant-color-border-secondary)',
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: 'var(--ant-color-text)',
-                                marginRight: '8px',
-                              }}
-                            >
-                              📄
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: '#4ec9b0',
-                              }}
-                            >
-                              {item.file}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '12px',
-                                color: 'var(--ant-color-text-secondary)',
-                                marginLeft: '12px',
-                              }}
-                            >
-                              ({item.count} {t('logs')})
-                            </span>
-                          </Divider>
-                        </div>
-                      );
-                    }
-                    return renderLogLine(item.log, item.index, posStyle);
-                  }}
-                </VirtualList>
-                <FloatButton
-                  icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                  tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
-                  onClick={() =>
-                    onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')
-                  }
-                  style={{
-                    position: 'absolute',
-                    right: 24,
-                    top: 24,
-                    bottom: 'unset',
-                    zIndex: 100,
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'ai',
-      label: t('aiAnalysis'),
-      children: (
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            backgroundColor: 'var(--ant-color-bg-container)',
-            padding: '16px',
-          }}
-        >
-          {aiAnalysis ? (
-            <div style={{ whiteSpace: 'pre-wrap', color: 'var(--ant-color-text)' }}>
-              {aiAnalysis}
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100%',
-                color: 'var(--ant-color-text-secondary)',
-              }}
-            >
-              <p>{t('clickSearchToFilter')}</p>
-            </div>
-          )}
-        </div>
-      ),
-    },
-  ];
+  const { token } = theme.useToken();
 
   return (
     <section
@@ -836,9 +677,27 @@ const LogViewer: React.FC<LogViewerProps> = ({
           backgroundColor: 'var(--ant-color-bg-elevated)',
           padding: '12px 24px',
           borderBottom: '1px solid var(--ant-color-border)',
+          flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
+        <div style={{ display: 'flex', gap: '24px', fontSize: '14px', alignItems: 'center' }}>
+          <div>
+            {siderCollapsed ? (
+              <Button
+                type="link"
+                style={{ color: token.colorPrimary }}
+                onClick={() => onSiderCollapseClick?.(false)}
+                icon={<MenuUnfoldOutlined />}
+              />
+            ) : (
+              <Button
+                type="link"
+                style={{ color: token.colorPrimary }}
+                onClick={() => onSiderCollapseClick?.(true)}
+                icon={<MenuFoldOutlined />}
+              />
+            )}
+          </div>
           <div>
             <span style={{ color: 'var(--ant-color-text-secondary)' }}>{t('totalLogs')}: </span>
             <span style={{ color: '#4ec9b0', fontWeight: 600 }}>{allLogsCount}</span>
@@ -872,21 +731,153 @@ const LogViewer: React.FC<LogViewerProps> = ({
         </div>
       </div>
 
-      {/* Tabs with Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as 'logs' | 'ai')}
-          items={tabItems}
-          style={{ height: '100%' }}
-          tabBarStyle={{
-            backgroundColor: 'var(--ant-color-bg-container)',
-            margin: 0,
-            paddingLeft: '24px',
-            flexShrink: 0,
-          }}
-          className="log-viewer-tabs"
-        />
+      {/* Log Content */}
+      <div
+        style={{
+          flex: 1,
+          height: '100%',
+          backgroundColor: 'var(--ant-color-bg-container)',
+          overflow: 'hidden',
+        }}
+      >
+        {isSearching ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  display: 'inline-block',
+                  width: '48px',
+                  height: '48px',
+                  border: '4px solid #4ec9b0',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '16px',
+                }}
+              ></div>
+              <p style={{ color: 'var(--ant-color-text-secondary)' }}>{t('searchingLogs')}</p>
+            </div>
+          </div>
+        ) : logs.length === 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '100%',
+              color: 'var(--ant-color-text-secondary)',
+            }}
+          >
+            <p>{t('noLogsMatchFilter')}</p>
+          </div>
+        ) : (
+          // Virtualised log list – only visible rows are rendered
+          <>
+            <Dropdown menu={{ items: contextMenuItems }} open={contextMenuVisible} trigger={[]}>
+              <span
+                style={{
+                  position: 'fixed',
+                  left: contextMenuPosition.x,
+                  top: contextMenuPosition.y,
+                  width: 0,
+                  height: 0,
+                }}
+              />
+            </Dropdown>
+            <div
+              ref={containerRef}
+              onContextMenu={handleContextMenu}
+              style={{
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <VirtualList<ListItem>
+                data={flatItems}
+                height={containerHeight}
+                itemHeight={LOG_ITEM_HEIGHT}
+                itemKey="key"
+                scrollWidth={
+                  lineBreakMode === 'nowrap' && maxContentWidth > 0 ? maxContentWidth : undefined
+                }
+                styles={{
+                  verticalScrollBar: { right: 0 },
+                }}
+              >
+                {(item: ListItem, _index: number, { style }: { style: React.CSSProperties }) => {
+                  // Exclude the height from the positioning style so items can
+                  // size themselves naturally; rc-virtual-list measures the
+                  // actual rendered height via ResizeObserver and corrects the
+                  // scroll calculation automatically.
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { height: _height, ...posStyle } = style;
+                  if (item.type === 'divider') {
+                    return (
+                      <div key={item.key} style={{ ...posStyle, padding: '0 16px' }}>
+                        <Divider
+                          style={{
+                            margin: '8px 0',
+                            borderColor: 'var(--ant-color-border-secondary)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: 'var(--ant-color-text)',
+                              marginRight: '8px',
+                            }}
+                          >
+                            📄
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#4ec9b0',
+                            }}
+                          >
+                            {item.file}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              color: 'var(--ant-color-text-secondary)',
+                              marginLeft: '12px',
+                            }}
+                          >
+                            ({item.count} {t('logs')})
+                          </span>
+                        </Divider>
+                      </div>
+                    );
+                  }
+                  return renderLogLine(item.log, item.index, posStyle);
+                }}
+              </VirtualList>
+              <FloatButton
+                icon={lineBreakMode === 'wrap' ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+                tooltip={lineBreakMode === 'wrap' ? t('noWrap') : t('wordWrap')}
+                onClick={() => onLineBreakModeChange(lineBreakMode === 'wrap' ? 'nowrap' : 'wrap')}
+                style={{
+                  position: 'absolute',
+                  right: 24,
+                  top: 24,
+                  bottom: 'unset',
+                  zIndex: 100,
+                }}
+              />
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
