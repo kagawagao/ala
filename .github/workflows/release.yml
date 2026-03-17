@@ -36,13 +36,11 @@ jobs:
         with:
           name: dist-${{ matrix.os }}
           path: |
-            release/**
-            !release/**/*.blockmap
-            !release/**/builder-debug.yml
-            !release/**/builder-effective-config.yaml
-            !release/**/mac/**
-            !release/**/linux-unpacked/**
-            !release/**/win-unpacked/**
+            release/*.dmg
+            release/*-mac.zip
+            release/*.exe
+            release/*.AppImage
+            release/latest*.yml
           if-no-files-found: error
 
   publish:
