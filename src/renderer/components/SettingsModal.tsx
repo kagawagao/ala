@@ -2,6 +2,7 @@ import { Button, Form, Input, message, Modal } from 'antd';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AIConfig } from '../types';
+import { getAIConfig, saveAIConfig } from '../services/ai-service';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -19,31 +20,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose, onConfi
     model: 'gpt-3.5-turbo',
   });
 
-  // Load settings from both localStorage and backend on mount
+  // Load settings from localStorage on mount
   useEffect(() => {
-    const loadConfig = async () => {
-      // First try to get from backend
-      const backendConfig = await window.electronAPI.getAIConfig();
-      if (backendConfig) {
-        setConfig(backendConfig);
-        form.setFieldsValue(backendConfig);
-      } else {
-        // Fall back to localStorage
-        const saved = localStorage.getItem('aiConfig');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            setConfig(parsed);
-            form.setFieldsValue(parsed);
-          } catch (e) {
-            console.error('Failed to parse AI config:', e);
-          }
-        }
-      }
-    };
-
     if (visible) {
-      loadConfig();
+      const savedConfig = getAIConfig();
+      if (savedConfig) {
+        setConfig(savedConfig);
+        form.setFieldsValue(savedConfig);
+      }
     }
   }, [form, visible]);
 
@@ -58,24 +42,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose, onConfi
         model: values.model || 'gpt-3.5-turbo',
       };
 
-      // Save to backend
-      const success = await window.electronAPI.updateAIConfig(newConfig);
+      // Save to localStorage
+      setConfig(newConfig);
+      saveAIConfig(newConfig);
+      message.success(t('aiSettingsSaved'));
 
-      if (success) {
-        // Also save to localStorage for persistence
-        setConfig(newConfig);
-        localStorage.setItem('aiConfig', JSON.stringify(newConfig));
-        message.success(t('aiSettingsSaved'));
-
-        // Notify parent component to re-check AI configuration
-        if (onConfigUpdated) {
-          onConfigUpdated();
-        }
-
-        onClose();
-      } else {
-        message.error(t('aiSettingsUpdateFailed'));
+      // Notify parent component
+      if (onConfigUpdated) {
+        onConfigUpdated();
       }
+
+      onClose();
     } catch (error) {
       console.error('Failed to save AI config:', error);
     } finally {

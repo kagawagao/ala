@@ -44,3 +44,4 @@
 01-15 10:31:00.890123  5678  5678 D AuthService: Clearing auth token
 01-15 10:31:00.991234  5678  5678 I MainActivity: Navigating to login screen
 01-15 10:31:01.123456  5678  5678 D MainActivity: onResume called
+04-11 04:21:44.569123  3284  6823 W CarConnectSDK:: [MagicLinkSessionMgr:]Open Session failed errorCode 600010

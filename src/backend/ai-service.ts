@@ -113,7 +113,6 @@ export class AIService {
       // Use preset if provided, otherwise use default
       let systemPrompt: string;
       let userPrompt: string;
-      let maxTokens = 1000;
       let temperature = 0.7;
 
       if (presetId) {
@@ -121,7 +120,6 @@ export class AIService {
         if (preset) {
           systemPrompt = preset.systemPrompt;
           userPrompt = prompt || preset.userPrompt;
-          maxTokens = preset.maxTokens ?? 1000;
           temperature = preset.temperature ?? 0.7;
         } else {
           // Fallback to default if preset not found
@@ -137,7 +135,6 @@ export class AIService {
       if (sourceCode) {
         systemPrompt +=
           '\n\nYou also have access to relevant source code. Use it to provide more accurate analysis and pinpoint exact locations of issues in the code.';
-        maxTokens = Math.max(maxTokens, 1500); // Increase tokens when source code is included
       }
 
       // Build the user message with logs and optional source code
@@ -160,7 +157,6 @@ export class AIService {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        max_tokens: maxTokens,
         temperature: temperature,
       });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ConfigProvider, theme as antdTheme, Layout } from 'antd';
+import { ConfigProvider, theme as antdTheme, Layout, Splitter } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
@@ -7,10 +7,9 @@ import { LogEntry, LogFilters, LogStatistics } from './types';
 import Header from './components/Header';
 import AppSider from './components/AppSider';
 import LogViewer from './components/LogViewer';
+import AiPanel from './components/AiPanel';
 import FilterPresetManager, { FilterPreset } from './components/FilterPresetManager';
 import SettingsModal from './components/SettingsModal';
-
-const { Content } = Layout;
 
 // Constants
 const KEYWORD_SEPARATOR = '|';
@@ -24,21 +23,27 @@ const FILTER_CHUNK_SIZE = 10000;
 async function filterLogsAsync(logs: LogEntry[], filters: LogFilters): Promise<LogEntry[]> {
   // Pre-compile regexes once to avoid per-entry cost
   let keywordRegex: RegExp | null = null;
+  let keywordFallback: string | null = null;
   if (filters.keywords && filters.keywords.trim()) {
     try {
       keywordRegex = new RegExp(filters.keywords, 'i');
     } catch {
-      /* fall back to includes below */
+      keywordFallback = filters.keywords.toLowerCase();
     }
   }
   let tagRegex: RegExp | null = null;
+  let tagFallback: string | null = null;
   if (filters.tag && filters.tag.trim()) {
     try {
       tagRegex = new RegExp(filters.tag, 'i');
     } catch {
-      /* fall back to includes below */
+      tagFallback = filters.tag.toLowerCase();
     }
   }
+
+  const hasKeywordFilter = !!(keywordRegex || keywordFallback);
+  const hasTagFilter = !!(tagRegex || tagFallback);
+  const useOrRelation = filters.tagKeywordRelation === 'OR';
 
   const filtered: LogEntry[] = [];
 
@@ -55,25 +60,37 @@ async function filterLogsAsync(logs: LogEntry[], filters: LogFilters): Promise<L
       if (filters.startTime && ts! < filters.startTime) continue;
       if (filters.endTime && ts! > filters.endTime) continue;
 
-      // Keywords filter
-      if (keywordRegex) {
-        if (!keywordRegex.test(log.message)) continue;
-      } else if (filters.keywords && filters.keywords.trim()) {
-        if (!log.message.toLowerCase().includes(filters.keywords.toLowerCase())) continue;
+      // Keyword + Tag filter with AND/OR relationship
+      if (hasKeywordFilter || hasTagFilter) {
+        const keywordMatch = hasKeywordFilter
+          ? keywordRegex
+            ? keywordRegex.test(log.message)
+            : log.message.toLowerCase().includes(keywordFallback!)
+          : true;
+
+        const tagMatch = hasTagFilter
+          ? tagRegex
+            ? tagRegex.test(log.tag)
+            : log.tag.toLowerCase().includes(tagFallback!)
+          : true;
+
+        if (useOrRelation && hasKeywordFilter && hasTagFilter) {
+          // OR: at least one must match
+          if (!keywordMatch && !tagMatch) continue;
+        } else {
+          // AND: both must match (when both are active)
+          if (!keywordMatch || !tagMatch) continue;
+        }
       }
 
       // Level filter
       if (filters.level && filters.level !== 'ALL' && log.level !== filters.level) continue;
 
-      // Tag filter
-      if (tagRegex) {
-        if (!tagRegex.test(log.tag)) continue;
-      } else if (filters.tag && filters.tag.trim()) {
-        if (!log.tag.toLowerCase().includes(filters.tag.toLowerCase())) continue;
-      }
-
       // PID filter
       if (filters.pid && filters.pid.trim() && log.pid !== filters.pid) continue;
+
+      // TID filter
+      if (filters.tid && filters.tid.trim() && log.tid !== filters.tid) continue;
 
       filtered.push(log);
     }
@@ -93,7 +110,6 @@ const App: React.FC = () => {
   const [rawFileContents, setRawFileContents] = useState<{ filePath: string; content: string }[]>(
     []
   );
-  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [statistics, setStatistics] = useState<LogStatistics | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -106,18 +122,19 @@ const App: React.FC = () => {
     level: 'ALL',
     tag: '',
     pid: '',
+    tid: '',
+    tagKeywordRelation: 'AND',
   });
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [statusType, setStatusType] = useState<'info' | 'error'>('info');
-  const [aiConfigured, setAiConfigured] = useState<boolean>(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'logs' | 'ai'>('logs');
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [sourceFiles, setSourceFiles] = useState<{ filePath: string; content: string }[]>([]);
   const [presetManagerVisible, setPresetManagerVisible] = useState<boolean>(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState<boolean>(false);
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
-  const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('wrap');
+  const [lineBreakMode, setLineBreakMode] = useState<'wrap' | 'nowrap'>('nowrap');
+  const [siderCollapsed, setSiderCollapsed] = useState<boolean>(false);
   const [activePresetDescriptions, setActivePresetDescriptions] = useState<{
     keywordDescriptions: { keyword: string; description: string }[];
     highlightDescriptions: { keyword: string; description: string }[];
@@ -137,38 +154,18 @@ const App: React.FC = () => {
       setThemeMode(savedTheme);
     }
 
-    // Load and apply AI configuration from localStorage on mount
-    const initAI = async () => {
-      const savedConfig = localStorage.getItem('aiConfig');
-      if (savedConfig) {
-        try {
-          const config = JSON.parse(savedConfig);
-          await window.electronAPI.updateAIConfig(config);
-        } catch (e) {
-          console.error('Failed to parse AI config:', e);
-        }
-      }
-
-      // Check AI configuration
-      const configured = await window.electronAPI.checkAIConfigured();
-      setAiConfigured(configured);
-      if (!configured) {
-        showStatus(t('aiNotConfigured'), 'info');
-      }
-    };
-    initAI();
-
     // Load saved filters from localStorage (excluding time and PID fields)
     const savedFilters = localStorage.getItem('ala_saved_filters');
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        // Don't restore time and PID fields
+        // Don't restore time, PID, and TID fields
         setFilters({
           ...parsed,
           startTime: '',
           endTime: '',
           pid: '',
+          tid: '',
         });
       } catch (e) {
         console.error('Failed to load saved filters:', e);
@@ -312,6 +309,8 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      tid: '',
+      tagKeywordRelation: 'AND',
       coloredHighlights: [],
     };
     setFilters(clearedFilters);
@@ -414,65 +413,7 @@ const App: React.FC = () => {
   const handleRemoveSourceFile = (filePath: string) => {
     setSourceFiles((prev) => prev.filter((f) => f.filePath !== filePath));
     const fileName = filePath.split(/[\\/]/).pop();
-    showStatus(`Removed source file: ${fileName}`, 'info');
-  };
-
-  const handleAnalyzeWithAI = async (prompt?: string, presetId?: string) => {
-    if (filteredLogs.length === 0) {
-      showStatus('No logs to analyze', 'error');
-      return;
-    }
-
-    showStatus('Analyzing logs with AI...', 'info');
-    setActiveTab('ai');
-
-    try {
-      // Combine source files into a single string if available
-      // with size limit protection (max 100KB of source code)
-      let sourceCode: string | undefined = undefined;
-      const MAX_SOURCE_CODE_SIZE = 100 * 1024; // 100 KB
-
-      if (sourceFiles.length > 0) {
-        let combinedSize = 0;
-        const includedFiles: string[] = [];
-
-        for (const file of sourceFiles) {
-          const fileSize = new Blob([file.content]).size;
-          if (combinedSize + fileSize <= MAX_SOURCE_CODE_SIZE) {
-            combinedSize += fileSize;
-            const fileName = file.filePath.split(/[\\/]/).pop();
-            includedFiles.push(`// File: ${fileName}\n${file.content}`);
-          } else {
-            // Size limit exceeded
-            const sizeKB = Math.round(combinedSize / 1024);
-            showStatus(t('sourceCodeSizeLimitExceeded', { size: sizeKB }), 'info');
-            break;
-          }
-        }
-
-        if (includedFiles.length > 0) {
-          sourceCode = includedFiles.join('\n\n');
-        }
-      }
-
-      const result = await window.electronAPI.analyzeWithAI({
-        logs: filteredLogs,
-        prompt,
-        presetId,
-        sourceCode,
-      });
-      if (result.success && result.analysis) {
-        setAiAnalysis(result.analysis);
-        showStatus('AI analysis completed', 'info');
-      } else {
-        const errMsg = result.error || 'Unknown error';
-        showStatus(`AI analysis failed: ${errMsg}`, 'error');
-        setAiAnalysis(`Failed to analyze logs: ${errMsg}`);
-      }
-    } catch (error) {
-      showStatus('AI analysis failed', 'error');
-      setAiAnalysis('Failed to analyze logs. Please check your API key and try again.');
-    }
+    showStatus(t('removeSourceFile', { name: fileName }), 'info');
   };
 
   const updateStatistics = async () => {
@@ -523,6 +464,8 @@ const App: React.FC = () => {
       level: 'ALL',
       tag: '',
       pid: '',
+      tid: '',
+      tagKeywordRelation: 'AND',
     };
 
     // Merge keyword descriptions
@@ -595,12 +538,9 @@ const App: React.FC = () => {
     localStorage.setItem('ala_theme', newTheme);
   };
 
-  const handleConfigUpdated = async () => {
-    const configured = await window.electronAPI.checkAIConfigured();
-    setAiConfigured(configured);
-    if (configured) {
-      showStatus(t('aiConfigUpdated'), 'info');
-    }
+  const handleConfigUpdated = () => {
+    // Config is now managed entirely in localStorage by the renderer AI service
+    showStatus(t('aiConfigUpdated'), 'info');
   };
 
   const handleDeleteFile = async (filePath: string) => {
@@ -647,56 +587,91 @@ const App: React.FC = () => {
         <Header theme={themeMode} onToggleTheme={handleToggleTheme} />
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>
-          <AppSider
-            filters={filters}
-            setFilters={setFilters}
-            startDate={startDate}
-            endDate={endDate}
-            setStartDate={setStartDate}
-            setEndDate={setEndDate}
-            onOpenFiles={handleOpenFiles}
-            onSearch={handleSearch}
-            onClearFilters={handleClearFilters}
-            onAnalyzeWithAI={handleAnalyzeWithAI}
-            currentFiles={currentFiles}
-            sourceFiles={sourceFiles}
-            onOpenSourceFiles={handleOpenSourceFiles}
-            onRemoveSourceFile={handleRemoveSourceFile}
-            aiConfigured={aiConfigured}
-            statusMessage={statusMessage}
-            statusType={statusType}
-            isSearching={isSearching}
-            onLoadPreset={handleLoadPreset}
-            onApplyMultiplePresets={handleApplyMultiplePresets}
-            onDeleteFile={handleDeleteFile}
-            presets={presets}
-            onManagePresets={() => setPresetManagerVisible(true)}
-            onOpenSettings={() => setSettingsModalVisible(true)}
-            themeMode={themeMode}
-            onRemoveColoredHighlight={handleRemoveColoredHighlight}
-          />
-
-          <Content style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <LogViewer
-              logs={filteredLogs}
-              allLogsCount={allLogs.length}
-              statistics={statistics}
+          <Layout.Sider
+            collapsible
+            collapsed={siderCollapsed}
+            onCollapse={setSiderCollapsed}
+            collapsedWidth={0}
+            width={380}
+            trigger={null}
+            style={{ overflow: 'auto' }}
+          >
+            <AppSider
+              filters={filters}
+              setFilters={setFilters}
+              startDate={startDate}
+              endDate={endDate}
+              setStartDate={setStartDate}
+              setEndDate={setEndDate}
+              onOpenFiles={handleOpenFiles}
+              onSearch={handleSearch}
+              onClearFilters={handleClearFilters}
               currentFiles={currentFiles}
-              highlights={filters.highlights}
-              coloredHighlights={filters.coloredHighlights || []}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              aiAnalysis={aiAnalysis}
+              statusMessage={statusMessage}
+              statusType={statusType}
               isSearching={isSearching}
-              lineBreakMode={lineBreakMode}
-              onLineBreakModeChange={setLineBreakMode}
+              onLoadPreset={handleLoadPreset}
+              onApplyMultiplePresets={handleApplyMultiplePresets}
+              onDeleteFile={handleDeleteFile}
+              presets={presets}
+              onManagePresets={() => setPresetManagerVisible(true)}
+              onOpenSettings={() => setSettingsModalVisible(true)}
               themeMode={themeMode}
-              highlightDescriptions={activePresetDescriptions.highlightDescriptions}
-              tagDescription={activePresetDescriptions.tagDescription}
-              currentTag={filters.tag}
-              onAddHighlight={handleAddHighlight}
+              onRemoveColoredHighlight={handleRemoveColoredHighlight}
             />
-          </Content>
+          </Layout.Sider>
+
+          <Splitter style={{ flex: 1, overflow: 'hidden' }}>
+            <Splitter.Panel min={300}>
+              <div
+                style={{
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                }}
+              >
+                <LogViewer
+                  siderCollapsed={siderCollapsed}
+                  onSiderCollapseClick={setSiderCollapsed}
+                  logs={filteredLogs}
+                  allLogsCount={allLogs.length}
+                  statistics={statistics}
+                  currentFiles={currentFiles}
+                  highlights={filters.highlights}
+                  coloredHighlights={filters.coloredHighlights || []}
+                  isSearching={isSearching}
+                  lineBreakMode={lineBreakMode}
+                  onLineBreakModeChange={setLineBreakMode}
+                  themeMode={themeMode}
+                  highlightDescriptions={activePresetDescriptions.highlightDescriptions}
+                  tagDescription={activePresetDescriptions.tagDescription}
+                  currentTag={filters.tag}
+                  onAddHighlight={handleAddHighlight}
+                />
+              </div>
+            </Splitter.Panel>
+
+            <Splitter.Panel defaultSize={420} min={300} max="50%">
+              <div
+                style={{
+                  backgroundColor: 'var(--ant-color-bg-container)',
+                  borderLeft: '1px solid var(--ant-color-border)',
+                  overflow: 'hidden',
+                  height: '100%',
+                }}
+              >
+                <AiPanel
+                  filteredLogs={filteredLogs}
+                  sourceFiles={sourceFiles}
+                  onOpenSourceFiles={handleOpenSourceFiles}
+                  onRemoveSourceFile={handleRemoveSourceFile}
+                  onOpenSettings={() => setSettingsModalVisible(true)}
+                  language={i18n.language}
+                />
+              </div>
+            </Splitter.Panel>
+          </Splitter>
         </Layout>
 
         <FilterPresetManager

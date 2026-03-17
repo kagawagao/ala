@@ -30,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
         gap: '16px',
       }}
     >
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
         <h1
           style={{
             color: theme === 'dark' ? '#4ec9b0' : '#1890ff',
@@ -45,7 +45,6 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
       <Button
         type="text"
         onClick={onToggleLanguage}
-        size="large"
         title={currentLanguage === 'en' ? '简体中文' : 'English'}
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       >
@@ -55,7 +54,6 @@ const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme }) => {
         type="text"
         icon={theme === 'dark' ? <BulbOutlined /> : <BulbFilled />}
         onClick={onToggleTheme}
-        size="large"
         title={t(theme === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
         style={{ color: theme === 'dark' ? '#4ec9b0' : '#1890ff' }}
       />

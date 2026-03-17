@@ -10,7 +10,6 @@ export interface AIPromptPreset {
   descriptionKey: string; // i18n key
   systemPrompt: string;
   userPrompt: string;
-  maxTokens?: number;
   temperature?: number;
 }
 
@@ -30,7 +29,6 @@ export const AI_PROMPT_PRESETS: AIPromptPreset[] = [
 
 Be concise and focus on actionable insights.`,
     userPrompt: 'Analyze these Android logs and provide insights.',
-    maxTokens: 1000,
     temperature: 0.7,
   },
   {
@@ -49,7 +47,6 @@ Be concise and focus on actionable insights.`,
 
 Provide detailed analysis with line references where possible.`,
     userPrompt: 'Analyze these logs to identify crashes and their root causes.',
-    maxTokens: 1500,
     temperature: 0.5,
   },
   {
@@ -69,7 +66,6 @@ Provide detailed analysis with line references where possible.`,
 
 Focus on measurable metrics and specific improvements.`,
     userPrompt: 'Analyze these logs for performance issues and optimization opportunities.',
-    maxTokens: 1200,
     temperature: 0.6,
   },
   {
@@ -89,7 +85,6 @@ Focus on measurable metrics and specific improvements.`,
 
 Provide severity ratings and mitigation strategies.`,
     userPrompt: 'Analyze these logs for security vulnerabilities and risks.',
-    maxTokens: 1200,
     temperature: 0.5,
   },
   {
@@ -109,7 +104,6 @@ Provide severity ratings and mitigation strategies.`,
 
 Identify patterns and suggest improvements.`,
     userPrompt: 'Analyze these logs for network-related issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
   {
@@ -129,7 +123,6 @@ Identify patterns and suggest improvements.`,
 
 Explain lifecycle-related bugs and best practices.`,
     userPrompt: 'Analyze these logs for app lifecycle and state management issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
   {
@@ -150,7 +143,6 @@ Explain lifecycle-related bugs and best practices.`,
 
 Provide UI-specific recommendations.`,
     userPrompt: 'Analyze these logs for UI/UX issues.',
-    maxTokens: 1000,
     temperature: 0.6,
   },
 ];

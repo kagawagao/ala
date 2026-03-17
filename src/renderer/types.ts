@@ -24,6 +24,8 @@ export interface LogFilters {
   level: string;
   tag: string;
   pid: string;
+  tid: string;
+  tagKeywordRelation: 'AND' | 'OR'; // Relationship between tag and keyword filters
 }
 
 export interface LogStatistics {
@@ -66,15 +68,6 @@ declare global {
       parseLog: (content: string) => Promise<ParseLogResult>;
       filterLogs: (params: { logs: LogEntry[]; filters: LogFilters }) => Promise<LogEntry[]>;
       getStatistics: (logs: LogEntry[]) => Promise<LogStatistics>;
-      analyzeWithAI: (params: {
-        logs: LogEntry[];
-        prompt?: string;
-        presetId?: string;
-        sourceCode?: string;
-      }) => Promise<AIAnalysisResult>;
-      checkAIConfigured: () => Promise<boolean>;
-      updateAIConfig: (config: AIConfig) => Promise<boolean>;
-      getAIConfig: () => Promise<AIConfig | null>;
       importFilters: () => Promise<unknown>;
       exportFilters: (filters: unknown) => Promise<boolean>;
       deleteLogFile: (filePath: string) => Promise<boolean>;
