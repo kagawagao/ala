@@ -21,7 +21,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
-    "postversion": "npm run changelog",
+    "version": "npm run changelog && git add CHANGELOG.md",
     "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'"
   },
   "keywords": [
