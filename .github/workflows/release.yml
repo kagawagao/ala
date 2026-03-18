@@ -32,10 +32,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & package
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:icon && npm run build:ts && npm run build:renderer && npx electron-builder --publish=never
+      - name: Build icons
+        run: npm run build:icon
+
+      - name: Build TypeScript
+        run: npm run build:ts
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Package app
+        run: npx electron-builder --publish=never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
