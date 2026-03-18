@@ -20,7 +20,10 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'"
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
+    "version": "npm run changelog && git add CHANGELOG.md",
+    "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'",
+    "prepare": "husky"
   },
   "keywords": [
     "android",
@@ -32,12 +35,16 @@
   "author": "Jingsong Gao",
   "license": "MIT",
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "concurrently": "^9.1.2",
+    "conventional-changelog": "^7.2.0",
+    "conventional-changelog-angular": "^8.3.0",
     "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "electron": "^35.7.5",
@@ -49,6 +56,7 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "html-webpack-plugin": "^5.6.5",
+    "husky": "^9.1.7",
     "prettier": "^3.2.5",
     "process": "^0.11.10",
     "style-loader": "^4.0.0",
