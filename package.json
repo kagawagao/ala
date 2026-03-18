@@ -22,7 +22,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
     "version": "npm run changelog && git add CHANGELOG.md",
-    "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'"
+    "postinstall": "node scripts/generate-icon.js || echo 'Icon generation skipped (using pre-generated icons)'",
+    "prepare": "husky"
   },
   "keywords": [
     "android",
@@ -34,6 +35,8 @@
   "author": "Jingsong Gao",
   "license": "MIT",
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
@@ -53,6 +56,7 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "html-webpack-plugin": "^5.6.5",
+    "husky": "^9.1.7",
     "prettier": "^3.2.5",
     "process": "^0.11.10",
     "style-loader": "^4.0.0",
