@@ -403,7 +403,7 @@ const App: React.FC = () => {
           {!backendConnected && (
             <Alert
               type="warning"
-              message={t('backendNotConnected')}
+              title={t('backendNotConnected')}
               banner
               closable
               style={{ flexShrink: 0 }}

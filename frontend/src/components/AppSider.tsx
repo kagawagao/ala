@@ -32,7 +32,6 @@ import { useTranslation } from 'react-i18next'
 import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
 
 const { Text } = Typography
-const { Panel } = Collapse
 
 const LEVEL_COLORS: Record<string, string> = {
   V: 'default',
@@ -252,328 +251,338 @@ const AppSider: React.FC<AppSiderProps> = ({
         bordered={false}
         size="small"
         ghost
-      >
-        {/* Filters */}
-        <Panel
-          header={
-            <Text strong>
-              <FilterOutlined /> {t('search')}
-            </Text>
-          }
-          key="filters"
-        >
-          <Space direction="vertical" style={{ width: '100%' }} size={6}>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('startTime')}
+        items={[
+          {
+            key: 'filters',
+            label: (
+              <Text strong>
+                <FilterOutlined /> {t('search')}
               </Text>
-              <Input
-                size="small"
-                placeholder="MM-DD HH:mm:ss.SSS"
-                value={pendingFilters.start_time}
-                onChange={(e) => updatePending({ start_time: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('endTime')}
-              </Text>
-              <Input
-                size="small"
-                placeholder="MM-DD HH:mm:ss.SSS"
-                value={pendingFilters.end_time}
-                onChange={(e) => updatePending({ end_time: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('keywords')}
-              </Text>
-              <Input
-                size="small"
-                placeholder={t('keywordsPlaceholder')}
-                value={pendingFilters.keywords}
-                onChange={(e) => updatePending({ keywords: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('logLevel')}
-              </Text>
-              <Select
-                size="small"
-                style={{ width: '100%' }}
-                value={pendingFilters.level || ''}
-                onChange={(v) => updatePending({ level: v })}
-                options={[
-                  { value: '', label: t('allLevels') },
-                  { value: 'V', label: <Tag color="default">V {t('verbose')}</Tag> },
-                  { value: 'D', label: <Tag color="blue">D {t('debug')}</Tag> },
-                  { value: 'I', label: <Tag color="green">I {t('info')}</Tag> },
-                  { value: 'W', label: <Tag color="orange">W {t('warning')}</Tag> },
-                  { value: 'E', label: <Tag color="red">E {t('error')}</Tag> },
-                  { value: 'F', label: <Tag color="magenta">F {t('fatal')}</Tag> },
-                ]}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('tag')}
-              </Text>
-              <Input
-                size="small"
-                placeholder={t('tagPlaceholder')}
-                value={pendingFilters.tag}
-                onChange={(e) => updatePending({ tag: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('pid')}
-              </Text>
-              <Input
-                size="small"
-                placeholder={t('pidPlaceholder')}
-                value={pendingFilters.pid}
-                onChange={(e) => updatePending({ pid: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('tid')}
-              </Text>
-              <Input
-                size="small"
-                placeholder={t('tidPlaceholder')}
-                value={pendingFilters.tid}
-                onChange={(e) => updatePending({ tid: e.target.value })}
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {t('tagKeywordRelation')}
-              </Text>
-              <Radio.Group
-                size="small"
-                value={pendingFilters.tag_keyword_relation}
-                onChange={(e) => updatePending({ tag_keyword_relation: e.target.value })}
-                buttonStyle="solid"
-                style={{ display: 'flex' }}
-              >
-                <Radio.Button value="AND" style={{ flex: 1, textAlign: 'center' }}>
-                  AND
-                </Radio.Button>
-                <Radio.Button value="OR" style={{ flex: 1, textAlign: 'center' }}>
-                  OR
-                </Radio.Button>
-              </Radio.Group>
-            </div>
-          </Space>
-        </Panel>
-
-        {/* Highlights */}
-        <Panel header={<Text strong>{t('highlights')}</Text>} key="highlights">
-          <Space direction="vertical" style={{ width: '100%' }} size={6}>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Input
-                size="small"
-                placeholder={t('highlightsPlaceholder')}
-                value={highlightInput}
-                onChange={(e) => setHighlightInput(e.target.value)}
-                onPressEnter={addHighlight}
-                style={{ flex: 1 }}
-              />
-              <Button size="small" icon={<CheckOutlined />} onClick={addHighlight} />
-            </div>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {HIGHLIGHT_COLORS.map((c) => (
-                <div
-                  key={c}
-                  onClick={() => setHighlightColor(c)}
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 3,
-                    background: c,
-                    cursor: 'pointer',
-                    border: highlightColor === c ? '2px solid #1677ff' : '2px solid transparent',
-                  }}
-                />
-              ))}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {highlights.map((h, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 2,
-                      background: h.color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 12,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {h.pattern}
+            ),
+            children: (
+              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('startTime')}
                   </Text>
-                  <Button
-                    type="text"
+                  <Input
                     size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={() => removeHighlight(i)}
-                    style={{ padding: 0 }}
+                    placeholder="MM-DD HH:mm:ss.SSS"
+                    value={pendingFilters.start_time}
+                    onChange={(e) => updatePending({ start_time: e.target.value })}
                   />
                 </div>
-              ))}
-            </div>
-          </Space>
-        </Panel>
-
-        {/* Display Options */}
-        <Panel header={<Text strong>{t('lineBreakMode')}</Text>} key="display">
-          <Radio.Group
-            size="small"
-            value={wordWrap ? 'wrap' : 'nowrap'}
-            onChange={(e) => onWordWrapChange(e.target.value === 'wrap')}
-            buttonStyle="solid"
-            style={{ display: 'flex' }}
-          >
-            <Radio.Button value="wrap" style={{ flex: 1, textAlign: 'center' }}>
-              {t('wordWrap')}
-            </Radio.Button>
-            <Radio.Button value="nowrap" style={{ flex: 1, textAlign: 'center' }}>
-              {t('noWrap')}
-            </Radio.Button>
-          </Radio.Group>
-        </Panel>
-
-        {/* Presets */}
-        <Panel
-          header={
-            <Text strong>
-              <FolderOpenOutlined /> {t('filterPresets')}
-            </Text>
-          }
-          key="presets"
-        >
-          {presets.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {t('noPresets')}
-            </Text>
-          ) : (
-            <Space direction="vertical" style={{ width: '100%' }} size={4}>
-              {presets.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 6px',
-                    borderRadius: 4,
-                    border: '1px solid var(--ant-color-border)',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ fontSize: 12, fontWeight: 500 }}>{p.name}</Text>
-                    {p.description && (
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                        {p.description}
-                      </Text>
-                    )}
-                  </div>
-                  <Button
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('endTime')}
+                  </Text>
+                  <Input
                     size="small"
-                    type="link"
-                    style={{ padding: 0 }}
-                    onClick={() => applyPreset(p)}
-                  >
-                    {t('apply')}
-                  </Button>
-                  <Popconfirm
-                    title={t('deleteConfirm')}
-                    onConfirm={() => deletePreset(p.id)}
-                    okText={t('delete')}
-                    cancelText={t('cancel')}
-                  >
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      danger
-                      style={{ padding: 0 }}
-                    />
-                  </Popconfirm>
+                    placeholder="MM-DD HH:mm:ss.SSS"
+                    value={pendingFilters.end_time}
+                    onChange={(e) => updatePending({ end_time: e.target.value })}
+                  />
                 </div>
-              ))}
-            </Space>
-          )}
-        </Panel>
-
-        {/* Statistics */}
-        {statistics && (
-          <Panel header={<Text strong>{t('statistics')}</Text>} key="stats">
-            <Row gutter={8} style={{ marginBottom: 8 }}>
-              <Col span={12}>
-                <Statistic
-                  title={t('totalLogs')}
-                  value={statistics.total}
-                  valueStyle={{ fontSize: 16 }}
-                />
-              </Col>
-            </Row>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-              {Object.entries(statistics.by_level).map(([lvl, cnt]) => (
-                <Tag key={lvl} color={LEVEL_COLORS[lvl] || 'default'}>
-                  {lvl}: {cnt}
-                </Tag>
-              ))}
-            </div>
-            {topTags.length > 0 && (
-              <>
-                <Divider style={{ margin: '6px 0' }} />
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                  Top Tags
-                </Text>
-                <div style={{ marginTop: 4 }}>
-                  {topTags.map(([tag, cnt]) => (
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('keywords')}
+                  </Text>
+                  <Input
+                    size="small"
+                    placeholder={t('keywordsPlaceholder')}
+                    value={pendingFilters.keywords}
+                    onChange={(e) => updatePending({ keywords: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('logLevel')}
+                  </Text>
+                  <Select
+                    size="small"
+                    style={{ width: '100%' }}
+                    value={pendingFilters.level || ''}
+                    onChange={(v) => updatePending({ level: v })}
+                    options={[
+                      { value: '', label: t('allLevels') },
+                      { value: 'V', label: <Tag color="default">V {t('verbose')}</Tag> },
+                      { value: 'D', label: <Tag color="blue">D {t('debug')}</Tag> },
+                      { value: 'I', label: <Tag color="green">I {t('info')}</Tag> },
+                      { value: 'W', label: <Tag color="orange">W {t('warning')}</Tag> },
+                      { value: 'E', label: <Tag color="red">E {t('error')}</Tag> },
+                      { value: 'F', label: <Tag color="magenta">F {t('fatal')}</Tag> },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('tag')}
+                  </Text>
+                  <Input
+                    size="small"
+                    placeholder={t('tagPlaceholder')}
+                    value={pendingFilters.tag}
+                    onChange={(e) => updatePending({ tag: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('pid')}
+                  </Text>
+                  <Input
+                    size="small"
+                    placeholder={t('pidPlaceholder')}
+                    value={pendingFilters.pid}
+                    onChange={(e) => updatePending({ pid: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('tid')}
+                  </Text>
+                  <Input
+                    size="small"
+                    placeholder={t('tidPlaceholder')}
+                    value={pendingFilters.tid}
+                    onChange={(e) => updatePending({ tid: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {t('tagKeywordRelation')}
+                  </Text>
+                  <Radio.Group
+                    size="small"
+                    value={pendingFilters.tag_keyword_relation}
+                    onChange={(e) => updatePending({ tag_keyword_relation: e.target.value })}
+                    buttonStyle="solid"
+                    style={{ display: 'flex' }}
+                  >
+                    <Radio.Button value="AND" style={{ flex: 1, textAlign: 'center' }}>
+                      AND
+                    </Radio.Button>
+                    <Radio.Button value="OR" style={{ flex: 1, textAlign: 'center' }}>
+                      OR
+                    </Radio.Button>
+                  </Radio.Group>
+                </div>
+              </Space>
+            ),
+          },
+          {
+            key: 'highlights',
+            label: <Text strong>{t('highlights')}</Text>,
+            children: (
+              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <Input
+                    size="small"
+                    placeholder={t('highlightsPlaceholder')}
+                    value={highlightInput}
+                    onChange={(e) => setHighlightInput(e.target.value)}
+                    onPressEnter={addHighlight}
+                    style={{ flex: 1 }}
+                  />
+                  <Button size="small" icon={<CheckOutlined />} onClick={addHighlight} />
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {HIGHLIGHT_COLORS.map((c) => (
                     <div
-                      key={tag}
+                      key={c}
+                      onClick={() => setHighlightColor(c)}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: 12,
-                        padding: '1px 0',
+                        width: 18,
+                        height: 18,
+                        borderRadius: 3,
+                        background: c,
+                        cursor: 'pointer',
+                        border:
+                          highlightColor === c ? '2px solid #1677ff' : '2px solid transparent',
                       }}
-                    >
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {highlights.map((h, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 2,
+                          background: h.color,
+                          flexShrink: 0,
+                        }}
+                      />
                       <Text
                         style={{
-                          maxWidth: 160,
+                          flex: 1,
+                          fontSize: 12,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
-                        title={tag}
                       >
-                        {tag}
+                        {h.pattern}
                       </Text>
-                      <Text type="secondary">{cnt}</Text>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeHighlight(i)}
+                        style={{ padding: 0 }}
+                      />
                     </div>
                   ))}
                 </div>
-              </>
-            )}
-          </Panel>
-        )}
-      </Collapse>
+              </Space>
+            ),
+          },
+          {
+            key: 'display',
+            label: <Text strong>{t('lineBreakMode')}</Text>,
+            children: (
+              <Radio.Group
+                size="small"
+                value={wordWrap ? 'wrap' : 'nowrap'}
+                onChange={(e) => onWordWrapChange(e.target.value === 'wrap')}
+                buttonStyle="solid"
+                style={{ display: 'flex' }}
+              >
+                <Radio.Button value="wrap" style={{ flex: 1, textAlign: 'center' }}>
+                  {t('wordWrap')}
+                </Radio.Button>
+                <Radio.Button value="nowrap" style={{ flex: 1, textAlign: 'center' }}>
+                  {t('noWrap')}
+                </Radio.Button>
+              </Radio.Group>
+            ),
+          },
+          {
+            key: 'presets',
+            label: (
+              <Text strong>
+                <FolderOpenOutlined /> {t('filterPresets')}
+              </Text>
+            ),
+            children:
+              presets.length === 0 ? (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('noPresets')}
+                </Text>
+              ) : (
+                <Space orientation="vertical" style={{ width: '100%' }} size={4}>
+                  {presets.map((p) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 6px',
+                        borderRadius: 4,
+                        border: '1px solid var(--ant-color-border)',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 12, fontWeight: 500 }}>{p.name}</Text>
+                        {p.description && (
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                            {p.description}
+                          </Text>
+                        )}
+                      </div>
+                      <Button
+                        size="small"
+                        type="link"
+                        style={{ padding: 0 }}
+                        onClick={() => applyPreset(p)}
+                      >
+                        {t('apply')}
+                      </Button>
+                      <Popconfirm
+                        title={t('deleteConfirm')}
+                        onConfirm={() => deletePreset(p.id)}
+                        okText={t('delete')}
+                        cancelText={t('cancel')}
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          danger
+                          style={{ padding: 0 }}
+                        />
+                      </Popconfirm>
+                    </div>
+                  ))}
+                </Space>
+              ),
+          },
+          ...(statistics
+            ? [
+                {
+                  key: 'stats',
+                  label: <Text strong>{t('statistics')}</Text>,
+                  children: (
+                    <>
+                      <Row gutter={8} style={{ marginBottom: 8 }}>
+                        <Col span={12}>
+                          <Statistic
+                            title={t('totalLogs')}
+                            value={statistics.total}
+                            valueStyle={{ fontSize: 16 }}
+                          />
+                        </Col>
+                      </Row>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                        {Object.entries(statistics.by_level).map(([lvl, cnt]) => (
+                          <Tag key={lvl} color={LEVEL_COLORS[lvl] || 'default'}>
+                            {lvl}: {cnt}
+                          </Tag>
+                        ))}
+                      </div>
+                      {topTags.length > 0 && (
+                        <>
+                          <Divider style={{ margin: '6px 0' }} />
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            Top Tags
+                          </Text>
+                          <div style={{ marginTop: 4 }}>
+                            {topTags.map(([tag, cnt]) => (
+                              <div
+                                key={tag}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  fontSize: 12,
+                                  padding: '1px 0',
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    maxWidth: 160,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title={tag}
+                                >
+                                  {tag}
+                                </Text>
+                                <Text type="secondary">{cnt}</Text>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
 
       {/* Save Preset Modal */}
       <Modal

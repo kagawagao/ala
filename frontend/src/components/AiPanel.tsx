@@ -313,7 +313,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
-              <Space direction="vertical" align="center">
+              <Space orientation="vertical" align="center">
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {t('noSessions')}
                 </Text>

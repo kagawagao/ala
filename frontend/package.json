@@ -12,9 +12,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.6.1",
-    "@ant-design/x": "^1.4.0",
-    "antd": "^5.25.4",
+    "@ant-design/icons": "^6.1.0",
+    "@ant-design/x": "^2.4.0",
+    "antd": "^6.3.3",
     "dayjs": "^1.11.13",
     "i18next": "^24.2.3",
     "react": "^19.1.0",
