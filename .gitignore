@@ -148,3 +148,12 @@ src/**/*.js.map
 
 # Electron-builder output
 release/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+.venv/
