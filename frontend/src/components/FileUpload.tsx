@@ -17,59 +17,94 @@ interface FileUploadProps {
 }
 
 /**
- * Detect file type by reading the first bytes (magic bytes) of the file.
- * Falls back to heuristics for text files.
+ * Detect file type by reading the first bytes (magic bytes / header) of the
+ * file.  Falls back to extension-based heuristics when the content is
+ * inconclusive.
+ *
+ * Design decisions
+ * ─────────────────
+ * 1. GZ / ZIP magic bytes are checked first so that compressed log archives
+ *    are never mistaken for binary trace files.
+ *
+ * 2. "Binary" detection counts only ASCII control bytes (0x00–0x1F, excluding
+ *    TAB / LF / CR).  We deliberately do NOT count high bytes (0x80–0xFF)
+ *    because those are valid UTF-8 continuation bytes and appear in every
+ *    logcat file that contains CJK characters.  Protobuf field-tag bytes
+ *    (e.g. 0x08, 0x12, 0x18 …) are below 0x20 and accumulate quickly, so a
+ *    threshold of > 4 reliably separates binary proto traces from text logs.
+ *
+ * 3. The JSON-signature search window is 8 KB (not 512 B) so that trace files
+ *    whose `traceEvents` key is preceded by a long metadata object are still
+ *    correctly identified.
+ *
+ * 4. If content analysis is inconclusive, the file extension is used as a
+ *    tiebreaker, preserving the original backward-compatible behaviour.
  */
 async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
+  const name = file.name.toLowerCase()
+  const lastDot = name.lastIndexOf('.')
+  const ext = lastDot !== -1 ? name.slice(lastDot) : ''
+
+  const TRACE_EXTS = new Set(['.pb', '.json', '.perfetto-trace', '.perfetto'])
+  const LOG_EXTS = new Set(['.log', '.txt', '.logcat', '.gz', '.zip'])
+
   try {
-    const slice = file.slice(0, 512)
+    const slice = file.slice(0, 8 * 1024) // Read up to 8 KB
     const buf = await slice.arrayBuffer()
     const bytes = new Uint8Array(buf)
 
-    // GZ magic: 1F 8B → gzip-compressed → treat as log (gzipped logcat)
-    if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'log'
+    if (bytes.length === 0) {
+      return TRACE_EXTS.has(ext) ? 'trace' : 'log'
+    }
 
-    // ZIP magic: PK (50 4B) → zip archive → treat as log (zipped logs)
+    // ── Magic bytes ────────────────────────────────────────────────────────
+    // GZ: 1F 8B  →  gzip-compressed → log (gzipped logcat / ZIP of logs)
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'log'
+    // ZIP: 50 4B  →  zip archive → log
     if (bytes[0] === 0x50 && bytes[1] === 0x4b) return 'log'
 
-    // Count non-printable bytes in the first 128 bytes to distinguish binary from text.
-    // Allowlist: TAB (09), LF (0A), CR (0D), and printable ASCII (20-7E).
-    let nonPrintable = 0
-    const checkLen = Math.min(bytes.length, 128)
-    for (let i = 0; i < checkLen; i++) {
+    // ── Binary detection ───────────────────────────────────────────────────
+    // Count ASCII control bytes (< 0x20) excluding the three common
+    // whitespace controls: TAB (0x09), LF (0x0A), CR (0x0D).
+    // High bytes (0x80–0xFF) are NOT counted – they are valid UTF-8.
+    let controlBytes = 0
+    const scanLen = Math.min(bytes.length, 256)
+    for (let i = 0; i < scanLen; i++) {
       const b = bytes[i]
-      if (b !== 0x09 && b !== 0x0a && b !== 0x0d && (b < 0x20 || b > 0x7e)) {
-        nonPrintable++
+      if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0d) {
+        controlBytes++
       }
     }
-    const isBinary = nonPrintable > 4
-
-    if (isBinary) {
-      // Binary file → likely a Perfetto/proto trace
+    if (controlBytes > 4) {
+      // Binary file – very likely a Perfetto proto trace
       return 'trace'
     }
 
-    // Text file: check for JSON trace signature
+    // ── Text file: JSON trace signature scan ───────────────────────────────
     const text = new TextDecoder().decode(bytes)
     const trimmed = text.trimStart()
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       if (
-        text.includes('traceEvents') ||
-        text.includes('systemTraceEvents') ||
-        text.includes('"displayTimeUnit"')
+        text.includes('"traceEvents"') ||
+        text.includes('"systemTraceEvents"') ||
+        text.includes('"displayTimeUnit"') ||
+        text.includes('"ph"') // Chrome Trace Event Format
       ) {
         return 'trace'
       }
     }
 
-    // Default: treat as plain text log
+    // ── Extension fallback ─────────────────────────────────────────────────
+    // If the content analysis is inconclusive, trust the file extension so
+    // that known trace / log file types are always routed correctly.
+    if (TRACE_EXTS.has(ext)) return 'trace'
+    if (LOG_EXTS.has(ext)) return 'log'
+
+    // Unknown extension with text content → treat as log
     return 'log'
   } catch {
-    // If we can't read the file, fall back to extension
-    const name = file.name.toLowerCase()
-    if (name.endsWith('.pb') || name.endsWith('.perfetto-trace') || name.endsWith('.perfetto')) {
-      return 'trace'
-    }
+    // Unable to read the file – pure extension fallback
+    if (TRACE_EXTS.has(ext)) return 'trace'
     return 'log'
   }
 }
