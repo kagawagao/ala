@@ -185,7 +185,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         render: (_: unknown, record: LogEntry) => (
           <Tooltip title={t('copy')}>
             <CopyOutlined
-              style={{ cursor: 'pointer', fontSize: 12, color: '#8c8c8c' }}
+              style={{ cursor: 'pointer', fontSize: 12, color: 'var(--ant-color-text-secondary)' }}
               onClick={() => {
                 void handleCopyRow(record)
               }}

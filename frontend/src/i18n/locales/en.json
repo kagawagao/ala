@@ -11,6 +11,8 @@
   "traceAnalysis": "Trace Analysis",
   "search": "Search",
   "clearFilters": "Clear Filters",
+  "applyFilters": "Apply Filters",
+  "filtersPendingChanges": "Pending changes – click Apply to update the log view",
   "managePresets": "Manage Presets",
   "importFilters": "Import Filters",
   "exportFilters": "Export Filters",
@@ -125,5 +127,7 @@
   "selectProcesses": "Select processes…",
   "processNameRegex": "Name regex (e.g. system)",
   "pidCommaList": "PIDs (e.g. 1234, 5678)",
-  "applyFilter": "Apply Filter"
+  "applyFilter": "Apply Filter",
+  "uploadFiles": "Upload Files",
+  "changeFiles": "Change Files"
 }

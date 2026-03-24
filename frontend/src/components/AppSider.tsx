@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   Button,
   Input,
@@ -84,13 +84,36 @@ const AppSider: React.FC<AppSiderProps> = ({
   const [highlightInput, setHighlightInput] = useState('')
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0])
 
-  const update = useCallback(
-    (partial: Partial<LogFilters>) => onFiltersChange({ ...filters, ...partial }),
-    [filters, onFiltersChange],
+  // Local "draft" state – changes here are NOT applied to the log view until
+  // the user clicks the Apply button.
+  const [pendingFilters, setPendingFilters] = useState<LogFilters>(filters)
+
+  // Sync pendingFilters when applied filters change externally (e.g. file reload
+  // resets to DEFAULT_FILTERS, or a preset is applied).
+  useEffect(() => {
+    setPendingFilters(filters)
+  }, [filters])
+
+  // True when the draft differs from the currently applied filters.
+  const isDirty = useMemo(
+    () =>
+      (Object.keys(pendingFilters) as Array<keyof LogFilters>).some(
+        (k) => pendingFilters[k] !== filters[k],
+      ),
+    [pendingFilters, filters],
   )
 
-  const clearFilters = () => {
-    onFiltersChange({
+  const updatePending = useCallback(
+    (partial: Partial<LogFilters>) => setPendingFilters((prev) => ({ ...prev, ...partial })),
+    [],
+  )
+
+  const applyFilters = useCallback(() => {
+    onFiltersChange(pendingFilters)
+  }, [onFiltersChange, pendingFilters])
+
+  const clearFilters = useCallback(() => {
+    const defaults: LogFilters = {
       start_time: '',
       end_time: '',
       keywords: '',
@@ -99,8 +122,10 @@ const AppSider: React.FC<AppSiderProps> = ({
       pid: '',
       tid: '',
       tag_keyword_relation: 'AND',
-    })
-  }
+    }
+    setPendingFilters(defaults)
+    onFiltersChange(defaults)
+  }, [onFiltersChange])
 
   const savePreset = () => {
     if (!presetName.trim()) return
@@ -108,7 +133,7 @@ const AppSider: React.FC<AppSiderProps> = ({
       id: Date.now().toString(),
       name: presetName.trim(),
       description: presetDesc.trim() || undefined,
-      filters: { ...filters },
+      filters: { ...pendingFilters },
     }
     const updated = [...presets, preset]
     onPresetsChange(updated)
@@ -126,11 +151,13 @@ const AppSider: React.FC<AppSiderProps> = ({
   }
 
   const applyPreset = (preset: FilterPreset) => {
+    // Applying a preset is an explicit user action → apply immediately.
+    setPendingFilters(preset.filters)
     onFiltersChange(preset.filters)
   }
 
   const exportFilters = () => {
-    const blob = new Blob([JSON.stringify({ filters, highlights }, null, 2)], {
+    const blob = new Blob([JSON.stringify({ filters: pendingFilters, highlights }, null, 2)], {
       type: 'application/json',
     })
     const url = URL.createObjectURL(blob)
@@ -152,7 +179,11 @@ const AppSider: React.FC<AppSiderProps> = ({
       reader.onload = (ev) => {
         try {
           const data = JSON.parse(ev.target?.result as string)
-          if (data.filters) onFiltersChange(data.filters)
+          // Import into pending state and apply immediately
+          if (data.filters) {
+            setPendingFilters(data.filters as LogFilters)
+            onFiltersChange(data.filters as LogFilters)
+          }
           if (data.highlights) onHighlightsChange(data.highlights)
           void message.success(t('fileUploaded'))
         } catch {
@@ -185,10 +216,18 @@ const AppSider: React.FC<AppSiderProps> = ({
     <div style={{ height: '100%', overflowY: 'auto', padding: '8px 0' }}>
       {/* Toolbar */}
       <div style={{ padding: '0 12px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <Tooltip title={t('clearFilters')}>
-          <Button size="small" icon={<ClearOutlined />} onClick={clearFilters}>
-            {t('clearFilters')}
+        <Tooltip title={t('applyFilters')}>
+          <Button
+            size="small"
+            type={isDirty ? 'primary' : 'default'}
+            icon={<FilterOutlined />}
+            onClick={applyFilters}
+          >
+            {t('applyFilters')}
           </Button>
+        </Tooltip>
+        <Tooltip title={t('clearFilters')}>
+          <Button size="small" icon={<ClearOutlined />} onClick={clearFilters} />
         </Tooltip>
         <Tooltip title={t('savePreset')}>
           <Button size="small" icon={<SaveOutlined />} onClick={() => setPresetModalOpen(true)} />
@@ -200,6 +239,13 @@ const AppSider: React.FC<AppSiderProps> = ({
           <Button size="small" icon={<UploadOutlined />} onClick={importFilters} />
         </Tooltip>
       </div>
+      {isDirty && (
+        <div style={{ padding: '0 12px 6px' }}>
+          <Text type="warning" style={{ fontSize: 11 }}>
+            {t('filtersPendingChanges')}
+          </Text>
+        </div>
+      )}
 
       <Collapse
         defaultActiveKey={['filters', 'highlights', 'display']}
@@ -224,8 +270,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder="MM-DD HH:mm:ss.SSS"
-                value={filters.start_time}
-                onChange={(e) => update({ start_time: e.target.value })}
+                value={pendingFilters.start_time}
+                onChange={(e) => updatePending({ start_time: e.target.value })}
               />
             </div>
             <div>
@@ -235,8 +281,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder="MM-DD HH:mm:ss.SSS"
-                value={filters.end_time}
-                onChange={(e) => update({ end_time: e.target.value })}
+                value={pendingFilters.end_time}
+                onChange={(e) => updatePending({ end_time: e.target.value })}
               />
             </div>
             <div>
@@ -246,8 +292,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder={t('keywordsPlaceholder')}
-                value={filters.keywords}
-                onChange={(e) => update({ keywords: e.target.value })}
+                value={pendingFilters.keywords}
+                onChange={(e) => updatePending({ keywords: e.target.value })}
               />
             </div>
             <div>
@@ -257,8 +303,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Select
                 size="small"
                 style={{ width: '100%' }}
-                value={filters.level || ''}
-                onChange={(v) => update({ level: v })}
+                value={pendingFilters.level || ''}
+                onChange={(v) => updatePending({ level: v })}
                 options={[
                   { value: '', label: t('allLevels') },
                   { value: 'V', label: <Tag color="default">V {t('verbose')}</Tag> },
@@ -277,8 +323,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder={t('tagPlaceholder')}
-                value={filters.tag}
-                onChange={(e) => update({ tag: e.target.value })}
+                value={pendingFilters.tag}
+                onChange={(e) => updatePending({ tag: e.target.value })}
               />
             </div>
             <div>
@@ -288,8 +334,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder={t('pidPlaceholder')}
-                value={filters.pid}
-                onChange={(e) => update({ pid: e.target.value })}
+                value={pendingFilters.pid}
+                onChange={(e) => updatePending({ pid: e.target.value })}
               />
             </div>
             <div>
@@ -299,8 +345,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               <Input
                 size="small"
                 placeholder={t('tidPlaceholder')}
-                value={filters.tid}
-                onChange={(e) => update({ tid: e.target.value })}
+                value={pendingFilters.tid}
+                onChange={(e) => updatePending({ tid: e.target.value })}
               />
             </div>
             <div>
@@ -309,8 +355,8 @@ const AppSider: React.FC<AppSiderProps> = ({
               </Text>
               <Radio.Group
                 size="small"
-                value={filters.tag_keyword_relation}
-                onChange={(e) => update({ tag_keyword_relation: e.target.value })}
+                value={pendingFilters.tag_keyword_relation}
+                onChange={(e) => updatePending({ tag_keyword_relation: e.target.value })}
                 buttonStyle="solid"
                 style={{ display: 'flex' }}
               >

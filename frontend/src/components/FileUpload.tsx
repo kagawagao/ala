@@ -13,19 +13,65 @@ interface FileUploadProps {
   loading: boolean
   error?: string
   fileNames?: string[]
+  compact?: boolean
 }
 
-const LOG_EXTS = new Set(['.log', '.txt', '.logcat', '.gz', '.zip'])
-const TRACE_EXTS = new Set(['.pb', '.json', '.perfetto-trace', '.perfetto'])
+/**
+ * Detect file type by reading the first bytes (magic bytes) of the file.
+ * Falls back to heuristics for text files.
+ */
+async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
+  try {
+    const slice = file.slice(0, 512)
+    const buf = await slice.arrayBuffer()
+    const bytes = new Uint8Array(buf)
 
-function detectFileType(file: File): 'log' | 'trace' | 'unknown' {
-  const name = file.name.toLowerCase()
-  const lastDot = name.lastIndexOf('.')
-  if (lastDot === -1) return 'unknown'
-  const ext = name.slice(lastDot)
-  if (LOG_EXTS.has(ext)) return 'log'
-  if (TRACE_EXTS.has(ext)) return 'trace'
-  return 'unknown'
+    // GZ magic: 1F 8B → gzip-compressed → treat as log (gzipped logcat)
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'log'
+
+    // ZIP magic: PK (50 4B) → zip archive → treat as log (zipped logs)
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b) return 'log'
+
+    // Count non-printable bytes in the first 128 bytes to distinguish binary from text.
+    // Allowlist: TAB (09), LF (0A), CR (0D), and printable ASCII (20-7E).
+    let nonPrintable = 0
+    const checkLen = Math.min(bytes.length, 128)
+    for (let i = 0; i < checkLen; i++) {
+      const b = bytes[i]
+      if (b !== 0x09 && b !== 0x0a && b !== 0x0d && (b < 0x20 || b > 0x7e)) {
+        nonPrintable++
+      }
+    }
+    const isBinary = nonPrintable > 4
+
+    if (isBinary) {
+      // Binary file → likely a Perfetto/proto trace
+      return 'trace'
+    }
+
+    // Text file: check for JSON trace signature
+    const text = new TextDecoder().decode(bytes)
+    const trimmed = text.trimStart()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      if (
+        text.includes('traceEvents') ||
+        text.includes('systemTraceEvents') ||
+        text.includes('"displayTimeUnit"')
+      ) {
+        return 'trace'
+      }
+    }
+
+    // Default: treat as plain text log
+    return 'log'
+  } catch {
+    // If we can't read the file, fall back to extension
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.pb') || name.endsWith('.perfetto-trace') || name.endsWith('.perfetto')) {
+      return 'trace'
+    }
+    return 'log'
+  }
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -34,21 +80,21 @@ const FileUpload: React.FC<FileUploadProps> = ({
   loading,
   error,
   fileNames = [],
+  compact = false,
 }) => {
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
 
   const handleFiles = useCallback(
-    (files: File[]) => {
+    async (files: File[]) => {
       const logFiles: File[] = []
       let traceFile: File | null = null
 
       for (const file of files) {
-        const type = detectFileType(file)
+        const type = await detectFileTypeByHeader(file)
         if (type === 'trace') {
           traceFile = file
         } else {
-          // 'log' or 'unknown' → treat as log
           logFiles.push(file)
         }
       }
@@ -64,26 +110,41 @@ const FileUpload: React.FC<FileUploadProps> = ({
     multiple: true,
     showUploadList: false,
     beforeUpload: (_file, fileList) => {
-      // Called once per selected file but fileList contains all selected files.
-      // We only want to trigger once; use the first call with the full list.
       if (fileList[0] === _file) {
-        handleFiles(fileList as File[])
+        void handleFiles(fileList as File[])
       }
       return false
     },
     onDrop: (e) => {
       setDragOver(false)
       const files = Array.from(e.dataTransfer.files)
-      if (files.length > 0) handleFiles(files)
+      if (files.length > 0) void handleFiles(files)
     },
   }
 
   return (
     <div
-      style={{ padding: '16px' }}
+      style={{ padding: compact ? '8px' : '16px' }}
       onDragOver={() => setDragOver(true)}
       onDragLeave={() => setDragOver(false)}
     >
+      {/* Show currently loaded files above the dragger when in compact mode */}
+      {compact && fileNames.length > 0 && (
+        <List
+          size="small"
+          style={{ marginBottom: 8 }}
+          dataSource={fileNames}
+          renderItem={(name) => (
+            <List.Item style={{ padding: '2px 0' }}>
+              <FileOutlined style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 12 }} ellipsis title={name}>
+                {name}
+              </Text>
+            </List.Item>
+          )}
+        />
+      )}
+
       <Dragger
         {...props}
         disabled={loading}
@@ -92,14 +153,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
           transition: 'background 0.2s',
         }}
       >
-        <p className="ant-upload-drag-icon">
-          {loading ? <Spin size="large" /> : <InboxOutlined />}
+        <p className="ant-upload-drag-icon" style={{ margin: compact ? '8px 0' : undefined }}>
+          {loading ? <Spin size={compact ? 'default' : 'large'} /> : <InboxOutlined />}
         </p>
-        <p className="ant-upload-text">{loading ? t('loadingFile') : t('dragAndDrop')}</p>
-        <p className="ant-upload-hint">{t('supportedFormats')}</p>
+        <p
+          className="ant-upload-text"
+          style={{ fontSize: compact ? 13 : undefined, margin: compact ? '4px 0' : undefined }}
+        >
+          {loading ? t('loadingFile') : t('dragAndDrop')}
+        </p>
+        {!compact && <p className="ant-upload-hint">{t('supportedFormats')}</p>}
       </Dragger>
 
-      {fileNames.length > 0 && !loading && (
+      {!compact && fileNames.length > 0 && !loading && (
         <List
           size="small"
           style={{ marginTop: 8 }}
