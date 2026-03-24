@@ -1,11 +1,14 @@
 """Android log analyzer service - ported from TypeScript implementation."""
+import gzip
+import io
 import re
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
+import zipfile
+from collections.abc import Iterator
+from dataclasses import dataclass
+from enum import StrEnum
 
 
-class LogFormat(str, Enum):
+class LogFormat(StrEnum):
     ANDROID_LOGCAT = "android_logcat"
     GENERIC_TIMESTAMPED = "generic_timestamped"
     UNKNOWN = "unknown"
@@ -14,24 +17,25 @@ class LogFormat(str, Enum):
 @dataclass
 class LogEntry:
     line_number: int
-    timestamp: Optional[str]
-    pid: Optional[str]
-    tid: Optional[str]
+    timestamp: str | None
+    pid: str | None
+    tid: str | None
     level: str
     tag: str
     message: str
     raw_line: str
+    source_file: str | None = None
 
 
 @dataclass
 class LogFilters:
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    keywords: Optional[str] = None
-    level: Optional[str] = None
-    tag: Optional[str] = None
-    pid: Optional[str] = None
-    tid: Optional[str] = None
+    start_time: str | None = None
+    end_time: str | None = None
+    keywords: str | None = None
+    level: str | None = None
+    tag: str | None = None
+    pid: str | None = None
+    tid: str | None = None
     tag_keyword_relation: str = "AND"
 
 
@@ -48,6 +52,68 @@ class ParseResult:
     logs: list[LogEntry]
     total_lines: int
     format_detected: str
+
+
+# ---------------------------------------------------------------------------
+# Archive / multi-file extraction helpers
+# ---------------------------------------------------------------------------
+
+#: File extensions treated as log text files
+_LOG_TEXT_EXTS = {".log", ".txt", ".logcat", ""}
+
+#: Maximum size (bytes) for a single decoded text file to prevent OOM
+_MAX_DECODE_BYTES = 256 * 1024 * 1024  # 256 MB
+
+
+def _is_log_name(name: str) -> bool:
+    """Return True when *name* looks like a plain-text log file."""
+    lower = name.lower()
+    # Accept files without extension or with common log extensions
+    import os
+
+    ext = os.path.splitext(lower)[1]
+    return ext in _LOG_TEXT_EXTS
+
+
+def extract_text_files(data: bytes, filename: str) -> list[tuple[str, bytes]]:
+    """Extract text file contents from *data*.
+
+    Returns a list of ``(member_name, raw_bytes)`` pairs.
+
+    Supports:
+    * ``.zip`` archives (may contain multiple log files)
+    * ``.gz`` single-file gzip (e.g. ``logcat.log.gz``)
+    * Plain text files (returned as-is)
+    """
+    lower = filename.lower()
+
+    if lower.endswith(".zip"):
+        results: list[tuple[str, bytes]] = []
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    if not _is_log_name(info.filename):
+                        continue
+                    member_data = zf.read(info.filename)
+                    if len(member_data) <= _MAX_DECODE_BYTES:
+                        results.append((info.filename, member_data))
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"Invalid ZIP file: {exc}") from exc
+        return results if results else [("(empty zip)", b"")]
+
+    if lower.endswith(".gz") and not lower.endswith(".tar.gz"):
+        try:
+            decompressed = gzip.decompress(data)
+        except gzip.BadGzipFile as exc:
+            raise ValueError(f"Invalid gzip file: {exc}") from exc
+        # Strip the .gz extension to get the inner filename
+        inner_name = filename[:-3] if len(filename) > 3 else filename
+        return [(inner_name, decompressed[:_MAX_DECODE_BYTES])]
+
+    # Plain text – return as-is
+    return [(filename, data[:_MAX_DECODE_BYTES])]
 
 
 class LogAnalyzer:
@@ -74,17 +140,49 @@ class LogAnalyzer:
             return LogFormat.GENERIC_TIMESTAMPED
         return LogFormat.UNKNOWN
 
-    def parse_log(self, content: str) -> ParseResult:
+    def parse_log(self, content: str, source_file: str | None = None) -> ParseResult:
         fmt = self.detect_log_format(content)
         if fmt == LogFormat.ANDROID_LOGCAT:
-            logs = self._parse_android_logcat(content)
+            logs = self._parse_android_logcat(content, source_file)
         elif fmt == LogFormat.GENERIC_TIMESTAMPED:
-            logs = self._parse_generic_timestamped(content)
+            logs = self._parse_generic_timestamped(content, source_file)
         else:
-            logs = self._parse_unknown(content)
+            logs = self._parse_unknown(content, source_file)
         return ParseResult(logs=logs, total_lines=len(logs), format_detected=fmt.value)
 
-    def _parse_android_logcat(self, content: str) -> list[LogEntry]:
+    def parse_log_bytes(
+        self, data: bytes, filename: str
+    ) -> list[ParseResult]:
+        """Parse one or more log files from *data*.
+
+        Handles plain text, ``.zip`` archives and ``.gz`` single-file gzip.
+        Returns one :class:`ParseResult` per extracted text file.
+        """
+        text_files = extract_text_files(data, filename)
+        results: list[ParseResult] = []
+        for name, raw_bytes in text_files:
+            text = raw_bytes.decode("utf-8", errors="replace")
+            results.append(self.parse_log(text, source_file=name))
+        return results
+
+    def stream_log_bytes(
+        self, data: bytes, filename: str
+    ) -> Iterator[LogEntry]:
+        """Yield :class:`LogEntry` objects one by one.
+
+        Handles plain text, ``.zip`` and ``.gz`` files, yielding entries
+        across all extracted members in order so callers can stream them
+        without buffering the full result.
+        """
+        text_files = extract_text_files(data, filename)
+        for name, raw_bytes in text_files:
+            text = raw_bytes.decode("utf-8", errors="replace")
+            result = self.parse_log(text, source_file=name)
+            yield from result.logs
+
+    def _parse_android_logcat(
+        self, content: str, source_file: str | None = None
+    ) -> list[LogEntry]:
         entries = []
         for i, raw in enumerate(content.split("\n"), 1):
             line = raw.strip()
@@ -102,6 +200,7 @@ class LogAnalyzer:
                         tag=m.group(5).strip(),
                         message=m.group(6).strip(),
                         raw_line=line,
+                        source_file=source_file,
                     )
                 )
             else:
@@ -115,11 +214,14 @@ class LogAnalyzer:
                         tag="Unknown",
                         message=line,
                         raw_line=line,
+                        source_file=source_file,
                     )
                 )
         return entries
 
-    def _parse_generic_timestamped(self, content: str) -> list[LogEntry]:
+    def _parse_generic_timestamped(
+        self, content: str, source_file: str | None = None
+    ) -> list[LogEntry]:
         entries = []
         for i, raw in enumerate(content.split("\n"), 1):
             line = raw.strip()
@@ -137,6 +239,7 @@ class LogAnalyzer:
                         tag="Generic",
                         message=m.group(3).strip(),
                         raw_line=line,
+                        source_file=source_file,
                     )
                 )
             else:
@@ -150,11 +253,14 @@ class LogAnalyzer:
                         tag="Unknown",
                         message=line,
                         raw_line=line,
+                        source_file=source_file,
                     )
                 )
         return entries
 
-    def _parse_unknown(self, content: str) -> list[LogEntry]:
+    def _parse_unknown(
+        self, content: str, source_file: str | None = None
+    ) -> list[LogEntry]:
         return [
             LogEntry(
                 line_number=i,
@@ -165,6 +271,7 @@ class LogAnalyzer:
                 tag="Unknown",
                 message=line.strip(),
                 raw_line=line.strip(),
+                source_file=source_file,
             )
             for i, line in enumerate(content.split("\n"), 1)
             if line.strip()

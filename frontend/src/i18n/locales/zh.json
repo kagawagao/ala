@@ -83,7 +83,7 @@
   "connected": "已连接",
   "disconnected": "未连接",
   "dropFileHere": "拖拽文件到此处或点击上传",
-  "supportedFormats": "支持格式：.log、.txt（logcat），.pb、.json（Perfetto trace）",
+  "supportedFormats": "支持格式：.log、.txt、.gz、.zip（logcat），.pb、.json（Perfetto trace）",
   "fileUploaded": "文件上传成功",
   "traceSummary": "Trace 摘要",
   "duration": "持续时间",
@@ -114,5 +114,12 @@
   "copy": "复制",
   "copied": "已复制！",
   "filteredCount": "{{count}} / {{total}} 条",
-  "formatDetected": "格式: {{format}}"
+  "formatDetected": "格式: {{format}}",
+  "filtered": "已过滤",
+  "processFilter": "进程过滤",
+  "resetFilter": "重置过滤",
+  "selectProcesses": "选择进程…",
+  "processNameRegex": "名称正则（如 system）",
+  "pidCommaList": "PID（如 1234, 5678）",
+  "applyFilter": "应用过滤"
 }

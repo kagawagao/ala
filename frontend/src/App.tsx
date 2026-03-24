@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { ConfigProvider, theme, Tabs, Alert, Splitter, message } from 'antd'
 import { useTranslation } from 'react-i18next'
 import i18next from './i18n/config'
@@ -9,13 +9,12 @@ import TraceViewer from './components/TraceViewer'
 import AiPanel from './components/AiPanel'
 import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
-import { parseLog } from './api/logs'
+import { parseLogStream } from './api/logs'
 import { parseTrace } from './api/trace'
 import type {
   LogEntry,
   LogFilters,
   LogStatistics,
-  ParseResult,
   TraceParseResult,
   FilterPreset,
   HighlightItem,
@@ -119,11 +118,14 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
 
   // File state
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null)
+  // allLogs is built incrementally as the stream arrives
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([])
+  const [formatDetected, setFormatDetected] = useState<string | undefined>()
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [loadingFile, setLoadingFile] = useState(false)
   const [fileError, setFileError] = useState<string | undefined>()
-  const [fileName, setFileName] = useState<string | undefined>()
+  const [fileNames, setFileNames] = useState<string[]>([])
+  const abortParseRef = useRef<AbortController | null>(null)
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -136,8 +138,6 @@ const App: React.FC = () => {
       return []
     }
   })
-
-  const allLogs = useMemo(() => parseResult?.logs ?? [], [parseResult])
 
   const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
 
@@ -193,18 +193,45 @@ const App: React.FC = () => {
     })
   }, [])
 
-  const handleLogFile = useCallback(
-    async (file: File) => {
+  const handleLogFiles = useCallback(
+    async (files: File[]) => {
+      // Cancel any in-flight parse
+      abortParseRef.current?.abort()
+      const controller = new AbortController()
+      abortParseRef.current = controller
+
       setLoadingFile(true)
       setFileError(undefined)
-      setFileName(file.name)
+      setFileNames(files.map((f) => f.name))
+      setAllLogs([])
+      setFormatDetected(undefined)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+
+      // Batch incoming entries to avoid re-renders per-entry
+      const BATCH_SIZE = 500
+      const buffer: LogEntry[] = []
+
+      const flush = () => {
+        if (buffer.length === 0) return
+        const toAdd = buffer.splice(0)
+        setAllLogs((prev) => [...prev, ...toAdd])
+      }
+
       try {
-        const result = await parseLog(file)
-        setParseResult(result)
-        setFilters(DEFAULT_FILTERS)
-        setActiveTab('log')
+        for await (const line of parseLogStream(files, controller.signal)) {
+          if ('_done' in line) break
+          const entry = line as LogEntry
+          buffer.push(entry)
+          if (entry.source_file && !formatDetected) {
+            setFormatDetected(entry.source_file)
+          }
+          if (buffer.length >= BATCH_SIZE) flush()
+        }
+        flush()
         void message.success(t('fileUploaded'))
       } catch (err: unknown) {
+        if ((err as Error).name === 'AbortError') return
         const msg = err instanceof Error ? err.message : t('parseError')
         setFileError(msg)
         void message.error(msg)
@@ -212,6 +239,7 @@ const App: React.FC = () => {
         setLoadingFile(false)
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [t],
   )
 
@@ -219,7 +247,7 @@ const App: React.FC = () => {
     async (file: File) => {
       setLoadingFile(true)
       setFileError(undefined)
-      setFileName(file.name)
+      setFileNames([file.name])
       try {
         const result = await parseTrace(file)
         setTraceResult(result)
@@ -248,7 +276,7 @@ const App: React.FC = () => {
     }
   }, [])
 
-  const showFileUpload = !parseResult && !traceResult
+  const showFileUpload = allLogs.length === 0 && !traceResult
 
   const tabItems = [
     {
@@ -256,15 +284,15 @@ const App: React.FC = () => {
       label: t('logAnalysis'),
       children: showFileUpload ? (
         <FileUpload
-          onLogFile={(f) => {
-            void handleLogFile(f)
+          onLogFiles={(files) => {
+            void handleLogFiles(files)
           }}
           onTraceFile={(f) => {
             void handleTraceFile(f)
           }}
           loading={loadingFile}
           error={fileError}
-          fileName={fileName}
+          fileNames={fileNames}
         />
       ) : (
         <LogViewer
@@ -272,7 +300,7 @@ const App: React.FC = () => {
           totalLogs={allLogs.length}
           highlights={highlights}
           wordWrap={wordWrap}
-          formatDetected={parseResult?.format_detected}
+          formatDetected={formatDetected}
         />
       ),
     },

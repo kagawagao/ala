@@ -1,12 +1,11 @@
 """In-memory session manager."""
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -39,7 +38,7 @@ class SessionManager:
         self._sessions[session.id] = session
         return session
 
-    def get_session(self, session_id: str) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Session | None:
         return self._sessions.get(session_id)
 
     def list_sessions(self) -> list[Session]:
@@ -51,7 +50,7 @@ class SessionManager:
             return True
         return False
 
-    def add_message(self, session_id: str, role: str, content: str) -> Optional[Message]:
+    def add_message(self, session_id: str, role: str, content: str) -> Message | None:
         session = self._sessions.get(session_id)
         if not session:
             return None

@@ -1,5 +1,5 @@
 """OpenAI-compatible AI service with async streaming."""
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
 

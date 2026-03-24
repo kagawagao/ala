@@ -1,6 +1,5 @@
 """ALA Backend configuration."""
 import json
-from typing import List
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -10,7 +9,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
-    cors_origins: List[str] = [
+    cors_origins: list[str] = [
         "http://localhost:5173",
         "http://localhost:4173",
         "http://localhost:3000",

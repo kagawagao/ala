@@ -1,5 +1,4 @@
 """Multi-turn chat with streaming SSE."""
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -33,7 +32,7 @@ class CreateSessionRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     message: str
-    context: Optional[str] = None  # Serialized log/trace context
+    context: str | None = None  # Serialized log/trace context
 
 
 def _session_to_response(session) -> Session:

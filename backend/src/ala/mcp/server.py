@@ -2,7 +2,7 @@
 from fastmcp import FastMCP
 
 from ..services.log_analyzer import LogAnalyzer
-from ..services.trace_analyzer import TraceAnalyzer
+from ..services.trace_analyzer import TraceAnalyzer, TraceFilters
 
 mcp = FastMCP("ALA - Android Log Analyzer")
 _log_analyzer = LogAnalyzer()
@@ -154,3 +154,46 @@ def parse_perfetto_trace(trace_file_path: str) -> dict:
         return {"error": f"File not found: {trace_file_path}"}
     except Exception as e:
         return {"error": f"Failed to parse trace: {str(e)}"}
+
+
+@mcp.tool()
+def filter_perfetto_trace(
+    trace_file_path: str,
+    pids: list[int] | None = None,
+    process_name: str | None = None,
+) -> dict:
+    """Parse and filter a Perfetto trace file by process(es).
+
+    Args:
+        trace_file_path: Path to the Perfetto trace file (.pb or .json)
+        pids: Optional list of process IDs to keep.
+        process_name: Optional regex pattern to filter processes by name
+            (case-insensitive).
+
+    Returns:
+        Filtered trace summary containing only matching processes.
+    """
+    try:
+        with open(trace_file_path, "rb") as f:
+            content = f.read()
+        result = _trace_analyzer.parse_trace(content, trace_file_path)
+        filters = TraceFilters(pids=pids, process_name=process_name)
+        filtered = _trace_analyzer.filter_trace(result, filters)
+        return {
+            "format": filtered.format,
+            "file_size": len(content),
+            "summary": {
+                "duration_ms": filtered.summary.duration_ms,
+                "process_count": filtered.summary.process_count,
+                "thread_count": filtered.summary.thread_count,
+                "event_count": filtered.summary.event_count,
+                "processes": filtered.summary.processes[:50],
+                "top_slices": filtered.summary.top_slices[:20],
+                "ftrace_events": filtered.summary.ftrace_events[:30],
+                "metadata": filtered.summary.metadata,
+            },
+        }
+    except FileNotFoundError:
+        return {"error": f"File not found: {trace_file_path}"}
+    except Exception as e:
+        return {"error": f"Failed to filter trace: {str(e)}"}

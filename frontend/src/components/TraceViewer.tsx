@@ -1,6 +1,25 @@
-import React from 'react'
-import { Card, Descriptions, Table, Tag, Typography, List, Empty, Row, Col, Statistic } from 'antd'
+import React, { useCallback, useState } from 'react'
+import {
+  Card,
+  Descriptions,
+  Table,
+  Tag,
+  Typography,
+  List,
+  Empty,
+  Row,
+  Col,
+  Statistic,
+  Input,
+  Select,
+  Space,
+  Button,
+  Spin,
+  message,
+} from 'antd'
+import { FilterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { filterTrace } from '../api/trace'
 import type { TraceParseResult } from '../types'
 
 const { Text } = Typography
@@ -12,6 +31,54 @@ interface TraceViewerProps {
 const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
   const { t } = useTranslation()
 
+  // Filter state
+  const [pidInput, setPidInput] = useState('')
+  const [processNameFilter, setProcessNameFilter] = useState('')
+  const [selectedPids, setSelectedPids] = useState<number[]>([])
+  const [filteredResult, setFilteredResult] = useState<TraceParseResult | null>(null)
+  const [filtering, setFiltering] = useState(false)
+
+  const displayResult = filteredResult ?? traceResult
+
+  const handleFilter = useCallback(async () => {
+    if (!traceResult) return
+
+    const pids: number[] = [
+      ...selectedPids,
+      ...pidInput
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n)),
+    ]
+
+    if (pids.length === 0 && !processNameFilter.trim()) {
+      setFilteredResult(null)
+      return
+    }
+
+    setFiltering(true)
+    try {
+      const result = await filterTrace({
+        result: traceResult,
+        pids: pids.length > 0 ? pids : undefined,
+        process_name: processNameFilter.trim() || undefined,
+      })
+      setFilteredResult(result)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Filter failed'
+      void message.error(msg)
+    } finally {
+      setFiltering(false)
+    }
+  }, [traceResult, selectedPids, pidInput, processNameFilter])
+
+  const handleReset = useCallback(() => {
+    setPidInput('')
+    setProcessNameFilter('')
+    setSelectedPids([])
+    setFilteredResult(null)
+  }, [])
+
   if (!traceResult) {
     return (
       <Empty
@@ -22,7 +89,14 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
     )
   }
 
-  const { summary, format, file_size } = traceResult
+  const { summary, format, file_size } = displayResult!
+  const isFiltered = filteredResult !== null
+
+  // Build PID options from the unfiltered trace
+  const pidOptions = (traceResult.summary.processes ?? []).map((p) => ({
+    label: `${p.pid} – ${p.name}`,
+    value: p.pid,
+  }))
 
   const processColumns = [
     { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80 },
@@ -65,7 +139,11 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title={t('processes')} value={summary.process_count} />
+            <Statistic
+              title={t('processes')}
+              value={summary.process_count}
+              valueStyle={isFiltered ? { color: 'var(--ant-color-primary)' } : undefined}
+            />
           </Card>
         </Col>
         <Col span={6}>
@@ -80,12 +158,74 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
         </Col>
       </Row>
 
-      <Row gutter={12} style={{ marginBottom: 8 }}>
+      <Row gutter={12} style={{ marginBottom: 12 }}>
         <Col>
           <Tag>Format: {format}</Tag>
           <Tag>Size: {(file_size / 1024).toFixed(1)} KB</Tag>
+          {isFiltered && <Tag color="blue">{t('filtered')}</Tag>}
         </Col>
       </Row>
+
+      {/* Process Filter Panel */}
+      <Card
+        size="small"
+        title={
+          <Space>
+            <FilterOutlined />
+            {t('processFilter')}
+          </Space>
+        }
+        style={{ marginBottom: 12 }}
+        extra={
+          isFiltered ? (
+            <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
+              {t('resetFilter')}
+            </Button>
+          ) : null
+        }
+      >
+        <Space wrap style={{ width: '100%' }}>
+          <Select
+            mode="multiple"
+            style={{ minWidth: 220 }}
+            placeholder={t('selectProcesses')}
+            options={pidOptions}
+            value={selectedPids}
+            onChange={setSelectedPids}
+            allowClear
+            showSearch
+            filterOption={(input, option) =>
+              String(option?.label ?? '')
+                .toLowerCase()
+                .includes(input.toLowerCase())
+            }
+          />
+          <Input
+            style={{ width: 160 }}
+            placeholder={t('processNameRegex')}
+            value={processNameFilter}
+            onChange={(e) => setProcessNameFilter(e.target.value)}
+            onPressEnter={() => void handleFilter()}
+            allowClear
+          />
+          <Input
+            style={{ width: 160 }}
+            placeholder={t('pidCommaList')}
+            value={pidInput}
+            onChange={(e) => setPidInput(e.target.value)}
+            onPressEnter={() => void handleFilter()}
+            allowClear
+          />
+          <Button
+            type="primary"
+            icon={filtering ? <Spin size="small" /> : <FilterOutlined />}
+            onClick={() => void handleFilter()}
+            disabled={filtering}
+          >
+            {t('applyFilter')}
+          </Button>
+        </Space>
+      </Card>
 
       {/* Process List */}
       {summary.processes?.length > 0 && (
@@ -93,7 +233,7 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
           size="small"
           title={t('processes')}
           style={{ marginBottom: 12 }}
-          bodyStyle={{ padding: 0 }}
+          styles={{ body: { padding: 0 } }}
         >
           <Table
             dataSource={summary.processes}
@@ -112,7 +252,7 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
           size="small"
           title={t('topSlices')}
           style={{ marginBottom: 12 }}
-          bodyStyle={{ padding: 0 }}
+          styles={{ body: { padding: 0 } }}
         >
           <Table
             dataSource={summary.top_slices}

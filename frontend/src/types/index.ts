@@ -7,6 +7,7 @@ export interface LogEntry {
   tag: string
   message: string
   raw_line: string
+  source_file: string | null
 }
 
 export interface LogFilters {
@@ -36,6 +37,12 @@ export interface ParseResult {
   logs: LogEntry[]
   total_lines: number
   format_detected: string
+}
+
+export interface TraceFilterRequest {
+  result: TraceParseResult
+  pids?: number[]
+  process_name?: string
 }
 
 export interface TraceSummary {

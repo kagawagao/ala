@@ -1,7 +1,7 @@
 """Perfetto trace file analyzer."""
 import json
-from dataclasses import dataclass, field
-from typing import Optional
+import re
+from dataclasses import dataclass
 
 
 class TraceParseError(Exception):
@@ -10,7 +10,7 @@ class TraceParseError(Exception):
 
 @dataclass
 class TraceSummary:
-    duration_ms: Optional[float]
+    duration_ms: float | None
     process_count: int
     thread_count: int
     event_count: int
@@ -24,6 +24,23 @@ class TraceSummary:
 class TraceParseResult:
     summary: TraceSummary
     format: str
+
+
+@dataclass
+class TraceFilters:
+    """Filters to apply to a parsed Perfetto trace summary.
+
+    Filtering is performed on the *processes* list already extracted from the
+    trace.  All conditions are ANDed together.
+
+    Attributes:
+        pids: Keep only processes whose ``pid`` is in this list.
+        process_name: Keep only processes whose ``name`` matches this regex
+            (case-insensitive).
+    """
+
+    pids: list[int] | None = None
+    process_name: str | None = None
 
 
 class TraceAnalyzer:
@@ -60,6 +77,49 @@ class TraceAnalyzer:
             format="unknown",
         )
 
+    def filter_trace(
+        self, result: TraceParseResult, filters: TraceFilters
+    ) -> TraceParseResult:
+        """Return a new :class:`TraceParseResult` with only the matching processes.
+
+        ``top_slices`` and ``ftrace_events`` are currently kept as-is because
+        they are not tied to specific process pids in the summary representation.
+        ``process_count`` and ``thread_count`` are updated to reflect the filtered
+        set.
+        """
+        processes = result.summary.processes
+
+        if filters.pids:
+            pid_set = set(filters.pids)
+            processes = [p for p in processes if p.get("pid") in pid_set]
+
+        if filters.process_name and filters.process_name.strip():
+            try:
+                pattern = re.compile(filters.process_name, re.IGNORECASE)
+            except re.error:
+                pattern = None
+            if pattern:
+                processes = [p for p in processes if pattern.search(str(p.get("name", "")))]
+            else:
+                needle = filters.process_name.lower()
+                processes = [p for p in processes if needle in str(p.get("name", "")).lower()]
+
+        thread_count = sum(p.get("thread_count", 0) for p in processes)
+
+        return TraceParseResult(
+            summary=TraceSummary(
+                duration_ms=result.summary.duration_ms,
+                process_count=len(processes),
+                thread_count=thread_count,
+                event_count=result.summary.event_count,
+                processes=processes,
+                top_slices=result.summary.top_slices,
+                ftrace_events=result.summary.ftrace_events,
+                metadata=result.summary.metadata,
+            ),
+            format=result.format,
+        )
+
     def _parse_json_trace(self, content: bytes) -> TraceParseResult:
         text = content.decode("utf-8", errors="replace")
         data = json.loads(text)
@@ -75,8 +135,8 @@ class TraceAnalyzer:
         processes: dict[int, dict] = {}
         slices: dict[str, dict] = {}
         ftrace_events: set[str] = set()
-        min_ts: Optional[float] = None
-        max_ts: Optional[float] = None
+        min_ts: float | None = None
+        max_ts: float | None = None
 
         for evt in events:
             if not isinstance(evt, dict):
@@ -98,12 +158,17 @@ class TraceAnalyzer:
             # Process/thread name metadata events
             if ph == "M":
                 args = evt.get("args", {})
-                if name == "process_name" and pid not in processes:
-                    processes[pid] = {
-                        "pid": pid,
-                        "name": args.get("name", f"Process {pid}"),
-                        "threads": set(),
-                    }
+                if name == "process_name":
+                    if pid not in processes:
+                        processes[pid] = {
+                            "pid": pid,
+                            "name": args.get("name", f"Process {pid}"),
+                            "threads": set(),
+                        }
+                    else:
+                        # Update name even if the process was already created
+                        # (slice events may arrive before metadata events)
+                        processes[pid]["name"] = args.get("name", processes[pid]["name"])
                 elif name == "thread_name":
                     if pid not in processes:
                         processes[pid] = {

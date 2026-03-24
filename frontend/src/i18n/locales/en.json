@@ -83,7 +83,7 @@
   "connected": "Connected",
   "disconnected": "Disconnected",
   "dropFileHere": "Drop a file here or click to upload",
-  "supportedFormats": "Supported formats: .log, .txt (logcat), .pb, .json (Perfetto trace)",
+  "supportedFormats": "Supported formats: .log, .txt, .gz, .zip (logcat), .pb, .json (Perfetto trace)",
   "fileUploaded": "File uploaded successfully",
   "traceSummary": "Trace Summary",
   "duration": "Duration",
@@ -114,5 +114,12 @@
   "copy": "Copy",
   "copied": "Copied!",
   "filteredCount": "{{count}} / {{total}} entries",
-  "formatDetected": "Format: {{format}}"
+  "formatDetected": "Format: {{format}}",
+  "filtered": "Filtered",
+  "processFilter": "Process Filter",
+  "resetFilter": "Reset Filter",
+  "selectProcesses": "Select processes…",
+  "processNameRegex": "Name regex (e.g. system)",
+  "pidCommaList": "PIDs (e.g. 1234, 5678)",
+  "applyFilter": "Apply Filter"
 }

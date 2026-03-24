@@ -23,6 +23,9 @@ ala/
 
 - **Android Log Analysis** — Parse, filter, and search Android logcat files
   - Support for `android_logcat`, `generic_timestamped`, and unknown formats
+  - **Multi-file upload**: select or drag multiple `.log` / `.txt` files at once
+  - **Compressed archives**: upload `.gz` (single-file gzip) or `.zip` (multi-log archives) directly
+  - **Streaming parse**: log entries are streamed to the browser as they are parsed — no large JSON body, instant first-row display
   - Filters: time range, keywords (regex), log level, tag (regex), PID, TID
   - Filter presets (save/load/delete)
   - Color-coded log levels
@@ -30,6 +33,7 @@ ala/
   - Extract process/thread/event summary
   - Top slices by duration
   - FTrace events
+  - **Process filter**: filter the trace view by PID list or process name regex
 - **AI Assistant** — Multi-turn conversation with streaming responses
   - Analysis presets: General, Crash, Performance, Security
   - Attach log/trace data as conversation context
@@ -44,17 +48,17 @@ ala/
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.12+ with [Poetry](https://python-poetry.org/) (`pip install poetry`)
 - Node.js 20+
 
 ### Development
 
 ```bash
-# Install root workspace tools
+# Install root workspace tools (prettier, husky, commitlint)
 npm install
 
-# Install backend dependencies
-cd backend && pip install -e ".[dev]" && cd ..
+# Install backend dependencies via Poetry
+cd backend && poetry install && cd ..
 
 # Install frontend dependencies
 cd frontend && npm install && cd ..
@@ -117,14 +121,14 @@ Available MCP tools:
 cd backend
 
 # Run tests
-python -m pytest tests/ -v
+poetry run pytest tests/ -v
 
 # Start dev server
-python -m uvicorn ala.main:app --reload --port 8000
+poetry run uvicorn ala.main:app --reload --port 8000
 
 # Lint
-ruff check src/
-ruff format --check src/
+poetry run ruff check src/
+poetry run ruff format --check src/
 ```
 
 ### Frontend
@@ -167,19 +171,21 @@ Git hooks (via Husky):
 
 ## API Reference
 
-| Method    | Path                              | Description                      |
-| --------- | --------------------------------- | -------------------------------- |
-| `GET`     | `/health`                         | Health check                     |
-| `GET/PUT` | `/api/config`                     | AI configuration                 |
-| `POST`    | `/api/logs/parse`                 | Parse log file (multipart)       |
-| `POST`    | `/api/logs/filter`                | Filter log entries               |
-| `POST`    | `/api/logs/statistics`            | Get log statistics               |
-| `POST`    | `/api/trace/parse`                | Parse Perfetto trace (multipart) |
-| `POST`    | `/api/chat/sessions`              | Create chat session              |
-| `GET`     | `/api/chat/sessions`              | List chat sessions               |
-| `GET`     | `/api/chat/sessions/:id`          | Get session with messages        |
-| `DELETE`  | `/api/chat/sessions/:id`          | Delete session                   |
-| `POST`    | `/api/chat/sessions/:id/messages` | Send message (SSE stream)        |
+| Method    | Path                              | Description                                             |
+| --------- | --------------------------------- | ------------------------------------------------------- |
+| `GET`     | `/health`                         | Health check                                            |
+| `GET/PUT` | `/api/config`                     | AI configuration                                        |
+| `POST`    | `/api/logs/parse`                 | Parse log files (multipart, multiple files, .gz / .zip) |
+| `POST`    | `/api/logs/parse/stream`          | Stream-parse log files as NDJSON                        |
+| `POST`    | `/api/logs/filter`                | Filter log entries                                      |
+| `POST`    | `/api/logs/statistics`            | Get log statistics                                      |
+| `POST`    | `/api/trace/parse`                | Parse Perfetto trace (multipart)                        |
+| `POST`    | `/api/trace/filter`               | Filter trace by process PID(s) / name regex             |
+| `POST`    | `/api/chat/sessions`              | Create chat session                                     |
+| `GET`     | `/api/chat/sessions`              | List chat sessions                                      |
+| `GET`     | `/api/chat/sessions/:id`          | Get session with messages                               |
+| `DELETE`  | `/api/chat/sessions/:id`          | Delete session                                          |
+| `POST`    | `/api/chat/sessions/:id/messages` | Send message (SSE stream)                               |
 
 ## License
 

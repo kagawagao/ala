@@ -1,9 +1,16 @@
 FROM python:3.12-slim
 
+# Install Poetry
+RUN pip install --no-cache-dir poetry==2.3.2
+
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+# Copy only dependency manifests first (layer caching)
+COPY pyproject.toml poetry.lock ./
+
+# Install production deps only (no dev group), don't create a venv inside container
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-interaction --no-ansi
 
 COPY src/ ./src/
 
