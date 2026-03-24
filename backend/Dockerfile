@@ -12,6 +12,12 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false \
     && poetry install --only main --no-interaction --no-ansi
 
+# Pre-download the Perfetto trace_processor binary so it is available at
+# runtime without requiring outbound network access from the container.
+RUN python3 -c \
+    "from perfetto.trace_processor.platform import PlatformDelegate; \
+     PlatformDelegate().get_shell_path(None)" || true
+
 COPY src/ ./src/
 
 EXPOSE 8000

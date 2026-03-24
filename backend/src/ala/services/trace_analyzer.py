@@ -248,10 +248,134 @@ class TraceAnalyzer:
         )
 
     def _parse_proto_trace(self, content: bytes) -> TraceParseResult:
-        """Best-effort Perfetto protobuf trace parsing without full proto definitions.
+        """Parse a Perfetto proto binary trace.
 
-        Perfetto trace proto format: sequence of TracePackets, each is a proto message.
-        We do a basic protobuf field scan to extract known field IDs.
+        Uses the ``perfetto`` package's ``TraceProcessor`` (which delegates to the
+        official ``trace_processor`` binary) to run SQL queries against the trace.
+        Falls back to a lightweight varint scanner when the perfetto package is
+        not installed or the binary cannot be started (e.g. no network access to
+        download it on first use).
+        """
+        import io as _io
+
+        try:
+            from perfetto.trace_processor import TraceProcessor  # type: ignore[import-untyped]
+        except ImportError:
+            return self._parse_proto_trace_legacy(content)
+
+        try:
+            with TraceProcessor(trace=_io.BytesIO(content)) as tp:
+                return self._summarize_via_tp(tp, file_size=len(content))
+        except Exception:
+            return self._parse_proto_trace_legacy(content)
+
+    def _summarize_via_tp(self, tp, file_size: int) -> TraceParseResult:  # type: ignore[no-untyped-def]
+        """Extract a :class:`TraceParseResult` from an open ``TraceProcessor`` session."""
+
+        # ── Processes ──────────────────────────────────────────────────────
+        processes: list[dict] = []
+        try:
+            rows = tp.query(
+                "SELECT p.pid, p.name, COUNT(t.utid) AS thread_count "
+                "FROM process p "
+                "LEFT JOIN thread t ON t.upid = p.upid "
+                "WHERE p.pid IS NOT NULL AND p.pid != 0 "
+                "GROUP BY p.upid"
+            )
+            for row in rows:
+                processes.append(
+                    {
+                        "pid": row.pid,
+                        "name": row.name or f"Process {row.pid}",
+                        "thread_count": row.thread_count or 0,
+                    }
+                )
+        except Exception:
+            pass
+
+        # ── Duration ───────────────────────────────────────────────────────
+        duration_ms: float | None = None
+        try:
+            for row in tp.query("SELECT start_ts, end_ts FROM trace_bounds"):
+                if row.start_ts is not None and row.end_ts is not None:
+                    duration_ms = (row.end_ts - row.start_ts) / 1e6
+        except Exception:
+            pass
+
+        if duration_ms is None:
+            try:
+                for row in tp.query(
+                    "SELECT MIN(ts) AS min_ts, "
+                    "MAX(ts + CASE WHEN dur > 0 THEN dur ELSE 0 END) AS max_ts "
+                    "FROM slice"
+                ):
+                    if row.min_ts is not None and row.max_ts is not None:
+                        duration_ms = (row.max_ts - row.min_ts) / 1e6
+            except Exception:
+                pass
+
+        # ── Event count ────────────────────────────────────────────────────
+        event_count = 0
+        try:
+            for row in tp.query("SELECT COUNT(*) AS cnt FROM slice"):
+                event_count = row.cnt or 0
+        except Exception:
+            pass
+
+        # ── Top slices ─────────────────────────────────────────────────────
+        top_slices: list[dict] = []
+        try:
+            rows = tp.query(
+                "SELECT name, COUNT(*) AS cnt, SUM(dur) / 1e6 AS duration_ms "
+                "FROM slice "
+                "WHERE dur > 0 AND name IS NOT NULL "
+                "GROUP BY name "
+                "ORDER BY duration_ms DESC "
+                "LIMIT 20"
+            )
+            for row in rows:
+                top_slices.append(
+                    {
+                        "name": row.name,
+                        "count": row.cnt,
+                        "duration_ms": row.duration_ms or 0.0,
+                    }
+                )
+        except Exception:
+            pass
+
+        # ── FTrace / raw events ────────────────────────────────────────────
+        ftrace_events: list[str] = []
+        try:
+            for row in tp.query(
+                "SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"
+            ):
+                if row.name:
+                    ftrace_events.append(row.name)
+        except Exception:
+            pass
+
+        thread_count = sum(p.get("thread_count", 0) for p in processes)
+
+        return TraceParseResult(
+            summary=TraceSummary(
+                duration_ms=duration_ms,
+                process_count=len(processes),
+                thread_count=thread_count,
+                event_count=event_count,
+                processes=processes,
+                top_slices=top_slices,
+                ftrace_events=ftrace_events,
+                metadata={"file_size": file_size, "format": "perfetto_proto"},
+            ),
+            format="perfetto_proto",
+        )
+
+    def _parse_proto_trace_legacy(self, content: bytes) -> TraceParseResult:
+        """Lightweight fallback: scan protobuf varints without full proto definitions.
+
+        Used when the ``perfetto`` package is unavailable or the
+        ``trace_processor`` binary cannot be obtained.
         """
         processes: dict = {}
         ftrace_events: set[str] = set()
