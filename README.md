@@ -50,8 +50,39 @@ ala/
 
 - Python 3.12+ with [Poetry](https://python-poetry.org/) (`pip install poetry`)
 - Node.js 20+
+- Docker + Docker Compose (for production deploy)
 
-### Development
+### One-Click Scripts
+
+Convenience scripts are provided for **Linux / macOS** (bash) and **Windows** (PowerShell).
+
+```bash
+# Linux / macOS
+./scripts/ala.sh install   # install all dependencies
+./scripts/ala.sh dev       # start hot-reload dev servers
+./scripts/ala.sh build     # production build
+./scripts/ala.sh deploy    # deploy with Docker Compose
+```
+
+```powershell
+# Windows (PowerShell)
+.\scripts\ala.ps1 install
+.\scripts\ala.ps1 dev
+.\scripts\ala.ps1 build
+.\scripts\ala.ps1 deploy
+```
+
+Equivalent npm scripts are available at the workspace root:
+
+| npm script            | Action                                         |
+| --------------------- | ---------------------------------------------- |
+| `npm run install:all` | Install root + backend + frontend dependencies |
+| `npm run dev`         | Start hot-reload dev servers                   |
+| `npm run build`       | Build frontend for production                  |
+| `npm run deploy`      | `docker compose up --build -d`                 |
+| `npm run deploy:down` | `docker compose down`                          |
+
+### Manual Setup
 
 ```bash
 # Install root workspace tools (prettier, husky, commitlint)
@@ -77,7 +108,7 @@ cp backend/.env.example backend/.env
 # Edit backend/.env to set your AI API key
 
 # Start with Docker Compose
-docker-compose up -d
+docker compose up -d
 ```
 
 The app will be available at `http://localhost`.
