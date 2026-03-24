@@ -39,9 +39,12 @@ const AI_PRESETS = [
 
 const PRESET_PROMPTS: Record<string, string> = {
   general: 'Please analyze the following Android log and provide a summary of what happened.',
-  crash: 'Please analyze this Android log for crashes, exceptions, and fatal errors. Identify root causes and suggest fixes.',
-  performance: 'Please analyze this Android log for performance issues: ANRs, slow operations, memory issues, and bottlenecks.',
-  security: 'Please analyze this Android log for security issues: permission errors, authentication failures, and suspicious activity.',
+  crash:
+    'Please analyze this Android log for crashes, exceptions, and fatal errors. Identify root causes and suggest fixes.',
+  performance:
+    'Please analyze this Android log for performance issues: ANRs, slow operations, memory issues, and bottlenecks.',
+  security:
+    'Please analyze this Android log for security issues: permission errors, authentication failures, and suspicious activity.',
 }
 
 interface AiPanelProps {
@@ -73,7 +76,9 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
   useEffect(() => {
     listSessions()
       .then(setSessions)
-      .catch(() => {/* backend may not be running */})
+      .catch(() => {
+        /* backend may not be running */
+      })
   }, [])
 
   const handleNewSession = async () => {
@@ -145,9 +150,8 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
 
     try {
       const context = buildContext()
-      const messageToSend = preset !== 'general' && context
-        ? `${PRESET_PROMPTS[preset]}\n\n${sentInput}`
-        : sentInput
+      const messageToSend =
+        preset !== 'general' && context ? `${PRESET_PROMPTS[preset]}\n\n${sentInput}` : sentInput
 
       let accumulated = ''
       for await (const chunk of sendMessage(
@@ -231,7 +235,13 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
           <RobotOutlined /> {t('aiAssistant')}
         </Text>
         <Tooltip title={t('newSession')}>
-          <Button size="small" icon={<PlusOutlined />} onClick={() => { void handleNewSession() }} />
+          <Button
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              void handleNewSession()
+            }}
+          />
         </Tooltip>
       </div>
 
@@ -258,7 +268,9 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
               </Tag>
               <Popconfirm
                 title={t('deleteSessionConfirm')}
-                onConfirm={() => { void handleDeleteSession(s.id) }}
+                onConfirm={() => {
+                  void handleDeleteSession(s.id)
+                }}
                 okText={t('delete')}
                 cancelText={t('cancel')}
               >
@@ -276,8 +288,16 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               <Space direction="vertical" align="center">
-                <Text type="secondary" style={{ fontSize: 12 }}>{t('noSessions')}</Text>
-                <Button size="small" icon={<PlusOutlined />} onClick={() => { void handleNewSession() }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('noSessions')}
+                </Text>
+                <Button
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => {
+                    void handleNewSession()
+                  }}
+                >
                   {t('newSession')}
                 </Button>
               </Space>
@@ -319,14 +339,17 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
                     maxWidth: '80%',
                     padding: '8px 10px',
                     borderRadius: msg.role === 'user' ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
-                    background: msg.role === 'user' ? '#1677ff' : 'var(--ant-color-bg-container-disabled)',
+                    background:
+                      msg.role === 'user' ? '#1677ff' : 'var(--ant-color-bg-container-disabled)',
                     color: msg.role === 'user' ? '#fff' : 'inherit',
                     fontSize: 13,
                     lineHeight: 1.5,
                   }}
                 >
                   {msg.role === 'assistant' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content || '...'}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content || '...'}
+                    </ReactMarkdown>
                   ) : (
                     <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                   )}
@@ -385,19 +408,16 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
               style={{ fontSize: 13 }}
             />
             {streaming ? (
-              <Button
-                icon={<StopOutlined />}
-                onClick={handleStop}
-                danger
-                style={{ flexShrink: 0 }}
-              >
+              <Button icon={<StopOutlined />} onClick={handleStop} danger style={{ flexShrink: 0 }}>
                 {t('stop')}
               </Button>
             ) : (
               <Button
                 type="primary"
                 icon={<SendOutlined />}
-                onClick={() => { void handleSend() }}
+                onClick={() => {
+                  void handleSend()
+                }}
                 disabled={!inputValue.trim() || !aiConfigured}
                 style={{ flexShrink: 0 }}
               >

@@ -70,11 +70,7 @@ const Header: React.FC<HeaderProps> = ({
           />
         </Tooltip>
         <Tooltip title={language === 'en' ? '中文' : 'English'}>
-          <Button
-            type="text"
-            icon={<GlobalOutlined />}
-            onClick={onToggleLanguage}
-          >
+          <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage}>
             {language === 'en' ? 'EN' : '中文'}
           </Button>
         </Tooltip>

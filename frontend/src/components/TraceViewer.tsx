@@ -1,16 +1,5 @@
 import React from 'react'
-import {
-  Card,
-  Descriptions,
-  Table,
-  Tag,
-  Typography,
-  List,
-  Empty,
-  Row,
-  Col,
-  Statistic,
-} from 'antd'
+import { Card, Descriptions, Table, Tag, Typography, List, Empty, Row, Col, Statistic } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { TraceParseResult } from '../types'
 
@@ -50,7 +39,8 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
       key: 'duration_ms',
       width: 120,
       render: (v: number) => v?.toFixed(2),
-      sorter: (a: { duration_ms: number }, b: { duration_ms: number }) => b.duration_ms - a.duration_ms,
+      sorter: (a: { duration_ms: number }, b: { duration_ms: number }) =>
+        b.duration_ms - a.duration_ms,
     },
   ]
 

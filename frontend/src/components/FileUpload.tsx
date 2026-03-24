@@ -84,9 +84,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         <p className="ant-upload-drag-icon">
           {loading ? <Spin size="large" /> : <InboxOutlined />}
         </p>
-        <p className="ant-upload-text">
-          {loading ? t('loadingFile') : t('dragAndDrop')}
-        </p>
+        <p className="ant-upload-text">{loading ? t('loadingFile') : t('dragAndDrop')}</p>
         <p className="ant-upload-hint">{t('supportedFormats')}</p>
         {fileName && !loading && (
           <Text type="success" style={{ fontSize: 12 }}>
@@ -94,9 +92,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
           </Text>
         )}
       </Dragger>
-      {error && (
-        <Alert type="error" message={error} style={{ marginTop: 12 }} showIcon closable />
-      )}
+      {error && <Alert type="error" message={error} style={{ marginTop: 12 }} showIcon closable />}
     </div>
   )
 }

@@ -26,9 +26,5 @@ export async function* sendMessage(
   context?: string,
   signal?: AbortSignal,
 ): AsyncGenerator<string> {
-  yield* streamSSE(
-    `/chat/sessions/${sessionId}/messages`,
-    { message, context },
-    signal,
-  )
+  yield* streamSSE(`/chat/sessions/${sessionId}/messages`, { message, context }, signal)
 }

@@ -59,14 +59,24 @@ function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
     let tagRe: RegExp | null = null
 
     if (hasKeyword) {
-      try { keywordRe = new RegExp(filters.keywords, 'i') } catch { keywordRe = null }
+      try {
+        keywordRe = new RegExp(filters.keywords, 'i')
+      } catch {
+        keywordRe = null
+      }
     }
     if (hasTag) {
-      try { tagRe = new RegExp(filters.tag, 'i') } catch { tagRe = null }
+      try {
+        tagRe = new RegExp(filters.tag, 'i')
+      } catch {
+        tagRe = null
+      }
     }
 
     result = result.filter((l) => {
-      const matchesKeyword = keywordRe ? keywordRe.test(l.message) || keywordRe.test(l.raw_line) : false
+      const matchesKeyword = keywordRe
+        ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
+        : false
       const matchesTag = tagRe ? tagRe.test(l.tag) : false
 
       if (hasKeyword && hasTag) {
@@ -129,10 +139,7 @@ const App: React.FC = () => {
 
   const allLogs = useMemo(() => parseResult?.logs ?? [], [parseResult])
 
-  const filteredLogs = useMemo(
-    () => applyFiltersClient(allLogs, filters),
-    [allLogs, filters],
-  )
+  const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
 
   const statistics = useMemo(
     () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
@@ -150,7 +157,9 @@ const App: React.FC = () => {
       }
     }
     void check()
-    const interval = setInterval(() => { void check() }, 10000)
+    const interval = setInterval(() => {
+      void check()
+    }, 10000)
     return () => clearInterval(interval)
   }, [])
 
@@ -161,7 +170,9 @@ const App: React.FC = () => {
       try {
         const cfg = JSON.parse(saved) as { api_key?: string }
         setAiConfigured(!!cfg.api_key)
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }, [])
 
@@ -182,42 +193,48 @@ const App: React.FC = () => {
     })
   }, [])
 
-  const handleLogFile = useCallback(async (file: File) => {
-    setLoadingFile(true)
-    setFileError(undefined)
-    setFileName(file.name)
-    try {
-      const result = await parseLog(file)
-      setParseResult(result)
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
-      void message.success(t('fileUploaded'))
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('parseError')
-      setFileError(msg)
-      void message.error(msg)
-    } finally {
-      setLoadingFile(false)
-    }
-  }, [t])
+  const handleLogFile = useCallback(
+    async (file: File) => {
+      setLoadingFile(true)
+      setFileError(undefined)
+      setFileName(file.name)
+      try {
+        const result = await parseLog(file)
+        setParseResult(result)
+        setFilters(DEFAULT_FILTERS)
+        setActiveTab('log')
+        void message.success(t('fileUploaded'))
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : t('parseError')
+        setFileError(msg)
+        void message.error(msg)
+      } finally {
+        setLoadingFile(false)
+      }
+    },
+    [t],
+  )
 
-  const handleTraceFile = useCallback(async (file: File) => {
-    setLoadingFile(true)
-    setFileError(undefined)
-    setFileName(file.name)
-    try {
-      const result = await parseTrace(file)
-      setTraceResult(result)
-      setActiveTab('trace')
-      void message.success(t('fileUploaded'))
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('parseError')
-      setFileError(msg)
-      void message.error(msg)
-    } finally {
-      setLoadingFile(false)
-    }
-  }, [t])
+  const handleTraceFile = useCallback(
+    async (file: File) => {
+      setLoadingFile(true)
+      setFileError(undefined)
+      setFileName(file.name)
+      try {
+        const result = await parseTrace(file)
+        setTraceResult(result)
+        setActiveTab('trace')
+        void message.success(t('fileUploaded'))
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : t('parseError')
+        setFileError(msg)
+        void message.error(msg)
+      } finally {
+        setLoadingFile(false)
+      }
+    },
+    [t],
+  )
 
   const handleConfigSaved = useCallback(() => {
     const saved = localStorage.getItem('aiConfig')
@@ -225,7 +242,9 @@ const App: React.FC = () => {
       try {
         const cfg = JSON.parse(saved) as { api_key?: string }
         setAiConfigured(!!cfg.api_key)
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }, [])
 
@@ -237,8 +256,12 @@ const App: React.FC = () => {
       label: t('logAnalysis'),
       children: showFileUpload ? (
         <FileUpload
-          onLogFile={(f) => { void handleLogFile(f) }}
-          onTraceFile={(f) => { void handleTraceFile(f) }}
+          onLogFile={(f) => {
+            void handleLogFile(f)
+          }}
+          onTraceFile={(f) => {
+            void handleTraceFile(f)
+          }}
           loading={loadingFile}
           error={fileError}
           fileName={fileName}

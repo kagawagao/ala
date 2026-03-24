@@ -44,8 +44,14 @@ const LEVEL_COLORS: Record<string, string> = {
 }
 
 const HIGHLIGHT_COLORS = [
-  '#fadb14', '#52c41a', '#1677ff', '#fa8c16', '#f5222d',
-  '#722ed1', '#13c2c2', '#eb2f96',
+  '#fadb14',
+  '#52c41a',
+  '#1677ff',
+  '#fa8c16',
+  '#f5222d',
+  '#722ed1',
+  '#13c2c2',
+  '#eb2f96',
 ]
 
 interface AppSiderProps {
@@ -202,10 +208,19 @@ const AppSider: React.FC<AppSiderProps> = ({
         ghost
       >
         {/* Filters */}
-        <Panel header={<Text strong><FilterOutlined /> {t('search')}</Text>} key="filters">
+        <Panel
+          header={
+            <Text strong>
+              <FilterOutlined /> {t('search')}
+            </Text>
+          }
+          key="filters"
+        >
           <Space direction="vertical" style={{ width: '100%' }} size={6}>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('startTime')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('startTime')}
+              </Text>
               <Input
                 size="small"
                 placeholder="MM-DD HH:mm:ss.SSS"
@@ -214,7 +229,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('endTime')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('endTime')}
+              </Text>
               <Input
                 size="small"
                 placeholder="MM-DD HH:mm:ss.SSS"
@@ -223,7 +240,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('keywords')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('keywords')}
+              </Text>
               <Input
                 size="small"
                 placeholder={t('keywordsPlaceholder')}
@@ -232,7 +251,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('logLevel')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('logLevel')}
+              </Text>
               <Select
                 size="small"
                 style={{ width: '100%' }}
@@ -250,7 +271,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('tag')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('tag')}
+              </Text>
               <Input
                 size="small"
                 placeholder={t('tagPlaceholder')}
@@ -259,7 +282,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('pid')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('pid')}
+              </Text>
               <Input
                 size="small"
                 placeholder={t('pidPlaceholder')}
@@ -268,7 +293,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('tid')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('tid')}
+              </Text>
               <Input
                 size="small"
                 placeholder={t('tidPlaceholder')}
@@ -277,7 +304,9 @@ const AppSider: React.FC<AppSiderProps> = ({
               />
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>{t('tagKeywordRelation')}</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('tagKeywordRelation')}
+              </Text>
               <Radio.Group
                 size="small"
                 value={filters.tag_keyword_relation}
@@ -285,8 +314,12 @@ const AppSider: React.FC<AppSiderProps> = ({
                 buttonStyle="solid"
                 style={{ display: 'flex' }}
               >
-                <Radio.Button value="AND" style={{ flex: 1, textAlign: 'center' }}>AND</Radio.Button>
-                <Radio.Button value="OR" style={{ flex: 1, textAlign: 'center' }}>OR</Radio.Button>
+                <Radio.Button value="AND" style={{ flex: 1, textAlign: 'center' }}>
+                  AND
+                </Radio.Button>
+                <Radio.Button value="OR" style={{ flex: 1, textAlign: 'center' }}>
+                  OR
+                </Radio.Button>
               </Radio.Group>
             </div>
           </Space>
@@ -325,8 +358,26 @@ const AppSider: React.FC<AppSiderProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {highlights.map((h, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: 2, background: h.color, flexShrink: 0 }} />
-                  <Text style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.pattern}</Text>
+                  <div
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 2,
+                      background: h.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {h.pattern}
+                  </Text>
                   <Button
                     type="text"
                     size="small"
@@ -349,18 +400,28 @@ const AppSider: React.FC<AppSiderProps> = ({
             buttonStyle="solid"
             style={{ display: 'flex' }}
           >
-            <Radio.Button value="wrap" style={{ flex: 1, textAlign: 'center' }}>{t('wordWrap')}</Radio.Button>
-            <Radio.Button value="nowrap" style={{ flex: 1, textAlign: 'center' }}>{t('noWrap')}</Radio.Button>
+            <Radio.Button value="wrap" style={{ flex: 1, textAlign: 'center' }}>
+              {t('wordWrap')}
+            </Radio.Button>
+            <Radio.Button value="nowrap" style={{ flex: 1, textAlign: 'center' }}>
+              {t('noWrap')}
+            </Radio.Button>
           </Radio.Group>
         </Panel>
 
         {/* Presets */}
         <Panel
-          header={<Text strong><FolderOpenOutlined /> {t('filterPresets')}</Text>}
+          header={
+            <Text strong>
+              <FolderOpenOutlined /> {t('filterPresets')}
+            </Text>
+          }
           key="presets"
         >
           {presets.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>{t('noPresets')}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {t('noPresets')}
+            </Text>
           ) : (
             <Space direction="vertical" style={{ width: '100%' }} size={4}>
               {presets.map((p) => (
@@ -383,7 +444,12 @@ const AppSider: React.FC<AppSiderProps> = ({
                       </Text>
                     )}
                   </div>
-                  <Button size="small" type="link" style={{ padding: 0 }} onClick={() => applyPreset(p)}>
+                  <Button
+                    size="small"
+                    type="link"
+                    style={{ padding: 0 }}
+                    onClick={() => applyPreset(p)}
+                  >
                     {t('apply')}
                   </Button>
                   <Popconfirm
@@ -392,7 +458,13 @@ const AppSider: React.FC<AppSiderProps> = ({
                     okText={t('delete')}
                     cancelText={t('cancel')}
                   >
-                    <Button type="text" size="small" icon={<DeleteOutlined />} danger style={{ padding: 0 }} />
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      danger
+                      style={{ padding: 0 }}
+                    />
                   </Popconfirm>
                 </div>
               ))}
@@ -405,7 +477,11 @@ const AppSider: React.FC<AppSiderProps> = ({
           <Panel header={<Text strong>{t('statistics')}</Text>} key="stats">
             <Row gutter={8} style={{ marginBottom: 8 }}>
               <Col span={12}>
-                <Statistic title={t('totalLogs')} value={statistics.total} valueStyle={{ fontSize: 16 }} />
+                <Statistic
+                  title={t('totalLogs')}
+                  value={statistics.total}
+                  valueStyle={{ fontSize: 16 }}
+                />
               </Col>
             </Row>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -418,15 +494,27 @@ const AppSider: React.FC<AppSiderProps> = ({
             {topTags.length > 0 && (
               <>
                 <Divider style={{ margin: '6px 0' }} />
-                <Text type="secondary" style={{ fontSize: 11 }}>Top Tags</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Top Tags
+                </Text>
                 <div style={{ marginTop: 4 }}>
                   {topTags.map(([tag, cnt]) => (
                     <div
                       key={tag}
-                      style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '1px 0' }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 12,
+                        padding: '1px 0',
+                      }}
                     >
                       <Text
-                        style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        style={{
+                          maxWidth: 160,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
                         title={tag}
                       >
                         {tag}

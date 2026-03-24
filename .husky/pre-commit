@@ -1,0 +1,18 @@
+#!/bin/sh
+# Run frontend lint and format check before commit
+
+# Frontend lint
+cd frontend && npm run lint --silent
+if [ $? -ne 0 ]; then
+  echo "❌ Frontend ESLint failed. Run 'npm run lint:fix:frontend' to fix."
+  exit 1
+fi
+
+# Format check
+cd .. && npx prettier --check "**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}" --ignore-path .prettierignore --log-level warn
+if [ $? -ne 0 ]; then
+  echo "❌ Prettier format check failed. Run 'npm run format' to fix."
+  exit 1
+fi
+
+echo "✅ Pre-commit checks passed"

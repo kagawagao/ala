@@ -85,101 +85,117 @@ const LogViewer: React.FC<LogViewerProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  const handleCopyRow = useCallback(async (record: LogEntry) => {
-    try {
-      await navigator.clipboard.writeText(record.raw_line)
-      void message.success(t('copied'), 1)
-    } catch {
-      void message.error('Copy failed')
-    }
-  }, [t])
+  const handleCopyRow = useCallback(
+    async (record: LogEntry) => {
+      try {
+        await navigator.clipboard.writeText(record.raw_line)
+        void message.success(t('copied'), 1)
+      } catch {
+        void message.error('Copy failed')
+      }
+    },
+    [t],
+  )
 
-  const columns = useMemo(() => [
-    {
-      title: t('line'),
-      dataIndex: 'line_number',
-      key: 'line_number',
-      width: 64,
-      fixed: 'left' as const,
-      render: (v: number) => <Text type="secondary" style={{ fontSize: 11 }}>{v}</Text>,
-    },
-    {
-      title: t('timestamp'),
-      dataIndex: 'timestamp',
-      key: 'timestamp',
-      width: 148,
-      ellipsis: true,
-      render: (v: string | null) => (
-        <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{v ?? ''}</Text>
-      ),
-    },
-    {
-      title: 'L',
-      dataIndex: 'level',
-      key: 'level',
-      width: 32,
-      align: 'center' as const,
-      render: (v: string) => (
-        <Tag
-          color={LEVEL_TAG_COLOR[v] || '#8c8c8c'}
-          style={{ fontSize: 10, padding: '0 3px', margin: 0, lineHeight: '16px' }}
-          bordered={false}
-        >
-          {v}
-        </Tag>
-      ),
-    },
-    {
-      title: t('tag'),
-      dataIndex: 'tag',
-      key: 'tag',
-      width: 120,
-      ellipsis: true,
-      render: (v: string) => (
-        <Tooltip title={v}>
-          <Text style={{ fontSize: 11 }}>{v}</Text>
-        </Tooltip>
-      ),
-    },
-    {
-      title: t('pid'),
-      dataIndex: 'pid',
-      key: 'pid',
-      width: 60,
-      render: (v: string | null) => <Text type="secondary" style={{ fontSize: 11 }}>{v ?? ''}</Text>,
-    },
-    {
-      title: t('message'),
-      dataIndex: 'message',
-      key: 'message',
-      render: (v: string) => (
-        <span
-          style={{
-            fontSize: 12,
-            fontFamily: 'monospace',
-            whiteSpace: wordWrap ? 'pre-wrap' : 'nowrap',
-            wordBreak: wordWrap ? 'break-all' : undefined,
-          }}
-        >
-          {highlightText(v, highlights)}
-        </span>
-      ),
-    },
-    {
-      title: '',
-      key: 'copy',
-      width: 28,
-      fixed: 'right' as const,
-      render: (_: unknown, record: LogEntry) => (
-        <Tooltip title={t('copy')}>
-          <CopyOutlined
-            style={{ cursor: 'pointer', fontSize: 12, color: '#8c8c8c' }}
-            onClick={() => { void handleCopyRow(record) }}
-          />
-        </Tooltip>
-      ),
-    },
-  ], [t, wordWrap, highlights, handleCopyRow])
+  const columns = useMemo(
+    () => [
+      {
+        title: t('line'),
+        dataIndex: 'line_number',
+        key: 'line_number',
+        width: 64,
+        fixed: 'left' as const,
+        render: (v: number) => (
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            {v}
+          </Text>
+        ),
+      },
+      {
+        title: t('timestamp'),
+        dataIndex: 'timestamp',
+        key: 'timestamp',
+        width: 148,
+        ellipsis: true,
+        render: (v: string | null) => (
+          <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{v ?? ''}</Text>
+        ),
+      },
+      {
+        title: 'L',
+        dataIndex: 'level',
+        key: 'level',
+        width: 32,
+        align: 'center' as const,
+        render: (v: string) => (
+          <Tag
+            color={LEVEL_TAG_COLOR[v] || '#8c8c8c'}
+            style={{ fontSize: 10, padding: '0 3px', margin: 0, lineHeight: '16px' }}
+            bordered={false}
+          >
+            {v}
+          </Tag>
+        ),
+      },
+      {
+        title: t('tag'),
+        dataIndex: 'tag',
+        key: 'tag',
+        width: 120,
+        ellipsis: true,
+        render: (v: string) => (
+          <Tooltip title={v}>
+            <Text style={{ fontSize: 11 }}>{v}</Text>
+          </Tooltip>
+        ),
+      },
+      {
+        title: t('pid'),
+        dataIndex: 'pid',
+        key: 'pid',
+        width: 60,
+        render: (v: string | null) => (
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            {v ?? ''}
+          </Text>
+        ),
+      },
+      {
+        title: t('message'),
+        dataIndex: 'message',
+        key: 'message',
+        render: (v: string) => (
+          <span
+            style={{
+              fontSize: 12,
+              fontFamily: 'monospace',
+              whiteSpace: wordWrap ? 'pre-wrap' : 'nowrap',
+              wordBreak: wordWrap ? 'break-all' : undefined,
+            }}
+          >
+            {highlightText(v, highlights)}
+          </span>
+        ),
+      },
+      {
+        title: '',
+        key: 'copy',
+        width: 28,
+        fixed: 'right' as const,
+        render: (_: unknown, record: LogEntry) => (
+          <Tooltip title={t('copy')}>
+            <CopyOutlined
+              style={{ cursor: 'pointer', fontSize: 12, color: '#8c8c8c' }}
+              onClick={() => {
+                void handleCopyRow(record)
+              }}
+            />
+          </Tooltip>
+        ),
+      },
+    ],
+    [t, wordWrap, highlights, handleCopyRow],
+  )
 
   if (!logs.length && totalLogs === 0) {
     return (
@@ -229,9 +245,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             pagination={false}
             scroll={{ y: 'calc(100vh - 160px)', x: wordWrap ? undefined : 900 }}
             virtual
-            rowClassName={(record) =>
-              LEVEL_BG[record.level] ? `log-row-${record.level}` : ''
-            }
+            rowClassName={(record) => (LEVEL_BG[record.level] ? `log-row-${record.level}` : '')}
             onRow={(record) => ({
               style: { background: LEVEL_BG[record.level] },
             })}

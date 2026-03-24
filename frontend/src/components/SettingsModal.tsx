@@ -32,7 +32,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           if (saved) {
             try {
               form.setFieldsValue(JSON.parse(saved) as AIConfig)
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
         })
     }
@@ -67,14 +69,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <Button key="cancel" onClick={onClose}>
           {t('cancel')}
         </Button>,
-        <Button key="save" type="primary" loading={saving} onClick={() => { void handleSave() }}>
+        <Button
+          key="save"
+          type="primary"
+          loading={saving}
+          onClick={() => {
+            void handleSave()
+          }}
+        >
           {t('save')}
         </Button>,
       ]}
       width={480}
     >
       <div style={{ marginBottom: 12 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>Backend: </Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          Backend:{' '}
+        </Text>
         <Tag color={backendConnected ? 'success' : 'error'}>
           {backendConnected ? t('connected') : t('disconnected')}
         </Tag>
