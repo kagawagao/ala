@@ -99,12 +99,14 @@ The backend also supports any OpenAI-compatible API (Ollama, LM Studio, Azure Op
 
 ### MCP Server
 
-The MCP server runs automatically with the FastAPI backend. To use it with an MCP client:
+The MCP server starts automatically when the FastAPI backend starts — no separate process required.
+It is mounted at `/mcp` and uses the **Streamable HTTP** transport (MCP 1.0):
 
-```bash
-cd backend
-python -m ala.mcp.server
 ```
+http://localhost:8000/mcp
+```
+
+Connect any MCP-compatible client (e.g. Claude Desktop, MCP CLI, or a custom client) to that URL.
 
 Available MCP tools:
 
@@ -112,6 +114,7 @@ Available MCP tools:
 - `filter_android_logs(log_content, level, tag, keywords, ...)` — Filter logs
 - `get_log_statistics(log_content)` — Get log statistics
 - `parse_perfetto_trace(trace_file_path)` — Parse a Perfetto trace file
+- `filter_perfetto_trace(trace_file_path, pids, process_name)` — Filter trace by process
 
 ## Development
 

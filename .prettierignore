@@ -19,5 +19,8 @@ package-lock.json
 # Generated files
 *.tsbuildinfo
 
+# Python tooling caches
+**/.pytest_cache/
+
 # Test fixtures / examples
 examples/
