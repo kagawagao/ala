@@ -1,0 +1,421 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { ConfigProvider, theme, Tabs, Alert, Splitter, message } from 'antd'
+import { useTranslation } from 'react-i18next'
+import i18next from './i18n/config'
+import Header from './components/Header'
+import AppSider from './components/AppSider'
+import LogViewer from './components/LogViewer'
+import TraceViewer from './components/TraceViewer'
+import AiPanel from './components/AiPanel'
+import SettingsModal from './components/SettingsModal'
+import FileUpload from './components/FileUpload'
+import { parseLog } from './api/logs'
+import { parseTrace } from './api/trace'
+import type {
+  LogEntry,
+  LogFilters,
+  LogStatistics,
+  ParseResult,
+  TraceParseResult,
+  FilterPreset,
+  HighlightItem,
+} from './types'
+
+const DEFAULT_FILTERS: LogFilters = {
+  start_time: '',
+  end_time: '',
+  keywords: '',
+  level: '',
+  tag: '',
+  pid: '',
+  tid: '',
+  tag_keyword_relation: 'AND',
+}
+
+function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
+  let result = logs
+
+  if (filters.start_time) {
+    result = result.filter((l) => !l.timestamp || l.timestamp >= filters.start_time)
+  }
+  if (filters.end_time) {
+    result = result.filter((l) => !l.timestamp || l.timestamp <= filters.end_time)
+  }
+  if (filters.level) {
+    result = result.filter((l) => l.level === filters.level)
+  }
+  if (filters.pid) {
+    result = result.filter((l) => l.pid === filters.pid)
+  }
+  if (filters.tid) {
+    result = result.filter((l) => l.tid === filters.tid)
+  }
+
+  const hasKeyword = filters.keywords.trim() !== ''
+  const hasTag = filters.tag.trim() !== ''
+
+  if (hasKeyword || hasTag) {
+    let keywordRe: RegExp | null = null
+    let tagRe: RegExp | null = null
+
+    if (hasKeyword) {
+      try { keywordRe = new RegExp(filters.keywords, 'i') } catch { keywordRe = null }
+    }
+    if (hasTag) {
+      try { tagRe = new RegExp(filters.tag, 'i') } catch { tagRe = null }
+    }
+
+    result = result.filter((l) => {
+      const matchesKeyword = keywordRe ? keywordRe.test(l.message) || keywordRe.test(l.raw_line) : false
+      const matchesTag = tagRe ? tagRe.test(l.tag) : false
+
+      if (hasKeyword && hasTag) {
+        return filters.tag_keyword_relation === 'AND'
+          ? matchesKeyword && matchesTag
+          : matchesKeyword || matchesTag
+      }
+      if (hasKeyword) return matchesKeyword
+      if (hasTag) return matchesTag
+      return true
+    })
+  }
+
+  return result
+}
+
+function computeStatistics(logs: LogEntry[]): LogStatistics {
+  const by_level: Record<string, number> = {}
+  const tags: Record<string, number> = {}
+  const pids: Record<string, number> = {}
+
+  for (const log of logs) {
+    by_level[log.level] = (by_level[log.level] || 0) + 1
+    tags[log.tag] = (tags[log.tag] || 0) + 1
+    if (log.pid) pids[log.pid] = (pids[log.pid] || 0) + 1
+  }
+
+  return { total: logs.length, by_level, tags, pids }
+}
+
+const App: React.FC = () => {
+  const { t } = useTranslation()
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('ala_theme') === 'dark')
+  const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
+  const [siderCollapsed, setSiderCollapsed] = useState(false)
+  const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [backendConnected, setBackendConnected] = useState(false)
+  const [aiConfigured, setAiConfigured] = useState(false)
+  const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
+
+  // File state
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null)
+  const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
+  const [loadingFile, setLoadingFile] = useState(false)
+  const [fileError, setFileError] = useState<string | undefined>()
+  const [fileName, setFileName] = useState<string | undefined>()
+
+  // Filter/display state
+  const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
+  const [highlights, setHighlights] = useState<HighlightItem[]>([])
+  const [wordWrap, setWordWrap] = useState(false)
+  const [presets, setPresets] = useState<FilterPreset[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ala_filter_presets') || '[]') as FilterPreset[]
+    } catch {
+      return []
+    }
+  })
+
+  const allLogs = useMemo(() => parseResult?.logs ?? [], [parseResult])
+
+  const filteredLogs = useMemo(
+    () => applyFiltersClient(allLogs, filters),
+    [allLogs, filters],
+  )
+
+  const statistics = useMemo(
+    () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
+    [allLogs, filteredLogs],
+  )
+
+  // Check backend connectivity
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('/health', { signal: AbortSignal.timeout(3000) })
+        setBackendConnected(res.ok)
+      } catch {
+        setBackendConnected(false)
+      }
+    }
+    void check()
+    const interval = setInterval(() => { void check() }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Check AI config from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('aiConfig')
+    if (saved) {
+      try {
+        const cfg = JSON.parse(saved) as { api_key?: string }
+        setAiConfigured(!!cfg.api_key)
+      } catch { /* ignore */ }
+    }
+  }, [])
+
+  const handleToggleTheme = useCallback(() => {
+    setIsDark((v) => {
+      const next = !v
+      localStorage.setItem('ala_theme', next ? 'dark' : 'light')
+      return next
+    })
+  }, [])
+
+  const handleToggleLanguage = useCallback(() => {
+    setLanguage((lang) => {
+      const next = lang === 'en' ? 'zh' : 'en'
+      localStorage.setItem('ala_language', next)
+      void i18next.changeLanguage(next)
+      return next
+    })
+  }, [])
+
+  const handleLogFile = useCallback(async (file: File) => {
+    setLoadingFile(true)
+    setFileError(undefined)
+    setFileName(file.name)
+    try {
+      const result = await parseLog(file)
+      setParseResult(result)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+      void message.success(t('fileUploaded'))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('parseError')
+      setFileError(msg)
+      void message.error(msg)
+    } finally {
+      setLoadingFile(false)
+    }
+  }, [t])
+
+  const handleTraceFile = useCallback(async (file: File) => {
+    setLoadingFile(true)
+    setFileError(undefined)
+    setFileName(file.name)
+    try {
+      const result = await parseTrace(file)
+      setTraceResult(result)
+      setActiveTab('trace')
+      void message.success(t('fileUploaded'))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('parseError')
+      setFileError(msg)
+      void message.error(msg)
+    } finally {
+      setLoadingFile(false)
+    }
+  }, [t])
+
+  const handleConfigSaved = useCallback(() => {
+    const saved = localStorage.getItem('aiConfig')
+    if (saved) {
+      try {
+        const cfg = JSON.parse(saved) as { api_key?: string }
+        setAiConfigured(!!cfg.api_key)
+      } catch { /* ignore */ }
+    }
+  }, [])
+
+  const showFileUpload = !parseResult && !traceResult
+
+  const tabItems = [
+    {
+      key: 'log',
+      label: t('logAnalysis'),
+      children: showFileUpload ? (
+        <FileUpload
+          onLogFile={(f) => { void handleLogFile(f) }}
+          onTraceFile={(f) => { void handleTraceFile(f) }}
+          loading={loadingFile}
+          error={fileError}
+          fileName={fileName}
+        />
+      ) : (
+        <LogViewer
+          logs={filteredLogs}
+          totalLogs={allLogs.length}
+          highlights={highlights}
+          wordWrap={wordWrap}
+          formatDetected={parseResult?.format_detected}
+        />
+      ),
+    },
+    {
+      key: 'trace',
+      label: t('traceAnalysis'),
+      children: <TraceViewer traceResult={traceResult} />,
+    },
+  ]
+
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        token: { borderRadius: 6 },
+      }}
+    >
+      <div
+        style={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--ant-color-bg-layout)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <Header
+          isDark={isDark}
+          onToggleTheme={handleToggleTheme}
+          language={language}
+          onToggleLanguage={handleToggleLanguage}
+          onOpenSettings={() => setSettingsOpen(true)}
+          siderCollapsed={siderCollapsed}
+          onToggleSider={() => setSiderCollapsed((v) => !v)}
+          backendConnected={backendConnected}
+        />
+
+        {/* Backend warning */}
+        {!backendConnected && (
+          <Alert
+            type="warning"
+            message={t('backendNotConnected')}
+            banner
+            closable
+            style={{ flexShrink: 0 }}
+          />
+        )}
+
+        {/* Main content */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+          <Splitter style={{ height: '100%' }}>
+            {/* Left: AppSider */}
+            {!siderCollapsed && (
+              <Splitter.Panel
+                defaultSize={340}
+                min={240}
+                max={500}
+                style={{
+                  borderRight: '1px solid var(--ant-color-border)',
+                  overflow: 'hidden',
+                }}
+              >
+                <AppSider
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  highlights={highlights}
+                  onHighlightsChange={setHighlights}
+                  statistics={statistics}
+                  presets={presets}
+                  onPresetsChange={setPresets}
+                  wordWrap={wordWrap}
+                  onWordWrapChange={setWordWrap}
+                />
+              </Splitter.Panel>
+            )}
+
+            {/* Center: Log/Trace viewer */}
+            <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Tabs
+                  activeKey={activeTab}
+                  onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                  items={tabItems}
+                  style={{ height: '100%' }}
+                  tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                  renderTabBar={(props, DefaultTabBar) => (
+                    <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                  )}
+                />
+              </div>
+            </Splitter.Panel>
+
+            {/* Right: AI Panel */}
+            {!aiPanelCollapsed && (
+              <Splitter.Panel
+                defaultSize={400}
+                min={280}
+                max={600}
+                style={{
+                  borderLeft: '1px solid var(--ant-color-border)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      padding: '2px 6px',
+                      borderBottom: '1px solid var(--ant-color-border)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{ cursor: 'pointer', fontSize: 11, color: '#8c8c8c' }}
+                      onClick={() => setAiPanelCollapsed(true)}
+                    >
+                      ✕
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <AiPanel
+                      logs={filteredLogs}
+                      traceResult={traceResult}
+                      aiConfigured={aiConfigured}
+                    />
+                  </div>
+                </div>
+              </Splitter.Panel>
+            )}
+          </Splitter>
+
+          {/* AI panel toggle when collapsed */}
+          {aiPanelCollapsed && (
+            <button
+              onClick={() => setAiPanelCollapsed(false)}
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                writingMode: 'vertical-rl',
+                padding: '8px 4px',
+                border: '1px solid var(--ant-color-border)',
+                borderRight: 'none',
+                borderRadius: '6px 0 0 6px',
+                background: 'var(--ant-color-bg-container)',
+                cursor: 'pointer',
+                fontSize: 12,
+              }}
+            >
+              {t('aiAssistant')}
+            </button>
+          )}
+        </div>
+
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onConfigSaved={handleConfigSaved}
+          backendConnected={backendConnected}
+        />
+      </div>
+    </ConfigProvider>
+  )
+}
+
+export default App

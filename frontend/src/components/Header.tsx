@@ -1,0 +1,89 @@
+import React from 'react'
+import { Button, Space, Tag, Tooltip } from 'antd'
+import {
+  MoonOutlined,
+  SunOutlined,
+  GlobalOutlined,
+  SettingOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  WifiOutlined,
+  DisconnectOutlined,
+} from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
+
+interface HeaderProps {
+  isDark: boolean
+  onToggleTheme: () => void
+  language: string
+  onToggleLanguage: () => void
+  onOpenSettings: () => void
+  siderCollapsed: boolean
+  onToggleSider: () => void
+  backendConnected: boolean
+}
+
+const Header: React.FC<HeaderProps> = ({
+  isDark,
+  onToggleTheme,
+  language,
+  onToggleLanguage,
+  onOpenSettings,
+  siderCollapsed,
+  onToggleSider,
+  backendConnected,
+}) => {
+  const { t } = useTranslation()
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        height: '48px',
+        borderBottom: '1px solid var(--ant-color-border)',
+      }}
+    >
+      <Space>
+        <Tooltip title={siderCollapsed ? t('showSidebar') : t('hideSidebar')}>
+          <Button
+            type="text"
+            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={onToggleSider}
+          />
+        </Tooltip>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
+        <Tag
+          color={backendConnected ? 'success' : 'error'}
+          icon={backendConnected ? <WifiOutlined /> : <DisconnectOutlined />}
+        >
+          {backendConnected ? t('connected') : t('disconnected')}
+        </Tag>
+      </Space>
+      <Space>
+        <Tooltip title={isDark ? t('switchToLightMode') : t('switchToDarkMode')}>
+          <Button
+            type="text"
+            icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+            onClick={onToggleTheme}
+          />
+        </Tooltip>
+        <Tooltip title={language === 'en' ? '中文' : 'English'}>
+          <Button
+            type="text"
+            icon={<GlobalOutlined />}
+            onClick={onToggleLanguage}
+          >
+            {language === 'en' ? 'EN' : '中文'}
+          </Button>
+        </Tooltip>
+        <Tooltip title={t('settings')}>
+          <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} />
+        </Tooltip>
+      </Space>
+    </div>
+  )
+}
+
+export default Header
