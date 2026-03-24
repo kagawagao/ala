@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { createSession, listSessions, deleteSession, sendMessage } from '../api/chat'
-import type { Session, ChatMessage, LogEntry, TraceParseResult } from '../types'
+import type { Session, ChatMessage, LogEntry, LogFilters, TraceParseResult } from '../types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -49,11 +49,19 @@ const PRESET_PROMPTS: Record<string, string> = {
 
 interface AiPanelProps {
   logs: LogEntry[]
+  totalLogs: number
+  filters: LogFilters
   traceResult: TraceParseResult | null
   aiConfigured: boolean
 }
 
-const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) => {
+const AiPanel: React.FC<AiPanelProps> = ({
+  logs,
+  totalLogs,
+  filters,
+  traceResult,
+  aiConfigured,
+}) => {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -118,11 +126,29 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
     }
   }
 
+  const buildFilterSummary = (): string | null => {
+    const parts: string[] = []
+    if (filters.level) parts.push(`level=${filters.level}`)
+    if (filters.tag) parts.push(`tag="${filters.tag}"`)
+    if (filters.pid) parts.push(`pid=${filters.pid}`)
+    if (filters.tid) parts.push(`tid=${filters.tid}`)
+    if (filters.keywords) parts.push(`keywords="${filters.keywords}"`)
+    if (filters.start_time) parts.push(`start_time="${filters.start_time}"`)
+    if (filters.end_time) parts.push(`end_time="${filters.end_time}"`)
+    return parts.length > 0 ? parts.join(', ') : null
+  }
+
   const buildContext = (): string | undefined => {
     if (!contextAttached) return undefined
     if (logs.length > 0) {
       const sample = logs.slice(0, 200)
-      return `Log context (${logs.length} total entries, showing first 200):\n\`\`\`\n${sample.map((l) => l.raw_line).join('\n')}\n\`\`\``
+      const filterSummary = buildFilterSummary()
+      const countNote =
+        filterSummary !== null
+          ? `${logs.length} of ${totalLogs} entries (filtered by: ${filterSummary})`
+          : `${logs.length} entries`
+      const showingNote = logs.length > 200 ? `, showing first 200` : ''
+      return `Log context (${countNote}${showingNote}):\n\`\`\`\n${sample.map((l) => l.raw_line).join('\n')}\n\`\`\``
     }
     if (traceResult) {
       return `Trace context:\n${JSON.stringify(traceResult.summary, null, 2)}`
@@ -386,7 +412,22 @@ const AiPanel: React.FC<AiPanelProps> = ({ logs, traceResult, aiConfigured }) =>
               options={AI_PRESETS}
               style={{ flex: 1 }}
             />
-            {hasContext && (
+            {hasContext && logs.length > 0 && (
+              <Tooltip
+                title={t(contextAttached ? 'contextAttachedFiltered' : 'attachContextFiltered', {
+                  filtered: logs.length,
+                  total: totalLogs,
+                })}
+              >
+                <Button
+                  size="small"
+                  icon={<PaperClipOutlined />}
+                  type={contextAttached ? 'primary' : 'default'}
+                  onClick={() => setContextAttached((v) => !v)}
+                />
+              </Tooltip>
+            )}
+            {hasContext && logs.length === 0 && (
               <Tooltip title={contextAttached ? t('contextAttached') : t('attachContext')}>
                 <Button
                   size="small"

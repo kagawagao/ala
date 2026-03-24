@@ -425,6 +425,8 @@ const App: React.FC = () => {
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <AiPanel
                       logs={filteredLogs}
+                      totalLogs={allLogs.length}
+                      filters={filters}
                       traceResult={traceResult}
                       aiConfigured={aiConfigured}
                     />
