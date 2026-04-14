@@ -1,4 +1,5 @@
 """Perfetto trace file analyzer."""
+import io
 import json
 import re
 from dataclasses import dataclass
@@ -45,21 +46,45 @@ class TraceFilters:
 
 class TraceAnalyzer:
     def parse_trace(self, content: bytes, filename: str) -> TraceParseResult:
-        # Try JSON format first
-        if content[:1] in (b"{", b"[") or filename.endswith(".json"):
+        """Parse a trace file, preferring Perfetto TraceProcessor for all formats.
+
+        Parsing order:
+        1. Perfetto ``TraceProcessor`` – handles Perfetto proto binary, JSON
+           Chrome traces, and systrace HTML/text files automatically.
+        2. Custom JSON parser – lightweight fallback for Chrome-format JSON
+           traces when TraceProcessor is unavailable or fails.
+        3. Legacy varint scanner – last-resort heuristic for raw proto binary.
+        """
+        is_json = content[:1] in (b"{", b"[") or filename.endswith(".json")
+        fmt_hint = "json_trace" if is_json else "perfetto_proto"
+
+        # 1. Try Perfetto TraceProcessor (supports proto, JSON, systrace)
+        try:
+            from perfetto.trace_processor import \
+                TraceProcessor  # type: ignore[import-untyped]
+
+            with TraceProcessor(trace=io.BytesIO(content)) as tp:
+                return self._summarize_via_tp(tp, file_size=len(content), fmt=fmt_hint)
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # 2. Custom JSON parser
+        if is_json:
             try:
                 return self._parse_json_trace(content)
             except (json.JSONDecodeError, KeyError):
                 pass
 
-        # Try Perfetto proto binary
+        # 3. Legacy proto varint scanner
         if len(content) > 4:
             try:
-                return self._parse_proto_trace(content)
+                return self._parse_proto_trace_legacy(content)
             except Exception:
                 pass
 
-        # Fallback: return minimal info
+        # Unknown / unsupported format
         return TraceParseResult(
             summary=TraceSummary(
                 duration_ms=None,
@@ -99,10 +124,12 @@ class TraceAnalyzer:
             except re.error:
                 pattern = None
             if pattern:
-                processes = [p for p in processes if pattern.search(str(p.get("name", "")))]
+                processes = [p for p in processes if pattern.search(
+                    str(p.get("name", "")))]
             else:
                 needle = filters.process_name.lower()
-                processes = [p for p in processes if needle in str(p.get("name", "")).lower()]
+                processes = [p for p in processes if needle in str(
+                    p.get("name", "")).lower()]
 
         thread_count = sum(p.get("thread_count", 0) for p in processes)
 
@@ -168,7 +195,8 @@ class TraceAnalyzer:
                     else:
                         # Update name even if the process was already created
                         # (slice events may arrive before metadata events)
-                        processes[pid]["name"] = args.get("name", processes[pid]["name"])
+                        processes[pid]["name"] = args.get(
+                            "name", processes[pid]["name"])
                 elif name == "thread_name":
                     if pid not in processes:
                         processes[pid] = {
@@ -191,7 +219,8 @@ class TraceAnalyzer:
                 if name:
                     dur = evt.get("dur", 0)
                     if name not in slices:
-                        slices[name] = {"name": name, "count": 0, "total_dur_us": 0}
+                        slices[name] = {"name": name,
+                                        "count": 0, "total_dur_us": 0}
                     slices[name]["count"] += 1
                     slices[name]["total_dur_us"] += float(dur)
 
@@ -248,28 +277,15 @@ class TraceAnalyzer:
         )
 
     def _parse_proto_trace(self, content: bytes) -> TraceParseResult:
-        """Parse a Perfetto proto binary trace.
+        """Parse a Perfetto proto binary trace (kept for direct callers).
 
-        Uses the ``perfetto`` package's ``TraceProcessor`` (which delegates to the
-        official ``trace_processor`` binary) to run SQL queries against the trace.
-        Falls back to a lightweight varint scanner when the perfetto package is
-        not installed or the binary cannot be started (e.g. no network access to
-        download it on first use).
+        Delegates to :meth:`parse_trace` with a ``'.perfetto-trace'`` filename
+        hint so the Perfetto ``TraceProcessor`` is tried first.
         """
-        import io as _io
+        return self.parse_trace(content, "trace.perfetto-trace")
 
-        try:
-            from perfetto.trace_processor import TraceProcessor  # type: ignore[import-untyped]
-        except ImportError:
-            return self._parse_proto_trace_legacy(content)
-
-        try:
-            with TraceProcessor(trace=_io.BytesIO(content)) as tp:
-                return self._summarize_via_tp(tp, file_size=len(content))
-        except Exception:
-            return self._parse_proto_trace_legacy(content)
-
-    def _summarize_via_tp(self, tp, file_size: int) -> TraceParseResult:  # type: ignore[no-untyped-def]
+    # type: ignore[no-untyped-def]
+    def _summarize_via_tp(self, tp, file_size: int, fmt: str = "perfetto_proto") -> TraceParseResult:
         """Extract a :class:`TraceParseResult` from an open ``TraceProcessor`` session."""
 
         # ── Processes ──────────────────────────────────────────────────────
@@ -366,9 +382,9 @@ class TraceAnalyzer:
                 processes=processes,
                 top_slices=top_slices,
                 ftrace_events=ftrace_events,
-                metadata={"file_size": file_size, "format": "perfetto_proto"},
+                metadata={"file_size": file_size, "format": fmt},
             ),
-            format="perfetto_proto",
+            format=fmt,
         )
 
     def _parse_proto_trace_legacy(self, content: bytes) -> TraceParseResult:
@@ -400,7 +416,7 @@ class TraceAnalyzer:
                     offset += consumed
                     if offset + length > len(content):
                         break
-                    field_data = content[offset : offset + length]
+                    field_data = content[offset: offset + length]
                     offset += length
                     event_count += 1
 
@@ -434,7 +450,8 @@ class TraceAnalyzer:
                 processes=list(processes.values()),
                 top_slices=[],
                 ftrace_events=list(ftrace_events)[:20],
-                metadata={"file_size": len(content), "format": "perfetto_proto"},
+                metadata={"file_size": len(
+                    content), "format": "perfetto_proto"},
             ),
             format="perfetto_proto",
         )
@@ -453,4 +470,5 @@ class TraceAnalyzer:
                 return result, consumed
             if shift >= 64:
                 return 0, 0
+        return 0, 0
         return 0, 0
