@@ -467,14 +467,26 @@ const App: React.FC = () => {
           )}
 
           {/* Main content */}
-          <div style={{ flex: 1, overflow: isProjectsPage ? 'auto' : 'hidden', display: 'flex' }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: isProjectsPage ? 'auto' : 'hidden',
+              position: 'relative',
+            }}
+          >
             <Routes>
               <Route path="/projects" element={<ProjectManager />} />
               <Route
                 path="*"
                 element={
                   <>
-                    <div style={{ height: '100%', display: 'flex' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                      }}
+                    >
                       {/* Left: AppSider */}
                       <div
                         style={{
