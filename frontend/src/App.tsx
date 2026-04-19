@@ -185,18 +185,37 @@ const App: React.FC = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Check AI config from localStorage
+  // Check AI config from localStorage and backend
   useEffect(() => {
+    // Check localStorage first
     const saved = localStorage.getItem('aiConfig')
     if (saved) {
       try {
         const cfg = JSON.parse(saved) as { api_key?: string }
-        setAiConfigured(!!cfg.api_key)
+        if (cfg.api_key) {
+          setAiConfigured(true)
+          return
+        }
       } catch {
         /* ignore */
       }
     }
-  }, [])
+    // Fallback: check backend config
+    if (backendConnected) {
+      fetch('/api/config', { signal: AbortSignal.timeout(3000) })
+        .then((res) => res.json())
+        .then((cfg: { api_key?: string }) => {
+          if (cfg.api_key) {
+            setAiConfigured(true)
+            // Sync to localStorage
+            localStorage.setItem('aiConfig', JSON.stringify(cfg))
+          }
+        })
+        .catch(() => {
+          /* ignore */
+        })
+    }
+  }, [backendConnected])
 
   const handleToggleTheme = useCallback(() => {
     setIsDark((v) => {
@@ -423,18 +442,22 @@ const App: React.FC = () => {
                 path="*"
                 element={
                   <>
-                    <Splitter style={{ height: '100%' }}>
+                    <div style={{ height: '100%', display: 'flex' }}>
                       {/* Left: AppSider */}
-                      {!siderCollapsed && (
-                        <Splitter.Panel
-                          defaultSize={340}
-                          min={240}
-                          max={500}
-                          style={{
-                            borderRight: '1px solid var(--ant-color-border)',
-                            overflow: 'hidden',
-                          }}
-                        >
+                      <div
+                        style={{
+                          width: siderCollapsed ? 0 : 340,
+                          minWidth: siderCollapsed ? 0 : 240,
+                          maxWidth: 500,
+                          borderRight: siderCollapsed
+                            ? 'none'
+                            : '1px solid var(--ant-color-border)',
+                          overflow: 'hidden',
+                          transition: 'width 0.2s',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {!siderCollapsed && (
                           <AppSider
                             filters={filters}
                             onFiltersChange={setFilters}
@@ -446,71 +469,80 @@ const App: React.FC = () => {
                             wordWrap={wordWrap}
                             onWordWrapChange={setWordWrap}
                           />
-                        </Splitter.Panel>
-                      )}
+                        )}
+                      </div>
 
-                      {/* Center: Log/Trace viewer */}
-                      <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
-                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                          <Tabs
-                            activeKey={activeTab}
-                            onChange={(k) => setActiveTab(k as 'log' | 'trace')}
-                            items={tabItems}
-                            tabBarExtraContent={{ right: tabBarExtra }}
-                            style={{ height: '100%' }}
-                            tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                            renderTabBar={(props, DefaultTabBar) => (
-                              <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                            )}
-                          />
-                        </div>
-                      </Splitter.Panel>
-
-                      {/* Right: AI Panel */}
-                      {!aiPanelCollapsed && (
-                        <Splitter.Panel
-                          defaultSize={400}
-                          min={280}
-                          max={600}
-                          style={{
-                            borderLeft: '1px solid var(--ant-color-border)',
-                            overflow: 'hidden',
-                          }}
-                        >
+                      {/* Center + Right: Splitter for Log viewer and AI panel */}
+                      <Splitter style={{ flex: 1, height: '100%' }}>
+                        {/* Center: Log/Trace viewer */}
+                        <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
                           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                padding: '2px 6px',
-                                borderBottom: '1px solid var(--ant-color-border)',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  cursor: 'pointer',
-                                  fontSize: 11,
-                                  color: 'var(--ant-color-text-secondary)',
-                                }}
-                                onClick={() => setAiPanelCollapsed(true)}
-                              >
-                                ✕
-                              </span>
-                            </div>
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                              <AiPanel
-                                logs={filteredLogs}
-                                totalLogs={allLogs.length}
-                                filters={filters}
-                                traceResult={traceResult}
-                                aiConfigured={aiConfigured}
-                              />
-                            </div>
+                            <Tabs
+                              activeKey={activeTab}
+                              onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                              items={tabItems}
+                              tabBarExtraContent={{ right: tabBarExtra }}
+                              style={{ height: '100%' }}
+                              tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                              renderTabBar={(props, DefaultTabBar) => (
+                                <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                              )}
+                            />
                           </div>
                         </Splitter.Panel>
-                      )}
-                    </Splitter>
+
+                        {/* Right: AI Panel */}
+                        {!aiPanelCollapsed && (
+                          <Splitter.Panel
+                            defaultSize={400}
+                            min={280}
+                            max={600}
+                            style={{
+                              borderLeft: '1px solid var(--ant-color-border)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'flex-end',
+                                  padding: '2px 6px',
+                                  borderBottom: '1px solid var(--ant-color-border)',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    cursor: 'pointer',
+                                    fontSize: 11,
+                                    color: 'var(--ant-color-text-secondary)',
+                                  }}
+                                  onClick={() => setAiPanelCollapsed(true)}
+                                >
+                                  ✕
+                                </span>
+                              </div>
+                              <div style={{ flex: 1, overflow: 'hidden' }}>
+                                <AiPanel
+                                  logs={filteredLogs}
+                                  totalLogs={allLogs.length}
+                                  filters={filters}
+                                  traceResult={traceResult}
+                                  aiConfigured={aiConfigured}
+                                />
+                              </div>
+                            </div>
+                          </Splitter.Panel>
+                        )}
+                      </Splitter>
+                    </div>
 
                     {/* AI panel toggle when collapsed */}
                     {aiPanelCollapsed && (

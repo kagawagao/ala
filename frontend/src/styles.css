@@ -9,3 +9,59 @@ body,
 body {
   overflow: hidden;
 }
+
+/* Markdown rendering in AI chat bubbles */
+.ai-message-content pre {
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  max-width: 100%;
+}
+
+.ai-message-content code {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.ai-message-content pre code {
+  word-break: normal;
+  white-space: pre;
+}
+
+.ai-message-content table {
+  border-collapse: collapse;
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+  font-size: 12px;
+}
+
+.ai-message-content table th,
+.ai-message-content table td {
+  border: 1px solid var(--ant-color-border);
+  padding: 4px 8px;
+}
+
+.ai-message-content p {
+  margin: 0 0 8px 0;
+}
+
+.ai-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-message-content ul,
+.ai-message-content ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.ai-message-content h1,
+.ai-message-content h2,
+.ai-message-content h3,
+.ai-message-content h4,
+.ai-message-content h5,
+.ai-message-content h6 {
+  margin: 8px 0 4px 0;
+  font-size: inherit;
+}

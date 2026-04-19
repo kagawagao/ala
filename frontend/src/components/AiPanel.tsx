@@ -618,7 +618,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
                     color: msg.role === 'user' ? '#fff' : 'inherit',
                     fontSize: 13,
                     lineHeight: 1.5,
+                    overflow: 'hidden',
                   }}
+                  className={msg.role === 'assistant' ? 'ai-message-content' : undefined}
                 >
                   {msg.role === 'assistant' ? (
                     <>
