@@ -18,7 +18,7 @@ def get_project_manager() -> ProjectManager:
 class ProjectResponse(BaseModel):
     id: str
     name: str
-    path: str
+    paths: list[str]
     include_patterns: list[str]
     exclude_patterns: list[str]
     created_at: str
@@ -26,14 +26,14 @@ class ProjectResponse(BaseModel):
 
 class CreateProjectRequest(BaseModel):
     name: str
-    path: str
+    paths: list[str]
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
 
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
-    path: str | None = None
+    paths: list[str] | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
@@ -48,7 +48,7 @@ def _project_to_response(p) -> ProjectResponse:
     return ProjectResponse(
         id=p.id,
         name=p.name,
-        path=p.path,
+        paths=p.paths,
         include_patterns=p.include_patterns,
         exclude_patterns=p.exclude_patterns,
         created_at=p.created_at,
@@ -59,11 +59,12 @@ def _project_to_response(p) -> ProjectResponse:
 async def create_project(req: CreateProjectRequest):
     import os
 
-    if not os.path.isdir(req.path):
-        raise HTTPException(status_code=400, detail=f"Directory does not exist: {req.path}")
+    for path in req.paths:
+        if not os.path.isdir(path):
+            raise HTTPException(status_code=400, detail=f"Directory does not exist: {path}")
     project = _project_manager.create_project(
         name=req.name,
-        path=req.path,
+        paths=req.paths,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
@@ -88,7 +89,7 @@ async def update_project(project_id: str, req: UpdateProjectRequest):
     project = _project_manager.update_project(
         project_id,
         name=req.name,
-        path=req.path,
+        paths=req.paths,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
@@ -111,13 +112,16 @@ async def list_project_files(project_id: str, subdirectory: str | None = None):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    files = _scanner.list_files(
-        project.path,
-        project.include_patterns,
-        project.exclude_patterns,
-        subdirectory=subdirectory,
-    )
-    return [FileInfoResponse(path=f.path, size=f.size, extension=f.extension) for f in files]
+    all_files = []
+    for path in project.paths:
+        files = _scanner.list_files(
+            path,
+            project.include_patterns,
+            project.exclude_patterns,
+            subdirectory=subdirectory,
+        )
+        all_files.extend(files)
+    return [FileInfoResponse(path=f.path, size=f.size, extension=f.extension) for f in all_files]
 
 
 class ContextDocResponse(BaseModel):
@@ -137,5 +141,5 @@ async def list_context_docs(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    docs = _scanner.discover_context_docs(project.path)
+    docs = _scanner.discover_context_docs(project.paths)
     return [ContextDocResponse(path=d.path, content=d.content, size=d.size) for d in docs]

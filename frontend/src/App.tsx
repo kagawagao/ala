@@ -13,6 +13,7 @@ import {
 } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import i18next from './i18n/config'
 import Header from './components/Header'
 import AppSider from './components/AppSider'
@@ -21,6 +22,7 @@ import TraceViewer from './components/TraceViewer'
 import AiPanel from './components/AiPanel'
 import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
+import ProjectManager from './components/ProjectManager'
 import { parseLogStream } from './api/logs'
 import { parseTrace } from './api/trace'
 import type {
@@ -370,6 +372,9 @@ const App: React.FC = () => {
     },
   ]
 
+  const location = useLocation()
+  const isProjectsPage = location.pathname === '/projects'
+
   return (
     <ConfigProvider
       theme={{
@@ -411,118 +416,128 @@ const App: React.FC = () => {
           )}
 
           {/* Main content */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-            <Splitter style={{ height: '100%' }}>
-              {/* Left: AppSider */}
-              {!siderCollapsed && (
-                <Splitter.Panel
-                  defaultSize={340}
-                  min={240}
-                  max={500}
-                  style={{
-                    borderRight: '1px solid var(--ant-color-border)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <AppSider
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                    highlights={highlights}
-                    onHighlightsChange={setHighlights}
-                    statistics={statistics}
-                    presets={presets}
-                    onPresetsChange={setPresets}
-                    wordWrap={wordWrap}
-                    onWordWrapChange={setWordWrap}
-                  />
-                </Splitter.Panel>
-              )}
+          <div style={{ flex: 1, overflow: isProjectsPage ? 'auto' : 'hidden', display: 'flex' }}>
+            <Routes>
+              <Route path="/projects" element={<ProjectManager />} />
+              <Route
+                path="*"
+                element={
+                  <>
+                    <Splitter style={{ height: '100%' }}>
+                      {/* Left: AppSider */}
+                      {!siderCollapsed && (
+                        <Splitter.Panel
+                          defaultSize={340}
+                          min={240}
+                          max={500}
+                          style={{
+                            borderRight: '1px solid var(--ant-color-border)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <AppSider
+                            filters={filters}
+                            onFiltersChange={setFilters}
+                            highlights={highlights}
+                            onHighlightsChange={setHighlights}
+                            statistics={statistics}
+                            presets={presets}
+                            onPresetsChange={setPresets}
+                            wordWrap={wordWrap}
+                            onWordWrapChange={setWordWrap}
+                          />
+                        </Splitter.Panel>
+                      )}
 
-              {/* Center: Log/Trace viewer */}
-              <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
-                <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <Tabs
-                    activeKey={activeTab}
-                    onChange={(k) => setActiveTab(k as 'log' | 'trace')}
-                    items={tabItems}
-                    tabBarExtraContent={{ right: tabBarExtra }}
-                    style={{ height: '100%' }}
-                    tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                    renderTabBar={(props, DefaultTabBar) => (
-                      <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                    )}
-                  />
-                </div>
-              </Splitter.Panel>
+                      {/* Center: Log/Trace viewer */}
+                      <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
+                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <Tabs
+                            activeKey={activeTab}
+                            onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                            items={tabItems}
+                            tabBarExtraContent={{ right: tabBarExtra }}
+                            style={{ height: '100%' }}
+                            tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                            renderTabBar={(props, DefaultTabBar) => (
+                              <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                            )}
+                          />
+                        </div>
+                      </Splitter.Panel>
 
-              {/* Right: AI Panel */}
-              {!aiPanelCollapsed && (
-                <Splitter.Panel
-                  defaultSize={400}
-                  min={280}
-                  max={600}
-                  style={{
-                    borderLeft: '1px solid var(--ant-color-border)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        padding: '2px 6px',
-                        borderBottom: '1px solid var(--ant-color-border)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
+                      {/* Right: AI Panel */}
+                      {!aiPanelCollapsed && (
+                        <Splitter.Panel
+                          defaultSize={400}
+                          min={280}
+                          max={600}
+                          style={{
+                            borderLeft: '1px solid var(--ant-color-border)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                padding: '2px 6px',
+                                borderBottom: '1px solid var(--ant-color-border)',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: 11,
+                                  color: 'var(--ant-color-text-secondary)',
+                                }}
+                                onClick={() => setAiPanelCollapsed(true)}
+                              >
+                                ✕
+                              </span>
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <AiPanel
+                                logs={filteredLogs}
+                                totalLogs={allLogs.length}
+                                filters={filters}
+                                traceResult={traceResult}
+                                aiConfigured={aiConfigured}
+                              />
+                            </div>
+                          </div>
+                        </Splitter.Panel>
+                      )}
+                    </Splitter>
+
+                    {/* AI panel toggle when collapsed */}
+                    {aiPanelCollapsed && (
+                      <button
+                        onClick={() => setAiPanelCollapsed(false)}
                         style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          writingMode: 'vertical-rl',
+                          padding: '8px 4px',
+                          border: '1px solid var(--ant-color-border)',
+                          borderRight: 'none',
+                          borderRadius: '6px 0 0 6px',
+                          background: 'var(--ant-color-bg-container)',
                           cursor: 'pointer',
-                          fontSize: 11,
-                          color: 'var(--ant-color-text-secondary)',
+                          fontSize: 12,
                         }}
-                        onClick={() => setAiPanelCollapsed(true)}
                       >
-                        ✕
-                      </span>
-                    </div>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <AiPanel
-                        logs={filteredLogs}
-                        totalLogs={allLogs.length}
-                        filters={filters}
-                        traceResult={traceResult}
-                        aiConfigured={aiConfigured}
-                      />
-                    </div>
-                  </div>
-                </Splitter.Panel>
-              )}
-            </Splitter>
-
-            {/* AI panel toggle when collapsed */}
-            {aiPanelCollapsed && (
-              <button
-                onClick={() => setAiPanelCollapsed(false)}
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  writingMode: 'vertical-rl',
-                  padding: '8px 4px',
-                  border: '1px solid var(--ant-color-border)',
-                  borderRight: 'none',
-                  borderRadius: '6px 0 0 6px',
-                  background: 'var(--ant-color-bg-container)',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
-              >
-                {t('aiAssistant')}
-              </button>
-            )}
+                        {t('aiAssistant')}
+                      </button>
+                    )}
+                  </>
+                }
+              />
+            </Routes>
           </div>
 
           <SettingsModal

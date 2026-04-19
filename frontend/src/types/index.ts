@@ -93,7 +93,7 @@ export interface FilterPreset {
 export interface Project {
   id: string
   name: string
-  path: string
+  paths: string[]
   include_patterns: string[]
   exclude_patterns: string[]
   created_at: string
@@ -101,7 +101,7 @@ export interface Project {
 
 export interface CreateProjectRequest {
   name: string
-  path: string
+  paths: string[]
   include_patterns?: string[]
   exclude_patterns?: string[]
 }

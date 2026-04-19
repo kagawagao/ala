@@ -16,9 +16,9 @@ class Settings(BaseSettings):
     ]
 
     # AI defaults (user can override via API)
-    ai_api_endpoint: str = "https://api.openai.com/v1"
+    ai_api_endpoint: str = "https://api.anthropic.com"
     ai_api_key: str = ""
-    ai_model: str = "gpt-4o-mini"
+    ai_model: str = "claude-sonnet-4-20250514"
     ai_temperature: float = 0.7
 
     @field_validator("cors_origins", mode="before")

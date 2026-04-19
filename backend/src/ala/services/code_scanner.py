@@ -100,30 +100,46 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
 class CodeScanner:
     """Scans project directories for source files."""
 
-    def discover_context_docs(self, project_path: str) -> list[ContextDoc]:
-        """Discover well-known LLM context/instruction files in a project.
+    def discover_context_docs(self, project_paths: str | list[str]) -> list[ContextDoc]:
+        """Discover well-known LLM context/instruction files in project paths.
 
         Searches for files like AGENTS.md, .github/copilot-instructions.md,
         CLAUDE.md, etc. — similar to how charmbracelet/crush loads project context.
+        Accepts a single path or list of paths for multi-repo projects.
         """
-        root = Path(project_path)
-        if not root.is_dir():
-            return []
+        if isinstance(project_paths, str):
+            project_paths = [project_paths]
 
         docs: list[ContextDoc] = []
-        for rel_path in CONTEXT_DOC_PATHS:
-            full = root / rel_path
-            if not full.is_file():
+        seen: set[str] = set()
+
+        for project_path in project_paths:
+            root = Path(project_path)
+            if not root.is_dir():
                 continue
-            try:
-                size = full.stat().st_size
-                if size > MAX_FILE_SIZE:
-                    content = full.read_text(errors="replace")[:MAX_FILE_SIZE]
-                else:
-                    content = full.read_text(errors="replace")
-                docs.append(ContextDoc(path=rel_path, content=content, size=size))
-            except OSError:
-                continue
+
+            for rel_path in CONTEXT_DOC_PATHS:
+                full = root / rel_path
+                if not full.is_file():
+                    continue
+                # Use project_path prefix to avoid duplicates across roots
+                doc_key = f"{project_path}:{rel_path}"
+                if doc_key in seen:
+                    continue
+                seen.add(doc_key)
+                try:
+                    size = full.stat().st_size
+                    if size > MAX_FILE_SIZE:
+                        content = full.read_text(errors="replace")[:MAX_FILE_SIZE]
+                    else:
+                        content = full.read_text(errors="replace")
+                    # Prefix path with root basename for multi-path clarity
+                    display_path = rel_path
+                    if len(project_paths) > 1:
+                        display_path = f"{root.name}/{rel_path}"
+                    docs.append(ContextDoc(path=display_path, content=content, size=size))
+                except OSError:
+                    continue
 
         return docs
 

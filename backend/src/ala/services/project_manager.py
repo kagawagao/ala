@@ -12,7 +12,7 @@ def _utcnow() -> str:
 class Project:
     id: str
     name: str
-    path: str
+    paths: list[str]
     include_patterns: list[str] = field(default_factory=lambda: ["**/*.java", "**/*.kt", "**/*.xml"])
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
@@ -28,7 +28,7 @@ class ProjectManager:
     def create_project(
         self,
         name: str,
-        path: str,
+        paths: list[str],
         include_patterns: list[str] | None = None,
         exclude_patterns: list[str] | None = None,
     ) -> Project:
@@ -38,7 +38,7 @@ class ProjectManager:
         project = Project(
             id=str(uuid.uuid4()),
             name=name,
-            path=path,
+            paths=paths,
         )
         if include_patterns is not None:
             project.include_patterns = include_patterns
@@ -57,7 +57,7 @@ class ProjectManager:
         self,
         project_id: str,
         name: str | None = None,
-        path: str | None = None,
+        paths: list[str] | None = None,
         include_patterns: list[str] | None = None,
         exclude_patterns: list[str] | None = None,
     ) -> Project | None:
@@ -66,8 +66,8 @@ class ProjectManager:
             return None
         if name is not None:
             project.name = name
-        if path is not None:
-            project.path = path
+        if paths is not None:
+            project.paths = paths
         if include_patterns is not None:
             project.include_patterns = include_patterns
         if exclude_patterns is not None:

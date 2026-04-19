@@ -9,8 +9,10 @@ import {
   MenuUnfoldOutlined,
   WifiOutlined,
   DisconnectOutlined,
+  FolderOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   isDark: boolean
@@ -34,6 +36,7 @@ const Header: React.FC<HeaderProps> = ({
   backendConnected,
 }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   return (
     <div
       style={{
@@ -73,6 +76,9 @@ const Header: React.FC<HeaderProps> = ({
           <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage}>
             {language === 'en' ? 'EN' : '中文'}
           </Button>
+        </Tooltip>
+        <Tooltip title={t('projectSettings')}>
+          <Button type="text" icon={<FolderOutlined />} onClick={() => navigate('/projects')} />
         </Tooltip>
         <Tooltip title={t('settings')}>
           <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} />

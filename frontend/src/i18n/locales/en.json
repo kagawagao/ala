@@ -145,6 +145,13 @@
   "projectPathPlaceholder": "/path/to/android/project",
   "addProject": "Add Project",
   "projectAdded": "Project added successfully",
+  "projectPaths": "Project Paths",
+  "addPath": "Add Path",
+  "paths": "path(s)",
+  "backToAnalysis": "Back to Analysis",
+  "contextDocs": "Context Docs",
+  "noContextDocs": "No context docs found",
+  "loading": "Loading...",
   "toolArguments": "Arguments",
   "toolResult": "Result",
   "done": "Done"

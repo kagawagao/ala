@@ -145,6 +145,13 @@
   "projectPathPlaceholder": "/path/to/android/project",
   "addProject": "添加项目",
   "projectAdded": "项目添加成功",
+  "projectPaths": "项目路径",
+  "addPath": "添加路径",
+  "paths": "个路径",
+  "backToAnalysis": "返回分析",
+  "contextDocs": "上下文文档",
+  "noContextDocs": "未发现上下文文档",
+  "loading": "加载中...",
   "toolArguments": "参数",
   "toolResult": "结果",
   "done": "完成"

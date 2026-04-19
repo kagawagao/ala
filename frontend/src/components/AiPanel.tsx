@@ -489,9 +489,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                           key={doc.path}
                           title={`${doc.path} (${(doc.size / 1024).toFixed(1)}KB)`}
                         >
-                          <Tag size="small" color="green">
-                            {doc.path}
-                          </Tag>
+                          <Tag color="green">{doc.path}</Tag>
                         </Tooltip>
                       ))}
                     </div>
