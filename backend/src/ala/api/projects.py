@@ -1,9 +1,14 @@
 """Project management endpoints."""
+import json
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ..services.ai_service import AIService
 from ..services.code_scanner import CodeScanner
 from ..services.project_manager import ProjectManager
+from .config import get_ai_config
 
 router = APIRouter()
 _project_manager = ProjectManager()
@@ -19,6 +24,7 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     paths: list[str]
+    log_directory: str | None = None
     include_patterns: list[str]
     exclude_patterns: list[str]
     created_at: str
@@ -27,6 +33,7 @@ class ProjectResponse(BaseModel):
 class CreateProjectRequest(BaseModel):
     name: str
     paths: list[str]
+    log_directory: str | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
@@ -34,6 +41,7 @@ class CreateProjectRequest(BaseModel):
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
     paths: list[str] | None = None
+    log_directory: str | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
@@ -49,6 +57,7 @@ def _project_to_response(p) -> ProjectResponse:
         id=p.id,
         name=p.name,
         paths=p.paths,
+        log_directory=p.log_directory,
         include_patterns=p.include_patterns,
         exclude_patterns=p.exclude_patterns,
         created_at=p.created_at,
@@ -65,6 +74,7 @@ async def create_project(req: CreateProjectRequest):
     project = _project_manager.create_project(
         name=req.name,
         paths=req.paths,
+        log_directory=req.log_directory,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
@@ -90,6 +100,7 @@ async def update_project(project_id: str, req: UpdateProjectRequest):
         project_id,
         name=req.name,
         paths=req.paths,
+        log_directory=req.log_directory,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
@@ -143,3 +154,94 @@ async def list_context_docs(project_id: str):
 
     docs = _scanner.discover_context_docs(project.paths)
     return [ContextDocResponse(path=d.path, content=d.content, size=d.size) for d in docs]
+
+
+class GenerateFiltersRequest(BaseModel):
+    existing_filters: list[dict] | None = None
+
+
+@router.post("/{project_id}/generate-filters")
+async def generate_filters(project_id: str, req: GenerateFiltersRequest | None = None):
+    """Use AI to analyze project code and generate log filter presets.
+
+    The AI agent scans the project for logging patterns (Log.d/i/w/e tags,
+    process names, common error keywords) and returns suggested filter presets.
+    Streams the response as SSE.
+    """
+    project = _project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    ai_config = get_ai_config()
+    if not ai_config.api_key:
+        raise HTTPException(status_code=400, detail="AI not configured")
+
+    ai_service = AIService(
+        api_endpoint=ai_config.api_endpoint,
+        api_key=ai_config.api_key,
+        model=ai_config.model,
+        temperature=ai_config.temperature,
+    )
+
+    # Gather code context: search for logging patterns
+    code_context_parts: list[str] = []
+    for path in project.paths:
+        # Search for Android Log tags
+        log_results = _scanner.search_code(
+            path, r"Log\.[dviwef]\(", project.include_patterns, project.exclude_patterns
+        )
+        if log_results:
+            code_context_parts.append(
+                f"Log usage in {path}:\n" + "\n".join(f"  {r}" for r in log_results[:50])
+            )
+        # Search for TAG definitions
+        tag_results = _scanner.search_code(
+            path, r'(TAG|LOG_TAG)\s*=', project.include_patterns, project.exclude_patterns
+        )
+        if tag_results:
+            code_context_parts.append(
+                f"TAG definitions in {path}:\n" + "\n".join(f"  {r}" for r in tag_results[:30])
+            )
+
+    code_context = "\n\n".join(code_context_parts) if code_context_parts else "No logging patterns found in project code."
+
+    existing_info = ""
+    if req and req.existing_filters:
+        existing_info = f"\n\nExisting filter presets:\n{json.dumps(req.existing_filters, indent=2)}\nPlease update/improve these rather than starting from scratch."
+
+    prompt = f"""Analyze the following Android project code patterns and generate useful log filter presets as a JSON array.
+
+Each preset should have: name (string), description (string), filters (object with optional fields: keywords, level, tag, pid, tid, tag_keyword_relation).
+The filters fields are all strings. level should be one of: V, D, I, W, E, F. tag_keyword_relation should be "AND" or "OR".
+
+Focus on practical filters that help developers debug common issues:
+- Filters for specific components/tags found in the code
+- Error/crash filters
+- Performance-related filters
+- Security-related filters
+{existing_info}
+
+Project: {project.name}
+
+Code patterns found:
+{code_context}
+
+Respond ONLY with a valid JSON array of filter presets, no other text."""
+
+    messages = [{"role": "user", "content": prompt}]
+
+    async def event_stream():
+        full_response = ""
+        try:
+            async for chunk in ai_service.stream_chat(messages):
+                full_response += chunk
+                yield f"data: {chunk}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: [ERROR] {str(e)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

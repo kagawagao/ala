@@ -27,9 +27,11 @@ import {
   UploadOutlined,
   DeleteOutlined,
   CheckOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
+import { generateFilters } from '../api/projects'
 
 const { Text } = Typography
 
@@ -63,6 +65,7 @@ interface AppSiderProps {
   onPresetsChange: (presets: FilterPreset[]) => void
   wordWrap: boolean
   onWordWrapChange: (wrap: boolean) => void
+  selectedProjectId: string | null
 }
 
 const AppSider: React.FC<AppSiderProps> = ({
@@ -75,6 +78,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   onPresetsChange,
   wordWrap,
   onWordWrapChange,
+  selectedProjectId,
 }) => {
   const { t } = useTranslation()
   const [presetModalOpen, setPresetModalOpen] = useState(false)
@@ -82,6 +86,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   const [presetDesc, setPresetDesc] = useState('')
   const [highlightInput, setHighlightInput] = useState('')
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0])
+  const [generatingFilters, setGeneratingFilters] = useState(false)
 
   // Local "draft" state – changes here are NOT applied to the log view until
   // the user clicks the Apply button.
@@ -194,6 +199,52 @@ const AppSider: React.FC<AppSiderProps> = ({
     input.click()
   }
 
+  const handleGenerateFilters = async () => {
+    if (!selectedProjectId) return
+    setGeneratingFilters(true)
+    try {
+      let accumulated = ''
+      for await (const chunk of generateFilters(selectedProjectId, presets)) {
+        if (chunk === '[DONE]') break
+        accumulated += chunk
+      }
+      // Try to parse JSON array from accumulated text
+      const jsonMatch = accumulated.match(/\[[\s\S]*\]/)
+      if (jsonMatch) {
+        const generated = JSON.parse(jsonMatch[0]) as Array<{
+          name: string
+          description?: string
+          filters: Partial<LogFilters>
+        }>
+        const newPresets: FilterPreset[] = generated.map((g, i) => ({
+          id: `gen-${Date.now()}-${i}`,
+          name: g.name,
+          description: g.description,
+          filters: {
+            start_time: '',
+            end_time: '',
+            keywords: g.filters.keywords || '',
+            level: g.filters.level || '',
+            tag: g.filters.tag || '',
+            pid: g.filters.pid || '',
+            tid: g.filters.tid || '',
+            tag_keyword_relation: g.filters.tag_keyword_relation || 'AND',
+          },
+        }))
+        const updated = [...presets, ...newPresets]
+        onPresetsChange(updated)
+        localStorage.setItem('ala_filter_presets', JSON.stringify(updated))
+        void message.success(t('filtersGenerated'))
+      } else {
+        void message.error(t('filtersGenerateFailed'))
+      }
+    } catch {
+      void message.error(t('filtersGenerateFailed'))
+    } finally {
+      setGeneratingFilters(false)
+    }
+  }
+
   const addHighlight = () => {
     if (!highlightInput.trim()) return
     const item: HighlightItem = { pattern: highlightInput.trim(), color: highlightColor }
@@ -237,6 +288,18 @@ const AppSider: React.FC<AppSiderProps> = ({
         <Tooltip title={t('importFilters')}>
           <Button size="small" icon={<UploadOutlined />} onClick={importFilters} />
         </Tooltip>
+        {selectedProjectId && (
+          <Tooltip title={presets.length > 0 ? t('updateFilters') : t('initFilters')}>
+            <Button
+              size="small"
+              icon={<ThunderboltOutlined />}
+              onClick={() => void handleGenerateFilters()}
+              loading={generatingFilters}
+            >
+              {presets.length > 0 ? t('updateFilters') : t('initFilters')}
+            </Button>
+          </Tooltip>
+        )}
       </div>
       {isDirty && (
         <div style={{ padding: '0 12px 6px' }}>

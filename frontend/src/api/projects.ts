@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, streamSSE } from './client'
 import type { Project, CreateProjectRequest, ProjectFileInfo, ContextDoc } from '../types'
 
 export async function createProject(req: CreateProjectRequest): Promise<Project> {
@@ -40,4 +40,16 @@ export async function listProjectFiles(
 
 export async function listContextDocs(projectId: string): Promise<ContextDoc[]> {
   return apiFetch<ContextDoc[]>(`/projects/${projectId}/context-docs`)
+}
+
+export async function* generateFilters(
+  projectId: string,
+  existingFilters?: object[],
+  signal?: AbortSignal,
+): AsyncGenerator<string> {
+  const body: Record<string, unknown> = {}
+  if (existingFilters && existingFilters.length > 0) {
+    body.existing_filters = existingFilters
+  }
+  yield* streamSSE(`/projects/${projectId}/generate-filters`, body, signal)
 }

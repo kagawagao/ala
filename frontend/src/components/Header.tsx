@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, Space, Tag, Tooltip } from 'antd'
+import { Button, Select, Space, Tag, Tooltip } from 'antd'
 import {
   MoonOutlined,
   SunOutlined,
@@ -10,9 +10,11 @@ import {
   WifiOutlined,
   DisconnectOutlined,
   FolderOutlined,
+  CodeOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import type { Project } from '../types'
 
 interface HeaderProps {
   isDark: boolean
@@ -23,6 +25,9 @@ interface HeaderProps {
   siderCollapsed: boolean
   onToggleSider: () => void
   backendConnected: boolean
+  projects: Project[]
+  selectedProjectId: string | null
+  onProjectChange: (id: string | null) => void
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -34,6 +39,9 @@ const Header: React.FC<HeaderProps> = ({
   siderCollapsed,
   onToggleSider,
   backendConnected,
+  projects,
+  selectedProjectId,
+  onProjectChange,
 }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -63,6 +71,25 @@ const Header: React.FC<HeaderProps> = ({
         >
           {backendConnected ? t('connected') : t('disconnected')}
         </Tag>
+        {projects.length > 0 && (
+          <Select
+            size="small"
+            placeholder={t('selectProject')}
+            value={selectedProjectId}
+            onChange={(v) => onProjectChange(v ?? null)}
+            allowClear
+            style={{ minWidth: 160 }}
+            options={projects.map((p) => ({
+              value: p.id,
+              label: (
+                <Space size={4}>
+                  <CodeOutlined />
+                  {p.name}
+                </Space>
+              ),
+            }))}
+          />
+        )}
       </Space>
       <Space>
         <Tooltip title={isDark ? t('switchToLightMode') : t('switchToDarkMode')}>

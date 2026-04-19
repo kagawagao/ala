@@ -29,7 +29,6 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { createSession, listSessions, deleteSession, sendMessage } from '../api/chat'
-import { listProjects, listContextDocs } from '../api/projects'
 import type {
   Session,
   LogEntry,
@@ -43,12 +42,7 @@ import type {
 const { Text } = Typography
 const { TextArea } = Input
 
-const AI_PRESETS = [
-  { value: 'general', label: 'General Analysis' },
-  { value: 'crash', label: 'Crash Analysis' },
-  { value: 'performance', label: 'Performance Analysis' },
-  { value: 'security', label: 'Security Analysis' },
-]
+const PRESET_KEYS = ['general', 'crash', 'performance', 'security'] as const
 
 const PRESET_PROMPTS: Record<string, string> = {
   general: 'Please analyze the following Android log and provide a summary of what happened.',
@@ -78,6 +72,9 @@ interface AiPanelProps {
   filters: LogFilters
   traceResult: TraceParseResult | null
   aiConfigured: boolean
+  selectedProjectId: string | null
+  projects: Project[]
+  contextDocs: ContextDoc[]
 }
 
 const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls }) => {
@@ -164,6 +161,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
   filters,
   traceResult,
   aiConfigured,
+  selectedProjectId,
+  projects,
+  contextDocs,
 }) => {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<Session[]>([])
@@ -173,11 +173,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [streaming, setStreaming] = useState(false)
   const [preset, setPreset] = useState('general')
   const [contextAttached, setContextAttached] = useState(false)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const aiPresets = PRESET_KEYS.map((key) => ({
+    value: key,
+    label: t(`preset${key.charAt(0).toUpperCase()}${key.slice(1)}` as never),
+  }))
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -193,23 +195,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       .catch(() => {
         /* backend may not be running */
       })
-    listProjects()
-      .then(setProjects)
-      .catch(() => {
-        /* backend may not be running */
-      })
   }, [])
-
-  // Load context docs when project changes
-  useEffect(() => {
-    if (selectedProjectId) {
-      listContextDocs(selectedProjectId)
-        .then(setContextDocs)
-        .catch(() => setContextDocs([]))
-    } else {
-      setContextDocs([])
-    }
-  }, [selectedProjectId])
 
   const handleNewSession = async () => {
     try {
@@ -237,7 +223,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
         setMessages([])
       }
     } catch {
-      void message.error('Failed to delete session')
+      void message.error(t('deleteSessionFailed'))
     }
   }
 
@@ -441,8 +427,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
         </Tooltip>
       </div>
 
-      {/* Project selector */}
-      {projects.length > 0 && (
+      {/* Context docs display */}
+      {selectedProjectId && contextDocs.length > 0 && (
         <div
           style={{
             padding: '4px 8px',
@@ -450,54 +436,34 @@ const AiPanel: React.FC<AiPanelProps> = ({
             flexShrink: 0,
           }}
         >
-          <Select
+          <Collapse
             size="small"
-            placeholder={t('selectProject')}
-            value={selectedProjectId}
-            onChange={setSelectedProjectId}
-            allowClear
-            style={{ width: '100%' }}
-            options={projects.map((p) => ({
-              value: p.id,
-              label: (
-                <Space size={4}>
-                  <CodeOutlined />
-                  {p.name}
-                </Space>
-              ),
-            }))}
+            items={[
+              {
+                key: 'context-docs',
+                label: (
+                  <Space size={4}>
+                    <FileTextOutlined />
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {t('contextDocsFound', { count: contextDocs.length })}
+                    </Text>
+                  </Space>
+                ),
+                children: (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {contextDocs.map((doc) => (
+                      <Tooltip
+                        key={doc.path}
+                        title={`${doc.path} (${(doc.size / 1024).toFixed(1)}KB)`}
+                      >
+                        <Tag color="green">{doc.path}</Tag>
+                      </Tooltip>
+                    ))}
+                  </div>
+                ),
+              },
+            ]}
           />
-          {contextDocs.length > 0 && (
-            <Collapse
-              size="small"
-              style={{ marginTop: 4 }}
-              items={[
-                {
-                  key: 'context-docs',
-                  label: (
-                    <Space size={4}>
-                      <FileTextOutlined />
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {t('contextDocsFound', { count: contextDocs.length })}
-                      </Text>
-                    </Space>
-                  ),
-                  children: (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {contextDocs.map((doc) => (
-                        <Tooltip
-                          key={doc.path}
-                          title={`${doc.path} (${(doc.size / 1024).toFixed(1)}KB)`}
-                        >
-                          <Tag color="green">{doc.path}</Tag>
-                        </Tooltip>
-                      ))}
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          )}
         </div>
       )}
 
@@ -664,7 +630,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               size="small"
               value={preset}
               onChange={setPreset}
-              options={AI_PRESETS}
+              options={aiPresets}
               style={{ flex: 1 }}
             />
             {hasContext && logs.length > 0 && (

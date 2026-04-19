@@ -25,6 +25,7 @@ import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
 import { parseLogStream } from './api/logs'
 import { parseTrace } from './api/trace'
+import { listProjects, listContextDocs } from './api/projects'
 import type {
   LogEntry,
   LogFilters,
@@ -32,6 +33,8 @@ import type {
   TraceParseResult,
   FilterPreset,
   HighlightItem,
+  Project,
+  ContextDoc,
 } from './types'
 
 const DEFAULT_FILTERS: LogFilters = {
@@ -138,6 +141,32 @@ const App: React.FC = () => {
   const [backendConnected, setBackendConnected] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
+
+  // Project state (lifted here so Header and AiPanel share it)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
+
+  // Load projects on mount and when backend connects
+  useEffect(() => {
+    if (!backendConnected) return
+    listProjects()
+      .then(setProjects)
+      .catch(() => {
+        /* backend may not be running */
+      })
+  }, [backendConnected])
+
+  // Load context docs when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      listContextDocs(selectedProjectId)
+        .then(setContextDocs)
+        .catch(() => setContextDocs([]))
+    } else {
+      setContextDocs([])
+    }
+  }, [selectedProjectId])
 
   // File state
   // allLogs is built incrementally as the stream arrives
@@ -421,6 +450,9 @@ const App: React.FC = () => {
             siderCollapsed={siderCollapsed}
             onToggleSider={() => setSiderCollapsed((v) => !v)}
             backendConnected={backendConnected}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onProjectChange={setSelectedProjectId}
           />
 
           {/* Backend warning */}
@@ -468,6 +500,7 @@ const App: React.FC = () => {
                             onPresetsChange={setPresets}
                             wordWrap={wordWrap}
                             onWordWrapChange={setWordWrap}
+                            selectedProjectId={selectedProjectId}
                           />
                         )}
                       </div>
@@ -536,6 +569,9 @@ const App: React.FC = () => {
                                   filters={filters}
                                   traceResult={traceResult}
                                   aiConfigured={aiConfigured}
+                                  selectedProjectId={selectedProjectId}
+                                  projects={projects}
+                                  contextDocs={contextDocs}
                                 />
                               </div>
                             </div>
