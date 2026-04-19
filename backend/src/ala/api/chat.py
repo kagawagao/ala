@@ -1,5 +1,7 @@
 """Multi-turn chat with streaming SSE."""
 
+import json
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -7,6 +9,7 @@ from pydantic import BaseModel
 from ..services.ai_service import AIService
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
+from .projects import get_project_manager
 
 router = APIRouter()
 _session_manager = SessionManager()
@@ -23,11 +26,13 @@ class Session(BaseModel):
     messages: list[ChatMessage]
     created_at: str
     context_type: str  # "log" | "trace" | "general"
+    project_id: str | None = None
 
 
 class CreateSessionRequest(BaseModel):
     title: str = "New Session"
     context_type: str = "general"
+    project_id: str | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -42,12 +47,13 @@ def _session_to_response(session) -> Session:
         messages=[ChatMessage(role=m.role, content=m.content) for m in session.messages],
         created_at=session.created_at,
         context_type=session.context_type,
+        project_id=session.project_id,
     )
 
 
 @router.post("/sessions", response_model=Session)
 async def create_session(req: CreateSessionRequest):
-    session = _session_manager.create_session(req.title, req.context_type)
+    session = _session_manager.create_session(req.title, req.context_type, req.project_id)
     return _session_to_response(session)
 
 
@@ -100,12 +106,35 @@ async def send_message(session_id: str, req: SendMessageRequest):
     for msg in session.messages:
         messages.append({"role": msg.role, "content": msg.content})
 
+    # Check if session has a project for agentic mode
+    project = None
+    if session.project_id:
+        pm = get_project_manager()
+        project = pm.get_project(session.project_id)
+
     async def event_stream():
         full_response = ""
         try:
-            async for chunk in ai_service.stream_chat(messages):
-                full_response += chunk
-                yield f"data: {chunk}\n\n"
+            if project:
+                # Agentic mode with tool calling
+                async for chunk in ai_service.stream_chat_agentic(messages, project):
+                    # Check if it's a JSON event (tool_call or tool_result)
+                    if chunk.startswith("{"):
+                        try:
+                            event = json.loads(chunk)
+                            if event.get("type") in ("tool_call", "tool_result"):
+                                yield f"data: {chunk}\n\n"
+                                continue
+                        except json.JSONDecodeError:
+                            pass
+                    full_response += chunk
+                    yield f"data: {chunk}\n\n"
+            else:
+                # Simple streaming mode
+                async for chunk in ai_service.stream_chat(messages):
+                    full_response += chunk
+                    yield f"data: {chunk}\n\n"
+
             # Save assistant message
             _session_manager.add_message(session_id, "assistant", full_response)
             yield "data: [DONE]\n\n"

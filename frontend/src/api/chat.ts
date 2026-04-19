@@ -1,10 +1,14 @@
 import { apiFetch, streamSSE } from './client'
 import type { Session } from '../types'
 
-export async function createSession(title: string, contextType: string): Promise<Session> {
+export async function createSession(
+  title: string,
+  contextType: string,
+  projectId?: string | null,
+): Promise<Session> {
   return apiFetch<Session>('/chat/sessions', {
     method: 'POST',
-    body: JSON.stringify({ title, context_type: contextType }),
+    body: JSON.stringify({ title, context_type: contextType, project_id: projectId || null }),
   })
 }
 

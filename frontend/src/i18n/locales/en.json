@@ -129,5 +129,22 @@
   "pidCommaList": "PIDs (e.g. 1234, 5678)",
   "applyFilter": "Apply Filter",
   "uploadFiles": "Upload Files",
-  "changeFiles": "Change Files"
+  "changeFiles": "Change Files",
+  "selectProject": "Select project (agent mode)",
+  "project": "Project",
+  "agentMode": "Agent mode",
+  "projectSettings": "Project Settings",
+  "projectSettingsDescription": "Configure source code projects. When a project is selected, the AI agent can read and search your code.",
+  "noProjects": "No projects configured",
+  "projectName": "Project Name",
+  "projectNameRequired": "Please enter a project name",
+  "projectNamePlaceholder": "e.g., MyAndroidApp",
+  "projectPath": "Project Path",
+  "projectPathRequired": "Please enter the project path",
+  "projectPathPlaceholder": "/path/to/android/project",
+  "addProject": "Add Project",
+  "projectAdded": "Project added successfully",
+  "toolArguments": "Arguments",
+  "toolResult": "Result",
+  "done": "Done"
 }

@@ -129,5 +129,22 @@
   "pidCommaList": "PID（如 1234, 5678）",
   "applyFilter": "应用过滤",
   "uploadFiles": "上传文件",
-  "changeFiles": "更换文件"
+  "changeFiles": "更换文件",
+  "selectProject": "选择项目（代理模式）",
+  "project": "项目",
+  "agentMode": "代理模式",
+  "projectSettings": "项目设置",
+  "projectSettingsDescription": "配置源代码项目。选择项目后，AI 代理可以读取和搜索你的代码。",
+  "noProjects": "暂无配置项目",
+  "projectName": "项目名称",
+  "projectNameRequired": "请输入项目名称",
+  "projectNamePlaceholder": "例：MyAndroidApp",
+  "projectPath": "项目路径",
+  "projectPathRequired": "请输入项目路径",
+  "projectPathPlaceholder": "/path/to/android/project",
+  "addProject": "添加项目",
+  "projectAdded": "项目添加成功",
+  "toolArguments": "参数",
+  "toolResult": "结果",
+  "done": "完成"
 }

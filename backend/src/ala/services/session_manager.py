@@ -20,6 +20,7 @@ class Session:
     id: str
     title: str
     context_type: str
+    project_id: str | None = None
     messages: list[Message] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
 
@@ -29,12 +30,19 @@ class SessionManager:
         self._sessions: dict[str, Session] = {}
         self._max_sessions = max_sessions
 
-    def create_session(self, title: str = "New Session", context_type: str = "general") -> Session:
+    def create_session(
+        self,
+        title: str = "New Session",
+        context_type: str = "general",
+        project_id: str | None = None,
+    ) -> Session:
         if len(self._sessions) >= self._max_sessions:
             # Remove oldest session
             oldest = next(iter(self._sessions))
             del self._sessions[oldest]
-        session = Session(id=str(uuid.uuid4()), title=title, context_type=context_type)
+        session = Session(
+            id=str(uuid.uuid4()), title=title, context_type=context_type, project_id=project_id
+        )
         self._sessions[session.id] = session
         return session
 

@@ -73,6 +73,7 @@ export interface Session {
   messages: ChatMessage[]
   created_at: string
   context_type: 'log' | 'trace' | 'general'
+  project_id: string | null
 }
 
 export interface AIConfig {
@@ -88,3 +89,39 @@ export interface FilterPreset {
   description?: string
   filters: LogFilters
 }
+
+export interface Project {
+  id: string
+  name: string
+  path: string
+  include_patterns: string[]
+  exclude_patterns: string[]
+  created_at: string
+}
+
+export interface CreateProjectRequest {
+  name: string
+  path: string
+  include_patterns?: string[]
+  exclude_patterns?: string[]
+}
+
+export interface ProjectFileInfo {
+  path: string
+  size: number
+  extension: string
+}
+
+export interface ToolCallEvent {
+  type: 'tool_call'
+  name: string
+  arguments: string
+}
+
+export interface ToolResultEvent {
+  type: 'tool_result'
+  name: string
+  content: string
+}
+
+export type AgentEvent = ToolCallEvent | ToolResultEvent

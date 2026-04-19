@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import chat, health, logs, trace
 from .api import config as config_router
+from .api import projects
 from .config import settings
 from .mcp.server import mcp
 
@@ -43,6 +44,7 @@ app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
 app.include_router(trace.router, prefix="/api/trace", tags=["trace"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(config_router.router, prefix="/api/config", tags=["config"])
+app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 
 # Mount the MCP server at /mcp – available at http://<host>:<port>/mcp
 # MCP clients should connect to http://<host>:<port>/mcp

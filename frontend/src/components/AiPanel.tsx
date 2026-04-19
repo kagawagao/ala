@@ -11,6 +11,7 @@ import {
   Empty,
   Tag,
   Spin,
+  Collapse,
 } from 'antd'
 import {
   PlusOutlined,
@@ -20,12 +21,15 @@ import {
   PaperClipOutlined,
   RobotOutlined,
   UserOutlined,
+  CodeOutlined,
+  ToolOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { createSession, listSessions, deleteSession, sendMessage } from '../api/chat'
-import type { Session, ChatMessage, LogEntry, LogFilters, TraceParseResult } from '../types'
+import { listProjects } from '../api/projects'
+import type { Session, LogEntry, LogFilters, TraceParseResult, Project, AgentEvent } from '../types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -47,12 +51,102 @@ const PRESET_PROMPTS: Record<string, string> = {
     'Please analyze this Android log for security issues: permission errors, authentication failures, and suspicious activity.',
 }
 
+interface ToolCallInfo {
+  name: string
+  arguments: string
+  result?: string
+}
+
+interface DisplayMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  toolCalls?: ToolCallInfo[]
+}
+
 interface AiPanelProps {
   logs: LogEntry[]
   totalLogs: number
   filters: LogFilters
   traceResult: TraceParseResult | null
   aiConfigured: boolean
+}
+
+const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls }) => {
+  const { t } = useTranslation()
+  if (toolCalls.length === 0) return null
+
+  return (
+    <Collapse
+      size="small"
+      style={{ marginTop: 6, fontSize: 11 }}
+      items={toolCalls.map((tc, idx) => ({
+        key: idx,
+        label: (
+          <Space size={4}>
+            <ToolOutlined />
+            <Text code style={{ fontSize: 11 }}>
+              {tc.name}
+            </Text>
+            {tc.result && (
+              <Tag color="green" style={{ fontSize: 10, lineHeight: '16px' }}>
+                {t('done')}
+              </Tag>
+            )}
+          </Space>
+        ),
+        children: (
+          <div style={{ fontSize: 11 }}>
+            <div>
+              <Text type="secondary">{t('toolArguments')}:</Text>
+              <pre
+                style={{
+                  fontSize: 10,
+                  maxHeight: 80,
+                  overflow: 'auto',
+                  margin: '2px 0',
+                  padding: 4,
+                  background: 'var(--ant-color-bg-container-disabled)',
+                  borderRadius: 4,
+                }}
+              >
+                {(() => {
+                  try {
+                    return JSON.stringify(JSON.parse(tc.arguments), null, 2)
+                  } catch {
+                    return tc.arguments
+                  }
+                })()}
+              </pre>
+            </div>
+            {tc.result && (
+              <div>
+                <Text type="secondary">{t('toolResult')}:</Text>
+                <pre
+                  style={{
+                    fontSize: 10,
+                    maxHeight: 120,
+                    overflow: 'auto',
+                    margin: '2px 0',
+                    padding: 4,
+                    background: 'var(--ant-color-bg-container-disabled)',
+                    borderRadius: 4,
+                  }}
+                >
+                  {(() => {
+                    try {
+                      return JSON.stringify(JSON.parse(tc.result), null, 2)
+                    } catch {
+                      return tc.result
+                    }
+                  })()}
+                </pre>
+              </div>
+            )}
+          </div>
+        ),
+      }))}
+    />
+  )
 }
 
 const AiPanel: React.FC<AiPanelProps> = ({
@@ -65,11 +159,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [preset, setPreset] = useState('general')
   const [contextAttached, setContextAttached] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -87,13 +183,20 @@ const AiPanel: React.FC<AiPanelProps> = ({
       .catch(() => {
         /* backend may not be running */
       })
+    listProjects()
+      .then(setProjects)
+      .catch(() => {
+        /* backend may not be running */
+      })
   }, [])
 
   const handleNewSession = async () => {
     try {
+      const contextType = logs.length > 0 ? 'log' : traceResult ? 'trace' : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
-        logs.length > 0 ? 'log' : traceResult ? 'trace' : 'general',
+        contextType,
+        selectedProjectId,
       )
       setSessions((prev) => [...prev, session])
       setActiveSessionId(session.id)
@@ -163,13 +266,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
       return
     }
 
-    const userMsg: ChatMessage = { role: 'user', content: inputValue.trim() }
+    const userMsg: DisplayMessage = { role: 'user', content: inputValue.trim() }
     setMessages((prev) => [...prev, userMsg])
     const sentInput = inputValue
     setInputValue('')
     setStreaming(true)
 
-    const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
+    const assistantMsg: DisplayMessage = { role: 'assistant', content: '', toolCalls: [] }
     setMessages((prev) => [...prev, assistantMsg])
 
     abortRef.current = new AbortController()
@@ -180,6 +283,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
         preset !== 'general' && context ? `${PRESET_PROMPTS[preset]}\n\n${sentInput}` : sentInput
 
       let accumulated = ''
+      const toolCalls: ToolCallInfo[] = []
+
       for await (const chunk of sendMessage(
         activeSessionId,
         messageToSend,
@@ -188,22 +293,64 @@ const AiPanel: React.FC<AiPanelProps> = ({
       )) {
         if (chunk === '[DONE]') break
         try {
-          const data = JSON.parse(chunk)
-          const delta = data.choices?.[0]?.delta?.content || data.content || chunk
+          const data = JSON.parse(chunk) as AgentEvent | Record<string, unknown>
+          if ('type' in data && data.type === 'tool_call') {
+            const event = data as AgentEvent
+            if (event.type === 'tool_call') {
+              toolCalls.push({ name: event.name, arguments: event.arguments })
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = {
+                  role: 'assistant',
+                  content: accumulated,
+                  toolCalls: [...toolCalls],
+                }
+                return updated
+              })
+            }
+            continue
+          }
+          if ('type' in data && data.type === 'tool_result') {
+            const event = data as AgentEvent
+            if (event.type === 'tool_result') {
+              const lastTc = [...toolCalls]
+                .reverse()
+                .find((tc: ToolCallInfo) => tc.name === event.name && !tc.result)
+              if (lastTc) {
+                lastTc.result = event.content
+              }
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = {
+                  role: 'assistant',
+                  content: accumulated,
+                  toolCalls: [...toolCalls],
+                }
+                return updated
+              })
+            }
+            continue
+          }
+          // Regular content in JSON format
+          const delta =
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (data as any).choices?.[0]?.delta?.content ||
+            (data as Record<string, unknown>).content ||
+            chunk
           accumulated += delta
-          setMessages((prev) => {
-            const updated = [...prev]
-            updated[updated.length - 1] = { role: 'assistant', content: accumulated }
-            return updated
-          })
         } catch {
+          // Plain text chunk
           accumulated += chunk
-          setMessages((prev) => {
-            const updated = [...prev]
-            updated[updated.length - 1] = { role: 'assistant', content: accumulated }
-            return updated
-          })
         }
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: accumulated,
+            toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+          }
+          return updated
+        })
       }
 
       setSessions((prev) =>
@@ -213,7 +360,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 ...s,
                 messages: [
                   ...s.messages,
-                  userMsg,
+                  { role: 'user' as const, content: sentInput },
                   { role: 'assistant' as const, content: accumulated },
                 ],
               }
@@ -242,6 +389,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }
 
+  const activeSession = sessions.find((s) => s.id === activeSessionId)
+  const sessionHasProject = !!activeSession?.project_id
   const hasContext = logs.length > 0 || traceResult != null
 
   return (
@@ -271,6 +420,35 @@ const AiPanel: React.FC<AiPanelProps> = ({
         </Tooltip>
       </div>
 
+      {/* Project selector */}
+      {projects.length > 0 && (
+        <div
+          style={{
+            padding: '4px 8px',
+            borderBottom: '1px solid var(--ant-color-border)',
+            flexShrink: 0,
+          }}
+        >
+          <Select
+            size="small"
+            placeholder={t('selectProject')}
+            value={selectedProjectId}
+            onChange={setSelectedProjectId}
+            allowClear
+            style={{ width: '100%' }}
+            options={projects.map((p) => ({
+              value: p.id,
+              label: (
+                <Space size={4}>
+                  <CodeOutlined />
+                  {p.name}
+                </Space>
+              ),
+            }))}
+          />
+        </div>
+      )}
+
       {/* Session tabs */}
       {sessions.length > 0 && (
         <div
@@ -290,6 +468,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 style={{ cursor: 'pointer', margin: 0 }}
                 onClick={() => handleSelectSession(s.id)}
               >
+                {s.project_id && <CodeOutlined style={{ marginRight: 4 }} />}
                 {s.title}
               </Tag>
               <Popconfirm
@@ -331,6 +510,23 @@ const AiPanel: React.FC<AiPanelProps> = ({
           />
         ) : (
           <>
+            {sessionHasProject && (
+              <div
+                style={{
+                  marginBottom: 8,
+                  padding: '4px 8px',
+                  background: 'var(--ant-color-bg-container-disabled)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                }}
+              >
+                <CodeOutlined style={{ marginRight: 4 }} />
+                <Text type="secondary">
+                  {t('agentMode')}:{' '}
+                  {projects.find((p) => p.id === activeSession?.project_id)?.name || t('project')}
+                </Text>
+              </div>
+            )}
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -373,9 +569,14 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   }}
                 >
                   {msg.role === 'assistant' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content || '...'}
-                    </ReactMarkdown>
+                    <>
+                      {msg.toolCalls && msg.toolCalls.length > 0 && (
+                        <ToolCallDisplay toolCalls={msg.toolCalls} />
+                      )}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content || (msg.toolCalls?.length ? '' : '...')}
+                      </ReactMarkdown>
+                    </>
                   ) : (
                     <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                   )}
