@@ -288,19 +288,20 @@ const AppSider: React.FC<AppSiderProps> = ({
         <Tooltip title={t('importFilters')}>
           <Button size="small" icon={<UploadOutlined />} onClick={importFilters} />
         </Tooltip>
-        {selectedProjectId && (
-          <Tooltip title={presets.length > 0 ? t('updateFilters') : t('initFilters')}>
-            <Button
-              size="small"
-              icon={<ThunderboltOutlined />}
-              onClick={() => void handleGenerateFilters()}
-              loading={generatingFilters}
-            >
-              {presets.length > 0 ? t('updateFilters') : t('initFilters')}
-            </Button>
-          </Tooltip>
-        )}
       </div>
+      {selectedProjectId && (
+        <div style={{ padding: '0 12px 8px' }}>
+          <Button
+            size="small"
+            block
+            icon={<ThunderboltOutlined />}
+            onClick={() => void handleGenerateFilters()}
+            loading={generatingFilters}
+          >
+            {presets.length > 0 ? t('updateFilters') : t('initFilters')}
+          </Button>
+        </div>
+      )}
       {isDirty && (
         <div style={{ padding: '0 12px 6px' }}>
           <Text type="warning" style={{ fontSize: 11 }}>
