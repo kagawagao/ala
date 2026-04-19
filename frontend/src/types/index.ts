@@ -112,6 +112,12 @@ export interface ProjectFileInfo {
   extension: string
 }
 
+export interface ContextDoc {
+  path: string
+  content: string
+  size: number
+}
+
 export interface ToolCallEvent {
   type: 'tool_call'
   name: string

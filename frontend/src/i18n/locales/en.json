@@ -131,6 +131,7 @@
   "uploadFiles": "Upload Files",
   "changeFiles": "Change Files",
   "selectProject": "Select project (agent mode)",
+  "contextDocsFound": "{{count}} context doc(s) auto-discovered",
   "project": "Project",
   "agentMode": "Agent mode",
   "projectSettings": "Project Settings",

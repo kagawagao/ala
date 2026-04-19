@@ -131,6 +131,7 @@
   "uploadFiles": "上传文件",
   "changeFiles": "更换文件",
   "selectProject": "选择项目（代理模式）",
+  "contextDocsFound": "自动发现 {{count}} 个上下文文档",
   "project": "项目",
   "agentMode": "代理模式",
   "projectSettings": "项目设置",

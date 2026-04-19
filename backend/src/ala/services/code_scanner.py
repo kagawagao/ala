@@ -10,6 +10,32 @@ MAX_FILE_SIZE = 100 * 1024  # 100KB per file
 MAX_FILES_LIST = 2000
 MAX_SEARCH_RESULTS = 50
 
+# Well-known LLM context/instruction files (like charmbracelet/crush)
+CONTEXT_DOC_PATHS = [
+    "AGENTS.md",
+    "AGENTS.md.local",
+    ".github/copilot-instructions.md",
+    "CLAUDE.md",
+    "CLAUDE.md.local",
+    "CRUSH.md",
+    "CRUSH.md.local",
+    "GEMINI.md",
+    "GEMINI.md.local",
+    "COPILOT.md",
+    "CURSOR.md",
+    ".cursorrules",
+    "README.md",
+]
+
+
+@dataclass
+class ContextDoc:
+    """A discovered LLM context/instruction document."""
+
+    path: str  # relative to project root
+    content: str
+    size: int
+
 
 @dataclass
 class FileInfo:
@@ -73,6 +99,33 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
 
 class CodeScanner:
     """Scans project directories for source files."""
+
+    def discover_context_docs(self, project_path: str) -> list[ContextDoc]:
+        """Discover well-known LLM context/instruction files in a project.
+
+        Searches for files like AGENTS.md, .github/copilot-instructions.md,
+        CLAUDE.md, etc. — similar to how charmbracelet/crush loads project context.
+        """
+        root = Path(project_path)
+        if not root.is_dir():
+            return []
+
+        docs: list[ContextDoc] = []
+        for rel_path in CONTEXT_DOC_PATHS:
+            full = root / rel_path
+            if not full.is_file():
+                continue
+            try:
+                size = full.stat().st_size
+                if size > MAX_FILE_SIZE:
+                    content = full.read_text(errors="replace")[:MAX_FILE_SIZE]
+                else:
+                    content = full.read_text(errors="replace")
+                docs.append(ContextDoc(path=rel_path, content=content, size=size))
+            except OSError:
+                continue
+
+        return docs
 
     def list_files(
         self,

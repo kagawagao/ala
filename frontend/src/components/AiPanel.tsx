@@ -23,13 +23,22 @@ import {
   UserOutlined,
   CodeOutlined,
   ToolOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { createSession, listSessions, deleteSession, sendMessage } from '../api/chat'
-import { listProjects } from '../api/projects'
-import type { Session, LogEntry, LogFilters, TraceParseResult, Project, AgentEvent } from '../types'
+import { listProjects, listContextDocs } from '../api/projects'
+import type {
+  Session,
+  LogEntry,
+  LogFilters,
+  TraceParseResult,
+  Project,
+  AgentEvent,
+  ContextDoc,
+} from '../types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -166,6 +175,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [contextAttached, setContextAttached] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -189,6 +199,17 @@ const AiPanel: React.FC<AiPanelProps> = ({
         /* backend may not be running */
       })
   }, [])
+
+  // Load context docs when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      listContextDocs(selectedProjectId)
+        .then(setContextDocs)
+        .catch(() => setContextDocs([]))
+    } else {
+      setContextDocs([])
+    }
+  }, [selectedProjectId])
 
   const handleNewSession = async () => {
     try {
@@ -446,6 +467,39 @@ const AiPanel: React.FC<AiPanelProps> = ({
               ),
             }))}
           />
+          {contextDocs.length > 0 && (
+            <Collapse
+              size="small"
+              style={{ marginTop: 4 }}
+              items={[
+                {
+                  key: 'context-docs',
+                  label: (
+                    <Space size={4}>
+                      <FileTextOutlined />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {t('contextDocsFound', { count: contextDocs.length })}
+                      </Text>
+                    </Space>
+                  ),
+                  children: (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {contextDocs.map((doc) => (
+                        <Tooltip
+                          key={doc.path}
+                          title={`${doc.path} (${(doc.size / 1024).toFixed(1)}KB)`}
+                        >
+                          <Tag size="small" color="green">
+                            {doc.path}
+                          </Tag>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          )}
         </div>
       )}
 

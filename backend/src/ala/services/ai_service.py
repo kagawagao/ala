@@ -6,9 +6,11 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from .agent_tools import AGENT_TOOLS, execute_tool
+from .code_scanner import CodeScanner
 from .project_manager import Project
 
 MAX_TOOL_ROUNDS = 10
+_scanner = CodeScanner()
 
 
 class AIService:
@@ -45,15 +47,27 @@ class AIService:
         """
         working_messages = list(messages)
 
-        # Add system instruction about available tools
-        system_msg = (
-            f"You are an Android log and code analyzer. "
+        # Discover and load project context docs (AGENTS.md, copilot-instructions.md, etc.)
+        context_docs = _scanner.discover_context_docs(project.path)
+
+        # Build system instruction with project context
+        parts = [
+            f"You are an Android log and code analyzer agent. "
             f"You have access to the source code of the project '{project.name}' "
             f"located at '{project.path}'. "
             f"Use the available tools to explore the project's source code when it would "
             f"help you analyze logs, traces, crashes, or answer questions about the codebase. "
-            f"Always cite specific files and line numbers when referencing code."
-        )
+            f"Always cite specific files and line numbers when referencing code.",
+        ]
+
+        # Inject discovered context docs as project instructions
+        if context_docs:
+            parts.append("\n--- Project Context Documents ---")
+            for doc in context_docs:
+                parts.append(f"\n### {doc.path}\n\n{doc.content}")
+            parts.append("\n--- End Project Context ---")
+
+        system_msg = "\n".join(parts)
         # Prepend or merge with existing system message
         if working_messages and working_messages[0].get("role") == "system":
             working_messages[0]["content"] = system_msg + "\n\n" + working_messages[0]["content"]

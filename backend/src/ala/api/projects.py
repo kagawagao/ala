@@ -118,3 +118,24 @@ async def list_project_files(project_id: str, subdirectory: str | None = None):
         subdirectory=subdirectory,
     )
     return [FileInfoResponse(path=f.path, size=f.size, extension=f.extension) for f in files]
+
+
+class ContextDocResponse(BaseModel):
+    path: str
+    content: str
+    size: int
+
+
+@router.get("/{project_id}/context-docs", response_model=list[ContextDocResponse])
+async def list_context_docs(project_id: str):
+    """Discover LLM context/instruction files in a project.
+
+    Returns files like AGENTS.md, .github/copilot-instructions.md, CLAUDE.md, etc.
+    These are automatically injected into the AI agent's system prompt.
+    """
+    project = _project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    docs = _scanner.discover_context_docs(project.path)
+    return [ContextDocResponse(path=d.path, content=d.content, size=d.size) for d in docs]
