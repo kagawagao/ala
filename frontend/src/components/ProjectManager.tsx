@@ -21,7 +21,6 @@ import {
   MinusCircleOutlined,
   FileTextOutlined,
   ArrowLeftOutlined,
-  ContainerOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -62,7 +61,6 @@ const ProjectManager: React.FC = () => {
       const project = await createProject({
         name: values.name,
         paths,
-        log_directory: (values.log_directory as string)?.trim() || undefined,
       })
       setProjects((prev) => [...prev, project])
       form.resetFields()
@@ -146,14 +144,6 @@ const ProjectManager: React.FC = () => {
                   </Text>
                 </div>
               ))}
-              {project.log_directory && (
-                <div style={{ marginTop: 4 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <ContainerOutlined style={{ marginRight: 4 }} />
-                    {t('logDirectory')}: {project.log_directory}
-                  </Text>
-                </div>
-              )}
             </div>
             <Collapse
               size="small"
@@ -251,10 +241,6 @@ const ProjectManager: React.FC = () => {
                 </>
               )}
             </Form.List>
-
-            <Form.Item label={t('logDirectory')} name="log_directory" style={{ marginTop: 12 }}>
-              <Input placeholder={t('logDirectoryPlaceholder')} prefix={<ContainerOutlined />} />
-            </Form.Item>
 
             <Space>
               <Button size="small" type="primary" onClick={() => void handleAdd()}>

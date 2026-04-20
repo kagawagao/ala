@@ -13,7 +13,6 @@ class Project:
     id: str
     name: str
     paths: list[str]
-    log_directory: str | None = None
     include_patterns: list[str] = field(default_factory=lambda: ["**/*.java", "**/*.kt", "**/*.xml"])
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
@@ -30,7 +29,6 @@ class ProjectManager:
         self,
         name: str,
         paths: list[str],
-        log_directory: str | None = None,
         include_patterns: list[str] | None = None,
         exclude_patterns: list[str] | None = None,
     ) -> Project:
@@ -41,7 +39,6 @@ class ProjectManager:
             id=str(uuid.uuid4()),
             name=name,
             paths=paths,
-            log_directory=log_directory,
         )
         if include_patterns is not None:
             project.include_patterns = include_patterns
@@ -61,7 +58,6 @@ class ProjectManager:
         project_id: str,
         name: str | None = None,
         paths: list[str] | None = None,
-        log_directory: str | None = ...,  # type: ignore[assignment]
         include_patterns: list[str] | None = None,
         exclude_patterns: list[str] | None = None,
     ) -> Project | None:
@@ -72,8 +68,6 @@ class ProjectManager:
             project.name = name
         if paths is not None:
             project.paths = paths
-        if log_directory is not ...:
-            project.log_directory = log_directory
         if include_patterns is not None:
             project.include_patterns = include_patterns
         if exclude_patterns is not None:

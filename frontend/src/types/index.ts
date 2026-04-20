@@ -94,7 +94,6 @@ export interface Project {
   id: string
   name: string
   paths: string[]
-  log_directory: string | null
   include_patterns: string[]
   exclude_patterns: string[]
   created_at: string
@@ -103,7 +102,6 @@ export interface Project {
 export interface CreateProjectRequest {
   name: string
   paths: string[]
-  log_directory?: string | null
   include_patterns?: string[]
   exclude_patterns?: string[]
 }

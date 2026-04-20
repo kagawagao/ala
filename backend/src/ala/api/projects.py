@@ -24,7 +24,6 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     paths: list[str]
-    log_directory: str | None = None
     include_patterns: list[str]
     exclude_patterns: list[str]
     created_at: str
@@ -33,7 +32,6 @@ class ProjectResponse(BaseModel):
 class CreateProjectRequest(BaseModel):
     name: str
     paths: list[str]
-    log_directory: str | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
@@ -41,7 +39,6 @@ class CreateProjectRequest(BaseModel):
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
     paths: list[str] | None = None
-    log_directory: str | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
 
@@ -57,7 +54,6 @@ def _project_to_response(p) -> ProjectResponse:
         id=p.id,
         name=p.name,
         paths=p.paths,
-        log_directory=p.log_directory,
         include_patterns=p.include_patterns,
         exclude_patterns=p.exclude_patterns,
         created_at=p.created_at,
@@ -74,7 +70,6 @@ async def create_project(req: CreateProjectRequest):
     project = _project_manager.create_project(
         name=req.name,
         paths=req.paths,
-        log_directory=req.log_directory,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
@@ -100,7 +95,6 @@ async def update_project(project_id: str, req: UpdateProjectRequest):
         project_id,
         name=req.name,
         paths=req.paths,
-        log_directory=req.log_directory,
         include_patterns=req.include_patterns,
         exclude_patterns=req.exclude_patterns,
     )
