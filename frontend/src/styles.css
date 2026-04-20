@@ -10,6 +10,25 @@ body {
   overflow: hidden;
 }
 
+/* Make Ant Design Tabs content fill available height */
+.ant-tabs.ant-tabs-top {
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-tabs.ant-tabs-top > .ant-tabs-content-holder {
+  flex: 1;
+  overflow: hidden;
+}
+
+.ant-tabs.ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content {
+  height: 100%;
+}
+
+.ant-tabs.ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active {
+  height: 100%;
+}
+
 /* Markdown rendering in AI chat bubbles */
 .ai-message-content pre {
   overflow-x: auto;
@@ -64,4 +83,78 @@ body {
 .ai-message-content h6 {
   margin: 8px 0 4px 0;
   font-size: inherit;
+}
+
+/* Copy button on hover */
+.ai-bubble-wrapper .ai-copy-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ai-bubble-wrapper:hover .ai-copy-btn {
+  opacity: 0.7;
+}
+
+.ai-bubble-wrapper .ai-copy-btn:hover {
+  opacity: 1 !important;
+}
+
+/* Typing indicator (animated dots) */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ant-color-text-tertiary);
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Blinking cursor at end of streaming content */
+.typing-cursor::after {
+  content: '▍';
+  display: inline;
+  animation: cursor-blink 1s step-end infinite;
+  color: var(--ant-color-text-secondary);
+  font-weight: normal;
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }

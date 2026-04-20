@@ -6,9 +6,8 @@ import {
   Form,
   Typography,
   Space,
-  List,
   Popconfirm,
-  message,
+  App,
   Tag,
   Empty,
   Collapse,
@@ -31,6 +30,7 @@ const { Title, Text } = Typography
 
 const ProjectManager: React.FC = () => {
   const { t } = useTranslation()
+  const { message } = App.useApp()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [adding, setAdding] = useState(false)
@@ -110,11 +110,12 @@ const ProjectManager: React.FC = () => {
         {t('projectSettingsDescription')}
       </Text>
 
-      <List
-        dataSource={projects}
-        locale={{ emptyText: <Empty description={t('noProjects')} /> }}
-        renderItem={(project) => (
+      {projects.length === 0 ? (
+        <Empty description={t('noProjects')} />
+      ) : (
+        projects.map((project) => (
           <Card
+            key={project.id}
             size="small"
             style={{ marginBottom: 12 }}
             title={
@@ -186,8 +187,8 @@ const ProjectManager: React.FC = () => {
               ]}
             />
           </Card>
-        )}
-      />
+        ))
+      )}
 
       {adding ? (
         <Card size="small" style={{ marginTop: 12 }}>

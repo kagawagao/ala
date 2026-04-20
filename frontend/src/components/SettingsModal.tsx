@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Modal, Form, Input, Slider, Button, message, Typography, Tag, Divider } from 'antd'
+import { Modal, Form, Input, Slider, Button, App, Typography, Tag, Divider } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { getConfig, updateConfig } from '../api/config'
 import type { AIConfig } from '../types'
@@ -20,6 +20,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   backendConnected,
 }) => {
   const { t } = useTranslation()
+  const { message } = App.useApp()
   const [form] = Form.useForm<AIConfig>()
   const [saving, setSaving] = useState(false)
 

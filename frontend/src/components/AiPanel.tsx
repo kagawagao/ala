@@ -5,12 +5,10 @@ import {
   Typography,
   Space,
   Tooltip,
-  Select,
   Popconfirm,
-  message,
+  App,
   Empty,
   Tag,
-  Spin,
   Collapse,
 } from 'antd'
 import {
@@ -18,12 +16,13 @@ import {
   DeleteOutlined,
   SendOutlined,
   StopOutlined,
-  PaperClipOutlined,
   RobotOutlined,
   UserOutlined,
   CodeOutlined,
   ToolOutlined,
   FileTextOutlined,
+  CopyOutlined,
+  LinkOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -41,18 +40,6 @@ import type {
 
 const { Text } = Typography
 const { TextArea } = Input
-
-const PRESET_KEYS = ['general', 'crash', 'performance', 'security'] as const
-
-const PRESET_PROMPTS: Record<string, string> = {
-  general: 'Please analyze the following Android log and provide a summary of what happened.',
-  crash:
-    'Please analyze this Android log for crashes, exceptions, and fatal errors. Identify root causes and suggest fixes.',
-  performance:
-    'Please analyze this Android log for performance issues: ANRs, slow operations, memory issues, and bottlenecks.',
-  security:
-    'Please analyze this Android log for security issues: permission errors, authentication failures, and suspicious activity.',
-}
 
 interface ToolCallInfo {
   name: string
@@ -166,20 +153,15 @@ const AiPanel: React.FC<AiPanelProps> = ({
   contextDocs,
 }) => {
   const { t } = useTranslation()
+  const { message: messageApi } = App.useApp()
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
-  const [preset, setPreset] = useState('general')
-  const [contextAttached, setContextAttached] = useState(false)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const aiPresets = PRESET_KEYS.map((key) => ({
-    value: key,
-    label: t(`preset${key.charAt(0).toUpperCase()}${key.slice(1)}` as never),
-  }))
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -208,9 +190,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setSessions((prev) => [...prev, session])
       setActiveSessionId(session.id)
       setMessages(session.messages)
-      setContextAttached(false)
     } catch {
-      void message.error(t('backendNotConnected'))
+      void messageApi.error(t('backendNotConnected'))
     }
   }
 
@@ -223,7 +204,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
         setMessages([])
       }
     } catch {
-      void message.error(t('deleteSessionFailed'))
+      void messageApi.error(t('deleteSessionFailed'))
     }
   }
 
@@ -232,7 +213,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
     if (session) {
       setActiveSessionId(id)
       setMessages(session.messages)
-      setContextAttached(false)
     }
   }
 
@@ -249,7 +229,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
   }
 
   const buildContext = (): string | undefined => {
-    if (!contextAttached) return undefined
     if (logs.length > 0) {
       const sample = logs.slice(0, 200)
       const filterSummary = buildFilterSummary()
@@ -269,7 +248,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const handleSend = async () => {
     if (!inputValue.trim() || !activeSessionId || streaming) return
     if (!aiConfigured) {
-      void message.warning(t('aiNotConfigured'))
+      void messageApi.warning(t('aiNotConfigured'))
       return
     }
 
@@ -286,15 +265,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
     try {
       const context = buildContext()
-      const messageToSend =
-        preset !== 'general' && context ? `${PRESET_PROMPTS[preset]}\n\n${sentInput}` : sentInput
 
       let accumulated = ''
       const toolCalls: ToolCallInfo[] = []
 
       for await (const chunk of sendMessage(
         activeSessionId,
-        messageToSend,
+        sentInput,
         context,
         abortRef.current.signal,
       )) {
@@ -376,7 +353,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       )
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        void message.error(String(err.message))
+        void messageApi.error(String(err.message))
         setMessages((prev) => prev.slice(0, -1))
       }
     } finally {
@@ -390,15 +367,32 @@ const AiPanel: React.FC<AiPanelProps> = ({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       void handleSend()
     }
   }
 
+  const handleCopy = async (content: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedIdx(idx)
+      setTimeout(() => setCopiedIdx(null), 1500)
+    } catch {
+      void messageApi.error('Copy failed')
+    }
+  }
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const sessionHasProject = !!activeSession?.project_id
-  const hasContext = logs.length > 0 || traceResult != null
+
+  // Build context indicator info
+  const contextInfo =
+    logs.length > 0
+      ? { type: 'log' as const, detail: `${logs.length} ${t('logEntries')}` }
+      : traceResult
+        ? { type: 'trace' as const, detail: t('traceLoaded') }
+        : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -575,34 +569,75 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   )}
                 </div>
                 <div
-                  style={{
-                    maxWidth: '80%',
-                    padding: '8px 10px',
-                    borderRadius: msg.role === 'user' ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
-                    background:
-                      msg.role === 'user' ? '#1677ff' : 'var(--ant-color-bg-container-disabled)',
-                    color: msg.role === 'user' ? '#fff' : 'inherit',
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    overflow: 'hidden',
-                  }}
-                  className={msg.role === 'assistant' ? 'ai-message-content' : undefined}
+                  style={{ maxWidth: '80%', position: 'relative' }}
+                  className="ai-bubble-wrapper"
                 >
-                  {msg.role === 'assistant' ? (
-                    <>
-                      {msg.toolCalls && msg.toolCalls.length > 0 && (
-                        <ToolCallDisplay toolCalls={msg.toolCalls} />
-                      )}
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content || (msg.toolCalls?.length ? '' : '...')}
-                      </ReactMarkdown>
-                    </>
-                  ) : (
-                    <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-                  )}
-                  {msg.role === 'assistant' && streaming && idx === messages.length - 1 && (
-                    <Spin size="small" style={{ marginLeft: 6 }} />
-                  )}
+                  <div
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius:
+                        msg.role === 'user' ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
+                      background:
+                        msg.role === 'user' ? '#1677ff' : 'var(--ant-color-bg-container-disabled)',
+                      color: msg.role === 'user' ? '#fff' : 'inherit',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      overflowX: 'auto',
+                      wordBreak: 'break-word',
+                    }}
+                    className={msg.role === 'assistant' ? 'ai-message-content' : undefined}
+                  >
+                    {msg.role === 'assistant' ? (
+                      <>
+                        {msg.toolCalls && msg.toolCalls.length > 0 && (
+                          <ToolCallDisplay toolCalls={msg.toolCalls} />
+                        )}
+                        {msg.content ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        ) : streaming && idx === messages.length - 1 ? (
+                          <span className="typing-indicator">
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                          </span>
+                        ) : msg.toolCalls?.length ? null : (
+                          <Text type="secondary">...</Text>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+                    )}
+                    {msg.role === 'assistant' &&
+                      streaming &&
+                      idx === messages.length - 1 &&
+                      msg.content && <span className="typing-cursor" />}
+                  </div>
+                  {msg.role === 'assistant' &&
+                    msg.content &&
+                    !(streaming && idx === messages.length - 1) && (
+                      <Tooltip title={copiedIdx === idx ? t('copied') : t('copy')}>
+                        <Button
+                          className="ai-copy-btn"
+                          type="text"
+                          size="small"
+                          icon={copiedIdx === idx ? <LinkOutlined /> : <CopyOutlined />}
+                          onClick={() => {
+                            void handleCopy(msg.content, idx)
+                          }}
+                          style={{
+                            position: 'absolute',
+                            right: 2,
+                            bottom: -24,
+                            fontSize: 12,
+                            opacity: copiedIdx === idx ? 1 : undefined,
+                            color:
+                              copiedIdx === idx
+                                ? 'var(--ant-color-success)'
+                                : 'var(--ant-color-text-tertiary)',
+                          }}
+                        />
+                      </Tooltip>
+                    )}
                 </div>
               </div>
             ))}
@@ -625,67 +660,61 @@ const AiPanel: React.FC<AiPanelProps> = ({
               {t('aiNotConfigured')}
             </Text>
           )}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            <Select
-              size="small"
-              value={preset}
-              onChange={setPreset}
-              options={aiPresets}
-              style={{ flex: 1 }}
-            />
-            {hasContext && logs.length > 0 && (
-              <Tooltip
-                title={t(contextAttached ? 'contextAttachedFiltered' : 'attachContextFiltered', {
-                  filtered: logs.length,
-                  total: totalLogs,
-                })}
-              >
-                <Button
-                  size="small"
-                  icon={<PaperClipOutlined />}
-                  type={contextAttached ? 'primary' : 'default'}
-                  onClick={() => setContextAttached((v) => !v)}
-                />
-              </Tooltip>
-            )}
-            {hasContext && logs.length === 0 && (
-              <Tooltip title={contextAttached ? t('contextAttached') : t('attachContext')}>
-                <Button
-                  size="small"
-                  icon={<PaperClipOutlined />}
-                  type={contextAttached ? 'primary' : 'default'}
-                  onClick={() => setContextAttached((v) => !v)}
-                />
-              </Tooltip>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          {contextInfo && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                marginBottom: 6,
+                fontSize: 11,
+                color: 'var(--ant-color-text-secondary)',
+              }}
+            >
+              <LinkOutlined style={{ fontSize: 11 }} />
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {contextInfo.detail}
+              </Text>
+              <Tag color="green" style={{ fontSize: 10, lineHeight: '16px', margin: 0 }}>
+                {t('autoIncluded')}
+              </Tag>
+            </div>
+          )}
+          <div style={{ position: 'relative' }}>
             <TextArea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={t('typeMessage')}
-              autoSize={{ minRows: 1, maxRows: 4 }}
+              placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine') || '换行'})`}
+              autoSize={{ minRows: 2, maxRows: 6 }}
               disabled={streaming}
-              style={{ fontSize: 13 }}
+              style={{ fontSize: 13, paddingRight: 42 }}
             />
-            {streaming ? (
-              <Button icon={<StopOutlined />} onClick={handleStop} danger style={{ flexShrink: 0 }}>
-                {t('stop')}
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                onClick={() => {
-                  void handleSend()
-                }}
-                disabled={!inputValue.trim() || !aiConfigured}
-                style={{ flexShrink: 0 }}
-              >
-                {t('send')}
-              </Button>
-            )}
+            <div style={{ position: 'absolute', right: 6, bottom: 6 }}>
+              {streaming ? (
+                <Button
+                  icon={<StopOutlined />}
+                  onClick={handleStop}
+                  danger
+                  size="small"
+                  type="text"
+                />
+              ) : (
+                <Button
+                  type="text"
+                  icon={<SendOutlined />}
+                  onClick={() => {
+                    void handleSend()
+                  }}
+                  disabled={!inputValue.trim() || !aiConfigured}
+                  size="small"
+                  style={{
+                    color:
+                      inputValue.trim() && aiConfigured ? 'var(--ant-color-primary)' : undefined,
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}

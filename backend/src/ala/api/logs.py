@@ -185,37 +185,97 @@ class DirectoryRequest(BaseModel):
 
 class DirectoryFileInfo(BaseModel):
     name: str
+    path: str  # relative path from the scanned root directory
     size: int
     is_log: bool
 
 
+class DirectoryListResponse(BaseModel):
+    files: list[DirectoryFileInfo]
+    has_subdirectories: bool
+    total_files: int
+    max_depth: int
+
+
+class DirectorySelectedRequest(BaseModel):
+    path: str  # root directory
+    selected_files: list[str]  # relative file paths to parse
+
+
 LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
 
+MAX_SCAN_DEPTH = 5
+MAX_SCAN_FILES = 500
 
-@router.post("/directory/list", response_model=list[DirectoryFileInfo])
+
+def _scan_directory(
+    root: str, max_depth: int = MAX_SCAN_DEPTH
+) -> tuple[list[DirectoryFileInfo], bool, int]:
+    """Recursively scan a directory for log files.
+
+    Returns (files, has_subdirectories, max_depth_reached).
+    """
+    import os
+
+    files: list[DirectoryFileInfo] = []
+    has_subdirs = False
+    deepest = 0
+
+    def _walk(current: str, depth: int) -> None:
+        nonlocal has_subdirs, deepest
+        if depth > max_depth:
+            return
+        if depth > deepest:
+            deepest = depth
+        try:
+            entries = sorted(os.scandir(current), key=lambda e: e.name)
+        except PermissionError:
+            return
+        for entry in entries:
+            if entry.name.startswith("."):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                has_subdirs = True
+                _walk(entry.path, depth + 1)
+            elif entry.is_file():
+                ext = os.path.splitext(entry.name)[1].lower()
+                is_log = ext in LOG_EXTENSIONS or not ext
+                if is_log and len(files) < MAX_SCAN_FILES:
+                    rel = os.path.relpath(entry.path, root)
+                    stat = entry.stat()
+                    files.append(
+                        DirectoryFileInfo(
+                            name=entry.name,
+                            path=rel,
+                            size=stat.st_size,
+                            is_log=True,
+                        )
+                    )
+
+    _walk(root, 0)
+    return files, has_subdirs, deepest
+
+
+@router.post("/directory/list", response_model=DirectoryListResponse)
 async def list_directory_files(req: DirectoryRequest):
-    """List log-like files in a local directory."""
+    """List log-like files in a local directory (recursive)."""
     import os
 
     dir_path = req.path
     if not os.path.isdir(dir_path):
         raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
 
-    result: list[DirectoryFileInfo] = []
     try:
-        for entry in os.scandir(dir_path):
-            if not entry.is_file():
-                continue
-            ext = os.path.splitext(entry.name)[1].lower()
-            is_log = ext in LOG_EXTENSIONS or not ext  # extensionless files treated as potential logs
-            if is_log:
-                stat = entry.stat()
-                result.append(DirectoryFileInfo(name=entry.name, size=stat.st_size, is_log=True))
+        files, has_subdirs, depth = _scan_directory(dir_path)
     except PermissionError:
         raise HTTPException(status_code=403, detail=f"Permission denied: {dir_path}")
 
-    result.sort(key=lambda f: f.name)
-    return result
+    return DirectoryListResponse(
+        files=files,
+        has_subdirectories=has_subdirs,
+        total_files=len(files),
+        max_depth=depth,
+    )
 
 
 @router.post("/directory/parse/stream")
@@ -247,6 +307,45 @@ async def parse_directory_stream(req: DirectoryRequest):
                     yield json.dumps({"_error": f"Failed to parse {entry.name}"}) + "\n"
         except PermissionError:
             yield json.dumps({"_error": f"Permission denied: {dir_path}"}) + "\n"
+        yield json.dumps({"_done": True, "total": total}) + "\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/directory/parse/selected/stream")
+async def parse_selected_files_stream(req: DirectorySelectedRequest):
+    """Stream-parse only user-selected log files from a directory."""
+    import os
+
+    dir_path = req.path
+    if not os.path.isdir(dir_path):
+        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+
+    async def _generate():
+        total = 0
+        for rel_path in sorted(req.selected_files):
+            full_path = os.path.normpath(os.path.join(dir_path, rel_path))
+            # Prevent path traversal
+            if not full_path.startswith(os.path.realpath(dir_path)):
+                yield json.dumps({"_error": f"Invalid path: {rel_path}"}) + "\n"
+                continue
+            if not os.path.isfile(full_path):
+                yield json.dumps({"_error": f"File not found: {rel_path}"}) + "\n"
+                continue
+            try:
+                with open(full_path, "rb") as f:
+                    data = f.read()
+                source = rel_path
+                for log_entry in _analyzer.stream_log_bytes(data, source):
+                    line = _from_service_entry(log_entry)
+                    yield json.dumps(line.model_dump()) + "\n"
+                    total += 1
+            except (ValueError, OSError):
+                yield json.dumps({"_error": f"Failed to parse {rel_path}"}) + "\n"
         yield json.dumps({"_done": True, "total": total}) + "\n"
 
     return StreamingResponse(

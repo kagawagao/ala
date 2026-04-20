@@ -5,7 +5,6 @@ import {
   Tabs,
   Alert,
   Splitter,
-  message,
   App as AntApp,
   Popover,
   Button,
@@ -23,7 +22,7 @@ import AiPanel from './components/AiPanel'
 import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
-import { parseLogStream, parseDirectoryStream } from './api/logs'
+import { parseLogStream, parseDirectoryStream, parseSelectedFilesStream } from './api/logs'
 import { parseTrace } from './api/trace'
 import {
   listProjects,
@@ -128,16 +127,13 @@ function computeStatistics(logs: LogEntry[]): LogStatistics {
   return { total: logs.length, by_level, tags, pids }
 }
 
-const App: React.FC = () => {
+const AppContent: React.FC<{
+  isDark: boolean
+  onToggleTheme: () => void
+}> = ({ isDark, onToggleTheme }) => {
   const { t } = useTranslation()
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('ala_theme') === 'dark')
+  const { message } = AntApp.useApp()
 
-  // Sync body background and color-scheme so the browser chrome (scrollbars,
-  // form controls) also respects the selected theme.
-  useEffect(() => {
-    document.body.style.background = isDark ? '#141414' : '#ffffff'
-    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
-  }, [isDark])
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
   const [siderCollapsed, setSiderCollapsed] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
@@ -294,14 +290,6 @@ const App: React.FC = () => {
     }
   }, [backendConnected])
 
-  const handleToggleTheme = useCallback(() => {
-    setIsDark((v) => {
-      const next = !v
-      localStorage.setItem('ala_theme', next ? 'dark' : 'light')
-      return next
-    })
-  }, [])
-
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
       const next = lang === 'en' ? 'zh' : 'en'
@@ -379,7 +367,7 @@ const App: React.FC = () => {
         setLoadingFile(false)
       }
     },
-    [t],
+    [t, message],
   )
 
   const handleConfigSaved = useCallback(() => {
@@ -419,6 +407,58 @@ const App: React.FC = () => {
 
       try {
         for await (const line of parseDirectoryStream(dirPath, controller.signal)) {
+          if ('_done' in line) break
+          const entry = line as LogEntry
+          buffer.push(entry)
+          if (entry.source_file && !formatDetected) {
+            setFormatDetected(entry.source_file)
+          }
+          if (buffer.length >= BATCH_SIZE) flush()
+        }
+        flush()
+        void message.success(t('fileUploaded'))
+      } catch (err: unknown) {
+        if ((err as Error).name === 'AbortError') return
+        const msg = err instanceof Error ? err.message : t('parseError')
+        setFileError(msg)
+        void message.error(msg)
+      } finally {
+        setLoadingFile(false)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t],
+  )
+
+  const handleSelectedFiles = useCallback(
+    async (dirPath: string, selectedFiles: string[]) => {
+      abortParseRef.current?.abort()
+      const controller = new AbortController()
+      abortParseRef.current = controller
+
+      setLoadingFile(true)
+      setFileError(undefined)
+      setFileNames(selectedFiles.map((f) => f))
+      setAllLogs([])
+      setFormatDetected(undefined)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+
+      const BATCH_SIZE = 500
+      const buffer: LogEntry[] = []
+
+      const flush = () => {
+        if (buffer.length === 0) return
+        const toAdd = buffer.splice(0)
+        setAllLogs((prev) => [...prev, ...toAdd])
+      }
+
+      try {
+        for await (const line of parseSelectedFilesStream(
+          dirPath,
+          selectedFiles,
+          controller.signal,
+        )) {
           if ('_done' in line) break
           const entry = line as LogEntry
           buffer.push(entry)
@@ -498,6 +538,9 @@ const App: React.FC = () => {
           onDirectoryPath={(p) => {
             void handleDirectoryPath(p)
           }}
+          onSelectedFiles={(dirPath, files) => {
+            void handleSelectedFiles(dirPath, files)
+          }}
           loading={loadingFile}
           error={fileError}
           fileNames={fileNames}
@@ -520,6 +563,220 @@ const App: React.FC = () => {
   ]
 
   return (
+    <div
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--ant-color-bg-layout)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <Header
+        isDark={isDark}
+        onToggleTheme={onToggleTheme}
+        language={language}
+        onToggleLanguage={handleToggleLanguage}
+        onOpenSettings={() => setSettingsOpen(true)}
+        siderCollapsed={siderCollapsed}
+        onToggleSider={() => setSiderCollapsed((v) => !v)}
+        backendConnected={backendConnected}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onProjectChange={setSelectedProjectId}
+      />
+
+      {/* Backend warning */}
+      {!backendConnected && (
+        <Alert
+          type="warning"
+          title={t('backendNotConnected')}
+          banner
+          closable
+          style={{ flexShrink: 0 }}
+        />
+      )}
+
+      {/* Main content */}
+      <div
+        style={{
+          flex: 1,
+          overflow: isProjectsPage ? 'auto' : 'hidden',
+          position: 'relative',
+        }}
+      >
+        <Routes>
+          <Route path="/projects" element={<ProjectManager />} />
+          <Route
+            path="*"
+            element={
+              <>
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                  }}
+                >
+                  {/* Left: AppSider */}
+                  <div
+                    style={{
+                      width: siderCollapsed ? 0 : 340,
+                      minWidth: siderCollapsed ? 0 : 240,
+                      maxWidth: 500,
+                      borderRight: siderCollapsed ? 'none' : '1px solid var(--ant-color-border)',
+                      overflow: 'hidden',
+                      transition: 'width 0.2s',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {!siderCollapsed && (
+                      <AppSider
+                        filters={filters}
+                        onFiltersChange={setFilters}
+                        highlights={highlights}
+                        onHighlightsChange={setHighlights}
+                        statistics={statistics}
+                        presets={presets}
+                        onPresetsChange={handlePresetsChange}
+                        wordWrap={wordWrap}
+                        onWordWrapChange={setWordWrap}
+                        selectedProjectId={selectedProjectId}
+                      />
+                    )}
+                  </div>
+
+                  {/* Center + Right: Splitter for Log viewer and AI panel */}
+                  <Splitter style={{ flex: 1, height: '100%' }}>
+                    {/* Center: Log/Trace viewer */}
+                    <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
+                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Tabs
+                          activeKey={activeTab}
+                          onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                          items={tabItems}
+                          tabBarExtraContent={{ right: tabBarExtra }}
+                          style={{ height: '100%' }}
+                          tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                          renderTabBar={(props, DefaultTabBar) => (
+                            <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                          )}
+                        />
+                      </div>
+                    </Splitter.Panel>
+
+                    {/* Right: AI Panel */}
+                    {!aiPanelCollapsed && (
+                      <Splitter.Panel
+                        defaultSize={400}
+                        min={280}
+                        max={600}
+                        style={{
+                          borderLeft: '1px solid var(--ant-color-border)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'flex-end',
+                              padding: '2px 6px',
+                              borderBottom: '1px solid var(--ant-color-border)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                fontSize: 11,
+                                color: 'var(--ant-color-text-secondary)',
+                              }}
+                              onClick={() => setAiPanelCollapsed(true)}
+                            >
+                              ✕
+                            </span>
+                          </div>
+                          <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <AiPanel
+                              logs={filteredLogs}
+                              totalLogs={allLogs.length}
+                              filters={filters}
+                              traceResult={traceResult}
+                              aiConfigured={aiConfigured}
+                              selectedProjectId={selectedProjectId}
+                              projects={projects}
+                              contextDocs={contextDocs}
+                            />
+                          </div>
+                        </div>
+                      </Splitter.Panel>
+                    )}
+                  </Splitter>
+                </div>
+
+                {/* AI panel toggle when collapsed */}
+                {aiPanelCollapsed && (
+                  <button
+                    onClick={() => setAiPanelCollapsed(false)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      writingMode: 'vertical-rl',
+                      padding: '8px 4px',
+                      border: '1px solid var(--ant-color-border)',
+                      borderRight: 'none',
+                      borderRadius: '6px 0 0 6px',
+                      background: 'var(--ant-color-bg-container)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                    }}
+                  >
+                    {t('aiAssistant')}
+                  </button>
+                )}
+              </>
+            }
+          />
+        </Routes>
+      </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onConfigSaved={handleConfigSaved}
+        backendConnected={backendConnected}
+      />
+    </div>
+  )
+}
+
+const App: React.FC = () => {
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('ala_theme') === 'dark')
+
+  useEffect(() => {
+    document.body.style.background = isDark ? '#141414' : '#ffffff'
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+  }, [isDark])
+
+  const handleToggleTheme = useCallback(() => {
+    setIsDark((v) => {
+      const next = !v
+      localStorage.setItem('ala_theme', next ? 'dark' : 'light')
+      return next
+    })
+  }, [])
+
+  return (
     <ConfigProvider
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
@@ -527,202 +784,7 @@ const App: React.FC = () => {
       }}
     >
       <AntApp style={{ height: '100%' }}>
-        <div
-          style={{
-            height: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--ant-color-bg-layout)',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Header */}
-          <Header
-            isDark={isDark}
-            onToggleTheme={handleToggleTheme}
-            language={language}
-            onToggleLanguage={handleToggleLanguage}
-            onOpenSettings={() => setSettingsOpen(true)}
-            siderCollapsed={siderCollapsed}
-            onToggleSider={() => setSiderCollapsed((v) => !v)}
-            backendConnected={backendConnected}
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onProjectChange={setSelectedProjectId}
-          />
-
-          {/* Backend warning */}
-          {!backendConnected && (
-            <Alert
-              type="warning"
-              title={t('backendNotConnected')}
-              banner
-              closable
-              style={{ flexShrink: 0 }}
-            />
-          )}
-
-          {/* Main content */}
-          <div
-            style={{
-              flex: 1,
-              overflow: isProjectsPage ? 'auto' : 'hidden',
-              position: 'relative',
-            }}
-          >
-            <Routes>
-              <Route path="/projects" element={<ProjectManager />} />
-              <Route
-                path="*"
-                element={
-                  <>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                      }}
-                    >
-                      {/* Left: AppSider */}
-                      <div
-                        style={{
-                          width: siderCollapsed ? 0 : 340,
-                          minWidth: siderCollapsed ? 0 : 240,
-                          maxWidth: 500,
-                          borderRight: siderCollapsed
-                            ? 'none'
-                            : '1px solid var(--ant-color-border)',
-                          overflow: 'hidden',
-                          transition: 'width 0.2s',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {!siderCollapsed && (
-                          <AppSider
-                            filters={filters}
-                            onFiltersChange={setFilters}
-                            highlights={highlights}
-                            onHighlightsChange={setHighlights}
-                            statistics={statistics}
-                            presets={presets}
-                            onPresetsChange={handlePresetsChange}
-                            wordWrap={wordWrap}
-                            onWordWrapChange={setWordWrap}
-                            selectedProjectId={selectedProjectId}
-                          />
-                        )}
-                      </div>
-
-                      {/* Center + Right: Splitter for Log viewer and AI panel */}
-                      <Splitter style={{ flex: 1, height: '100%' }}>
-                        {/* Center: Log/Trace viewer */}
-                        <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
-                          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            <Tabs
-                              activeKey={activeTab}
-                              onChange={(k) => setActiveTab(k as 'log' | 'trace')}
-                              items={tabItems}
-                              tabBarExtraContent={{ right: tabBarExtra }}
-                              style={{ height: '100%' }}
-                              tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                              renderTabBar={(props, DefaultTabBar) => (
-                                <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                              )}
-                            />
-                          </div>
-                        </Splitter.Panel>
-
-                        {/* Right: AI Panel */}
-                        {!aiPanelCollapsed && (
-                          <Splitter.Panel
-                            defaultSize={400}
-                            min={280}
-                            max={600}
-                            style={{
-                              borderLeft: '1px solid var(--ant-color-border)',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: '100%',
-                                display: 'flex',
-                                flexDirection: 'column',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  justifyContent: 'flex-end',
-                                  padding: '2px 6px',
-                                  borderBottom: '1px solid var(--ant-color-border)',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    cursor: 'pointer',
-                                    fontSize: 11,
-                                    color: 'var(--ant-color-text-secondary)',
-                                  }}
-                                  onClick={() => setAiPanelCollapsed(true)}
-                                >
-                                  ✕
-                                </span>
-                              </div>
-                              <div style={{ flex: 1, overflow: 'hidden' }}>
-                                <AiPanel
-                                  logs={filteredLogs}
-                                  totalLogs={allLogs.length}
-                                  filters={filters}
-                                  traceResult={traceResult}
-                                  aiConfigured={aiConfigured}
-                                  selectedProjectId={selectedProjectId}
-                                  projects={projects}
-                                  contextDocs={contextDocs}
-                                />
-                              </div>
-                            </div>
-                          </Splitter.Panel>
-                        )}
-                      </Splitter>
-                    </div>
-
-                    {/* AI panel toggle when collapsed */}
-                    {aiPanelCollapsed && (
-                      <button
-                        onClick={() => setAiPanelCollapsed(false)}
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          writingMode: 'vertical-rl',
-                          padding: '8px 4px',
-                          border: '1px solid var(--ant-color-border)',
-                          borderRight: 'none',
-                          borderRadius: '6px 0 0 6px',
-                          background: 'var(--ant-color-bg-container)',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                        }}
-                      >
-                        {t('aiAssistant')}
-                      </button>
-                    )}
-                  </>
-                }
-              />
-            </Routes>
-          </div>
-
-          <SettingsModal
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            onConfigSaved={handleConfigSaved}
-            backendConnected={backendConnected}
-          />
-        </div>
+        <AppContent isDark={isDark} onToggleTheme={handleToggleTheme} />
       </AntApp>
     </ConfigProvider>
   )

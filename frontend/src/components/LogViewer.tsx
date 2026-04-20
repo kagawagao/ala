@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo } from 'react'
-import { Table, Tag, Typography, Tooltip, message, Empty } from 'antd'
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { Table, Tag, Typography, Tooltip, Empty, App } from 'antd'
 import { CopyOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { LogEntry, HighlightItem } from '../types'
@@ -84,6 +84,47 @@ const LogViewer: React.FC<LogViewerProps> = ({
   formatDetected,
 }) => {
   const { t } = useTranslation()
+  const { message } = App.useApp()
+  const tableWrapperRef = useRef<HTMLDivElement>(null)
+  const [tableHeight, setTableHeight] = useState<number>(400)
+
+  useEffect(() => {
+    const el = tableWrapperRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const tagColumnWidth = useMemo(() => {
+    if (!logs.length) return 120
+    let maxLen = 0
+    for (const entry of logs) {
+      if (entry.tag && entry.tag.length > maxLen) maxLen = entry.tag.length
+    }
+    // Measure with canvas for accuracy (11px default font)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (ctx && maxLen > 0) {
+      ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      // Find the actual longest tag string
+      let maxWidth = 0
+      const threshold = maxLen - 2 // Only measure tags close to max length
+      for (const entry of logs) {
+        if (entry.tag && entry.tag.length >= threshold) {
+          const w = ctx.measureText(entry.tag).width
+          if (w > maxWidth) maxWidth = w
+        }
+      }
+      // Add cell padding (8px each side) + 4px buffer
+      return Math.min(Math.max(Math.ceil(maxWidth) + 20, 80), 400)
+    }
+    return Math.min(Math.max(maxLen * 7 + 20, 80), 400)
+  }, [logs])
 
   const handleCopyRow = useCallback(
     async (record: LogEntry) => {
@@ -94,7 +135,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         void message.error('Copy failed')
       }
     },
-    [t],
+    [t, message],
   )
 
   const columns = useMemo(
@@ -131,7 +172,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           <Tag
             color={LEVEL_TAG_COLOR[v] || '#8c8c8c'}
             style={{ fontSize: 10, padding: '0 3px', margin: 0, lineHeight: '16px' }}
-            bordered={false}
+            variant="filled"
           >
             {v}
           </Tag>
@@ -141,7 +182,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         title: t('tag'),
         dataIndex: 'tag',
         key: 'tag',
-        width: 120,
+        width: tagColumnWidth,
         ellipsis: true,
         render: (v: string) => (
           <Tooltip title={v}>
@@ -150,9 +191,20 @@ const LogViewer: React.FC<LogViewerProps> = ({
         ),
       },
       {
-        title: t('pid'),
+        title: 'PID',
         dataIndex: 'pid',
         key: 'pid',
+        width: 60,
+        render: (v: string | null) => (
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            {v ?? ''}
+          </Text>
+        ),
+      },
+      {
+        title: 'TID',
+        dataIndex: 'tid',
+        key: 'tid',
         width: 60,
         render: (v: string | null) => (
           <Text type="secondary" style={{ fontSize: 11 }}>
@@ -194,7 +246,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
         ),
       },
     ],
-    [t, wordWrap, highlights, handleCopyRow],
+    [t, wordWrap, highlights, handleCopyRow, tagColumnWidth],
   )
 
   if (!logs.length && totalLogs === 0) {
@@ -236,14 +288,14 @@ const LogViewer: React.FC<LogViewerProps> = ({
           style={{ marginTop: 60 }}
         />
       ) : (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div ref={tableWrapperRef} style={{ flex: 1, overflow: 'hidden' }}>
           <Table
             dataSource={logs}
             columns={columns}
             rowKey="line_number"
             size="small"
             pagination={false}
-            scroll={{ y: 'calc(100vh - 160px)', x: wordWrap ? undefined : 900 }}
+            scroll={{ y: tableHeight, x: wordWrap ? undefined : 900 }}
             virtual
             rowClassName={(record) => (LEVEL_BG[record.level] ? `log-row-${record.level}` : '')}
             onRow={(record) => ({

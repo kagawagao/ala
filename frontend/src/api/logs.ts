@@ -72,15 +72,23 @@ export async function getStatistics(logs: LogEntry[]): Promise<LogStatistics> {
 
 export interface DirectoryFileInfo {
   name: string
+  path: string
   size: number
   is_log: boolean
 }
 
+export interface DirectoryListResponse {
+  files: DirectoryFileInfo[]
+  has_subdirectories: boolean
+  total_files: number
+  max_depth: number
+}
+
 /**
- * List log files in a local directory on the server.
+ * List log files in a local directory on the server (recursive).
  */
-export async function listDirectoryFiles(path: string): Promise<DirectoryFileInfo[]> {
-  return apiFetch<DirectoryFileInfo[]>('/logs/directory/list', {
+export async function listDirectoryFiles(path: string): Promise<DirectoryListResponse> {
+  return apiFetch<DirectoryListResponse>('/logs/directory/list', {
     method: 'POST',
     body: JSON.stringify({ path }),
   })
@@ -96,6 +104,27 @@ export async function* parseDirectoryStream(
   for await (const line of streamNDJSON<StreamLine>(
     '/logs/directory/parse/stream',
     { path: dirPath },
+    signal,
+  )) {
+    if (isError(line)) {
+      throw new Error(line._error)
+    }
+    yield line as LogEntry | StreamDone
+    if (isDone(line)) return
+  }
+}
+
+/**
+ * Stream-parse only selected log files from a directory.
+ */
+export async function* parseSelectedFilesStream(
+  dirPath: string,
+  selectedFiles: string[],
+  signal?: AbortSignal,
+): AsyncGenerator<LogEntry | StreamDone> {
+  for await (const line of streamNDJSON<StreamLine>(
+    '/logs/directory/parse/selected/stream',
+    { path: dirPath, selected_files: selectedFiles },
     signal,
   )) {
     if (isError(line)) {

@@ -1,8 +1,11 @@
 import React, { useCallback, useState } from 'react'
-import { Upload, Typography, Spin, Alert, List, Tag, Input, Button, Space, Divider } from 'antd'
+import { Upload, Typography, Spin, Alert, Tag, Input, Button, Space, Divider } from 'antd'
 import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
+import DirectoryFilePicker from './DirectoryFilePicker'
+import { listDirectoryFiles } from '../api/logs'
+import type { DirectoryFileInfo } from '../api/logs'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -11,6 +14,7 @@ interface FileUploadProps {
   onLogFiles: (files: File[]) => void
   onTraceFile: (file: File) => void
   onDirectoryPath?: (path: string) => void
+  onSelectedFiles?: (dirPath: string, files: string[]) => void
   loading: boolean
   error?: string
   fileNames?: string[]
@@ -114,6 +118,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onLogFiles,
   onTraceFile,
   onDirectoryPath,
+  onSelectedFiles,
   loading,
   error,
   fileNames = [],
@@ -122,6 +127,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
   const [dirPath, setDirPath] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerFiles, setPickerFiles] = useState<DirectoryFileInfo[]>([])
+  const [pickerDirPath, setPickerDirPath] = useState('')
+  const [scanError, setScanError] = useState<string>()
+
+  const FILE_COUNT_THRESHOLD = 50
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -141,6 +153,48 @@ const FileUpload: React.FC<FileUploadProps> = ({
       if (logFiles.length > 0) onLogFiles(logFiles)
     },
     [onLogFiles, onTraceFile],
+  )
+
+  const handleDirectorySubmit = useCallback(
+    async (path: string) => {
+      setScanError(undefined)
+      setScanning(true)
+      try {
+        const result = await listDirectoryFiles(path)
+        if (result.total_files === 0) {
+          setScanError(t('noFilesFound'))
+          return
+        }
+        // Show picker when there are many files or subdirectories
+        if (result.total_files > FILE_COUNT_THRESHOLD || result.has_subdirectories) {
+          setPickerFiles(result.files)
+          setPickerDirPath(path)
+          setPickerOpen(true)
+        } else {
+          // Few files, flat directory – load all directly
+          onDirectoryPath?.(path)
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : t('parseError')
+        setScanError(msg)
+      } finally {
+        setScanning(false)
+      }
+    },
+    [onDirectoryPath, t],
+  )
+
+  const handlePickerConfirm = useCallback(
+    (selectedFiles: string[]) => {
+      setPickerOpen(false)
+      if (onSelectedFiles) {
+        onSelectedFiles(pickerDirPath, selectedFiles)
+      } else {
+        // Fallback: load entire directory
+        onDirectoryPath?.(pickerDirPath)
+      }
+    },
+    [onSelectedFiles, onDirectoryPath, pickerDirPath],
   )
 
   const props: UploadProps = {
@@ -168,19 +222,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
     >
       {/* Show currently loaded files above the dragger when in compact mode */}
       {compact && fileNames.length > 0 && (
-        <List
-          size="small"
-          style={{ marginBottom: 8 }}
-          dataSource={fileNames}
-          renderItem={(name) => (
-            <List.Item style={{ padding: '2px 0' }}>
+        <div style={{ marginBottom: 8 }}>
+          {fileNames.map((name) => (
+            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
               <FileOutlined style={{ marginRight: 6 }} />
               <Text style={{ fontSize: 12 }} ellipsis title={name}>
                 {name}
               </Text>
-            </List.Item>
-          )}
-        />
+            </div>
+          ))}
+        </div>
       )}
 
       <Dragger
@@ -191,16 +242,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
           transition: 'background 0.2s',
         }}
       >
-        <p className="ant-upload-drag-icon" style={{ margin: compact ? '8px 0' : undefined }}>
+        <div className="ant-upload-drag-icon" style={{ margin: compact ? '8px 0' : undefined }}>
           {loading ? <Spin size={compact ? 'default' : 'large'} /> : <InboxOutlined />}
-        </p>
-        <p
+        </div>
+        <div
           className="ant-upload-text"
           style={{ fontSize: compact ? 13 : undefined, margin: compact ? '4px 0' : undefined }}
         >
           {loading ? t('loadingFile') : t('dragAndDrop')}
-        </p>
-        {!compact && <p className="ant-upload-hint">{t('supportedFormats')}</p>}
+        </div>
+        {!compact && <div className="ant-upload-hint">{t('supportedFormats')}</div>}
       </Dragger>
 
       {/* Log directory input */}
@@ -215,34 +266,31 @@ const FileUpload: React.FC<FileUploadProps> = ({
               onChange={(e) => setDirPath(e.target.value)}
               onPressEnter={() => {
                 if (dirPath.trim()) {
-                  onDirectoryPath(dirPath.trim())
+                  void handleDirectorySubmit(dirPath.trim())
                 }
               }}
-              disabled={loading}
+              disabled={loading || scanning}
             />
             <Button
               type="primary"
               onClick={() => {
                 if (dirPath.trim()) {
-                  onDirectoryPath(dirPath.trim())
+                  void handleDirectorySubmit(dirPath.trim())
                 }
               }}
-              disabled={!dirPath.trim() || loading}
-              loading={loading}
+              disabled={!dirPath.trim() || loading || scanning}
+              loading={loading || scanning}
             >
-              {t('loadLogs')}
+              {scanning ? t('directoryScanning') : t('loadLogs')}
             </Button>
           </Space.Compact>
         </>
       )}
 
       {!compact && fileNames.length > 0 && !loading && (
-        <List
-          size="small"
-          style={{ marginTop: 8 }}
-          dataSource={fileNames}
-          renderItem={(name) => (
-            <List.Item style={{ padding: '2px 0' }}>
+        <div style={{ marginTop: 8 }}>
+          {fileNames.map((name) => (
+            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
               <FileOutlined style={{ marginRight: 6 }} />
               <Text type="success" style={{ fontSize: 12 }}>
                 {name}
@@ -257,12 +305,29 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   zip
                 </Tag>
               )}
-            </List.Item>
-          )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(error || scanError) && (
+        <Alert
+          type="error"
+          message={error || scanError}
+          style={{ marginTop: 12 }}
+          showIcon
+          closable
+          onClose={() => setScanError(undefined)}
         />
       )}
 
-      {error && <Alert type="error" message={error} style={{ marginTop: 12 }} showIcon closable />}
+      <DirectoryFilePicker
+        open={pickerOpen}
+        files={pickerFiles}
+        dirPath={pickerDirPath}
+        onConfirm={handlePickerConfirm}
+        onCancel={() => setPickerOpen(false)}
+      />
     </div>
   )
 }

@@ -16,7 +16,7 @@ import {
   Row,
   Col,
   Tooltip,
-  message,
+  App,
 } from 'antd'
 import {
   FilterOutlined,
@@ -81,6 +81,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   selectedProjectId,
 }) => {
   const { t } = useTranslation()
+  const { message } = App.useApp()
   const [presetModalOpen, setPresetModalOpen] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [presetDesc, setPresetDesc] = useState('')

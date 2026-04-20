@@ -5,7 +5,6 @@ import {
   Table,
   Tag,
   Typography,
-  List,
   Empty,
   Row,
   Col,
@@ -15,7 +14,7 @@ import {
   Space,
   Button,
   Spin,
-  message,
+  App,
 } from 'antd'
 import { FilterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +29,7 @@ interface TraceViewerProps {
 
 const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
   const { t } = useTranslation()
+  const { message } = App.useApp()
 
   // Filter state
   const [pidInput, setPidInput] = useState('')
@@ -70,7 +70,7 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
     } finally {
       setFiltering(false)
     }
-  }, [traceResult, selectedPids, pidInput, processNameFilter])
+  }, [traceResult, selectedPids, pidInput, processNameFilter, message])
 
   const handleReset = useCallback(() => {
     setPidInput('')
@@ -268,15 +268,13 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
       {/* FTrace Events */}
       {summary.ftrace_events?.length > 0 && (
         <Card size="small" title={t('ftraceEvents')} style={{ marginBottom: 12 }}>
-          <List
-            size="small"
-            dataSource={summary.ftrace_events}
-            renderItem={(item) => (
-              <List.Item style={{ padding: '2px 0' }}>
+          <div>
+            {summary.ftrace_events.map((item) => (
+              <div key={item} style={{ padding: '2px 0' }}>
                 <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{item}</Text>
-              </List.Item>
-            )}
-          />
+              </div>
+            ))}
+          </div>
         </Card>
       )}
 
