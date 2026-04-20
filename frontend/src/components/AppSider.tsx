@@ -141,7 +141,6 @@ const AppSider: React.FC<AppSiderProps> = ({
     }
     const updated = [...presets, preset]
     onPresetsChange(updated)
-    localStorage.setItem('ala_filter_presets', JSON.stringify(updated))
     setPresetModalOpen(false)
     setPresetName('')
     setPresetDesc('')
@@ -151,7 +150,6 @@ const AppSider: React.FC<AppSiderProps> = ({
   const deletePreset = (id: string) => {
     const updated = presets.filter((p) => p.id !== id)
     onPresetsChange(updated)
-    localStorage.setItem('ala_filter_presets', JSON.stringify(updated))
   }
 
   const applyPreset = (preset: FilterPreset) => {
@@ -242,7 +240,6 @@ const AppSider: React.FC<AppSiderProps> = ({
         }))
         const updated = [...presets, ...newPresets]
         onPresetsChange(updated)
-        localStorage.setItem('ala_filter_presets', JSON.stringify(updated))
         void message.success(t('filtersGenerated'))
       } else {
         void message.error(t('filtersGenerateFailed'))

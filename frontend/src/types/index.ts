@@ -96,6 +96,7 @@ export interface Project {
   paths: string[]
   include_patterns: string[]
   exclude_patterns: string[]
+  filter_presets: FilterPreset[]
   created_at: string
 }
 

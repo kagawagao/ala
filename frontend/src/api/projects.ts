@@ -1,5 +1,11 @@
 import { apiFetch, streamSSE } from './client'
-import type { Project, CreateProjectRequest, ProjectFileInfo, ContextDoc } from '../types'
+import type {
+  Project,
+  CreateProjectRequest,
+  ProjectFileInfo,
+  ContextDoc,
+  FilterPreset,
+} from '../types'
 
 export async function createProject(req: CreateProjectRequest): Promise<Project> {
   return apiFetch<Project>('/projects', {
@@ -52,4 +58,18 @@ export async function* generateFilters(
     body.existing_filters = existingFilters
   }
   yield* streamSSE(`/projects/${projectId}/generate-filters`, body, signal)
+}
+
+export async function getProjectPresets(projectId: string): Promise<FilterPreset[]> {
+  return apiFetch<FilterPreset[]>(`/projects/${projectId}/presets`)
+}
+
+export async function updateProjectPresets(
+  projectId: string,
+  presets: FilterPreset[],
+): Promise<FilterPreset[]> {
+  return apiFetch<FilterPreset[]>(`/projects/${projectId}/presets`, {
+    method: 'PUT',
+    body: JSON.stringify({ presets }),
+  })
 }

@@ -26,6 +26,7 @@ class ProjectResponse(BaseModel):
     paths: list[str]
     include_patterns: list[str]
     exclude_patterns: list[str]
+    filter_presets: list[dict] = []
     created_at: str
 
 
@@ -56,6 +57,7 @@ def _project_to_response(p) -> ProjectResponse:
         paths=p.paths,
         include_patterns=p.include_patterns,
         exclude_patterns=p.exclude_patterns,
+        filter_presets=p.filter_presets,
         created_at=p.created_at,
     )
 
@@ -232,12 +234,21 @@ Respond ONLY with a valid JSON array of filter presets, no other text."""
             # Strip markdown code fences if present
             cleaned = full_response.strip()
             if cleaned.startswith("```"):
-                # Remove opening fence (e.g. ```json)
                 cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
-            yield f"data: {json.dumps(json.loads(cleaned))}\n\n"
+            parsed = json.loads(cleaned)
+            # Save generated presets to the project
+            existing = project.filter_presets or []
+            # Assign IDs to new presets
+            import time
+            new_presets = []
+            for i, p in enumerate(parsed):
+                p["id"] = f"gen-{int(time.time() * 1000)}-{i}"
+                new_presets.append(p)
+            _project_manager.update_presets(project_id, existing + new_presets)
+            yield f"data: {json.dumps(parsed)}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"
@@ -247,3 +258,23 @@ Respond ONLY with a valid JSON array of filter presets, no other text."""
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+class UpdatePresetsRequest(BaseModel):
+    presets: list[dict]
+
+
+@router.get("/{project_id}/presets")
+async def get_presets(project_id: str):
+    project = _project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project.filter_presets
+
+
+@router.put("/{project_id}/presets")
+async def update_presets(project_id: str, req: UpdatePresetsRequest):
+    project = _project_manager.update_presets(project_id, req.presets)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project.filter_presets

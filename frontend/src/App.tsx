@@ -25,7 +25,12 @@ import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
 import { parseLogStream, parseDirectoryStream } from './api/logs'
 import { parseTrace } from './api/trace'
-import { listProjects, listContextDocs } from './api/projects'
+import {
+  listProjects,
+  listContextDocs,
+  getProjectPresets,
+  updateProjectPresets,
+} from './api/projects'
 import type {
   LogEntry,
   LogFilters,
@@ -192,6 +197,37 @@ const App: React.FC = () => {
       return []
     }
   })
+
+  // Load presets from project when selectedProjectId changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      getProjectPresets(selectedProjectId)
+        .then(setPresets)
+        .catch(() => setPresets([]))
+    } else {
+      // No project selected — load global presets from localStorage
+      try {
+        setPresets(JSON.parse(localStorage.getItem('ala_filter_presets') || '[]') as FilterPreset[])
+      } catch {
+        setPresets([])
+      }
+    }
+  }, [selectedProjectId])
+
+  // Preset change handler: routes to API (project) or localStorage (global)
+  const handlePresetsChange = useCallback(
+    (updated: FilterPreset[]) => {
+      setPresets(updated)
+      if (selectedProjectId) {
+        updateProjectPresets(selectedProjectId, updated).catch(() => {
+          /* ignore */
+        })
+      } else {
+        localStorage.setItem('ala_filter_presets', JSON.stringify(updated))
+      }
+    },
+    [selectedProjectId],
+  )
 
   const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
 
@@ -569,7 +605,7 @@ const App: React.FC = () => {
                             onHighlightsChange={setHighlights}
                             statistics={statistics}
                             presets={presets}
-                            onPresetsChange={setPresets}
+                            onPresetsChange={handlePresetsChange}
                             wordWrap={wordWrap}
                             onWordWrapChange={setWordWrap}
                             selectedProjectId={selectedProjectId}

@@ -25,6 +25,7 @@ class Project:
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
     )
+    filter_presets: list[dict] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
 
 
@@ -110,3 +111,11 @@ class ProjectManager:
             self._save()
             return True
         return False
+
+    def update_presets(self, project_id: str, presets: list[dict]) -> Project | None:
+        project = self._projects.get(project_id)
+        if not project:
+            return None
+        project.filter_presets = presets
+        self._save()
+        return project
