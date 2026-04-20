@@ -188,7 +188,7 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
         )
         if log_results.matches:
             code_context_parts.append(
-                f"Log usage in {path}:\n" + "\n".join(f"  {m.file}:{m.line_number}: {m.line}" for m in log_results.matches[:50])
+                f"Log usage in {path}:\n" + "\n".join(f"  {m.path}:{m.line_number}: {m.line}" for m in log_results.matches[:50])
             )
         # Search for TAG definitions
         tag_results = _scanner.search_code(
