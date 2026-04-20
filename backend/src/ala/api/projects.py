@@ -196,7 +196,7 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
         )
         if tag_results.matches:
             code_context_parts.append(
-                f"TAG definitions in {path}:\n" + "\n".join(f"  {m.file}:{m.line_number}: {m.line}" for m in tag_results.matches[:30])
+                f"TAG definitions in {path}:\n" + "\n".join(f"  {m.path}:{m.line_number}: {m.line}" for m in tag_results.matches[:30])
             )
 
     code_context = "\n\n".join(code_context_parts) if code_context_parts else "No logging patterns found in project code."
