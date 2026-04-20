@@ -23,7 +23,7 @@ import AiPanel from './components/AiPanel'
 import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
-import { parseLogStream } from './api/logs'
+import { parseLogStream, parseDirectoryStream } from './api/logs'
 import { parseTrace } from './api/trace'
 import { listProjects, listContextDocs } from './api/projects'
 import type {
@@ -147,7 +147,10 @@ const App: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
 
-  // Load projects on mount and when backend connects
+  const location = useLocation()
+  const isProjectsPage = location.pathname === '/projects'
+
+  // Load projects on mount, when backend connects, and when navigating away from /projects
   useEffect(() => {
     if (!backendConnected) return
     listProjects()
@@ -155,7 +158,7 @@ const App: React.FC = () => {
       .catch(() => {
         /* backend may not be running */
       })
-  }, [backendConnected])
+  }, [backendConnected, isProjectsPage])
 
   // Load context docs when project changes
   useEffect(() => {
@@ -355,6 +358,54 @@ const App: React.FC = () => {
     }
   }, [])
 
+  const handleDirectoryPath = useCallback(
+    async (dirPath: string) => {
+      abortParseRef.current?.abort()
+      const controller = new AbortController()
+      abortParseRef.current = controller
+
+      setLoadingFile(true)
+      setFileError(undefined)
+      setFileNames([dirPath])
+      setAllLogs([])
+      setFormatDetected(undefined)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+
+      const BATCH_SIZE = 500
+      const buffer: LogEntry[] = []
+
+      const flush = () => {
+        if (buffer.length === 0) return
+        const toAdd = buffer.splice(0)
+        setAllLogs((prev) => [...prev, ...toAdd])
+      }
+
+      try {
+        for await (const line of parseDirectoryStream(dirPath, controller.signal)) {
+          if ('_done' in line) break
+          const entry = line as LogEntry
+          buffer.push(entry)
+          if (entry.source_file && !formatDetected) {
+            setFormatDetected(entry.source_file)
+          }
+          if (buffer.length >= BATCH_SIZE) flush()
+        }
+        flush()
+        void message.success(t('fileUploaded'))
+      } catch (err: unknown) {
+        if ((err as Error).name === 'AbortError') return
+        const msg = err instanceof Error ? err.message : t('parseError')
+        setFileError(msg)
+        void message.error(msg)
+      } finally {
+        setLoadingFile(false)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t],
+  )
+
   const showFileUpload = allLogs.length === 0 && !traceResult
 
   // Upload popover content – compact FileUpload dragger always accessible from
@@ -408,6 +459,9 @@ const App: React.FC = () => {
           onTraceFile={(f) => {
             void handleTraceFile(f)
           }}
+          onDirectoryPath={(p) => {
+            void handleDirectoryPath(p)
+          }}
           loading={loadingFile}
           error={fileError}
           fileNames={fileNames}
@@ -428,9 +482,6 @@ const App: React.FC = () => {
       children: <TraceViewer traceResult={traceResult} />,
     },
   ]
-
-  const location = useLocation()
-  const isProjectsPage = location.pathname === '/projects'
 
   return (
     <ConfigProvider

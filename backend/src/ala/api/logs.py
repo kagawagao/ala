@@ -177,3 +177,80 @@ async def get_statistics(logs: list[LogEntry]):
         tags=stats.tags,
         pids=stats.pids,
     )
+
+
+class DirectoryRequest(BaseModel):
+    path: str
+
+
+class DirectoryFileInfo(BaseModel):
+    name: str
+    size: int
+    is_log: bool
+
+
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+
+
+@router.post("/directory/list", response_model=list[DirectoryFileInfo])
+async def list_directory_files(req: DirectoryRequest):
+    """List log-like files in a local directory."""
+    import os
+
+    dir_path = req.path
+    if not os.path.isdir(dir_path):
+        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+
+    result: list[DirectoryFileInfo] = []
+    try:
+        for entry in os.scandir(dir_path):
+            if not entry.is_file():
+                continue
+            ext = os.path.splitext(entry.name)[1].lower()
+            is_log = ext in LOG_EXTENSIONS or not ext  # extensionless files treated as potential logs
+            if is_log:
+                stat = entry.stat()
+                result.append(DirectoryFileInfo(name=entry.name, size=stat.st_size, is_log=True))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"Permission denied: {dir_path}")
+
+    result.sort(key=lambda f: f.name)
+    return result
+
+
+@router.post("/directory/parse/stream")
+async def parse_directory_stream(req: DirectoryRequest):
+    """Stream-parse all log files in a local directory using NDJSON."""
+    import os
+
+    dir_path = req.path
+    if not os.path.isdir(dir_path):
+        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+
+    async def _generate():
+        total = 0
+        try:
+            for entry in sorted(os.scandir(dir_path), key=lambda e: e.name):
+                if not entry.is_file():
+                    continue
+                ext = os.path.splitext(entry.name)[1].lower()
+                if ext not in LOG_EXTENSIONS and ext:
+                    continue
+                try:
+                    with open(entry.path, "rb") as f:
+                        data = f.read()
+                    for log_entry in _analyzer.stream_log_bytes(data, entry.name):
+                        line = _from_service_entry(log_entry)
+                        yield json.dumps(line.model_dump()) + "\n"
+                        total += 1
+                except (ValueError, OSError):
+                    yield json.dumps({"_error": f"Failed to parse {entry.name}"}) + "\n"
+        except PermissionError:
+            yield json.dumps({"_error": f"Permission denied: {dir_path}"}) + "\n"
+        yield json.dumps({"_done": True, "total": total}) + "\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"},
+    )

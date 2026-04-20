@@ -1,4 +1,4 @@
-import { apiFetch, apiUploadMulti, streamUploadNDJSON } from './client'
+import { apiFetch, apiUploadMulti, streamUploadNDJSON, streamNDJSON } from './client'
 import type { LogEntry, LogFilters, LogStatistics, ParseResult } from '../types'
 
 /** Sentinel line emitted by the backend at the end of a stream. */
@@ -68,4 +68,40 @@ export async function getStatistics(logs: LogEntry[]): Promise<LogStatistics> {
     method: 'POST',
     body: JSON.stringify(logs),
   })
+}
+
+export interface DirectoryFileInfo {
+  name: string
+  size: number
+  is_log: boolean
+}
+
+/**
+ * List log files in a local directory on the server.
+ */
+export async function listDirectoryFiles(path: string): Promise<DirectoryFileInfo[]> {
+  return apiFetch<DirectoryFileInfo[]>('/logs/directory/list', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
+}
+
+/**
+ * Stream-parse all log files from a local directory.
+ */
+export async function* parseDirectoryStream(
+  dirPath: string,
+  signal?: AbortSignal,
+): AsyncGenerator<LogEntry | StreamDone> {
+  for await (const line of streamNDJSON<StreamLine>(
+    '/logs/directory/parse/stream',
+    { path: dirPath },
+    signal,
+  )) {
+    if (isError(line)) {
+      throw new Error(line._error)
+    }
+    yield line as LogEntry | StreamDone
+    if (isDone(line)) return
+  }
 }

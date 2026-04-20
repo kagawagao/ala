@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react'
-import { Upload, Typography, Spin, Alert, List, Tag } from 'antd'
-import { InboxOutlined, FileOutlined } from '@ant-design/icons'
+import { Upload, Typography, Spin, Alert, List, Tag, Input, Button, Space, Divider } from 'antd'
+import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
 
@@ -10,6 +10,7 @@ const { Text } = Typography
 interface FileUploadProps {
   onLogFiles: (files: File[]) => void
   onTraceFile: (file: File) => void
+  onDirectoryPath?: (path: string) => void
   loading: boolean
   error?: string
   fileNames?: string[]
@@ -112,6 +113,7 @@ async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
 const FileUpload: React.FC<FileUploadProps> = ({
   onLogFiles,
   onTraceFile,
+  onDirectoryPath,
   loading,
   error,
   fileNames = [],
@@ -119,6 +121,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
 }) => {
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
+  const [dirPath, setDirPath] = useState('')
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -199,6 +202,39 @@ const FileUpload: React.FC<FileUploadProps> = ({
         </p>
         {!compact && <p className="ant-upload-hint">{t('supportedFormats')}</p>}
       </Dragger>
+
+      {/* Log directory input */}
+      {!compact && onDirectoryPath && (
+        <>
+          <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orLoadFromDirectory')}</Divider>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              placeholder={t('logDirectoryPlaceholder')}
+              prefix={<FolderOpenOutlined />}
+              value={dirPath}
+              onChange={(e) => setDirPath(e.target.value)}
+              onPressEnter={() => {
+                if (dirPath.trim()) {
+                  onDirectoryPath(dirPath.trim())
+                }
+              }}
+              disabled={loading}
+            />
+            <Button
+              type="primary"
+              onClick={() => {
+                if (dirPath.trim()) {
+                  onDirectoryPath(dirPath.trim())
+                }
+              }}
+              disabled={!dirPath.trim() || loading}
+              loading={loading}
+            >
+              {t('loadLogs')}
+            </Button>
+          </Space.Compact>
+        </>
+      )}
 
       {!compact && fileNames.length > 0 && !loading && (
         <List

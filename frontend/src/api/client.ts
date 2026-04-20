@@ -101,6 +101,54 @@ export async function* streamUploadNDJSON<T>(
   }
 }
 
+/**
+ * POST a JSON body and stream the NDJSON response line-by-line.
+ */
+export async function* streamNDJSON<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): AsyncGenerator<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || `HTTP ${response.status}`)
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          yield JSON.parse(line) as T
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+  if (buffer.trim()) {
+    try {
+      yield JSON.parse(buffer) as T
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function* streamSSE(
   path: string,
   body: unknown,

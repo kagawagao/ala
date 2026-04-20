@@ -1,11 +1,19 @@
-"""In-memory project manager."""
+"""Persistent project manager backed by a JSON file."""
+import json
+import os
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 
 def _utcnow() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _default_storage_path() -> Path:
+    """Use ~/.ala/projects.json as the default storage location."""
+    return Path.home() / ".ala" / "projects.json"
 
 
 @dataclass
@@ -21,9 +29,29 @@ class Project:
 
 
 class ProjectManager:
-    def __init__(self, max_projects: int = 20):
+    def __init__(self, max_projects: int = 20, storage_path: Path | None = None):
         self._projects: dict[str, Project] = {}
         self._max_projects = max_projects
+        self._storage_path = storage_path or _default_storage_path()
+        self._load()
+
+    def _load(self) -> None:
+        """Load projects from disk."""
+        if not self._storage_path.exists():
+            return
+        try:
+            data = json.loads(self._storage_path.read_text(encoding="utf-8"))
+            for item in data:
+                project = Project(**item)
+                self._projects[project.id] = project
+        except (json.JSONDecodeError, TypeError, KeyError):
+            pass  # Corrupt file – start fresh
+
+    def _save(self) -> None:
+        """Persist projects to disk."""
+        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        data = [asdict(p) for p in self._projects.values()]
+        self._storage_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def create_project(
         self,
@@ -45,6 +73,7 @@ class ProjectManager:
         if exclude_patterns is not None:
             project.exclude_patterns = exclude_patterns
         self._projects[project.id] = project
+        self._save()
         return project
 
     def get_project(self, project_id: str) -> Project | None:
@@ -72,10 +101,12 @@ class ProjectManager:
             project.include_patterns = include_patterns
         if exclude_patterns is not None:
             project.exclude_patterns = exclude_patterns
+        self._save()
         return project
 
     def delete_project(self, project_id: str) -> bool:
         if project_id in self._projects:
             del self._projects[project_id]
+            self._save()
             return True
         return False
