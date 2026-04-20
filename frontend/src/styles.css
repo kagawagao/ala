@@ -85,6 +85,26 @@ body {
   font-size: inherit;
 }
 
+/* User bubble (white text on blue) markdown overrides */
+.ai-bubble-user .ai-message-content code {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+.ai-bubble-user .ai-message-content pre {
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+}
+
+.ai-bubble-user .ai-message-content a {
+  color: #e6f4ff;
+}
+
+.ai-bubble-user .ai-message-content table th,
+.ai-bubble-user .ai-message-content table td {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 /* Copy button on hover */
 .ai-bubble-wrapper .ai-copy-btn {
   opacity: 0;

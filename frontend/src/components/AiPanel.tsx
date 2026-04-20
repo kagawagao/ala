@@ -570,7 +570,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 </div>
                 <div
                   style={{ maxWidth: '80%', position: 'relative' }}
-                  className="ai-bubble-wrapper"
+                  className={`ai-bubble-wrapper${msg.role === 'user' ? ' ai-bubble-user' : ''}`}
                 >
                   <div
                     style={{
@@ -585,7 +585,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                       overflowX: 'auto',
                       wordBreak: 'break-word',
                     }}
-                    className={msg.role === 'assistant' ? 'ai-message-content' : undefined}
+                    className="ai-message-content"
                   >
                     {msg.role === 'assistant' ? (
                       <>
@@ -605,7 +605,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                         )}
                       </>
                     ) : (
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     )}
                     {msg.role === 'assistant' &&
                       streaming &&
