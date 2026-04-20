@@ -15,6 +15,12 @@ router = APIRouter()
 _session_manager = SessionManager()
 
 
+def _sse_encode(chunk: str) -> str:
+    """Encode a chunk for SSE, properly handling embedded newlines."""
+    lines = chunk.split("\n")
+    return "\n".join(f"data: {line}" for line in lines) + "\n\n"
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -123,17 +129,17 @@ async def send_message(session_id: str, req: SendMessageRequest):
                         try:
                             event = json.loads(chunk)
                             if event.get("type") in ("tool_call", "tool_result"):
-                                yield f"data: {chunk}\n\n"
+                                yield _sse_encode(chunk)
                                 continue
                         except json.JSONDecodeError:
                             pass
                     full_response += chunk
-                    yield f"data: {chunk}\n\n"
+                    yield _sse_encode(chunk)
             else:
                 # Simple streaming mode
                 async for chunk in ai_service.stream_chat(messages):
                     full_response += chunk
-                    yield f"data: {chunk}\n\n"
+                    yield _sse_encode(chunk)
 
             # Save assistant message
             _session_manager.add_message(session_id, "assistant", full_response)

@@ -175,10 +175,23 @@ export async function* streamSSE(
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
+
+    // Proper SSE parsing: collect data lines, emit on blank line (event boundary)
+    const dataLines: string[] = []
     for (const line of lines) {
       if (line.startsWith('data: ')) {
-        yield line.slice(6)
+        dataLines.push(line.slice(6))
+      } else if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5))
+      } else if (line === '' && dataLines.length > 0) {
+        // Blank line = event boundary; join multi-line data with newlines
+        yield dataLines.join('\n')
+        dataLines.length = 0
       }
+    }
+    // Put unconsumed data lines back into buffer for next iteration
+    if (dataLines.length > 0) {
+      buffer = dataLines.map((d) => `data: ${d}`).join('\n') + '\n' + buffer
     }
   }
 }
