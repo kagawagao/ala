@@ -229,7 +229,15 @@ Respond ONLY with a valid JSON array of filter presets, no other text."""
         try:
             async for chunk in ai_service.stream_chat(messages):
                 full_response += chunk
-                yield f"data: {chunk}\n\n"
+            # Strip markdown code fences if present
+            cleaned = full_response.strip()
+            if cleaned.startswith("```"):
+                # Remove opening fence (e.g. ```json)
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            yield f"data: {json.dumps(json.loads(cleaned))}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"

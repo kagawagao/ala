@@ -209,13 +209,22 @@ const AppSider: React.FC<AppSiderProps> = ({
         accumulated += chunk
       }
       // Try to parse JSON array from accumulated text
-      const jsonMatch = accumulated.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        const generated = JSON.parse(jsonMatch[0]) as Array<{
-          name: string
-          description?: string
-          filters: Partial<LogFilters>
-        }>
+      let generated: Array<{
+        name: string
+        description?: string
+        filters: Partial<LogFilters>
+      }> | null = null
+      try {
+        const parsed: unknown = JSON.parse(accumulated.trim())
+        if (Array.isArray(parsed)) generated = parsed
+      } catch {
+        // Fallback: extract JSON array via regex
+        const jsonMatch = accumulated.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          generated = JSON.parse(jsonMatch[0])
+        }
+      }
+      if (generated && generated.length > 0) {
         const newPresets: FilterPreset[] = generated.map((g, i) => ({
           id: `gen-${Date.now()}-${i}`,
           name: g.name,
