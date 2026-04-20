@@ -190,17 +190,17 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
         log_results = _scanner.search_code(
             path, r"Log\.[dviwef]\(", project.include_patterns, project.exclude_patterns
         )
-        if log_results:
+        if log_results.matches:
             code_context_parts.append(
-                f"Log usage in {path}:\n" + "\n".join(f"  {r}" for r in log_results[:50])
+                f"Log usage in {path}:\n" + "\n".join(f"  {m.file}:{m.line_number}: {m.line}" for m in log_results.matches[:50])
             )
         # Search for TAG definitions
         tag_results = _scanner.search_code(
             path, r'(TAG|LOG_TAG)\s*=', project.include_patterns, project.exclude_patterns
         )
-        if tag_results:
+        if tag_results.matches:
             code_context_parts.append(
-                f"TAG definitions in {path}:\n" + "\n".join(f"  {r}" for r in tag_results[:30])
+                f"TAG definitions in {path}:\n" + "\n".join(f"  {m.file}:{m.line_number}: {m.line}" for m in tag_results.matches[:30])
             )
 
     code_context = "\n\n".join(code_context_parts) if code_context_parts else "No logging patterns found in project code."
