@@ -669,9 +669,9 @@ const AppContent: React.FC<{
                     {/* Right: AI Panel */}
                     {!aiPanelCollapsed && (
                       <Splitter.Panel
-                        defaultSize={400}
-                        min={280}
-                        max={600}
+                        defaultSize={520}
+                        min={320}
+                        max={800}
                         style={{
                           borderLeft: '1px solid var(--ant-color-border)',
                           overflow: 'hidden',
