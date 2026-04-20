@@ -214,15 +214,25 @@ const App: React.FC = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Check AI config from localStorage and backend
+  // Check AI config from localStorage and backend, sync localStorage → backend on startup
   useEffect(() => {
-    // Check localStorage first
     const saved = localStorage.getItem('aiConfig')
     if (saved) {
       try {
         const cfg = JSON.parse(saved) as { api_key?: string }
         if (cfg.api_key) {
           setAiConfigured(true)
+          // Sync localStorage config to backend (it's in-memory only and lost on restart)
+          if (backendConnected) {
+            fetch('/api/config', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: saved,
+              signal: AbortSignal.timeout(3000),
+            }).catch(() => {
+              /* ignore */
+            })
+          }
           return
         }
       } catch {
@@ -236,7 +246,6 @@ const App: React.FC = () => {
         .then((cfg: { api_key?: string }) => {
           if (cfg.api_key) {
             setAiConfigured(true)
-            // Sync to localStorage
             localStorage.setItem('aiConfig', JSON.stringify(cfg))
           }
         })
