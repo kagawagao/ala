@@ -64,7 +64,6 @@ const Header: React.FC<HeaderProps> = ({
             onClick={onToggleSider}
           />
         </Tooltip>
-        <img src="/ala-icon.svg" alt="ALA" style={{ width: 24, height: 24, borderRadius: 4 }} />
         <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
         <Tag
           color={backendConnected ? 'success' : 'error'}
