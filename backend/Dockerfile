@@ -10,7 +10,7 @@ COPY pyproject.toml poetry.lock ./
 
 # Install production deps only (no dev group), don't create a venv inside container
 RUN poetry config virtualenvs.create false \
-    && poetry install --only main --no-interaction --no-ansi
+    && poetry install --only main --no-root --no-interaction --no-ansi
 
 # Pre-download the Perfetto trace_processor binary so it is available at
 # runtime without requiring outbound network access from the container.
