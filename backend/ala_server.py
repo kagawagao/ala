@@ -21,10 +21,13 @@ if _FROZEN:
 
     _meipass = getattr(sys, "_MEIPASS", None)
     if _meipass:
-        # The perfetto package looks for PERFETTO_TRACE_PROCESSOR_PATH first.
+        # Ensure the bundled source packages are importable.
+        if _meipass not in sys.path:
+            sys.path.insert(0, _meipass)
+
+        # Tell perfetto where to find the trace_processor binary.
         tp_candidates = list(Path(_meipass).glob("perfetto/trace_processor/trace_processor_shell*"))
         if not tp_candidates:
-            # Fallback: any trace_processor_shell binary in _MEIPASS
             tp_candidates = list(Path(_meipass).glob("**/trace_processor_shell*"))
         if tp_candidates:
             os.environ.setdefault("PERFETTO_TRACE_PROCESSOR_PATH", str(tp_candidates[0]))
@@ -49,14 +52,21 @@ def main() -> None:
         t = threading.Thread(target=_open_browser, args=(port,), daemon=True)
         t.start()
 
-    uvicorn.run(
-        "ala.main:app",
-        host=host,
-        port=port,
-        # reload must be False when frozen – there are no source files to watch.
-        reload=False,
-        log_level="info",
-    )
+    if _FROZEN:
+        # When frozen, uvicorn cannot resolve the app via a string import because
+        # the module loader works differently inside a PyInstaller bundle.
+        # Import the app object directly and pass it instead.
+        from ala.main import app  # noqa: PLC0415
+
+        uvicorn.run(app, host=host, port=port, reload=False, log_level="info")
+    else:
+        uvicorn.run(
+            "ala.main:app",
+            host=host,
+            port=port,
+            reload=False,
+            log_level="info",
+        )
 
 
 if __name__ == "__main__":
