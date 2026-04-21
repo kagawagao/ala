@@ -14,7 +14,7 @@ Output: backend/dist/ala/   (directory with the executable inside)
 """
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
 REPO_ROOT = Path(SPECPATH).parent  # noqa: F821 – SPECPATH is set by PyInstaller
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
@@ -41,6 +41,26 @@ datas += collect_data_files("certifi")
 
 # httpx ships its own CA bundle too
 datas += collect_data_files("httpx")
+
+# Copy .dist-info metadata for packages that call importlib.metadata.version() at import time.
+# Without this, PackageNotFoundError is raised when the frozen exe tries to read package versions.
+for _pkg in (
+    "fastmcp",
+    "mcp",
+    "anthropic",
+    "fastapi",
+    "starlette",
+    "uvicorn",
+    "pydantic",
+    "pydantic_settings",
+    "anyio",
+    "httpx",
+    "sse_starlette",
+):
+    try:
+        datas += copy_metadata(_pkg)
+    except Exception:
+        pass  # package not installed; skip gracefully
 
 # ---------------------------------------------------------------------------
 # Hidden imports that PyInstaller's static analysis misses
