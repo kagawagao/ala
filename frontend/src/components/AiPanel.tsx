@@ -246,7 +246,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {
     if (activeSessionId && traceResult) {
-      void setSessionTrace(activeSessionId, traceResult.summary as Record<string, unknown>)
+      void setSessionTrace(
+        activeSessionId,
+        traceResult.summary as unknown as Record<string, unknown>,
+      )
     }
   }, [traceResult, activeSessionId])
 
@@ -274,7 +277,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setActiveSessionId(session.id)
       setMessages(session.messages)
       if (traceResult) {
-        await setSessionTrace(session.id, traceResult.summary as Record<string, unknown>)
+        await setSessionTrace(session.id, traceResult.summary as unknown as Record<string, unknown>)
       }
       if (allLogs.length > 0) {
         await setSessionLogs(session.id, allLogs as unknown as Record<string, unknown>[])
@@ -315,10 +318,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
     if (traceResult) {
       const s = traceResult.summary
-      const nProc = (s as Record<string, unknown[]>).processes?.length ?? '?'
-      const nEv = (s as Record<string, unknown>).total_events ?? '?'
-      const dur = (s as Record<string, unknown>).duration_ms ?? '?'
-      const fmt = (s as Record<string, unknown>).format ?? 'unknown'
+      const nProc = s.processes?.length ?? '?'
+      const nEv = s.event_count ?? '?'
+      const dur = s.duration_ms ?? '?'
+      const fmt = traceResult.format ?? 'unknown'
       return (
         `Perfetto trace loaded in this session: format=${fmt}, duration=${dur}ms, ` +
         `${nProc} processes, ${nEv} events. ` +
