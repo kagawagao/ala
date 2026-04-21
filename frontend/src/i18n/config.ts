@@ -8,7 +8,7 @@ i18next.use(initReactI18next).init({
     en: { translation: en },
     zh: { translation: zh },
   },
-  lng: localStorage.getItem('ala_language') || 'en',
+  lng: localStorage.getItem('ala_language') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 })
