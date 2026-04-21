@@ -1,4 +1,5 @@
 """Perfetto trace file analyzer."""
+
 import io
 import json
 import re
@@ -101,9 +102,7 @@ class TraceAnalyzer:
             format="unknown",
         )
 
-    def filter_trace(
-        self, result: TraceParseResult, filters: TraceFilters
-    ) -> TraceParseResult:
+    def filter_trace(self, result: TraceParseResult, filters: TraceFilters) -> TraceParseResult:
         """Return a new :class:`TraceParseResult` with only the matching processes.
 
         ``top_slices`` and ``ftrace_events`` are currently kept as-is because
@@ -123,12 +122,10 @@ class TraceAnalyzer:
             except re.error:
                 pattern = None
             if pattern:
-                processes = [p for p in processes if pattern.search(
-                    str(p.get("name", "")))]
+                processes = [p for p in processes if pattern.search(str(p.get("name", "")))]
             else:
                 needle = filters.process_name.lower()
-                processes = [p for p in processes if needle in str(
-                    p.get("name", "")).lower()]
+                processes = [p for p in processes if needle in str(p.get("name", "")).lower()]
 
         thread_count = sum(p.get("thread_count", 0) for p in processes)
 
@@ -194,8 +191,7 @@ class TraceAnalyzer:
                     else:
                         # Update name even if the process was already created
                         # (slice events may arrive before metadata events)
-                        processes[pid]["name"] = args.get(
-                            "name", processes[pid]["name"])
+                        processes[pid]["name"] = args.get("name", processes[pid]["name"])
                 elif name == "thread_name":
                     if pid not in processes:
                         processes[pid] = {
@@ -218,8 +214,7 @@ class TraceAnalyzer:
                 if name:
                     dur = evt.get("dur", 0)
                     if name not in slices:
-                        slices[name] = {"name": name,
-                                        "count": 0, "total_dur_us": 0}
+                        slices[name] = {"name": name, "count": 0, "total_dur_us": 0}
                     slices[name]["count"] += 1
                     slices[name]["total_dur_us"] += float(dur)
 
@@ -284,7 +279,9 @@ class TraceAnalyzer:
         return self.parse_trace(content, "trace.perfetto-trace")
 
     # type: ignore[no-untyped-def]
-    def _summarize_via_tp(self, tp, file_size: int, fmt: str = "perfetto_proto") -> TraceParseResult:
+    def _summarize_via_tp(
+        self, tp, file_size: int, fmt: str = "perfetto_proto"
+    ) -> TraceParseResult:
         """Extract a :class:`TraceParseResult` from an open ``TraceProcessor`` session."""
 
         # ── Processes ──────────────────────────────────────────────────────
@@ -361,9 +358,7 @@ class TraceAnalyzer:
         # ── FTrace / raw events ────────────────────────────────────────────
         ftrace_events: list[str] = []
         try:
-            for row in tp.query(
-                "SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"
-            ):
+            for row in tp.query("SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"):
                 if row.name:
                     ftrace_events.append(row.name)
         except Exception:
@@ -414,7 +409,7 @@ class TraceAnalyzer:
                     offset += consumed
                     if offset + length > len(content):
                         break
-                    field_data = content[offset: offset + length]
+                    field_data = content[offset : offset + length]
                     offset += length
                     event_count += 1
 
@@ -448,8 +443,7 @@ class TraceAnalyzer:
                 processes=list(processes.values()),
                 top_slices=[],
                 ftrace_events=list(ftrace_events)[:20],
-                metadata={"file_size": len(
-                    content), "format": "perfetto_proto"},
+                metadata={"file_size": len(content), "format": "perfetto_proto"},
             ),
             format="perfetto_proto",
         )

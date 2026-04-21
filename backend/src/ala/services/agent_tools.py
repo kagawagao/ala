@@ -1,4 +1,5 @@
 """Tool definitions and executor for the AI agent."""
+
 import json
 import re
 from typing import Any
@@ -319,10 +320,12 @@ def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
         limit = min(int(args.get("limit", 50)), 500)
         if name_filter:
             processes = [p for p in processes if name_filter in p.get("name", "").lower()]
-        return json.dumps({
-            "total": len(processes),
-            "processes": processes[:limit],
-        })
+        return json.dumps(
+            {
+                "total": len(processes),
+                "processes": processes[:limit],
+            }
+        )
 
     if tool_name == "query_trace_slices":
         slices = trace_summary.get("top_slices", [])
@@ -331,10 +334,12 @@ def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
         if name_filter:
             pattern = re.compile(re.escape(name_filter), re.IGNORECASE)
             slices = [s for s in slices if pattern.search(s.get("name", ""))]
-        return json.dumps({
-            "total": len(slices),
-            "slices": slices[:limit],
-        })
+        return json.dumps(
+            {
+                "total": len(slices),
+                "slices": slices[:limit],
+            }
+        )
 
     return json.dumps({"error": f"Unknown trace tool: {tool_name}"})
 
@@ -367,18 +372,20 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
                 pids.add(str(entry["pid"]))
             if entry.get("timestamp"):
                 timestamps.append(entry["timestamp"])
-        return json.dumps({
-            "total_stored": len(log_entries),
-            "level_distribution": level_counts,
-            "unique_tags": len(tags),
-            "unique_pids": len(pids),
-            "time_range": {
-                "start": min(timestamps) if timestamps else None,
-                "end": max(timestamps) if timestamps else None,
-            },
-            "sample_tags": sorted(tags)[:30],
-            "sample_pids": sorted(pids)[:30],
-        })
+        return json.dumps(
+            {
+                "total_stored": len(log_entries),
+                "level_distribution": level_counts,
+                "unique_tags": len(tags),
+                "unique_pids": len(pids),
+                "time_range": {
+                    "start": min(timestamps) if timestamps else None,
+                    "end": max(timestamps) if timestamps else None,
+                },
+                "sample_tags": sorted(tags)[:30],
+                "sample_pids": sorted(pids)[:30],
+            }
+        )
 
     if tool_name == "search_logs":
         level_filter = args.get("level", "").upper()
@@ -406,16 +413,20 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
                 continue
             if end_time and ts > end_time:
                 continue
-            if keyword_re and not keyword_re.search(entry.get("message") or entry.get("raw_line") or ""):
+            if keyword_re and not keyword_re.search(
+                entry.get("message") or entry.get("raw_line") or ""
+            ):
                 continue
             results.append(entry)
             if len(results) >= limit:
                 break
 
-        return json.dumps({
-            "total_matched": len(results),
-            "entries": results,
-        })
+        return json.dumps(
+            {
+                "total_matched": len(results),
+                "entries": results,
+            }
+        )
 
     return json.dumps({"error": f"Unknown log tool: {tool_name}"})
 
@@ -436,12 +447,14 @@ def _execute_list_log_files(args: dict) -> str:
                 ext = os.path.splitext(entry.name)[1].lower()
                 if ext in log_extensions or not ext:
                     stat = entry.stat()
-                    files.append({
-                        "name": entry.name,
-                        "path": entry.path,
-                        "size": stat.st_size,
-                        "extension": ext,
-                    })
+                    files.append(
+                        {
+                            "name": entry.name,
+                            "path": entry.path,
+                            "size": stat.st_size,
+                            "extension": ext,
+                        }
+                    )
     except OSError as e:
         return json.dumps({"error": str(e)})
 
@@ -474,22 +487,24 @@ def _execute_read_log_file(args: dict) -> str:
             all_entries.extend(result.logs)
 
         entries = all_entries[:max_lines]
-        return json.dumps({
-            "total_lines": len(all_entries),
-            "format_detected": format_detected,
-            "entries_returned": len(entries),
-            "entries": [
-                {
-                    "line_number": e.line_number,
-                    "timestamp": e.timestamp,
-                    "level": e.level,
-                    "tag": e.tag,
-                    "pid": e.pid,
-                    "message": e.message[:500],
-                }
-                for e in entries
-            ],
-        })
+        return json.dumps(
+            {
+                "total_lines": len(all_entries),
+                "format_detected": format_detected,
+                "entries_returned": len(entries),
+                "entries": [
+                    {
+                        "line_number": e.line_number,
+                        "timestamp": e.timestamp,
+                        "level": e.level,
+                        "tag": e.tag,
+                        "pid": e.pid,
+                        "message": e.message[:500],
+                    }
+                    for e in entries
+                ],
+            }
+        )
     except Exception as e:
         return json.dumps({"error": f"Failed to read log: {str(e)}"})
 
@@ -526,21 +541,22 @@ def _execute_filter_logs(args: dict) -> str:
         )
         filtered = analyzer.filter_logs(all_entries, filters)
         entries = filtered[:max_results]
-        return json.dumps({
-            "total_matches": len(filtered),
-            "entries_returned": len(entries),
-            "entries": [
-                {
-                    "line_number": e.line_number,
-                    "timestamp": e.timestamp,
-                    "level": e.level,
-                    "tag": e.tag,
-                    "pid": e.pid,
-                    "message": e.message[:500],
-                }
-                for e in entries
-            ],
-        })
+        return json.dumps(
+            {
+                "total_matches": len(filtered),
+                "entries_returned": len(entries),
+                "entries": [
+                    {
+                        "line_number": e.line_number,
+                        "timestamp": e.timestamp,
+                        "level": e.level,
+                        "tag": e.tag,
+                        "pid": e.pid,
+                        "message": e.message[:500],
+                    }
+                    for e in entries
+                ],
+            }
+        )
     except Exception as e:
         return json.dumps({"error": f"Failed to filter logs: {str(e)}"})
-

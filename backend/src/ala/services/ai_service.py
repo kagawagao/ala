@@ -1,4 +1,5 @@
 """Anthropic-compatible AI service with async streaming and agentic tool calling."""
+
 import json
 from collections.abc import AsyncIterator
 from typing import Any
@@ -128,9 +129,7 @@ class AIService:
             if project:
                 parts.append(log_hint)
             else:
-                parts.insert(0,
-                    "You are an Android log analyzer agent. " + log_hint
-                )
+                parts.insert(0, "You are an Android log analyzer agent. " + log_hint)
 
         if trace_summary:
             tools.extend(TRACE_TOOLS)
@@ -204,7 +203,9 @@ class AIService:
                             current_thinking = ""
                         elif current_tool is not None:
                             try:
-                                parsed_input = json.loads(current_input_json) if current_input_json else {}
+                                parsed_input = (
+                                    json.loads(current_input_json) if current_input_json else {}
+                                )
                             except json.JSONDecodeError:
                                 parsed_input = {}
                             current_tool["input"] = parsed_input
@@ -226,12 +227,14 @@ class AIService:
                 elif block.type == "text":
                     assistant_content.append({"type": "text", "text": block.text})
                 elif block.type == "tool_use":
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": block.id,
-                        "name": block.name,
-                        "input": block.input,
-                    })
+                    assistant_content.append(
+                        {
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        }
+                    )
 
             api_messages.append({"role": "assistant", "content": assistant_content})
 
@@ -244,21 +247,29 @@ class AIService:
             for tu in tool_uses:
                 arguments_str = json.dumps(tu["input"])
 
-                yield json.dumps({"type": "tool_call", "name": tu["name"], "arguments": arguments_str})
+                yield json.dumps(
+                    {"type": "tool_call", "name": tu["name"], "arguments": arguments_str}
+                )
 
                 result = execute_tool(
-                    project, tu["name"], arguments_str,
+                    project,
+                    tu["name"],
+                    arguments_str,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                 )
 
-                yield json.dumps({"type": "tool_result", "name": tu["name"], "content": result[:2000]})
+                yield json.dumps(
+                    {"type": "tool_result", "name": tu["name"], "content": result[:2000]}
+                )
 
-                tool_result_blocks.append({
-                    "type": "tool_result",
-                    "tool_use_id": tu["id"],
-                    "content": result,
-                })
+                tool_result_blocks.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu["id"],
+                        "content": result,
+                    }
+                )
 
             api_messages.append({"role": "user", "content": tool_result_blocks})
 
@@ -277,4 +288,3 @@ class AIService:
             else:
                 api_messages.append(msg)
         return system_text, api_messages
-

@@ -1,4 +1,5 @@
 """In-memory session manager."""
+
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime

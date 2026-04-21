@@ -1,4 +1,5 @@
 """ALA Backend FastAPI application."""
+
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -76,6 +77,7 @@ if _FRONTEND_DIR is not None:
         """Return index.html for every non-API path (React client-side routing)."""
         index = _FRONTEND_DIR / "index.html"  # type: ignore[operator]
         return FileResponse(str(index))
+
 
 if __name__ == "__main__":
     import uvicorn

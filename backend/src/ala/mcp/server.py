@@ -1,4 +1,5 @@
 """MCP server for ALA using FastMCP."""
+
 from fastmcp import FastMCP
 
 from ..services.log_analyzer import LogAnalyzer
@@ -84,9 +85,7 @@ def filter_android_logs(
         "total_original": len(parse_result.logs),
         "statistics": {
             "by_level": stats.by_level,
-            "top_tags": dict(
-                sorted(stats.tags.items(), key=lambda x: x[1], reverse=True)[:20]
-            ),
+            "top_tags": dict(sorted(stats.tags.items(), key=lambda x: x[1], reverse=True)[:20]),
         },
         "logs": [
             {

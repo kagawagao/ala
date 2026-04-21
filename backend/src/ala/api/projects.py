@@ -1,4 +1,5 @@
 """Project management endpoints."""
+
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -188,18 +189,28 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
         )
         if log_results.matches:
             code_context_parts.append(
-                f"Log usage in {path}:\n" + "\n".join(f"  {m.path}:{m.line_number}: {m.line}" for m in log_results.matches[:50])
+                f"Log usage in {path}:\n"
+                + "\n".join(
+                    f"  {m.path}:{m.line_number}: {m.line}" for m in log_results.matches[:50]
+                )
             )
         # Search for TAG definitions
         tag_results = _scanner.search_code(
-            path, r'(TAG|LOG_TAG)\s*=', project.include_patterns, project.exclude_patterns
+            path, r"(TAG|LOG_TAG)\s*=", project.include_patterns, project.exclude_patterns
         )
         if tag_results.matches:
             code_context_parts.append(
-                f"TAG definitions in {path}:\n" + "\n".join(f"  {m.path}:{m.line_number}: {m.line}" for m in tag_results.matches[:30])
+                f"TAG definitions in {path}:\n"
+                + "\n".join(
+                    f"  {m.path}:{m.line_number}: {m.line}" for m in tag_results.matches[:30]
+                )
             )
 
-    code_context = "\n\n".join(code_context_parts) if code_context_parts else "No logging patterns found in project code."
+    code_context = (
+        "\n\n".join(code_context_parts)
+        if code_context_parts
+        else "No logging patterns found in project code."
+    )
 
     existing_info = ""
     if req and req.existing_filters:
@@ -243,6 +254,7 @@ Respond ONLY with a valid JSON array of filter presets, no other text."""
             existing = project.filter_presets or []
             # Assign IDs to new presets
             import time
+
             new_presets = []
             for i, p in enumerate(parsed):
                 p["id"] = f"gen-{int(time.time() * 1000)}-{i}"

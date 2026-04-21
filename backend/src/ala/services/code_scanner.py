@@ -1,4 +1,5 @@
 """Code scanner for reading project source files."""
+
 import fnmatch
 import os
 import re

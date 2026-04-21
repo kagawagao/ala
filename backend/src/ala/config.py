@@ -1,4 +1,5 @@
 """ALA Backend configuration."""
+
 import json
 import sys
 from pathlib import Path

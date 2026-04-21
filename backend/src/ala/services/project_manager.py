@@ -1,4 +1,5 @@
 """Persistent project manager backed by a JSON file."""
+
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -20,7 +21,9 @@ class Project:
     id: str
     name: str
     paths: list[str]
-    include_patterns: list[str] = field(default_factory=lambda: ["**/*.java", "**/*.kt", "**/*.xml"])
+    include_patterns: list[str] = field(
+        default_factory=lambda: ["**/*.java", "**/*.kt", "**/*.xml"]
+    )
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
     )
@@ -51,7 +54,9 @@ class ProjectManager:
         """Persist projects to disk."""
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
         data = [asdict(p) for p in self._projects.values()]
-        self._storage_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self._storage_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def create_project(
         self,

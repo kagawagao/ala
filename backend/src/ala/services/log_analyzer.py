@@ -1,4 +1,5 @@
 """Android log analyzer service - ported from TypeScript implementation."""
+
 import gzip
 import io
 import re
@@ -150,9 +151,7 @@ class LogAnalyzer:
             logs = self._parse_unknown(content, source_file)
         return ParseResult(logs=logs, total_lines=len(logs), format_detected=fmt.value)
 
-    def parse_log_bytes(
-        self, data: bytes, filename: str
-    ) -> list[ParseResult]:
+    def parse_log_bytes(self, data: bytes, filename: str) -> list[ParseResult]:
         """Parse one or more log files from *data*.
 
         Handles plain text, ``.zip`` archives and ``.gz`` single-file gzip.
@@ -165,9 +164,7 @@ class LogAnalyzer:
             results.append(self.parse_log(text, source_file=name))
         return results
 
-    def stream_log_bytes(
-        self, data: bytes, filename: str
-    ) -> Iterator[LogEntry]:
+    def stream_log_bytes(self, data: bytes, filename: str) -> Iterator[LogEntry]:
         """Yield :class:`LogEntry` objects one by one.
 
         Handles plain text, ``.zip`` and ``.gz`` files, yielding entries
@@ -180,9 +177,7 @@ class LogAnalyzer:
             result = self.parse_log(text, source_file=name)
             yield from result.logs
 
-    def _parse_android_logcat(
-        self, content: str, source_file: str | None = None
-    ) -> list[LogEntry]:
+    def _parse_android_logcat(self, content: str, source_file: str | None = None) -> list[LogEntry]:
         entries = []
         for i, raw in enumerate(content.split("\n"), 1):
             line = raw.strip()
@@ -258,9 +253,7 @@ class LogAnalyzer:
                 )
         return entries
 
-    def _parse_unknown(
-        self, content: str, source_file: str | None = None
-    ) -> list[LogEntry]:
+    def _parse_unknown(self, content: str, source_file: str | None = None) -> list[LogEntry]:
         return [
             LogEntry(
                 line_number=i,
@@ -338,9 +331,7 @@ class LogAnalyzer:
                 tag_match = True
                 if has_tag:
                     tag_match = bool(
-                        tag_regex.search(log.tag)
-                        if tag_regex
-                        else tag_fallback in log.tag.lower()
+                        tag_regex.search(log.tag) if tag_regex else tag_fallback in log.tag.lower()
                     )
 
                 if use_or and has_kw and has_tag:
