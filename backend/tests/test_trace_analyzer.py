@@ -1,9 +1,16 @@
 """Tests for the trace analyzer service."""
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from ala.services.trace_analyzer import TraceAnalyzer, TraceFilters
+from ala.mcp.server import filter_perfetto_trace, parse_perfetto_trace
+from ala.services.trace_analyzer import (
+    TraceAnalyzer,
+    TraceFilters,
+    TraceParseResult,
+    TraceSummary,
+)
 
 
 @pytest.fixture
@@ -44,6 +51,58 @@ class TestTraceAnalyzer:
         names = {p["name"] for p in result.summary.processes}
         assert "com.example.app" in names
         assert "system_server" in names
+
+    def test_json_trace_top_slices_are_not_limited_to_20(self, analyzer):
+        trace = {
+            "traceEvents": [
+                {
+                    "name": f"slice{i}",
+                    "ph": "X",
+                    "ts": i * 1000,
+                    "dur": 1000 + i,
+                    "pid": 1,
+                    "tid": 1,
+                }
+                for i in range(25)
+            ]
+        }
+        content = json.dumps(trace).encode()
+
+        result = analyzer._parse_json_trace(content)
+
+        assert len(result.summary.top_slices) == 25
+        assert result.summary.top_slices[0]["name"] == "slice24"
+        assert result.summary.top_slices[-1]["name"] == "slice0"
+
+    def test_trace_processor_top_slices_are_not_limited_to_20(self, analyzer):
+        class FakeTraceProcessor:
+            def query(self, sql):
+                if "FROM process" in sql:
+                    return [
+                        SimpleNamespace(pid=1, name="system_server", thread_count=1)
+                    ]
+                if "FROM trace_bounds" in sql:
+                    return [SimpleNamespace(start_ts=0, end_ts=5_000_000)]
+                if "COUNT(*) AS cnt FROM slice" in sql:
+                    return [SimpleNamespace(cnt=25)]
+                if "GROUP BY name" in sql:
+                    return [
+                        SimpleNamespace(
+                            name=f"slice{i}",
+                            cnt=1,
+                            duration_ms=float(100 - i),
+                        )
+                        for i in range(25)
+                    ]
+                if "SELECT DISTINCT name FROM raw" in sql:
+                    return []
+                return []
+
+        result = analyzer._summarize_via_tp(FakeTraceProcessor(), file_size=123)
+
+        assert len(result.summary.top_slices) == 25
+        assert result.summary.top_slices[0]["name"] == "slice0"
+        assert result.summary.top_slices[-1]["name"] == "slice24"
 
 
 class TestTraceFilter:
@@ -93,3 +152,77 @@ class TestTraceFilter:
         filtered = analyzer.filter_trace(result, filters)
         assert filtered.format == result.format
         assert filtered.summary.duration_ms == result.summary.duration_ms
+
+
+class TestTraceMcp:
+    def test_parse_perfetto_trace_returns_all_processes_and_slices(
+        self, monkeypatch, tmp_path
+    ):
+        trace_path = tmp_path / "trace.json"
+        trace_path.write_text("{}", encoding="utf-8")
+        parse_result = TraceParseResult(
+            summary=TraceSummary(
+                duration_ms=12.5,
+                process_count=25,
+                thread_count=25,
+                event_count=25,
+                processes=[
+                    {"pid": i, "name": f"process-{i}", "thread_count": 1}
+                    for i in range(25)
+                ],
+                top_slices=[
+                    {"name": f"slice-{i}", "count": 1, "duration_ms": float(i)}
+                    for i in range(25)
+                ],
+                ftrace_events=[],
+                metadata={},
+            ),
+            format="json_trace",
+        )
+        monkeypatch.setattr(
+            "ala.mcp.server._trace_analyzer.parse_trace",
+            lambda *_args, **_kwargs: parse_result,
+        )
+
+        result = parse_perfetto_trace(str(trace_path))
+
+        assert len(result["summary"]["processes"]) == 25
+        assert len(result["summary"]["top_slices"]) == 25
+
+    def test_filter_perfetto_trace_returns_all_filtered_processes_and_slices(
+        self, monkeypatch, tmp_path
+    ):
+        trace_path = tmp_path / "trace.json"
+        trace_path.write_text("{}", encoding="utf-8")
+        filtered_result = TraceParseResult(
+            summary=TraceSummary(
+                duration_ms=12.5,
+                process_count=55,
+                thread_count=55,
+                event_count=55,
+                processes=[
+                    {"pid": i, "name": f"process-{i}", "thread_count": 1}
+                    for i in range(55)
+                ],
+                top_slices=[
+                    {"name": f"slice-{i}", "count": 1, "duration_ms": float(i)}
+                    for i in range(25)
+                ],
+                ftrace_events=[],
+                metadata={},
+            ),
+            format="json_trace",
+        )
+        monkeypatch.setattr(
+            "ala.mcp.server._trace_analyzer.parse_trace",
+            lambda *_args, **_kwargs: filtered_result,
+        )
+        monkeypatch.setattr(
+            "ala.mcp.server._trace_analyzer.filter_trace",
+            lambda *_args, **_kwargs: filtered_result,
+        )
+
+        result = filter_perfetto_trace(str(trace_path), pids=[1])
+
+        assert len(result["summary"]["processes"]) == 55
+        assert len(result["summary"]["top_slices"]) == 25

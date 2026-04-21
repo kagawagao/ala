@@ -1,6 +1,5 @@
 """Persistent project manager backed by a JSON file."""
 import json
-import os
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime

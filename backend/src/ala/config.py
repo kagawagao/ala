@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     ai_api_key: str = ""
     ai_model: str = "claude-sonnet-4-20250514"
     ai_temperature: float = 0.7
+    ai_thinking_mode: str = "off"  # off | auto | on
+    ai_thinking_budget_tokens: int = 8000
 
     @field_validator("cors_origins", mode="before")
     @classmethod

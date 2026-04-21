@@ -181,5 +181,13 @@
   "loadSelected": "Load Selected",
   "noFilesFound": "No log files found in this directory",
   "fileSize": "Size",
-  "directoryScanning": "Scanning directory..."
+  "directoryScanning": "Scanning directory...",
+  "traceAgentMode": "Trace agent mode",
+  "logAgentMode": "Log agent mode",
+  "thinkingMode": "Thinking mode",
+  "thinkingOff": "Off",
+  "thinkingAuto": "Auto (hidden)",
+  "thinkingOn": "On (visible)",
+  "thinkingBudget": "Thinking budget (tokens)",
+  "thinking": "Thinking"
 }

@@ -207,10 +207,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
       return false
     },
-    onDrop: (e) => {
+    onDrop: () => {
       setDragOver(false)
-      const files = Array.from(e.dataTransfer.files)
-      if (files.length > 0) void handleFiles(files)
     },
   }
 

@@ -1,5 +1,6 @@
 """Tool definitions and executor for the AI agent."""
 import json
+import re
 from typing import Any
 
 from .code_scanner import CodeScanner
@@ -7,7 +8,7 @@ from .project_manager import Project
 
 _scanner = CodeScanner()
 
-# Anthropic tool schemas
+# Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_project_files",
@@ -151,13 +152,151 @@ AGENT_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+# Anthropic tool schemas – trace-specific tools
+TRACE_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "query_trace_overview",
+        "description": (
+            "Get a high-level overview of the loaded Perfetto trace: "
+            "format, duration, process/thread/event counts, and metadata."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "list_trace_processes",
+        "description": (
+            "List processes captured in the loaded Perfetto trace. "
+            "Optionally filter by a case-insensitive process name substring."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name_filter": {
+                    "type": "string",
+                    "description": "Case-insensitive substring to filter process names",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of processes to return (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "query_trace_slices",
+        "description": (
+            "Query top slices (functions/events) ranked by cumulative duration "
+            "in the loaded Perfetto trace. Optionally filter by slice name substring."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name_filter": {
+                    "type": "string",
+                    "description": "Case-insensitive substring to filter slice names",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of slices to return (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+]
 
-def execute_tool(project: Project, tool_name: str, arguments: str) -> str:
+# Anthropic tool schemas – log-specific tools
+LOG_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "query_log_overview",
+        "description": (
+            "Get statistics about the loaded Android logs: total count, "
+            "level distribution, time range, unique tags and PIDs. "
+            "Note: may reflect a capped subset if the log file is very large."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "search_logs",
+        "description": (
+            "Search and filter the loaded Android log entries. "
+            "Returns up to `limit` matching entries."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "Minimum log level to include (V, D, I, W, E, F)",
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Tag substring filter (case-insensitive)",
+                },
+                "pid": {
+                    "type": "string",
+                    "description": "Process ID to filter by",
+                },
+                "keyword": {
+                    "type": "string",
+                    "description": "Keyword or regex to match in the log message",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "Only include entries after this timestamp",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "Only include entries before this timestamp",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return (default: 100)",
+                },
+            },
+            "required": [],
+        },
+    },
+]
+
+
+def execute_tool(
+    project: Project | None,
+    tool_name: str,
+    arguments: str,
+    trace_summary: dict | None = None,
+    log_entries: list[dict] | None = None,
+) -> str:
     """Execute a tool call and return the result as a string."""
     try:
         args = json.loads(arguments) if arguments else {}
     except json.JSONDecodeError:
         return json.dumps({"error": f"Invalid arguments: {arguments}"})
+
+    # Trace tools
+    if tool_name in ("query_trace_overview", "list_trace_processes", "query_trace_slices"):
+        if trace_summary is None:
+            return json.dumps({"error": "No trace loaded in this session"})
+        return _execute_trace_tool(tool_name, args, trace_summary)
+
+    # Log tools (work standalone or alongside project tools)
+    if tool_name in ("query_log_overview", "search_logs"):
+        if log_entries is None:
+            return json.dumps({"error": "No logs loaded in this session"})
+        return _execute_log_tool(tool_name, args, log_entries)
+
+    # Project tools – project must be present
+    if project is None:
+        return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
     if tool_name == "list_project_files":
         all_files = []
@@ -233,6 +372,117 @@ def execute_tool(project: Project, tool_name: str, arguments: str) -> str:
 
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
+    """Handle the three trace-query tools against a stored trace summary."""
+    if tool_name == "query_trace_overview":
+        metadata = trace_summary.get("metadata", {})
+        overview = {
+            "format": trace_summary.get("format", "unknown"),
+            "duration_ms": trace_summary.get("duration_ms"),
+            "process_count": len(trace_summary.get("processes", [])),
+            "total_events": trace_summary.get("total_events"),
+            "metadata": metadata,
+        }
+        return json.dumps(overview)
+
+    if tool_name == "list_trace_processes":
+        processes = trace_summary.get("processes", [])
+        name_filter = args.get("name_filter", "").lower()
+        limit = min(int(args.get("limit", 50)), 500)
+        if name_filter:
+            processes = [p for p in processes if name_filter in p.get("name", "").lower()]
+        return json.dumps({
+            "total": len(processes),
+            "processes": processes[:limit],
+        })
+
+    if tool_name == "query_trace_slices":
+        slices = trace_summary.get("top_slices", [])
+        name_filter = args.get("name_filter", "").lower()
+        limit = min(int(args.get("limit", 50)), 500)
+        if name_filter:
+            pattern = re.compile(re.escape(name_filter), re.IGNORECASE)
+            slices = [s for s in slices if pattern.search(s.get("name", ""))]
+        return json.dumps({
+            "total": len(slices),
+            "slices": slices[:limit],
+        })
+
+    return json.dumps({"error": f"Unknown trace tool: {tool_name}"})
+
+
+_LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
+
+
+def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> str:
+    """Handle the two log-query tools against session-stored log entries."""
+    if tool_name == "query_log_overview":
+        level_counts: dict[str, int] = {}
+        tags: set[str] = set()
+        pids: set[str] = set()
+        timestamps = []
+        for entry in log_entries:
+            lvl = entry.get("level", "?")
+            level_counts[lvl] = level_counts.get(lvl, 0) + 1
+            if entry.get("tag"):
+                tags.add(entry["tag"])
+            if entry.get("pid"):
+                pids.add(str(entry["pid"]))
+            if entry.get("timestamp"):
+                timestamps.append(entry["timestamp"])
+        return json.dumps({
+            "total_stored": len(log_entries),
+            "level_distribution": level_counts,
+            "unique_tags": len(tags),
+            "unique_pids": len(pids),
+            "time_range": {
+                "start": min(timestamps) if timestamps else None,
+                "end": max(timestamps) if timestamps else None,
+            },
+            "sample_tags": sorted(tags)[:30],
+            "sample_pids": sorted(pids)[:30],
+        })
+
+    if tool_name == "search_logs":
+        level_filter = args.get("level", "").upper()
+        tag_filter = args.get("tag", "").lower()
+        pid_filter = str(args.get("pid", ""))
+        keyword = args.get("keyword", "")
+        start_time = args.get("start_time", "")
+        end_time = args.get("end_time", "")
+        limit = min(int(args.get("limit", 100)), 500)
+
+        min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
+        keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
+
+        results = []
+        for entry in log_entries:
+            lvl = entry.get("level", "V")
+            if _LEVEL_ORDER.get(lvl, 0) < min_level:
+                continue
+            if tag_filter and tag_filter not in (entry.get("tag") or "").lower():
+                continue
+            if pid_filter and pid_filter != str(entry.get("pid") or ""):
+                continue
+            ts = entry.get("timestamp") or ""
+            if start_time and ts < start_time:
+                continue
+            if end_time and ts > end_time:
+                continue
+            if keyword_re and not keyword_re.search(entry.get("message") or entry.get("raw_line") or ""):
+                continue
+            results.append(entry)
+            if len(results) >= limit:
+                break
+
+        return json.dumps({
+            "total_matched": len(results),
+            "entries": results,
+        })
+
+    return json.dumps({"error": f"Unknown log tool: {tool_name}"})
 
 
 def _execute_list_log_files(args: dict) -> str:

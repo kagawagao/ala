@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import { Modal, Form, Input, Slider, Button, App, Typography, Tag, Divider } from 'antd'
+import {
+  Modal,
+  Form,
+  Input,
+  Slider,
+  Button,
+  App,
+  Typography,
+  Tag,
+  Divider,
+  Select,
+  InputNumber,
+} from 'antd'
 import { useTranslation } from 'react-i18next'
 import { getConfig, updateConfig } from '../api/config'
 import type { AIConfig } from '../types'
@@ -127,6 +139,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         </Form.Item>
         <Form.Item label={t('temperature')} name="temperature" initialValue={0.7}>
           <Slider min={0} max={2} step={0.1} marks={{ 0: '0', 1: '1', 2: '2' }} />
+        </Form.Item>
+
+        <Divider titlePlacement="left" style={{ fontSize: 12, margin: '12px 0' }}>
+          {t('thinkingMode')}
+        </Divider>
+
+        <Form.Item label={t('thinkingMode')} name="thinking_mode" initialValue="off">
+          <Select
+            options={[
+              { value: 'off', label: t('thinkingOff') },
+              { value: 'auto', label: t('thinkingAuto') },
+              { value: 'on', label: t('thinkingOn') },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item label={t('thinkingBudget')} name="thinking_budget_tokens" initialValue={8000}>
+          <InputNumber min={1024} max={32000} step={1024} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </Modal>

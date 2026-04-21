@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Card,
   Descriptions,
@@ -37,8 +37,22 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
   const [selectedPids, setSelectedPids] = useState<number[]>([])
   const [filteredResult, setFilteredResult] = useState<TraceParseResult | null>(null)
   const [filtering, setFiltering] = useState(false)
+  const sliceTableWrapperRef = useRef<HTMLDivElement>(null)
+  const [sliceTableHeight, setSliceTableHeight] = useState(320)
 
   const displayResult = filteredResult ?? traceResult
+
+  useEffect(() => {
+    const el = sliceTableWrapperRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setSliceTableHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const handleFilter = useCallback(async () => {
     if (!traceResult) return
@@ -254,14 +268,17 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
           style={{ marginBottom: 12 }}
           styles={{ body: { padding: 0 } }}
         >
-          <Table
-            dataSource={summary.top_slices}
-            columns={sliceColumns}
-            rowKey="name"
-            size="small"
-            pagination={false}
-            scroll={{ y: 200 }}
-          />
+          <div ref={sliceTableWrapperRef} style={{ height: 320, overflow: 'hidden' }}>
+            <Table
+              dataSource={summary.top_slices}
+              columns={sliceColumns}
+              rowKey="name"
+              size="small"
+              pagination={false}
+              scroll={{ y: sliceTableHeight }}
+              virtual
+            />
+          </div>
         </Card>
       )}
 

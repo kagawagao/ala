@@ -5,7 +5,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 MAX_FILE_SIZE = 100 * 1024  # 100KB per file
 MAX_FILES_LIST = 2000
 MAX_SEARCH_RESULTS = 50

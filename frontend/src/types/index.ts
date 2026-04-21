@@ -81,6 +81,8 @@ export interface AIConfig {
   api_key: string
   model: string
   temperature: number
+  thinking_mode: 'off' | 'auto' | 'on'
+  thinking_budget_tokens: number
 }
 
 export interface FilterPreset {
@@ -131,4 +133,9 @@ export interface ToolResultEvent {
   content: string
 }
 
-export type AgentEvent = ToolCallEvent | ToolResultEvent
+export interface ThinkingEvent {
+  type: 'thinking'
+  content: string
+}
+
+export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent

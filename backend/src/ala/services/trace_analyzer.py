@@ -60,8 +60,7 @@ class TraceAnalyzer:
 
         # 1. Try Perfetto TraceProcessor (supports proto, JSON, systrace)
         try:
-            from perfetto.trace_processor import \
-                TraceProcessor  # type: ignore[import-untyped]
+            from perfetto.trace_processor import TraceProcessor  # type: ignore[import-untyped]
 
             with TraceProcessor(trace=io.BytesIO(content)) as tp:
                 return self._summarize_via_tp(tp, file_size=len(content), fmt=fmt_hint)
@@ -252,7 +251,7 @@ class TraceAnalyzer:
             ],
             key=lambda x: x["duration_ms"],
             reverse=True,
-        )[:20]
+        )
 
         thread_count = sum(len(info["threads"]) for info in processes.values())
 
@@ -347,7 +346,6 @@ class TraceAnalyzer:
                 "WHERE dur > 0 AND name IS NOT NULL "
                 "GROUP BY name "
                 "ORDER BY duration_ms DESC "
-                "LIMIT 20"
             )
             for row in rows:
                 top_slices.append(

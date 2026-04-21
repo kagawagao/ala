@@ -23,11 +23,19 @@ import {
   FileTextOutlined,
   CopyOutlined,
   LinkOutlined,
+  BulbOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { createSession, listSessions, deleteSession, sendMessage } from '../api/chat'
+import {
+  createSession,
+  listSessions,
+  deleteSession,
+  sendMessage,
+  setSessionTrace,
+  setSessionLogs,
+} from '../api/chat'
 import type {
   Session,
   LogEntry,
@@ -36,6 +44,7 @@ import type {
   Project,
   AgentEvent,
   ContextDoc,
+  AIConfig,
 } from '../types'
 
 const { Text } = Typography
@@ -47,14 +56,23 @@ interface ToolCallInfo {
   result?: string
 }
 
+// An ordered sequence of parts within an assistant message
+type MessagePart =
+  | { type: 'text'; content: string }
+  | { type: 'tool'; call: ToolCallInfo }
+  | { type: 'thinking'; content: string }
+
 interface DisplayMessage {
   role: 'user' | 'assistant' | 'system'
-  content: string
-  toolCalls?: ToolCallInfo[]
+  content: string // plain text for session storage / history
+  parts?: MessagePart[] // ordered rendering parts (streaming)
+  toolCalls?: ToolCallInfo[] // legacy fallback for loaded sessions
+  thinkingBlocks?: string[] // legacy fallback for loaded sessions
 }
 
 interface AiPanelProps {
   logs: LogEntry[]
+  allLogs: LogEntry[]
   totalLogs: number
   filters: LogFilters
   traceResult: TraceParseResult | null
@@ -62,6 +80,48 @@ interface AiPanelProps {
   selectedProjectId: string | null
   projects: Project[]
   contextDocs: ContextDoc[]
+  aiConfig?: AIConfig
+}
+
+const ThinkingDisplay: React.FC<{ blocks: string[]; thinkingMode?: string }> = ({
+  blocks,
+  thinkingMode,
+}) => {
+  const { t } = useTranslation()
+  if (blocks.length === 0) return null
+  const defaultExpanded = thinkingMode === 'on' ? ['0'] : []
+  return (
+    <Collapse
+      size="small"
+      defaultActiveKey={defaultExpanded}
+      style={{ marginBottom: 6, fontSize: 11 }}
+      items={blocks.map((block, idx) => ({
+        key: String(idx),
+        label: (
+          <Space size={4}>
+            <BulbOutlined />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {t('thinking')}
+            </Text>
+          </Space>
+        ),
+        children: (
+          <pre
+            style={{
+              fontSize: 10,
+              maxHeight: 200,
+              overflow: 'auto',
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {block}
+          </pre>
+        ),
+      }))}
+    />
+  )
 }
 
 const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls }) => {
@@ -143,14 +203,16 @@ const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls })
 }
 
 const AiPanel: React.FC<AiPanelProps> = ({
-  logs,
-  totalLogs,
-  filters,
+  logs: _logs,
+  allLogs,
+  totalLogs: _totalLogs,
+  filters: _filters,
   traceResult,
   aiConfigured,
   selectedProjectId,
   projects,
   contextDocs,
+  aiConfig,
 }) => {
   const { t } = useTranslation()
   const { message: messageApi } = App.useApp()
@@ -162,6 +224,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -179,9 +242,28 @@ const AiPanel: React.FC<AiPanelProps> = ({
       })
   }, [])
 
+  // Keep the active session's trace in sync when traceResult changes
+  useEffect(() => {
+    if (activeSessionId && traceResult) {
+      void setSessionTrace(activeSessionId, traceResult.summary as Record<string, unknown>)
+    }
+  }, [traceResult, activeSessionId])
+
+  // Debounced sync of allLogs to the active session (500ms debounce)
+  useEffect(() => {
+    if (!activeSessionId || allLogs.length === 0) return
+    if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
+    logSyncTimerRef.current = setTimeout(() => {
+      void setSessionLogs(activeSessionId, allLogs as unknown as Record<string, unknown>[])
+    }, 500)
+    return () => {
+      if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
+    }
+  }, [allLogs, activeSessionId])
+
   const handleNewSession = async () => {
     try {
-      const contextType = logs.length > 0 ? 'log' : traceResult ? 'trace' : 'general'
+      const contextType = allLogs.length > 0 ? 'log' : traceResult ? 'trace' : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
         contextType,
@@ -190,6 +272,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setSessions((prev) => [...prev, session])
       setActiveSessionId(session.id)
       setMessages(session.messages)
+      if (traceResult) {
+        await setSessionTrace(session.id, traceResult.summary as Record<string, unknown>)
+      }
+      if (allLogs.length > 0) {
+        await setSessionLogs(session.id, allLogs as unknown as Record<string, unknown>[])
+      }
     } catch {
       void messageApi.error(t('backendNotConnected'))
     }
@@ -216,31 +304,26 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }
 
-  const buildFilterSummary = (): string | null => {
-    const parts: string[] = []
-    if (filters.level) parts.push(`level=${filters.level}`)
-    if (filters.tag) parts.push(`tag="${filters.tag}"`)
-    if (filters.pid) parts.push(`pid=${filters.pid}`)
-    if (filters.tid) parts.push(`tid=${filters.tid}`)
-    if (filters.keywords) parts.push(`keywords="${filters.keywords}"`)
-    if (filters.start_time) parts.push(`start_time="${filters.start_time}"`)
-    if (filters.end_time) parts.push(`end_time="${filters.end_time}"`)
-    return parts.length > 0 ? parts.join(', ') : null
-  }
-
   const buildContext = (): string | undefined => {
-    if (logs.length > 0) {
-      const sample = logs.slice(0, 200)
-      const filterSummary = buildFilterSummary()
-      const countNote =
-        filterSummary !== null
-          ? `${logs.length} of ${totalLogs} entries (filtered by: ${filterSummary})`
-          : `${logs.length} entries`
-      const showingNote = logs.length > 200 ? `, showing first 200` : ''
-      return `Log context (${countNote}${showingNote}):\n\`\`\`\n${sample.map((l) => l.raw_line).join('\n')}\n\`\`\``
+    if (allLogs.length > 0) {
+      return (
+        `${allLogs.length} Android log entries are loaded in this session. ` +
+        `Use the search_logs tool to filter by level/tag/pid/keyword, ` +
+        `or query_log_overview for statistics.`
+      )
     }
     if (traceResult) {
-      return `Trace context:\n${JSON.stringify(traceResult.summary, null, 2)}`
+      const s = traceResult.summary
+      const nProc = (s as Record<string, unknown[]>).processes?.length ?? '?'
+      const nEv = (s as Record<string, unknown>).total_events ?? '?'
+      const dur = (s as Record<string, unknown>).duration_ms ?? '?'
+      const fmt = (s as Record<string, unknown>).format ?? 'unknown'
+      return (
+        `Perfetto trace loaded in this session: format=${fmt}, duration=${dur}ms, ` +
+        `${nProc} processes, ${nEv} events. ` +
+        `Use the available trace tools (query_trace_overview, list_trace_processes, query_trace_slices) ` +
+        `to explore details on demand.`
+      )
     }
     return undefined
   }
@@ -258,16 +341,36 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setInputValue('')
     setStreaming(true)
 
-    const assistantMsg: DisplayMessage = { role: 'assistant', content: '', toolCalls: [] }
+    const assistantMsg: DisplayMessage = { role: 'assistant', content: '', parts: [] }
     setMessages((prev) => [...prev, assistantMsg])
 
     abortRef.current = new AbortController()
 
+    // Helper: push or extend the last text part in the parts array
+    const appendText = (parts: MessagePart[], delta: string): MessagePart[] => {
+      const last = parts[parts.length - 1]
+      if (last?.type === 'text') {
+        return [...parts.slice(0, -1), { type: 'text', content: last.content + delta }]
+      }
+      return [...parts, { type: 'text', content: delta }]
+    }
+
     try {
       const context = buildContext()
+      let parts: MessagePart[] = []
+      let accumulated = '' // plain text for session storage
 
-      let accumulated = ''
-      const toolCalls: ToolCallInfo[] = []
+      const updateMsg = (p: MessagePart[]) => {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const textContent = p
+            .filter((x) => x.type === 'text')
+            .map((x) => (x as { type: 'text'; content: string }).content)
+            .join('')
+          updated[updated.length - 1] = { role: 'assistant', content: textContent, parts: p }
+          return updated
+        })
+      }
 
       for await (const chunk of sendMessage(
         activeSessionId,
@@ -278,63 +381,67 @@ const AiPanel: React.FC<AiPanelProps> = ({
         if (chunk === '[DONE]') break
         try {
           const data = JSON.parse(chunk) as AgentEvent | Record<string, unknown>
+
+          if ('type' in data && data.type === 'thinking') {
+            const event = data as { type: 'thinking'; content: string }
+            parts = [...parts, { type: 'thinking', content: event.content }]
+            updateMsg(parts)
+            continue
+          }
+
           if ('type' in data && data.type === 'tool_call') {
             const event = data as AgentEvent
             if (event.type === 'tool_call') {
-              toolCalls.push({ name: event.name, arguments: event.arguments })
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = {
-                  role: 'assistant',
-                  content: accumulated,
-                  toolCalls: [...toolCalls],
-                }
-                return updated
-              })
+              parts = [
+                ...parts,
+                { type: 'tool', call: { name: event.name, arguments: event.arguments } },
+              ]
+              updateMsg(parts)
             }
             continue
           }
+
           if ('type' in data && data.type === 'tool_result') {
             const event = data as AgentEvent
             if (event.type === 'tool_result') {
-              const lastTc = [...toolCalls]
+              // Find the most recent unresolved tool part with this name and attach result
+              const idx = [...parts]
                 .reverse()
-                .find((tc: ToolCallInfo) => tc.name === event.name && !tc.result)
-              if (lastTc) {
-                lastTc.result = event.content
-              }
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = {
-                  role: 'assistant',
-                  content: accumulated,
-                  toolCalls: [...toolCalls],
+                .findIndex((p) => p.type === 'tool' && p.call.name === event.name && !p.call.result)
+              if (idx !== -1) {
+                const realIdx = parts.length - 1 - idx
+                const updated = [...parts]
+                updated[realIdx] = {
+                  type: 'tool',
+                  call: {
+                    ...(parts[realIdx] as { type: 'tool'; call: ToolCallInfo }).call,
+                    result: event.content,
+                  },
                 }
-                return updated
-              })
+                parts = updated
+                updateMsg(parts)
+              }
             }
             continue
           }
-          // Regular content in JSON format
+
+          // Regular text content
           const delta =
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (data as any).choices?.[0]?.delta?.content ||
             (data as Record<string, unknown>).content ||
             chunk
-          accumulated += delta
+          if (typeof delta === 'string' && delta) {
+            accumulated += delta
+            parts = appendText(parts, delta)
+            updateMsg(parts)
+          }
         } catch {
           // Plain text chunk
           accumulated += chunk
+          parts = appendText(parts, chunk)
+          updateMsg(parts)
         }
-        setMessages((prev) => {
-          const updated = [...prev]
-          updated[updated.length - 1] = {
-            role: 'assistant',
-            content: accumulated,
-            toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-          }
-          return updated
-        })
       }
 
       setSessions((prev) =>
@@ -385,11 +492,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const sessionHasProject = !!activeSession?.project_id
+  const sessionHasTrace = activeSession?.context_type === 'trace'
+  const sessionHasLog = activeSession?.context_type === 'log'
 
-  // Build context indicator info
+  // Build context indicator info (shows what data is linked to current session)
   const contextInfo =
-    logs.length > 0
-      ? { type: 'log' as const, detail: `${logs.length} ${t('logEntries')}` }
+    allLogs.length > 0
+      ? { type: 'log' as const, detail: `${allLogs.length} ${t('logEntries')}` }
       : traceResult
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
@@ -539,6 +648,36 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 </Text>
               </div>
             )}
+            {!sessionHasProject && sessionHasTrace && traceResult && (
+              <div
+                style={{
+                  marginBottom: 8,
+                  padding: '4px 8px',
+                  background: 'var(--ant-color-bg-container-disabled)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                }}
+              >
+                <ToolOutlined style={{ marginRight: 4 }} />
+                <Text type="secondary">{t('traceAgentMode')}</Text>
+              </div>
+            )}
+            {!sessionHasProject && sessionHasLog && allLogs.length > 0 && (
+              <div
+                style={{
+                  marginBottom: 8,
+                  padding: '4px 8px',
+                  background: 'var(--ant-color-bg-container-disabled)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                }}
+              >
+                <FileTextOutlined style={{ marginRight: 4 }} />
+                <Text type="secondary">
+                  {t('logAgentMode')} ({allLogs.length} {t('logEntries')})
+                </Text>
+              </div>
+            )}
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -589,19 +728,63 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   >
                     {msg.role === 'assistant' ? (
                       <>
-                        {msg.toolCalls && msg.toolCalls.length > 0 && (
-                          <ToolCallDisplay toolCalls={msg.toolCalls} />
-                        )}
-                        {msg.content ? (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                        ) : streaming && idx === messages.length - 1 ? (
-                          <span className="typing-indicator">
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                          </span>
-                        ) : msg.toolCalls?.length ? null : (
-                          <Text type="secondary">...</Text>
+                        {msg.parts && msg.parts.length > 0 ? (
+                          // Ordered parts rendering (streaming messages)
+                          <>
+                            {msg.parts.map((part, pIdx) => {
+                              if (part.type === 'thinking') {
+                                return (
+                                  <ThinkingDisplay
+                                    key={pIdx}
+                                    blocks={[part.content]}
+                                    thinkingMode={aiConfig?.thinking_mode}
+                                  />
+                                )
+                              }
+                              if (part.type === 'tool') {
+                                return <ToolCallDisplay key={pIdx} toolCalls={[part.call]} />
+                              }
+                              // text part
+                              return part.content ? (
+                                <ReactMarkdown key={pIdx} remarkPlugins={[remarkGfm]}>
+                                  {part.content}
+                                </ReactMarkdown>
+                              ) : null
+                            })}
+                            {streaming && idx === messages.length - 1 && !msg.content && (
+                              <span className="typing-indicator">
+                                <span className="typing-dot" />
+                                <span className="typing-dot" />
+                                <span className="typing-dot" />
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          // Legacy fallback for session-loaded messages
+                          <>
+                            {msg.thinkingBlocks && msg.thinkingBlocks.length > 0 && (
+                              <ThinkingDisplay
+                                blocks={msg.thinkingBlocks}
+                                thinkingMode={aiConfig?.thinking_mode}
+                              />
+                            )}
+                            {msg.toolCalls && msg.toolCalls.length > 0 && (
+                              <ToolCallDisplay toolCalls={msg.toolCalls} />
+                            )}
+                            {msg.content ? (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {msg.content}
+                              </ReactMarkdown>
+                            ) : streaming && idx === messages.length - 1 ? (
+                              <span className="typing-indicator">
+                                <span className="typing-dot" />
+                                <span className="typing-dot" />
+                                <span className="typing-dot" />
+                              </span>
+                            ) : msg.toolCalls?.length ? null : (
+                              <Text type="secondary">...</Text>
+                            )}
+                          </>
                         )}
                       </>
                     ) : (

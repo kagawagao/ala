@@ -39,6 +39,7 @@ import type {
   HighlightItem,
   Project,
   ContextDoc,
+  AIConfig,
 } from './types'
 
 const DEFAULT_FILTERS: LogFilters = {
@@ -141,6 +142,7 @@ const AppContent: React.FC<{
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [backendConnected, setBackendConnected] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
+  const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
 
   // Project state (lifted here so Header and AiPanel share it)
@@ -254,9 +256,10 @@ const AppContent: React.FC<{
     const saved = localStorage.getItem('aiConfig')
     if (saved) {
       try {
-        const cfg = JSON.parse(saved) as { api_key?: string }
+        const cfg = JSON.parse(saved) as AIConfig
         if (cfg.api_key) {
           setAiConfigured(true)
+          setAiConfig(cfg)
           // Sync localStorage config to backend (it's in-memory only and lost on restart)
           if (backendConnected) {
             fetch('/api/config', {
@@ -278,9 +281,10 @@ const AppContent: React.FC<{
     if (backendConnected) {
       fetch('/api/config', { signal: AbortSignal.timeout(3000) })
         .then((res) => res.json())
-        .then((cfg: { api_key?: string }) => {
+        .then((cfg: AIConfig) => {
           if (cfg.api_key) {
             setAiConfigured(true)
+            setAiConfig(cfg)
             localStorage.setItem('aiConfig', JSON.stringify(cfg))
           }
         })
@@ -374,8 +378,9 @@ const AppContent: React.FC<{
     const saved = localStorage.getItem('aiConfig')
     if (saved) {
       try {
-        const cfg = JSON.parse(saved) as { api_key?: string }
+        const cfg = JSON.parse(saved) as AIConfig
         setAiConfigured(!!cfg.api_key)
+        setAiConfig(cfg)
       } catch {
         /* ignore */
       }
@@ -707,6 +712,7 @@ const AppContent: React.FC<{
                           <div style={{ flex: 1, overflow: 'hidden' }}>
                             <AiPanel
                               logs={filteredLogs}
+                              allLogs={allLogs}
                               totalLogs={allLogs.length}
                               filters={filters}
                               traceResult={traceResult}
@@ -714,6 +720,7 @@ const AppContent: React.FC<{
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
+                              aiConfig={aiConfig ?? undefined}
                             />
                           </div>
                         </div>

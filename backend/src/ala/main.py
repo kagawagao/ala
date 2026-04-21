@@ -4,9 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import chat, health, logs, trace
+from .api import chat, health, logs, projects, trace
 from .api import config as config_router
-from .api import projects
 from .config import settings
 from .mcp.server import mcp
 

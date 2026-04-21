@@ -23,6 +23,8 @@ class Session:
     project_id: str | None = None
     messages: list[Message] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
+    trace_summary: dict | None = None
+    log_entries: list[dict] | None = None
 
 
 class SessionManager:
@@ -65,3 +67,19 @@ class SessionManager:
         msg = Message(role=role, content=content)
         session.messages.append(msg)
         return msg
+
+    def set_trace_summary(self, session_id: str, summary: dict) -> bool:
+        """Store a parsed trace summary in the session for agentic tool access."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        session.trace_summary = summary
+        return True
+
+    def set_log_entries(self, session_id: str, entries: list[dict]) -> bool:
+        """Store log entries in the session for agentic tool access."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        session.log_entries = entries
+        return True

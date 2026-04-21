@@ -46,6 +46,18 @@ class SendMessageRequest(BaseModel):
     context: str | None = None  # Serialized log/trace context
 
 
+class SetTraceRequest(BaseModel):
+    summary: dict
+
+
+class SetLogsRequest(BaseModel):
+    entries: list[dict]
+
+
+# Maximum number of log entries stored per session (tail-biased to catch recent errors)
+_MAX_SESSION_LOGS = 10_000
+
+
 def _session_to_response(session) -> Session:
     return Session(
         id=session.id,
@@ -84,6 +96,28 @@ async def delete_session(session_id: str):
     return {"success": True}
 
 
+@router.put("/sessions/{session_id}/trace")
+async def set_session_trace(session_id: str, req: SetTraceRequest):
+    """Store a trace summary in the session for agentic tool access."""
+    ok = _session_manager.set_trace_summary(session_id, req.summary)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True}
+
+
+@router.put("/sessions/{session_id}/logs")
+async def set_session_logs(session_id: str, req: SetLogsRequest):
+    """Store log entries in the session for agentic tool access (capped at MAX_SESSION_LOGS)."""
+    entries = req.entries
+    if len(entries) > _MAX_SESSION_LOGS:
+        # Keep the tail (most recent entries are most likely to contain errors)
+        entries = entries[-_MAX_SESSION_LOGS:]
+    ok = _session_manager.set_log_entries(session_id, entries)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "stored": len(entries)}
+
+
 @router.post("/sessions/{session_id}/messages")
 async def send_message(session_id: str, req: SendMessageRequest):
     session = _session_manager.get_session(session_id)
@@ -102,6 +136,8 @@ async def send_message(session_id: str, req: SendMessageRequest):
         api_key=ai_config.api_key,
         model=ai_config.model,
         temperature=ai_config.temperature,
+        thinking_mode=ai_config.thinking_mode,
+        thinking_budget_tokens=ai_config.thinking_budget_tokens,
     )
 
     # Build messages list including context if provided
@@ -112,23 +148,27 @@ async def send_message(session_id: str, req: SendMessageRequest):
     for msg in session.messages:
         messages.append({"role": msg.role, "content": msg.content})
 
-    # Check if session has a project for agentic mode
+    # Resolve project (if any) and trace/log data for agentic mode
     project = None
     if session.project_id:
         pm = get_project_manager()
         project = pm.get_project(session.project_id)
 
+    trace_summary = session.trace_summary
+    log_entries = session.log_entries
+
     async def event_stream():
         full_response = ""
         try:
-            if project:
-                # Agentic mode with tool calling
-                async for chunk in ai_service.stream_chat_agentic(messages, project):
-                    # Check if it's a JSON event (tool_call or tool_result)
+            if project or trace_summary or log_entries is not None:
+                # Agentic mode: project tools, trace tools, log tools, or any combination
+                async for chunk in ai_service.stream_chat_agentic(
+                    messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+                ):
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
-                            if event.get("type") in ("tool_call", "tool_result"):
+                            if event.get("type") in ("tool_call", "tool_result", "thinking"):
                                 yield _sse_encode(chunk)
                                 continue
                         except json.JSONDecodeError:
@@ -136,8 +176,16 @@ async def send_message(session_id: str, req: SendMessageRequest):
                     full_response += chunk
                     yield _sse_encode(chunk)
             else:
-                # Simple streaming mode
+                # Simple streaming mode (thinking events still forwarded)
                 async for chunk in ai_service.stream_chat(messages):
+                    if chunk.startswith("{"):
+                        try:
+                            event = json.loads(chunk)
+                            if event.get("type") == "thinking":
+                                yield _sse_encode(chunk)
+                                continue
+                        except json.JSONDecodeError:
+                            pass
                     full_response += chunk
                     yield _sse_encode(chunk)
 
