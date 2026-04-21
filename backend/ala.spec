@@ -93,9 +93,14 @@ hiddenimports = [
     "perfetto.trace_processor.api",
 ]
 
-# Collect all submodules of packages with heavy dynamic import usage
-for pkg in ("anthropic", "fastmcp", "mcp"):
+# Collect all submodules of packages with heavy dynamic import usage.
+# mcp is excluded from collect_submodules because mcp.cli requires the optional
+# 'typer' package which is not a runtime dependency; we list mcp submodules manually.
+for pkg in ("anthropic", "fastmcp"):
     hiddenimports += collect_submodules(pkg)
+
+# Manually include the mcp submodules we actually use (skipping mcp.cli)
+hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
 
 # ---------------------------------------------------------------------------
 # Binaries (shared libraries)
