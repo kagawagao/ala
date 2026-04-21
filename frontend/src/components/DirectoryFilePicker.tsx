@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Modal, Checkbox, Typography, Button, Space, Tag, Input, Empty } from 'antd'
 import { FileOutlined, FolderOutlined, SearchOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,13 @@ const DirectoryFilePicker: React.FC<DirectoryFilePickerProps> = ({
   const { t } = useTranslation()
   const [selected, setSelected] = useState<Set<string>>(() => new Set(files.map((f) => f.path)))
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setSelected(new Set(files.map((f) => f.path)))
+      setSearch('')
+    }
+  }, [open, files])
 
   const filteredFiles = useMemo(() => {
     if (!search.trim()) return files
@@ -153,6 +160,7 @@ const DirectoryFilePicker: React.FC<DirectoryFilePickerProps> = ({
                     <Checkbox
                       checked={selected.has(file.path)}
                       onChange={() => toggleFile(file.path)}
+                      onClick={(e) => e.stopPropagation()}
                       style={{ marginRight: 8 }}
                     />
                     <FileOutlined style={{ marginRight: 6 }} />

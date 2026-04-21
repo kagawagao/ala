@@ -97,7 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <div style={{ marginBottom: 12 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Backend:{' '}
+          {t('backend')}:{' '}
         </Text>
         <Tag color={backendConnected ? 'success' : 'error'}>
           {backendConnected ? t('connected') : t('disconnected')}
@@ -117,7 +117,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <Form.Item
           label={t('apiEndpoint')}
           name="api_endpoint"
-          rules={[{ required: true, message: 'Please enter API endpoint' }]}
+          rules={[{ required: true, message: t('apiEndpointRequired') }]}
           initialValue="https://api.anthropic.com"
         >
           <Input placeholder="https://api.anthropic.com" />
@@ -125,14 +125,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <Form.Item
           label={t('apiKey')}
           name="api_key"
-          rules={[{ required: true, message: 'Please enter API key' }]}
+          rules={[{ required: true, message: t('apiKeyRequired') }]}
         >
           <Input.Password placeholder="sk-ant-..." />
         </Form.Item>
         <Form.Item
           label={t('model')}
           name="model"
-          rules={[{ required: true, message: 'Please enter model name' }]}
+          rules={[{ required: true, message: t('modelRequired') }]}
           initialValue="claude-sonnet-4-20250514"
         >
           <Input placeholder="claude-sonnet-4-20250514" />

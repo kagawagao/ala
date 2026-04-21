@@ -386,7 +386,6 @@ class TraceAnalyzer:
         Used when the ``perfetto`` package is unavailable or the
         ``trace_processor`` binary cannot be obtained.
         """
-        processes: dict = {}
         ftrace_events: set[str] = set()
         event_count = 0
         offset = 0
@@ -437,10 +436,10 @@ class TraceAnalyzer:
         return TraceParseResult(
             summary=TraceSummary(
                 duration_ms=None,
-                process_count=len(processes),
+                process_count=0,
                 thread_count=0,
                 event_count=event_count,
-                processes=list(processes.values()),
+                processes=[],
                 top_slices=[],
                 ftrace_events=list(ftrace_events)[:20],
                 metadata={"file_size": len(content), "format": "perfetto_proto"},
@@ -462,5 +461,4 @@ class TraceAnalyzer:
                 return result, consumed
             if shift >= 64:
                 return 0, 0
-        return 0, 0
         return 0, 0

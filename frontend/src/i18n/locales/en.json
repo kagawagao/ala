@@ -190,5 +190,9 @@
   "thinkingOn": "On (visible)",
   "thinkingBudget": "Thinking budget (tokens)",
   "thinking": "Thinking",
-  "downloadMarkdown": "Download as Markdown"
+  "downloadMarkdown": "Download as Markdown",
+  "backend": "Backend",
+  "apiEndpointRequired": "Please enter API endpoint",
+  "apiKeyRequired": "Please enter API key",
+  "modelRequired": "Please enter model name"
 }

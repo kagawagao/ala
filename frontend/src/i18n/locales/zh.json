@@ -190,5 +190,9 @@
   "thinkingOn": "开启（可见）",
   "thinkingBudget": "思考 token 预算",
   "thinking": "思考过程",
-  "downloadMarkdown": "下载为 Markdown"
+  "downloadMarkdown": "下载为 Markdown",
+  "backend": "后端",
+  "apiEndpointRequired": "请输入 API 端点",
+  "apiKeyRequired": "请输入 API 密钥",
+  "modelRequired": "请输入模型名称"
 }

@@ -330,8 +330,10 @@ async def parse_selected_files_stream(req: DirectorySelectedRequest):
         total = 0
         for rel_path in sorted(req.selected_files):
             full_path = os.path.normpath(os.path.join(dir_path, rel_path))
-            # Prevent path traversal
-            if not full_path.startswith(os.path.realpath(dir_path)):
+            # Prevent path traversal: resolve symlinks and compare real paths
+            real_dir = os.path.realpath(dir_path)
+            real_full = os.path.realpath(full_path)
+            if os.path.commonpath([real_full, real_dir]) != real_dir:
                 yield json.dumps({"_error": f"Invalid path: {rel_path}"}) + "\n"
                 continue
             if not os.path.isfile(full_path):
