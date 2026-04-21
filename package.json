@@ -10,6 +10,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
     "build:frontend": "cd frontend && npm run build",
+    "build:exe": "bash scripts/build-exe.sh",
     "deploy": "docker compose up --build -d",
     "deploy:down": "docker compose down",
     "test": "npm run test:backend && npm run test:frontend",

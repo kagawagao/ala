@@ -113,6 +113,57 @@ docker compose up -d
 
 The app will be available at `http://localhost`.
 
+### Standalone Executable
+
+Build ALA into a single self-contained executable (no Python/Node.js required on the target machine).
+
+**Prerequisites** (build machine only):
+
+- Node.js 20+
+- Python 3.12+ with [Poetry](https://python-poetry.org/)
+
+**Build:**
+
+```bash
+# macOS / Linux
+bash scripts/build-exe.sh
+
+# Windows (PowerShell)
+.\scripts\ala.ps1 exe
+```
+
+The build process:
+
+1. Compiles the React frontend to `frontend/dist/`
+2. Bundles the Python backend + frontend static files with PyInstaller
+
+**Output:** `backend/dist/ala/` directory containing the `ala` (or `ala.exe`) executable and its supporting files.
+
+**Run:**
+
+```bash
+# macOS / Linux
+./backend/dist/ala/ala
+
+# Windows
+.\backend\dist\ala\ala.exe
+```
+
+The app opens in your default browser at `http://localhost:8000` automatically.
+
+**Configure AI API Key** (optional): place a `.env` file next to the executable:
+
+```env
+AI_API_KEY=sk-ant-...
+AI_MODEL=claude-sonnet-4-20250514
+```
+
+Or configure it in the app's Settings UI after launching.
+
+**Distribute:** zip/archive the entire `backend/dist/ala/` folder — the executable requires the sibling files to run.
+
+> **Note:** PyInstaller builds are platform-specific. Build on Windows to get a Windows binary, macOS for macOS, Linux for Linux.
+
 ## Configuration
 
 ### AI Settings

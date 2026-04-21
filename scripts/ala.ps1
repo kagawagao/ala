@@ -11,7 +11,7 @@
 
 param(
   [Parameter(Position = 0, Mandatory = $true)]
-  [ValidateSet("install", "dev", "build", "deploy")]
+  [ValidateSet("install", "dev", "build", "deploy", "exe")]
   [string]$Command
 )
 
@@ -130,6 +130,42 @@ function Invoke-Deploy {
   Write-Info "Stop stack:  docker compose down"
 }
 
+function Invoke-Exe {
+  Require-Command "node"   "Install Node.js 20+ from https://nodejs.org"
+  Require-Command "poetry" "Run: pip install poetry"
+
+  # Step 1: Build the React frontend
+  Write-Info "Building React frontend..."
+  Set-Location "$RepoRoot\frontend"
+  npm install
+  if ($LASTEXITCODE -ne 0) { Write-Err "npm install (frontend) failed" }
+  npm run build
+  if ($LASTEXITCODE -ne 0) { Write-Err "Frontend build failed" }
+  Write-Ok "Frontend built -> frontend/dist/"
+
+  # Step 2: Install backend + PyInstaller dependencies
+  Write-Info "Installing backend dependencies (Poetry)..."
+  Set-Location "$RepoRoot\backend"
+  poetry install
+  if ($LASTEXITCODE -ne 0) { Write-Err "poetry install failed" }
+  Write-Ok "Backend dependencies installed."
+
+  # Step 3: Run PyInstaller
+  Write-Info "Running PyInstaller..."
+  Set-Location "$RepoRoot\backend"
+  poetry run pyinstaller ala.spec --noconfirm
+  if ($LASTEXITCODE -ne 0) { Write-Err "PyInstaller build failed" }
+
+  Set-Location $RepoRoot
+  Write-Ok "Build complete!"
+  Write-Info "  Executable: backend\dist\ala\ala.exe"
+  Write-Info ""
+  Write-Info "To run:  .\backend\dist\ala\ala.exe"
+  Write-Info "         Then open http://localhost:8000 in your browser."
+  Write-Info ""
+  Write-Info "To distribute: zip the backend\dist\ala\ folder."
+}
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -138,4 +174,5 @@ switch ($Command) {
   "dev"     { Invoke-Dev }
   "build"   { Invoke-Build }
   "deploy"  { Invoke-Deploy }
+  "exe"     { Invoke-Exe }
 }
