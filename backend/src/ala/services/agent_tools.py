@@ -69,85 +69,14 @@ AGENT_TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_log_files",
         "description": (
-            "List log and trace files in the project's log directory. "
-            "Returns file names, sizes, and types (.log, .txt, .gz, .zip)."
+            "List the log files currently loaded in this session. "
+            "Returns the unique source file names that were uploaded or loaded by the user. "
+            "Use this to discover what log data is available before querying it."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {
-                "log_directory": {
-                    "type": "string",
-                    "description": "Path to the log directory to scan",
-                },
-            },
-            "required": ["log_directory"],
-        },
-    },
-    {
-        "name": "read_log_file",
-        "description": (
-            "Read and parse a log file from the log directory. "
-            "Returns parsed log entries with timestamps, levels, tags, and messages. "
-            "Supports plain text, .gz, and .zip files."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "Full path to the log file",
-                },
-                "max_lines": {
-                    "type": "integer",
-                    "description": "Maximum number of log lines to return (default: 500)",
-                },
-            },
-            "required": ["file_path"],
-        },
-    },
-    {
-        "name": "filter_logs",
-        "description": (
-            "Filter parsed log entries by level, tag, pid, keyword, or time range. "
-            "Use after reading a log file to narrow down results."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "Full path to the log file to filter",
-                },
-                "level": {
-                    "type": "string",
-                    "description": "Log level filter (V, D, I, W, E, F)",
-                },
-                "tag": {
-                    "type": "string",
-                    "description": "Tag filter (substring match)",
-                },
-                "keyword": {
-                    "type": "string",
-                    "description": "Keyword to search in log messages",
-                },
-                "pid": {
-                    "type": "string",
-                    "description": "Process ID filter",
-                },
-                "start_time": {
-                    "type": "string",
-                    "description": "Start timestamp filter",
-                },
-                "end_time": {
-                    "type": "string",
-                    "description": "End timestamp filter",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results (default: 200)",
-                },
-            },
-            "required": ["file_path"],
+            "properties": {},
+            "required": [],
         },
     },
 ]
@@ -289,7 +218,7 @@ def execute_tool(
         return _execute_trace_tool(tool_name, args, trace_summary)
 
     # Log tools (work standalone or alongside project tools)
-    if tool_name in ("query_log_overview", "search_logs"):
+    if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
         if log_entries is None:
             return json.dumps({"error": "No logs loaded in this session"})
         return _execute_log_tool(tool_name, args, log_entries)
@@ -361,9 +290,6 @@ def execute_tool(
             }
         )
 
-    elif tool_name == "list_log_files":
-        return _execute_list_log_files(args)
-
     elif tool_name == "read_log_file":
         return _execute_read_log_file(args)
 
@@ -417,7 +343,16 @@ _LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
 
 
 def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> str:
-    """Handle the two log-query tools against session-stored log entries."""
+    """Handle log-query tools against session-stored log entries."""
+    if tool_name == "list_log_files":
+        # Collect unique source files from loaded log entries
+        files: dict[str, int] = {}
+        for entry in log_entries:
+            src = entry.get("source_file") or "unknown"
+            files[src] = files.get(src, 0) + 1
+        file_list = [{"name": name, "entry_count": count} for name, count in sorted(files.items())]
+        return json.dumps({"total_files": len(file_list), "files": file_list})
+
     if tool_name == "query_log_overview":
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
