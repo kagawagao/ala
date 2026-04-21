@@ -189,5 +189,6 @@
   "thinkingAuto": "Auto (hidden)",
   "thinkingOn": "On (visible)",
   "thinkingBudget": "Thinking budget (tokens)",
-  "thinking": "Thinking"
+  "thinking": "Thinking",
+  "downloadMarkdown": "Download as Markdown"
 }

@@ -189,5 +189,6 @@
   "thinkingAuto": "自动（隐藏）",
   "thinkingOn": "开启（可见）",
   "thinkingBudget": "思考 token 预算",
-  "thinking": "思考过程"
+  "thinking": "思考过程",
+  "downloadMarkdown": "下载为 Markdown"
 }

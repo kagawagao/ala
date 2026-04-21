@@ -24,6 +24,7 @@ import {
   CopyOutlined,
   LinkOutlined,
   BulbOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -490,6 +491,16 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }
 
+  const handleDownload = (content: string) => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ala-response-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const sessionHasProject = !!activeSession?.project_id
   const sessionHasTrace = activeSession?.context_type === 'trace'
@@ -798,28 +809,48 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   {msg.role === 'assistant' &&
                     msg.content &&
                     !(streaming && idx === messages.length - 1) && (
-                      <Tooltip title={copiedIdx === idx ? t('copied') : t('copy')}>
-                        <Button
-                          className="ai-copy-btn"
-                          type="text"
-                          size="small"
-                          icon={copiedIdx === idx ? <LinkOutlined /> : <CopyOutlined />}
-                          onClick={() => {
-                            void handleCopy(msg.content, idx)
-                          }}
-                          style={{
-                            position: 'absolute',
-                            right: 2,
-                            bottom: -24,
-                            fontSize: 12,
-                            opacity: copiedIdx === idx ? 1 : undefined,
-                            color:
-                              copiedIdx === idx
-                                ? 'var(--ant-color-success)'
-                                : 'var(--ant-color-text-tertiary)',
-                          }}
-                        />
-                      </Tooltip>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 2,
+                          bottom: -24,
+                          display: 'flex',
+                          gap: 2,
+                        }}
+                      >
+                        <Tooltip title={copiedIdx === idx ? t('copied') : t('copy')}>
+                          <Button
+                            className="ai-copy-btn"
+                            type="text"
+                            size="small"
+                            icon={copiedIdx === idx ? <LinkOutlined /> : <CopyOutlined />}
+                            onClick={() => {
+                              void handleCopy(msg.content, idx)
+                            }}
+                            style={{
+                              fontSize: 12,
+                              opacity: copiedIdx === idx ? 1 : undefined,
+                              color:
+                                copiedIdx === idx
+                                  ? 'var(--ant-color-success)'
+                                  : 'var(--ant-color-text-tertiary)',
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip title={t('downloadMarkdown')}>
+                          <Button
+                            className="ai-copy-btn"
+                            type="text"
+                            size="small"
+                            icon={<DownloadOutlined />}
+                            onClick={() => handleDownload(msg.content)}
+                            style={{
+                              fontSize: 12,
+                              color: 'var(--ant-color-text-tertiary)',
+                            }}
+                          />
+                        </Tooltip>
+                      </div>
                     )}
                 </div>
               </div>
