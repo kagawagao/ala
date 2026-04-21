@@ -241,18 +241,32 @@ Respond ONLY with a valid JSON array of filter presets, no other text."""
         full_response = ""
         try:
             async for chunk in ai_service.stream_chat(messages):
+                # Skip thinking/event JSON blocks emitted by stream_chat
+                if chunk.startswith("{"):
+                    try:
+                        event = json.loads(chunk)
+                        if isinstance(event, dict) and event.get("type") in (
+                            "thinking",
+                            "tool_call",
+                            "tool_result",
+                        ):
+                            continue
+                    except json.JSONDecodeError:
+                        pass
                 full_response += chunk
-            # Strip markdown code fences if present
+
+            # Strip markdown code fences (handles ```json, ```JSON, plain ```)
             cleaned = full_response.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
+            lines = cleaned.splitlines()
+            if lines and lines[0].lstrip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+
             parsed = json.loads(cleaned)
             # Save generated presets to the project
             existing = project.filter_presets or []
-            # Assign IDs to new presets
             import time
 
             new_presets = []
