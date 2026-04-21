@@ -237,7 +237,14 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   useEffect(() => {
     listSessions()
-      .then(setSessions)
+      .then((loaded) => {
+        setSessions(loaded)
+        if (loaded.length > 0) {
+          const last = loaded[loaded.length - 1]
+          setActiveSessionId(last.id)
+          setMessages(last.messages)
+        }
+      })
       .catch(() => {
         /* backend may not be running */
       })
