@@ -59,9 +59,16 @@ jobs:
           fi
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
+          # Sync version to frontend/package.json
+          VERSION_NUM="${NEW_VERSION#v}"
+          cd frontend && npm version "$VERSION_NUM" --no-git-tag-version && cd ..
+
+          # Sync version to backend/pyproject.toml
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUM\"/" backend/pyproject.toml
+
       - name: Commit and tag
         run: |
-          git add package.json package-lock.json CHANGELOG.md
+          git add package.json package-lock.json CHANGELOG.md frontend/package.json frontend/package-lock.json backend/pyproject.toml
           git commit -m "chore(release): ${{ steps.bump.outputs.new_version }}"
           git tag ${{ steps.bump.outputs.new_version }}
 

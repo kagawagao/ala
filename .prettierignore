@@ -1,6 +1,26 @@
-dist
-node_modules
-build
-*.log
-*.svg
+# Build outputs
+dist/
+build/
+out/
+release/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Python files (handled by ruff)
+**/*.py
+
+# Lock files
 package-lock.json
+*.lock
+
+# Generated files
+*.tsbuildinfo
+
+# Python tooling caches
+**/.pytest_cache/
+
+# Test fixtures / examples
+examples/
