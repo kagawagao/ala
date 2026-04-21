@@ -8,8 +8,8 @@ A full-stack tool for analyzing **Android logcat** files and **Perfetto trace** 
 ala/
 ├── backend/          # Python FastAPI backend
 │   ├── src/ala/      # Application source
-│   │   ├── api/      # REST endpoints (logs, trace, chat, config)
-│   │   ├── services/ # Business logic (log analyzer, trace analyzer, AI, sessions)
+│   │   ├── api/      # REST endpoints (logs, trace, chat, config, projects)
+│   │   ├── services/ # Business logic (log analyzer, trace analyzer, AI, sessions, agent tools)
 │   │   └── mcp/      # FastMCP server (MCP protocol support)
 │   └── tests/        # pytest test suite
 └── frontend/         # React + Vite + Ant Design frontend
@@ -26,22 +26,30 @@ ala/
   - **Multi-file upload**: select or drag multiple `.log` / `.txt` files at once
   - **Compressed archives**: upload `.gz` (single-file gzip) or `.zip` (multi-log archives) directly
   - **Streaming parse**: log entries are streamed to the browser as they are parsed — no large JSON body, instant first-row display
+  - **Virtualized list**: renders large log datasets without UI lag
   - Filters: time range, keywords (regex), log level, tag (regex), PID, TID
   - Filter presets (save/load/delete)
   - Color-coded log levels
 - **Perfetto Trace Analysis** — Analyze Perfetto `.pb` and JSON trace files
-  - Extract process/thread/event summary
-  - Top slices by duration
+  - Extract process/thread/event summary (all slices, not just top 20)
+  - Top slices by duration with virtualized rendering
   - FTrace events
   - **Process filter**: filter the trace view by PID list or process name regex
 - **AI Assistant** — Multi-turn conversation with streaming responses
   - Analysis presets: General, Crash, Performance, Security
   - Attach log/trace data as conversation context
+  - **Agentic analysis**: AI uses tools (`query_log_overview`, `search_logs`, `list_log_files`, `query_trace_overview`, `list_trace_processes`, `query_trace_slices`) to iteratively explore loaded data
+  - **Extended thinking**: optional "think mode" for deeper reasoning
   - Session management (create, rename, delete)
   - OpenAI-compatible API (works with OpenAI, Ollama, Azure, etc.)
+- **Projects** — Group source code paths for AI-assisted analysis
+  - Scan project files to discover logging patterns
+  - **AI-generated filter presets**: automatically suggest log filters based on the project's code (`Log.d/i/w/e` tags, process names, error keywords)
+  - Context documents (AGENTS.md, CLAUDE.md, etc.) auto-injected into the AI system prompt
 - **MCP Server** — Expose log and trace analysis tools via Model Context Protocol
-  - `parse_android_log`, `filter_android_logs`, `get_log_statistics`, `parse_perfetto_trace`
-- **i18n** — English and Chinese (中文) UI
+  - `parse_android_log`, `filter_android_logs`, `get_log_statistics`
+  - `parse_perfetto_trace`, `filter_perfetto_trace`
+- **i18n** — English and Chinese (中文) UI; language auto-detected from browser locale
 - **Dark/light theme**
 
 ## Quick Start
@@ -256,21 +264,29 @@ Git hooks (via Husky):
 
 ## API Reference
 
-| Method    | Path                              | Description                                             |
-| --------- | --------------------------------- | ------------------------------------------------------- |
-| `GET`     | `/health`                         | Health check                                            |
-| `GET/PUT` | `/api/config`                     | AI configuration                                        |
-| `POST`    | `/api/logs/parse`                 | Parse log files (multipart, multiple files, .gz / .zip) |
-| `POST`    | `/api/logs/parse/stream`          | Stream-parse log files as NDJSON                        |
-| `POST`    | `/api/logs/filter`                | Filter log entries                                      |
-| `POST`    | `/api/logs/statistics`            | Get log statistics                                      |
-| `POST`    | `/api/trace/parse`                | Parse Perfetto trace (multipart)                        |
-| `POST`    | `/api/trace/filter`               | Filter trace by process PID(s) / name regex             |
-| `POST`    | `/api/chat/sessions`              | Create chat session                                     |
-| `GET`     | `/api/chat/sessions`              | List chat sessions                                      |
-| `GET`     | `/api/chat/sessions/:id`          | Get session with messages                               |
-| `DELETE`  | `/api/chat/sessions/:id`          | Delete session                                          |
-| `POST`    | `/api/chat/sessions/:id/messages` | Send message (SSE stream)                               |
+| Method    | Path                                 | Description                                             |
+| --------- | ------------------------------------ | ------------------------------------------------------- |
+| `GET`     | `/health`                            | Health check                                            |
+| `GET/PUT` | `/api/config`                        | AI configuration                                        |
+| `POST`    | `/api/logs/parse`                    | Parse log files (multipart, multiple files, .gz / .zip) |
+| `POST`    | `/api/logs/parse/stream`             | Stream-parse log files as NDJSON                        |
+| `POST`    | `/api/logs/filter`                   | Filter log entries                                      |
+| `POST`    | `/api/logs/statistics`               | Get log statistics                                      |
+| `POST`    | `/api/trace/parse`                   | Parse Perfetto trace (multipart)                        |
+| `POST`    | `/api/trace/filter`                  | Filter trace by process PID(s) / name regex             |
+| `POST`    | `/api/chat/sessions`                 | Create chat session                                     |
+| `GET`     | `/api/chat/sessions`                 | List chat sessions                                      |
+| `GET`     | `/api/chat/sessions/:id`             | Get session with messages                               |
+| `DELETE`  | `/api/chat/sessions/:id`             | Delete session                                          |
+| `POST`    | `/api/chat/sessions/:id/messages`    | Send message (SSE stream)                               |
+| `POST`    | `/api/projects`                      | Create project                                          |
+| `GET`     | `/api/projects`                      | List projects                                           |
+| `GET`     | `/api/projects/:id`                  | Get project                                             |
+| `PUT`     | `/api/projects/:id`                  | Update project                                          |
+| `DELETE`  | `/api/projects/:id`                  | Delete project                                          |
+| `GET`     | `/api/projects/:id/files`            | List project source files                               |
+| `GET`     | `/api/projects/:id/context-docs`     | List AI context documents in project                    |
+| `POST`    | `/api/projects/:id/generate-filters` | AI-generate log filter presets (SSE stream)             |
 
 ## License
 
