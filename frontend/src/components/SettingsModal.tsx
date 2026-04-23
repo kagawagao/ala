@@ -25,6 +25,7 @@ const { Text } = Typography
 const MODELS_STORAGE_KEY = 'ala_models'
 
 const BUILTIN_MODELS: ModelPreset[] = [
+  // ── Anthropic ──────────────────────────────────────────────────────────────
   {
     id: 'claude-opus-4',
     name: 'Claude Opus 4',
@@ -33,6 +34,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.anthropic.com',
     description: 'Most capable',
     builtin: true,
+    anthropic_compatible: true,
+    supports_thinking: true,
   },
   {
     id: 'claude-sonnet-4',
@@ -42,6 +45,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.anthropic.com',
     description: 'Balanced',
     builtin: true,
+    anthropic_compatible: true,
+    supports_thinking: true,
   },
   {
     id: 'claude-3-5-sonnet',
@@ -51,6 +56,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.anthropic.com',
     description: 'Previous generation',
     builtin: true,
+    anthropic_compatible: true,
+    supports_thinking: false,
   },
   {
     id: 'claude-haiku-3-5',
@@ -60,7 +67,10 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.anthropic.com',
     description: 'Fast & efficient',
     builtin: true,
+    anthropic_compatible: true,
+    supports_thinking: false,
   },
+  // ── OpenAI ─────────────────────────────────────────────────────────────────
   {
     id: 'gpt-4o',
     name: 'GPT-4o',
@@ -69,6 +79,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.openai.com/v1',
     description: 'Multimodal flagship',
     builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
   },
   {
     id: 'gpt-4.1',
@@ -78,6 +90,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.openai.com/v1',
     description: 'Latest GPT-4.1',
     builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
   },
   {
     id: 'o4-mini',
@@ -87,6 +101,8 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.openai.com/v1',
     description: 'Reasoning, efficient',
     builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
   },
   {
     id: 'gpt-4o-mini',
@@ -96,8 +112,112 @@ const BUILTIN_MODELS: ModelPreset[] = [
     api_endpoint: 'https://api.openai.com/v1',
     description: 'Fast & cheap',
     builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── Kimi (Moonshot AI) ─────────────────────────────────────────────────────
+  {
+    id: 'kimi-k2',
+    name: 'Kimi K2',
+    provider: 'Kimi',
+    model_id: 'kimi-k2',
+    api_endpoint: 'https://api.moonshot.cn/v1',
+    description: 'Latest flagship',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'kimi-k2-thinking',
+    name: 'Kimi K2 Thinking',
+    provider: 'Kimi',
+    model_id: 'kimi-k2-thinking',
+    api_endpoint: 'https://api.moonshot.cn/v1',
+    description: 'Extended reasoning',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'moonshot-v1-128k',
+    name: 'Moonshot V1 128K',
+    provider: 'Kimi',
+    model_id: 'moonshot-v1-128k',
+    api_endpoint: 'https://api.moonshot.cn/v1',
+    description: 'Long context',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── MiniMax ────────────────────────────────────────────────────────────────
+  {
+    id: 'minimax-m2.7',
+    name: 'MiniMax-M2.7',
+    provider: 'MiniMax',
+    model_id: 'MiniMax-M2.7',
+    api_endpoint: 'https://api.minimax.io/v1',
+    description: 'Latest',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'minimax-m2.5',
+    name: 'MiniMax-M2.5',
+    provider: 'MiniMax',
+    model_id: 'MiniMax-M2.5',
+    api_endpoint: 'https://api.minimax.io/v1',
+    description: 'High performance',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── Qwen (DashScope) ───────────────────────────────────────────────────────
+  {
+    id: 'qwen-max',
+    name: 'Qwen Max',
+    provider: 'Qwen',
+    model_id: 'qwen-max-latest',
+    api_endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    description: 'Most capable',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'qwen-plus',
+    name: 'Qwen Plus',
+    provider: 'Qwen',
+    model_id: 'qwen-plus-latest',
+    api_endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    description: 'Balanced',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'qwen-turbo',
+    name: 'Qwen Turbo',
+    provider: 'Qwen',
+    model_id: 'qwen-turbo-latest',
+    api_endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    description: 'Fast',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
   },
 ]
+
+/** Group an array of ModelPreset objects by their provider field. */
+function groupByProvider(models: ModelPreset[]): [string, ModelPreset[]][] {
+  const map = new Map<string, ModelPreset[]>()
+  for (const m of models) {
+    const group = map.get(m.provider) ?? []
+    group.push(m)
+    map.set(m.provider, group)
+  }
+  return Array.from(map.entries())
+}
 
 function loadCustomModels(): ModelPreset[] {
   try {
@@ -233,21 +353,46 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>
             {t('builtinModels')}
           </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {BUILTIN_MODELS.map((m) => (
-              <Button
-                key={m.id}
-                size="small"
-                onClick={() => applyModelPreset(m)}
-                style={{ fontSize: 11 }}
-              >
-                <span style={{ fontWeight: 500 }}>{m.name}</span>
-                {m.description && (
-                  <Text type="secondary" style={{ fontSize: 10, marginLeft: 4 }}>
-                    · {m.description}
-                  </Text>
-                )}
-              </Button>
+          <div style={{ marginBottom: 12 }}>
+            {groupByProvider(BUILTIN_MODELS).map(([provider, models]) => (
+              <div key={provider} style={{ marginBottom: 8 }}>
+                <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 4 }}>
+                  {provider}
+                </Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {models.map((m) => (
+                    <Button
+                      key={m.id}
+                      size="small"
+                      onClick={() => applyModelPreset(m)}
+                      style={{ fontSize: 11, height: 'auto', padding: '2px 8px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 500 }}>{m.name}</span>
+                        {m.description && (
+                          <Text type="secondary" style={{ fontSize: 10 }}>
+                            · {m.description}
+                          </Text>
+                        )}
+                        {m.anthropic_compatible === true ? (
+                          <Tag color="blue" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                            Anthropic
+                          </Tag>
+                        ) : m.anthropic_compatible === false ? (
+                          <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                            OpenAI
+                          </Tag>
+                        ) : null}
+                        {m.supports_thinking && (
+                          <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                            {t('supportsThinking')}
+                          </Tag>
+                        )}
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 

@@ -210,5 +210,6 @@
   "modelLibraryHint": "点击模型可自动填写上方字段",
   "noFilterApplied": "未设置过滤条件",
   "applyFiltersToView": "请在侧边栏中输入至少一个过滤条件，然后点击「应用过滤器」查看日志",
-  "filterDisabledNoConditions": "请至少输入一个过滤条件"
+  "filterDisabledNoConditions": "请至少输入一个过滤条件",
+  "supportsThinking": "思考"
 }

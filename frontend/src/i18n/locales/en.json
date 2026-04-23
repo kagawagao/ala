@@ -210,5 +210,6 @@
   "modelLibraryHint": "Click a model to populate the fields above",
   "noFilterApplied": "No filter conditions applied",
   "applyFiltersToView": "Enter at least one filter condition in the sidebar and click \"Apply Filters\" to view logs",
-  "filterDisabledNoConditions": "Please enter at least one filter condition"
+  "filterDisabledNoConditions": "Please enter at least one filter condition",
+  "supportsThinking": "Thinking"
 }

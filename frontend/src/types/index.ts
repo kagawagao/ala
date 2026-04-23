@@ -100,6 +100,10 @@ export interface ModelPreset {
   api_endpoint: string
   description?: string
   builtin?: boolean
+  /** Whether this model requires the Anthropic API format (vs OpenAI-compatible). */
+  anthropic_compatible?: boolean
+  /** Whether this model supports thinking/reasoning mode as configured in this app. */
+  supports_thinking?: boolean
 }
 
 export interface Project {
