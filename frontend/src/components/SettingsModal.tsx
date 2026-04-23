@@ -61,6 +61,42 @@ const BUILTIN_MODELS: ModelPreset[] = [
     description: 'Fast & efficient',
     builtin: true,
   },
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    provider: 'OpenAI',
+    model_id: 'gpt-4o',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Multimodal flagship',
+    builtin: true,
+  },
+  {
+    id: 'gpt-4.1',
+    name: 'GPT-4.1',
+    provider: 'OpenAI',
+    model_id: 'gpt-4.1',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Latest GPT-4.1',
+    builtin: true,
+  },
+  {
+    id: 'o4-mini',
+    name: 'o4-mini',
+    provider: 'OpenAI',
+    model_id: 'o4-mini',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Reasoning, efficient',
+    builtin: true,
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o mini',
+    provider: 'OpenAI',
+    model_id: 'gpt-4o-mini',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Fast & cheap',
+    builtin: true,
+  },
 ]
 
 function loadCustomModels(): ModelPreset[] {

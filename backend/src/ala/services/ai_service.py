@@ -1,10 +1,18 @@
-"""Anthropic-compatible AI service with async streaming and agentic tool calling."""
+"""Multi-provider AI service with async streaming and agentic tool calling.
+
+Supports:
+- Anthropic (api.anthropic.com) — native SDK with extended thinking + tool calling
+- OpenAI-compatible endpoints — openai SDK (OpenAI, Groq, Together AI, Ollama, etc.)
+
+Provider is detected automatically from the configured API endpoint.
+"""
 
 import json
 from collections.abc import AsyncIterator
 from typing import Any
 
 import anthropic
+import openai
 
 from .agent_tools import AGENT_TOOLS, LOG_TOOLS, TRACE_TOOLS, execute_tool
 from .code_scanner import CodeScanner
@@ -13,6 +21,23 @@ from .project_manager import Project
 MAX_TOOL_ROUNDS = 10
 MAX_TOKENS = 8192
 _scanner = CodeScanner()
+
+
+def _is_anthropic_endpoint(endpoint: str) -> bool:
+    """Return True when the endpoint is Anthropic's API."""
+    return "anthropic.com" in endpoint
+
+
+def _anthropic_tool_to_openai(tool: dict) -> dict:
+    """Convert an Anthropic tool schema to OpenAI function-calling format."""
+    return {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+        },
+    }
 
 
 class AIService:
@@ -25,60 +50,29 @@ class AIService:
         thinking_mode: str = "off",
         thinking_budget_tokens: int = 8000,
     ):
-        self._client = anthropic.AsyncAnthropic(api_key=api_key, base_url=api_endpoint)
         self._model = model
         self._temperature = temperature
         self._thinking_mode = thinking_mode
         self._thinking_budget = thinking_budget_tokens
+        self._use_anthropic = _is_anthropic_endpoint(api_endpoint)
 
-    def _thinking_params(self) -> dict[str, Any]:
-        """Return extra kwargs to pass to the Anthropic API when thinking is enabled."""
-        if self._thinking_mode in ("on", "auto"):
-            return {
-                "thinking": {"type": "enabled", "budget_tokens": self._thinking_budget},
-                "temperature": 1,  # required by Anthropic for extended thinking
-                "extra_headers": {"anthropic-beta": "interleaved-thinking-2025-05-14"},
-            }
-        return {"temperature": self._temperature}
+        if self._use_anthropic:
+            self._anthropic_client = anthropic.AsyncAnthropic(
+                api_key=api_key, base_url=api_endpoint
+            )
+        else:
+            self._openai_client = openai.AsyncOpenAI(api_key=api_key, base_url=api_endpoint)
+
+    # ── Public interface ──────────────────────────────────────────────────────
 
     async def stream_chat(self, messages: list[dict]) -> AsyncIterator[str]:
-        """Simple streaming chat (no tool calling). Supports extended thinking."""
-        system_text, api_messages = self._extract_system(messages)
-
-        extra = self._thinking_params()
-        extra_headers = extra.pop("extra_headers", None)
-
-        stream_kwargs: dict[str, Any] = {
-            "model": self._model,
-            "max_tokens": MAX_TOKENS,
-            "system": system_text or anthropic.NOT_GIVEN,
-            "messages": api_messages,
-            **extra,
-        }
-        if extra_headers:
-            stream_kwargs["extra_headers"] = extra_headers
-
-        in_thinking = False
-        current_thinking = ""
-
-        async with self._client.messages.stream(**stream_kwargs) as stream:
-            async for event in stream:
-                if event.type == "content_block_start":
-                    if event.content_block.type == "thinking":
-                        in_thinking = True
-                        current_thinking = ""
-                    else:
-                        in_thinking = False
-                elif event.type == "content_block_delta":
-                    if event.delta.type == "thinking_delta":
-                        current_thinking += event.delta.thinking
-                    elif event.delta.type == "text_delta":
-                        yield event.delta.text
-                elif event.type == "content_block_stop":
-                    if in_thinking:
-                        yield json.dumps({"type": "thinking", "content": current_thinking})
-                        in_thinking = False
-                        current_thinking = ""
+        """Simple streaming chat (no tool calling)."""
+        if self._use_anthropic:
+            async for chunk in self._stream_chat_anthropic(messages):
+                yield chunk
+        else:
+            async for chunk in self._stream_chat_openai(messages):
+                yield chunk
 
     async def stream_chat_agentic(
         self,
@@ -87,17 +81,40 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
     ) -> AsyncIterator[str]:
-        """Run an agentic chat loop with tool calling. Supports extended thinking.
+        """Agentic chat loop with tool calling."""
+        if self._use_anthropic:
+            async for chunk in self._stream_chat_agentic_anthropic(
+                messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+            ):
+                yield chunk
+        else:
+            async for chunk in self._stream_chat_agentic_openai(
+                messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+            ):
+                yield chunk
 
-        Activated when project, trace_summary, or log_entries (or any combination) is provided.
+    # ── Shared helpers ────────────────────────────────────────────────────────
 
-        Yields SSE-formatted events:
-        - Regular text: raw content string
-        - Thinking: JSON with type="thinking"
-        - Tool calls: JSON with type="tool_call"
-        - Tool results: JSON with type="tool_result"
+    def _thinking_params(self) -> dict[str, Any]:
+        """Return extra kwargs for the Anthropic API when thinking is enabled."""
+        if self._thinking_mode in ("on", "auto"):
+            return {
+                "thinking": {"type": "enabled", "budget_tokens": self._thinking_budget},
+                "temperature": 1,  # required by Anthropic for extended thinking
+                "extra_headers": {"anthropic-beta": "interleaved-thinking-2025-05-14"},
+            }
+        return {"temperature": self._temperature}
+
+    def _build_agentic_context(
+        self,
+        project: Project | None,
+        trace_summary: dict | None,
+        log_entries: list[dict] | None,
+    ) -> tuple[list[dict[str, Any]], str]:
+        """Build tool list and system prompt text for agentic mode.
+
+        Returns (tools, system_text).
         """
-        # Build tool list and system prompt based on available context
         tools: list[dict[str, Any]] = []
         parts: list[str] = []
 
@@ -147,14 +164,86 @@ class AIService:
             trace_hint += "). Use trace tools to explore performance data on demand."
             parts.append(trace_hint)
 
-        system_text = "\n".join(parts)
+        return tools, "\n".join(parts)
 
-        # Merge any existing system message from context
+    @staticmethod
+    def _extract_system(messages: list[dict]) -> tuple[str | None, list[dict]]:
+        """Extract system message from message list.
+
+        Anthropic uses system as a separate parameter, not in messages.
+        Returns (system_text, remaining_messages).
+        """
+        system_text = None
+        api_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_text = msg.get("content", "")
+            else:
+                api_messages.append(msg)
+        return system_text, api_messages
+
+    # ── Anthropic implementation ──────────────────────────────────────────────
+
+    async def _stream_chat_anthropic(self, messages: list[dict]) -> AsyncIterator[str]:
+        """Simple streaming chat via Anthropic. Supports extended thinking."""
+        system_text, api_messages = self._extract_system(messages)
+
+        extra = self._thinking_params()
+        extra_headers = extra.pop("extra_headers", None)
+
+        stream_kwargs: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": MAX_TOKENS,
+            "system": system_text or anthropic.NOT_GIVEN,
+            "messages": api_messages,
+            **extra,
+        }
+        if extra_headers:
+            stream_kwargs["extra_headers"] = extra_headers
+
+        in_thinking = False
+        current_thinking = ""
+
+        async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
+            async for event in stream:
+                if event.type == "content_block_start":
+                    if event.content_block.type == "thinking":
+                        in_thinking = True
+                        current_thinking = ""
+                    else:
+                        in_thinking = False
+                elif event.type == "content_block_delta":
+                    if event.delta.type == "thinking_delta":
+                        current_thinking += event.delta.thinking
+                    elif event.delta.type == "text_delta":
+                        yield event.delta.text
+                elif event.type == "content_block_stop":
+                    if in_thinking:
+                        yield json.dumps({"type": "thinking", "content": current_thinking})
+                        in_thinking = False
+                        current_thinking = ""
+
+    async def _stream_chat_agentic_anthropic(
+        self,
+        messages: list[dict],
+        project: Project | None = None,
+        trace_summary: dict | None = None,
+        log_entries: list[dict] | None = None,
+    ) -> AsyncIterator[str]:
+        """Agentic chat loop with Anthropic tool calling. Supports extended thinking.
+
+        Yields SSE-formatted events:
+        - Regular text: raw content string
+        - Thinking: JSON with type="thinking"
+        - Tool calls: JSON with type="tool_call"
+        - Tool results: JSON with type="tool_result"
+        """
+        tools, system_text = self._build_agentic_context(project, trace_summary, log_entries)
+
         existing_system, api_messages = self._extract_system(messages)
         if existing_system:
             system_text = system_text + "\n\n" + existing_system
 
-        # Build stream parameters (thinking + temperature)
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
 
@@ -176,7 +265,7 @@ class AIService:
             if extra_headers:
                 stream_kwargs["extra_headers"] = extra_headers
 
-            async with self._client.messages.stream(**stream_kwargs) as stream:
+            async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
                 async for event in stream:
                     if event.type == "content_block_start":
                         cb = event.content_block
@@ -239,10 +328,8 @@ class AIService:
             api_messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                # No tool calls — we're done
                 break
 
-            # Execute each tool and build tool_result blocks
             tool_result_blocks: list[dict[str, Any]] = []
             for tu in tool_uses:
                 arguments_str = json.dumps(tu["input"])
@@ -273,18 +360,134 @@ class AIService:
 
             api_messages.append({"role": "user", "content": tool_result_blocks})
 
-    @staticmethod
-    def _extract_system(messages: list[dict]) -> tuple[str | None, list[dict]]:
-        """Extract system message from message list.
+    # ── OpenAI-compatible implementation ─────────────────────────────────────
 
-        Anthropic uses system as a separate parameter, not in messages.
-        Returns (system_text, remaining_messages).
+    async def _stream_chat_openai(self, messages: list[dict]) -> AsyncIterator[str]:
+        """Simple streaming chat via OpenAI-compatible API."""
+        stream = await self._openai_client.chat.completions.create(
+            model=self._model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=self._temperature,
+            max_tokens=MAX_TOKENS,
+            stream=True,
+        )
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    async def _stream_chat_agentic_openai(
+        self,
+        messages: list[dict],
+        project: Project | None = None,
+        trace_summary: dict | None = None,
+        log_entries: list[dict] | None = None,
+    ) -> AsyncIterator[str]:
+        """Agentic chat loop with OpenAI function-calling.
+
+        Yields the same event types as the Anthropic agentic path so the frontend
+        needs no changes:
+        - Regular text: raw content string
+        - Tool calls: JSON with type="tool_call"
+        - Tool results: JSON with type="tool_result"
         """
-        system_text = None
-        api_messages = []
-        for msg in messages:
-            if msg.get("role") == "system":
-                system_text = msg.get("content", "")
-            else:
-                api_messages.append(msg)
-        return system_text, api_messages
+        anthropic_tools, system_text = self._build_agentic_context(
+            project, trace_summary, log_entries
+        )
+        openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
+
+        # Build message list: prepend system prompt, then include any inline system message
+        existing_system, base_messages = self._extract_system(messages)
+        combined_system = system_text
+        if existing_system:
+            combined_system = combined_system + "\n\n" + existing_system
+
+        openai_messages: list[dict[str, Any]] = []
+        if combined_system:
+            openai_messages.append({"role": "system", "content": combined_system})
+        openai_messages.extend(base_messages)
+
+        for _round in range(MAX_TOOL_ROUNDS):
+            # Accumulate tool call deltas across streaming chunks
+            tool_calls_acc: dict[int, dict[str, Any]] = {}
+            text_content = ""
+
+            stream_kwargs: dict[str, Any] = {
+                "model": self._model,
+                "messages": openai_messages,
+                "temperature": self._temperature,
+                "max_tokens": MAX_TOKENS,
+                "stream": True,
+            }
+            if openai_tools:
+                stream_kwargs["tools"] = openai_tools
+
+            stream = await self._openai_client.chat.completions.create(
+                **stream_kwargs  # type: ignore[arg-type]
+            )
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                delta = choice.delta
+
+                if delta.content:
+                    text_content += delta.content
+                    yield delta.content
+
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {
+                                "id": tc_delta.id or "",
+                                "name": (tc_delta.function.name or "")
+                                if tc_delta.function
+                                else "",
+                                "arguments": "",
+                            }
+                        if tc_delta.function and tc_delta.function.arguments:
+                            tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+
+            tool_calls_list = list(tool_calls_acc.values())
+
+            # Record the assistant turn in the conversation
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": text_content or None}
+            if tool_calls_list:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                    }
+                    for tc in tool_calls_list
+                ]
+            openai_messages.append(assistant_msg)
+
+            if not tool_calls_list:
+                break
+
+            # Execute each tool and append results
+            for tc in tool_calls_list:
+                arguments_str = tc["arguments"]
+
+                yield json.dumps({"type": "tool_call", "name": tc["name"], "arguments": arguments_str})
+
+                result = execute_tool(
+                    project,
+                    tc["name"],
+                    arguments_str,
+                    trace_summary=trace_summary,
+                    log_entries=log_entries,
+                )
+
+                yield json.dumps(
+                    {"type": "tool_result", "name": tc["name"], "content": result[:2000]}
+                )
+
+                openai_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result,
+                    }
+                )
