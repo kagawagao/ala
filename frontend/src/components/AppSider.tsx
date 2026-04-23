@@ -32,6 +32,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
 import { generateFilters } from '../api/projects'
+import { hasFilterConditions } from '../utils/filters'
 
 const { Text } = Typography
 
@@ -110,14 +111,7 @@ const AppSider: React.FC<AppSiderProps> = ({
 
   // True when at least one non-default filter condition is set in pendingFilters.
   const hasPendingConditions = useMemo(
-    () =>
-      pendingFilters.start_time !== '' ||
-      pendingFilters.end_time !== '' ||
-      pendingFilters.keywords.trim() !== '' ||
-      pendingFilters.level !== '' ||
-      pendingFilters.tag.trim() !== '' ||
-      pendingFilters.pid !== '' ||
-      pendingFilters.tid !== '',
+    () => hasFilterConditions(pendingFilters),
     [pendingFilters],
   )
 

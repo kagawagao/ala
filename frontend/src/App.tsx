@@ -43,6 +43,7 @@ import type {
   ContextDoc,
   AIConfig,
 } from './types'
+import { hasFilterConditions } from './utils/filters'
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -231,17 +232,7 @@ const AppContent: React.FC<{
 
   const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
 
-  const hasActiveFilters = useMemo(
-    () =>
-      filters.start_time !== '' ||
-      filters.end_time !== '' ||
-      filters.keywords.trim() !== '' ||
-      filters.level !== '' ||
-      filters.tag.trim() !== '' ||
-      filters.pid !== '' ||
-      filters.tid !== '',
-    [filters],
-  )
+  const hasActiveFilters = useMemo(() => hasFilterConditions(filters), [filters])
 
   const statistics = useMemo(
     () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
