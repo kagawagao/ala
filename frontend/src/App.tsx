@@ -9,6 +9,8 @@ import {
   Popover,
   Button,
   Tooltip,
+  Empty,
+  Typography,
 } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -228,6 +230,18 @@ const AppContent: React.FC<{
   )
 
   const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
+
+  const hasActiveFilters = useMemo(
+    () =>
+      filters.start_time !== '' ||
+      filters.end_time !== '' ||
+      filters.keywords.trim() !== '' ||
+      filters.level !== '' ||
+      filters.tag.trim() !== '' ||
+      filters.pid !== '' ||
+      filters.tid !== '',
+    [filters],
+  )
 
   const statistics = useMemo(
     () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
@@ -550,6 +564,23 @@ const AppContent: React.FC<{
           error={fileError}
           fileNames={fileNames}
         />
+      ) : !hasActiveFilters ? (
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          <Empty description={t('noFilterApplied')} />
+          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
+            {t('applyFiltersToView')}
+          </Typography.Text>
+        </div>
       ) : (
         <LogViewer
           logs={filteredLogs}

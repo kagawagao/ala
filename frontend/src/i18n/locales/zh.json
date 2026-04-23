@@ -194,5 +194,21 @@
   "backend": "后端",
   "apiEndpointRequired": "请输入 API 端点",
   "apiKeyRequired": "请输入 API 密钥",
-  "modelRequired": "请输入模型名称"
+  "modelRequired": "请输入模型名称",
+  "modelLibrary": "模型库",
+  "builtinModels": "内置模型",
+  "customModels": "自定义模型",
+  "addCustomModel": "添加自定义模型",
+  "modelDisplayName": "显示名称",
+  "modelDisplayNameRequired": "请输入显示名称",
+  "modelIdRequired": "请输入模型 ID",
+  "modelEndpointRequired": "请输入 API 端点",
+  "modelProvider": "提供商",
+  "customModelAdded": "自定义模型已添加",
+  "customModelDeleted": "自定义模型已删除",
+  "applyModel": "应用",
+  "modelLibraryHint": "点击模型可自动填写上方字段",
+  "noFilterApplied": "未设置过滤条件",
+  "applyFiltersToView": "请在侧边栏中输入至少一个过滤条件，然后点击「应用过滤器」查看日志",
+  "filterDisabledNoConditions": "请至少输入一个过滤条件"
 }

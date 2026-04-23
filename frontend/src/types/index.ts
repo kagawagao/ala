@@ -92,6 +92,16 @@ export interface FilterPreset {
   filters: LogFilters
 }
 
+export interface ModelPreset {
+  id: string
+  name: string
+  provider: string
+  model_id: string
+  api_endpoint: string
+  description?: string
+  builtin?: boolean
+}
+
 export interface Project {
   id: string
   name: string
