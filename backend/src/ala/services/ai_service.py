@@ -32,7 +32,7 @@ def _is_anthropic_endpoint(endpoint: str) -> bool:
     """
     try:
         hostname = urlparse(endpoint).hostname or ""
-    except Exception:
+    except ValueError:
         hostname = ""
     return hostname == "api.anthropic.com" or hostname.endswith(".anthropic.com")
 
