@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next'
 import { getConfig, updateConfig } from '../api/config'
 import {
   BUILTIN_MODELS,
-  MODELS_STORAGE_KEY,
   groupByProvider,
   loadCustomModels,
   saveCustomModels,
@@ -28,18 +27,6 @@ import {
 import type { AIConfig, ModelPreset } from '../types'
 
 const { Text } = Typography
-
-function loadCustomModels(): ModelPreset[] {
-  try {
-    return JSON.parse(localStorage.getItem(MODELS_STORAGE_KEY) || '[]') as ModelPreset[]
-  } catch {
-    return []
-  }
-}
-
-function saveCustomModels(models: ModelPreset[]): void {
-  localStorage.setItem(MODELS_STORAGE_KEY, JSON.stringify(models))
-}
 
 interface SettingsModalProps {
   open: boolean

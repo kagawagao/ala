@@ -28,12 +28,16 @@ def _is_anthropic_endpoint(endpoint: str) -> bool:
     """Return True when the endpoint's hostname belongs to Anthropic's API.
 
     Uses proper URL parsing to prevent substring-match bypasses such as
-    ``https://evil.com?q=anthropic.com``.
+    ``https://evil.com?q=anthropic.com``.  Only HTTPS endpoints are accepted
+    to prevent API key interception over plain HTTP.
     """
     try:
-        hostname = urlparse(endpoint).hostname or ""
+        parsed = urlparse(endpoint)
+        hostname = parsed.hostname or ""
     except ValueError:
-        hostname = ""
+        return False
+    if parsed.scheme != "https":
+        return False
     return hostname == "api.anthropic.com" or hostname.endswith(".anthropic.com")
 
 
