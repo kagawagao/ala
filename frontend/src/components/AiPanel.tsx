@@ -10,6 +10,7 @@ import {
   Empty,
   Tag,
   Collapse,
+  Select,
 } from 'antd'
 import {
   PlusOutlined,
@@ -25,6 +26,7 @@ import {
   LinkOutlined,
   BulbOutlined,
   DownloadOutlined,
+  SwapOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -37,6 +39,7 @@ import {
   setSessionTrace,
   setSessionLogs,
 } from '../api/chat'
+import { getConfiguredModels, groupByProvider } from '../utils/models'
 import type {
   Session,
   LogEntry,
@@ -46,6 +49,7 @@ import type {
   AgentEvent,
   ContextDoc,
   AIConfig,
+  ModelPreset,
 } from '../types'
 
 const { Text } = Typography
@@ -223,6 +227,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  // Per-session model override: sessionId → ModelPreset (null = use global config)
+  const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -388,6 +394,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
         sentInput,
         context,
         abortRef.current.signal,
+        activeModelPreset
+          ? { model: activeModelPreset.model_id, api_endpoint: activeModelPreset.api_endpoint }
+          : undefined,
       )) {
         if (chunk === '[DONE]') break
         try {
@@ -523,6 +532,43 @@ const AiPanel: React.FC<AiPanelProps> = ({
       : traceResult
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
+
+  // All models with complete configuration (model_id + api_endpoint non-empty)
+  const configuredModels = getConfiguredModels()
+
+  // The model preset active for this session (may differ from global config)
+  const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
+
+  // Build grouped options for the Select component
+  const modelSelectOptions = groupByProvider(configuredModels).map(([provider, models]) => ({
+    label: provider,
+    options: models.map((m) => ({
+      value: m.id,
+      label: (
+        <Space size={4}>
+          <span style={{ fontSize: 12 }}>{m.name}</span>
+          {m.description && (
+            <span style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }}>
+              · {m.description}
+            </span>
+          )}
+        </Space>
+      ),
+    })),
+  }))
+
+  const handleModelChange = (presetId: string) => {
+    if (!activeSessionId) return
+    const preset = configuredModels.find((m) => m.id === presetId)
+    if (!preset) return
+    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+  }
+
+  // The value shown in the Select: active session's preset id, or the preset matching global config model
+  const modelSelectValue =
+    activeModelPreset?.id ??
+    configuredModels.find((m) => m.model_id === aiConfig?.model)?.id ??
+    undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -902,6 +948,30 @@ const AiPanel: React.FC<AiPanelProps> = ({
               <Tag color="green" style={{ fontSize: 10, lineHeight: '16px', margin: 0 }}>
                 {t('autoIncluded')}
               </Tag>
+            </div>
+          )}
+          {/* Model selector for this session */}
+          {configuredModels.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+              }}
+            >
+              <SwapOutlined style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }} />
+              <Select
+                size="small"
+                style={{ flex: 1, fontSize: 11 }}
+                placeholder={t('switchModel')}
+                value={modelSelectValue}
+                onChange={handleModelChange}
+                disabled={streaming}
+                options={modelSelectOptions}
+                optionLabelProp="label"
+                popupMatchSelectWidth={false}
+              />
             </div>
           )}
           <div style={{ position: 'relative' }}>

@@ -41,9 +41,15 @@ class CreateSessionRequest(BaseModel):
     project_id: str | None = None
 
 
+class ModelOverride(BaseModel):
+    model: str
+    api_endpoint: str
+
+
 class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
+    model_override: ModelOverride | None = None
 
 
 class SetTraceRequest(BaseModel):
@@ -132,9 +138,9 @@ async def send_message(session_id: str, req: SendMessageRequest):
     _session_manager.add_message(session_id, "user", req.message)
 
     ai_service = AIService(
-        api_endpoint=ai_config.api_endpoint,
+        api_endpoint=req.model_override.api_endpoint if req.model_override else ai_config.api_endpoint,
         api_key=ai_config.api_key,
-        model=ai_config.model,
+        model=req.model_override.model if req.model_override else ai_config.model,
         temperature=ai_config.temperature,
         thinking_mode=ai_config.thinking_mode,
         thinking_budget_tokens=ai_config.thinking_budget_tokens,

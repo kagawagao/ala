@@ -49,6 +49,11 @@ export async function* sendMessage(
   message: string,
   context?: string,
   signal?: AbortSignal,
+  modelOverride?: { model: string; api_endpoint: string },
 ): AsyncGenerator<string> {
-  yield* streamSSE(`/chat/sessions/${sessionId}/messages`, { message, context }, signal)
+  yield* streamSSE(
+    `/chat/sessions/${sessionId}/messages`,
+    { message, context, model_override: modelOverride ?? null },
+    signal,
+  )
 }
