@@ -10,6 +10,7 @@ Provider is detected automatically from the configured API endpoint.
 import json
 from collections.abc import AsyncIterator
 from typing import Any
+from urllib.parse import urlparse
 
 import anthropic
 import openai
@@ -24,8 +25,16 @@ _scanner = CodeScanner()
 
 
 def _is_anthropic_endpoint(endpoint: str) -> bool:
-    """Return True when the endpoint is Anthropic's API."""
-    return "anthropic.com" in endpoint
+    """Return True when the endpoint's hostname belongs to Anthropic's API.
+
+    Uses proper URL parsing to prevent substring-match bypasses such as
+    ``https://evil.com?q=anthropic.com``.
+    """
+    try:
+        hostname = urlparse(endpoint).hostname or ""
+    except Exception:
+        hostname = ""
+    return hostname == "api.anthropic.com" or hostname.endswith(".anthropic.com")
 
 
 def _anthropic_tool_to_openai(tool: dict) -> dict:
