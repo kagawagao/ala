@@ -149,7 +149,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
         api_key=effective_api_key,
         model=ov.model if ov else ai_config.model,
         temperature=ov.temperature if ov and ov.temperature is not None else ai_config.temperature,
-        thinking_mode=ov.thinking_mode if ov and ov.thinking_mode else ai_config.thinking_mode,
+        thinking_mode=ov.thinking_mode if ov and ov.thinking_mode is not None else ai_config.thinking_mode,
         thinking_budget_tokens=ov.thinking_budget_tokens if ov and ov.thinking_budget_tokens is not None else ai_config.thinking_budget_tokens,
         use_anthropic=ov.anthropic_compatible if ov and ov.anthropic_compatible is not None else ai_config.anthropic_compatible,
     )
