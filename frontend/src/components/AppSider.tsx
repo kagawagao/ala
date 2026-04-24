@@ -274,9 +274,9 @@ const AppSider: React.FC<AppSiderProps> = ({
     : []
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '8px 12px' }}>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '8px 0' }}>
       {/* Toolbar */}
-      <div style={{ padding: '0 0 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div style={{ padding: '0 12px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         <Tooltip title={hasPendingConditions ? t('applyFilters') : t('filterDisabledNoConditions')}>
           <Button
             size="small"
@@ -302,7 +302,7 @@ const AppSider: React.FC<AppSiderProps> = ({
         </Tooltip>
       </div>
       {selectedProjectId && (
-        <div style={{ padding: '0 0 8px' }}>
+        <div style={{ padding: '0 12px 8px' }}>
           <Button
             size="small"
             block
@@ -315,7 +315,7 @@ const AppSider: React.FC<AppSiderProps> = ({
         </div>
       )}
       {isDirty && (
-        <div style={{ padding: '0 0 6px' }}>
+        <div style={{ padding: '0 12px 6px' }}>
           <Text type="warning" style={{ fontSize: 11 }}>
             {t('filtersPendingChanges')}
           </Text>
