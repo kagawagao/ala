@@ -212,5 +212,11 @@
   "applyFiltersToView": "Enter at least one filter condition in the sidebar and click \"Apply Filters\" to view logs",
   "filterDisabledNoConditions": "Please enter at least one filter condition",
   "supportsThinking": "Thinking",
-  "switchModel": "Switch model"
+  "switchModel": "Switch model",
+  "modelManagement": "Model Management",
+  "modelManagementDescription": "Browse built-in models and manage your custom model presets.",
+  "manageModels": "Manage Models",
+  "editCustomModel": "Edit custom model",
+  "modelUpdated": "Model updated",
+  "noCustomModels": "No custom models yet"
 }

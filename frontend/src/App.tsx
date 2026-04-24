@@ -24,6 +24,7 @@ import AiPanel from './components/AiPanel'
 import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
+import ModelManager from './components/ModelManager'
 import { parseLogStream, parseDirectoryStream, parseSelectedFilesStream } from './api/logs'
 import { parseTrace } from './api/trace'
 import {
@@ -154,7 +155,7 @@ const AppContent: React.FC<{
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
 
   const location = useLocation()
-  const isProjectsPage = location.pathname === '/projects'
+  const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
 
   // Load projects on mount, when backend connects, and when navigating away from /projects
   useEffect(() => {
@@ -164,7 +165,7 @@ const AppContent: React.FC<{
       .catch(() => {
         /* backend may not be running */
       })
-  }, [backendConnected, isProjectsPage])
+  }, [backendConnected, isFullPage])
 
   // Load context docs when project changes
   useEffect(() => {
@@ -629,12 +630,13 @@ const AppContent: React.FC<{
       <div
         style={{
           flex: 1,
-          overflow: isProjectsPage ? 'auto' : 'hidden',
+          overflow: isFullPage ? 'auto' : 'hidden',
           position: 'relative',
         }}
       >
         <Routes>
           <Route path="/projects" element={<ProjectManager />} />
+          <Route path="/models" element={<ModelManager />} />
           <Route
             path="*"
             element={

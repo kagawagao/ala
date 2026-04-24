@@ -212,5 +212,11 @@
   "applyFiltersToView": "请在侧边栏中输入至少一个过滤条件，然后点击「应用过滤器」查看日志",
   "filterDisabledNoConditions": "请至少输入一个过滤条件",
   "supportsThinking": "思考",
-  "switchModel": "切换模型"
+  "switchModel": "切换模型",
+  "modelManagement": "模型管理",
+  "modelManagementDescription": "浏览内置模型，管理自定义模型预设。",
+  "manageModels": "管理模型",
+  "editCustomModel": "编辑自定义模型",
+  "modelUpdated": "模型已更新",
+  "noCustomModels": "暂无自定义模型"
 }

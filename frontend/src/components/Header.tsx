@@ -11,6 +11,7 @@ import {
   DisconnectOutlined,
   FolderOutlined,
   CodeOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -106,6 +107,9 @@ const Header: React.FC<HeaderProps> = ({
         </Tooltip>
         <Tooltip title={t('projectSettings')}>
           <Button type="text" icon={<FolderOutlined />} onClick={() => navigate('/projects')} />
+        </Tooltip>
+        <Tooltip title={t('modelManagement')}>
+          <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/models')} />
         </Tooltip>
         <Tooltip title={t('settings')}>
           <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} />
