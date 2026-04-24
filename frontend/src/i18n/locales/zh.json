@@ -218,5 +218,13 @@
   "manageModels": "管理模型",
   "editCustomModel": "编辑自定义模型",
   "modelUpdated": "模型已更新",
-  "noCustomModels": "暂无自定义模型"
+  "noCustomModels": "暂无自定义模型",
+  "configureModel": "配置",
+  "setAsActive": "设为活跃",
+  "activeModel": "活跃",
+  "modelActivated": "模型已激活",
+  "modelConfigSaved": "模型配置已保存",
+  "modelConfigTitle": "配置模型",
+  "apiKeyConfigured": "已配置 API Key",
+  "apiKeyNotConfigured": "未配置 API Key"
 }

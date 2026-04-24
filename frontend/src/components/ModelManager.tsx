@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Button,
   Card,
@@ -15,6 +15,9 @@ import {
   Empty,
   Row,
   Col,
+  Slider,
+  Select,
+  InputNumber,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -23,16 +26,25 @@ import {
   EditOutlined,
   CopyOutlined,
   CheckOutlined,
+  KeyOutlined,
+  StarFilled,
+  StarOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { updateConfig } from '../api/config'
 import {
   BUILTIN_MODELS,
   groupByProvider,
   loadCustomModels,
   saveCustomModels,
+  loadModelConfigs,
+  saveModelConfig,
+  getActiveModelId,
+  setActiveModelId,
+  buildAIConfig,
 } from '../utils/models'
-import type { ModelPreset } from '../types'
+import type { ModelPreset, ModelConfig } from '../types'
 
 const { Title, Text } = Typography
 
@@ -41,6 +53,13 @@ interface CustomModelForm {
   provider: string
   model_id: string
   api_endpoint: string
+}
+
+interface ConfigForm {
+  api_key: string
+  temperature: number
+  thinking_mode: 'off' | 'auto' | 'on'
+  thinking_budget_tokens: number
 }
 
 const CopyableText: React.FC<{ value: string }> = ({ value }) => {
@@ -60,7 +79,13 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
         <Button
           type="text"
           size="small"
-          icon={copied ? <CheckOutlined style={{ color: 'var(--ant-color-success)' }} /> : <CopyOutlined />}
+          icon={
+            copied ? (
+              <CheckOutlined style={{ color: 'var(--ant-color-success)' }} />
+            ) : (
+              <CopyOutlined />
+            )
+          }
           onClick={handleCopy}
           style={{ fontSize: 11, padding: '0 2px' }}
         />
@@ -75,10 +100,70 @@ const ModelManager: React.FC = () => {
   const navigate = useNavigate()
 
   const [customModels, setCustomModels] = useState<ModelPreset[]>(loadCustomModels)
+  const [modelConfigs, setModelConfigs] = useState<Record<string, Partial<ModelConfig>>>(
+    loadModelConfigs,
+  )
+  const [activeModelId, setActiveModelIdState] = useState<string | null>(getActiveModelId)
+
+  useEffect(() => {
+    setModelConfigs(loadModelConfigs())
+    setActiveModelIdState(getActiveModelId())
+  }, [])
+
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ModelPreset | null>(null)
+  const [configTarget, setConfigTarget] = useState<ModelPreset | null>(null)
   const [addForm] = Form.useForm<CustomModelForm>()
   const [editForm] = Form.useForm<CustomModelForm>()
+  const [configForm] = Form.useForm<ConfigForm>()
+
+  const handleSetActive = (preset: ModelPreset) => {
+    setActiveModelId(preset.id)
+    setActiveModelIdState(preset.id)
+    const cfg = modelConfigs[preset.id]
+    if (cfg?.api_key) {
+      const aiCfg = buildAIConfig(preset, cfg)
+      updateConfig(aiCfg).catch(() => { /* backend may not be running */ })
+      localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
+    }
+    void message.success(t('modelActivated'))
+  }
+
+  const openConfigure = (preset: ModelPreset) => {
+    setConfigTarget(preset)
+    const cfg = modelConfigs[preset.id] ?? {}
+    configForm.setFieldsValue({
+      api_key: cfg.api_key ?? '',
+      temperature: cfg.temperature ?? 0.7,
+      thinking_mode: cfg.thinking_mode ?? 'off',
+      thinking_budget_tokens: cfg.thinking_budget_tokens ?? 8000,
+    })
+  }
+
+  const handleSaveConfig = () => {
+    if (!configTarget) return
+    configForm
+      .validateFields()
+      .then((values) => {
+        const cfg: Partial<ModelConfig> = {
+          api_key: values.api_key.trim(),
+          temperature: values.temperature,
+          thinking_mode: values.thinking_mode,
+          thinking_budget_tokens: values.thinking_budget_tokens,
+        }
+        saveModelConfig(configTarget.id, cfg)
+        const updated = loadModelConfigs()
+        setModelConfigs(updated)
+        if (configTarget.id === activeModelId && cfg.api_key) {
+          const aiCfg = buildAIConfig(configTarget, cfg)
+          updateConfig(aiCfg).catch(() => { /* backend may not be running */ })
+          localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
+        }
+        setConfigTarget(null)
+        void message.success(t('modelConfigSaved'))
+      })
+      .catch(() => { /* validation error */ })
+  }
 
   const handleAdd = () => {
     addForm
@@ -133,6 +218,10 @@ const ModelManager: React.FC = () => {
     const updated = customModels.filter((m) => m.id !== id)
     setCustomModels(updated)
     saveCustomModels(updated)
+    if (activeModelId === id) {
+      localStorage.removeItem('ala_active_model_id')
+      setActiveModelIdState(null)
+    }
     void message.success(t('customModelDeleted'))
   }
 
@@ -144,6 +233,131 @@ const ModelManager: React.FC = () => {
       model_id: model.model_id,
       api_endpoint: model.api_endpoint,
     })
+  }
+
+  const watchThinkingMode = Form.useWatch('thinking_mode', configForm)
+  const showBudget = watchThinkingMode && watchThinkingMode !== 'off'
+
+  const renderCard = (m: ModelPreset, isCustom: boolean) => {
+    const cfg = modelConfigs[m.id] ?? {}
+    const isActive = m.id === activeModelId
+    const hasKey = !!(cfg.api_key?.trim())
+    return (
+      <Col key={m.id} xs={24} sm={12} md={8}>
+        <Card
+          size="small"
+          styles={{ body: { padding: '10px 12px' } }}
+          style={{
+            height: '100%',
+            borderColor: isActive ? 'var(--ant-color-primary)' : undefined,
+          }}
+          extra={
+            <Space size={4}>
+              {isActive ? (
+                <Tag
+                  color="blue"
+                  icon={<StarFilled style={{ fontSize: 10 }} />}
+                  style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
+                >
+                  {t('activeModel')}
+                </Tag>
+              ) : (
+                <Tooltip title={t('setAsActive')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<StarOutlined />}
+                    onClick={() => handleSetActive(m)}
+                  />
+                </Tooltip>
+              )}
+              <Tooltip title={t('configureModel')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<KeyOutlined />}
+                  onClick={() => openConfigure(m)}
+                />
+              </Tooltip>
+              {isCustom && (
+                <>
+                  <Tooltip title={t('editCustomModel')}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => openEdit(m)}
+                    />
+                  </Tooltip>
+                  <Popconfirm
+                    title={t('deleteConfirm')}
+                    onConfirm={() => handleDelete(m.id)}
+                    okType="danger"
+                  >
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
+                </>
+              )}
+            </Space>
+          }
+        >
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space size={4} wrap>
+              <Text strong style={{ fontSize: 13 }}>
+                {m.name}
+              </Text>
+              {m.anthropic_compatible === true && (
+                <Tag color="blue" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                  Anthropic
+                </Tag>
+              )}
+              {m.anthropic_compatible === false && (
+                <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                  OpenAI
+                </Tag>
+              )}
+              {m.provider && isCustom && (
+                <Tag style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>{m.provider}</Tag>
+              )}
+              {m.supports_thinking && (
+                <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                  {t('supportsThinking')}
+                </Tag>
+              )}
+            </Space>
+            {m.description && (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {m.description}
+              </Text>
+            )}
+            <div>
+              <Text type="secondary" style={{ fontSize: 10 }}>
+                Model ID
+              </Text>
+              <div>
+                <CopyableText value={m.model_id} />
+              </div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 10 }}>
+                {t('apiEndpoint')}
+              </Text>
+              <div>
+                <CopyableText value={m.api_endpoint} />
+              </div>
+            </div>
+            <div style={{ marginTop: 2 }}>
+              <Tag
+                color={hasKey ? 'success' : 'default'}
+                style={{ fontSize: 10, lineHeight: '16px' }}
+              >
+                {hasKey ? t('apiKeyConfigured') : t('apiKeyNotConfigured')}
+              </Tag>
+            </div>
+          </Space>
+        </Card>
+      </Col>
+    )
   }
 
   return (
@@ -172,66 +386,16 @@ const ModelManager: React.FC = () => {
           <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
             {provider}
           </Text>
-          <Row gutter={[12, 12]}>
-            {models.map((m) => (
-              <Col key={m.id} xs={24} sm={12} md={8}>
-                <Card
-                  size="small"
-                  styles={{ body: { padding: '10px 12px' } }}
-                  style={{ height: '100%' }}
-                >
-                  <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                    <Space size={4} wrap>
-                      <Text strong style={{ fontSize: 13 }}>
-                        {m.name}
-                      </Text>
-                      {m.anthropic_compatible === true && (
-                        <Tag color="blue" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
-                          Anthropic
-                        </Tag>
-                      )}
-                      {m.anthropic_compatible === false && (
-                        <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
-                          OpenAI
-                        </Tag>
-                      )}
-                      {m.supports_thinking && (
-                        <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
-                          {t('supportsThinking')}
-                        </Tag>
-                      )}
-                    </Space>
-                    {m.description && (
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        {m.description}
-                      </Text>
-                    )}
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 10 }}>
-                        Model ID
-                      </Text>
-                      <div>
-                        <CopyableText value={m.model_id} />
-                      </div>
-                    </div>
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 10 }}>
-                        {t('apiEndpoint')}
-                      </Text>
-                      <div>
-                        <CopyableText value={m.api_endpoint} />
-                      </div>
-                    </div>
-                  </Space>
-                </Card>
-              </Col>
-            ))}
-          </Row>
+          <Row gutter={[12, 12]}>{models.map((m) => renderCard(m, false))}</Row>
         </div>
       ))}
 
       {/* ── Custom models ────────────────────────────────────────── */}
-      <Divider orientation="left" orientationMargin={0} style={{ fontSize: 14, margin: '24px 0 16px' }}>
+      <Divider
+        orientation="left"
+        orientationMargin={0}
+        style={{ fontSize: 14, margin: '24px 0 16px' }}
+      >
         <Space>
           {t('customModels')}
           <Button
@@ -260,66 +424,63 @@ const ModelManager: React.FC = () => {
           </Button>
         </Empty>
       ) : (
-        <Row gutter={[12, 12]}>
-          {customModels.map((m) => (
-            <Col key={m.id} xs={24} sm={12} md={8}>
-              <Card
-                size="small"
-                styles={{ body: { padding: '10px 12px' } }}
-                style={{ height: '100%' }}
-                extra={
-                  <Space size={4}>
-                    <Tooltip title={t('editCustomModel')}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined />}
-                        onClick={() => openEdit(m)}
-                      />
-                    </Tooltip>
-                    <Popconfirm
-                      title={t('deleteConfirm')}
-                      onConfirm={() => handleDelete(m.id)}
-                      okType="danger"
-                    >
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  </Space>
-                }
-              >
-                <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                  <Space size={4} wrap>
-                    <Text strong style={{ fontSize: 13 }}>
-                      {m.name}
-                    </Text>
-                    {m.provider && (
-                      <Tag style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
-                        {m.provider}
-                      </Tag>
-                    )}
-                  </Space>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 10 }}>
-                      Model ID
-                    </Text>
-                    <div>
-                      <CopyableText value={m.model_id} />
-                    </div>
-                  </div>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 10 }}>
-                      {t('apiEndpoint')}
-                    </Text>
-                    <div>
-                      <CopyableText value={m.api_endpoint} />
-                    </div>
-                  </div>
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+        <Row gutter={[12, 12]}>{customModels.map((m) => renderCard(m, true))}</Row>
       )}
+
+      {/* ── Configure model modal ────────────────────────────────── */}
+      <Modal
+        title={
+          <Space>
+            <KeyOutlined />
+            {t('modelConfigTitle')}
+            {configTarget ? `: ${configTarget.name}` : ''}
+          </Space>
+        }
+        open={!!configTarget}
+        onCancel={() => {
+          configForm.resetFields()
+          setConfigTarget(null)
+        }}
+        onOk={handleSaveConfig}
+        okText={t('save')}
+        cancelText={t('cancel')}
+        width={460}
+      >
+        <Form form={configForm} layout="vertical" size="middle" style={{ marginTop: 16 }}>
+          <Form.Item
+            label={t('apiKey')}
+            name="api_key"
+            rules={[{ required: true, message: t('apiKeyRequired') }]}
+          >
+            <Input.Password placeholder="sk-ant-... / sk-... / your-api-key" />
+          </Form.Item>
+          <Form.Item label={t('temperature')} name="temperature" initialValue={0.7}>
+            <Slider min={0} max={2} step={0.1} marks={{ 0: '0', 1: '1', 2: '2' }} />
+          </Form.Item>
+          {(configTarget?.supports_thinking || showBudget) && (
+            <>
+              <Form.Item label={t('thinkingMode')} name="thinking_mode" initialValue="off">
+                <Select
+                  options={[
+                    { value: 'off', label: t('thinkingOff') },
+                    { value: 'auto', label: t('thinkingAuto') },
+                    { value: 'on', label: t('thinkingOn') },
+                  ]}
+                />
+              </Form.Item>
+              {showBudget && (
+                <Form.Item
+                  label={t('thinkingBudget')}
+                  name="thinking_budget_tokens"
+                  initialValue={8000}
+                >
+                  <InputNumber min={1024} max={32000} step={1024} style={{ width: '100%' }} />
+                </Form.Item>
+              )}
+            </>
+          )}
+        </Form>
+      </Modal>
 
       {/* ── Add custom model modal ───────────────────────────────── */}
       <Modal

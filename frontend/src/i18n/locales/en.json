@@ -218,5 +218,13 @@
   "manageModels": "Manage Models",
   "editCustomModel": "Edit custom model",
   "modelUpdated": "Model updated",
-  "noCustomModels": "No custom models yet"
+  "noCustomModels": "No custom models yet",
+  "configureModel": "Configure",
+  "setAsActive": "Set as Active",
+  "activeModel": "Active",
+  "modelActivated": "Model activated",
+  "modelConfigSaved": "Model configuration saved",
+  "modelConfigTitle": "Configure Model",
+  "apiKeyConfigured": "API Key Set",
+  "apiKeyNotConfigured": "API Key Not Set"
 }

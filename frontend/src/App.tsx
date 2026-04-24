@@ -21,7 +21,6 @@ import AppSider from './components/AppSider'
 import LogViewer from './components/LogViewer'
 import TraceViewer from './components/TraceViewer'
 import AiPanel from './components/AiPanel'
-import SettingsModal from './components/SettingsModal'
 import FileUpload from './components/FileUpload'
 import ProjectManager from './components/ProjectManager'
 import ModelManager from './components/ModelManager'
@@ -45,6 +44,8 @@ import type {
   AIConfig,
 } from './types'
 import { hasFilterConditions } from './utils/filters'
+import { migrateFromLegacyConfig, getActiveAIConfig } from './utils/models'
+import { updateConfig } from './api/config'
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -143,7 +144,6 @@ const AppContent: React.FC<{
   const [siderCollapsed, setSiderCollapsed] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [uploadPopoverOpen, setUploadPopoverOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [backendConnected, setBackendConnected] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
@@ -257,48 +257,36 @@ const AppContent: React.FC<{
     return () => clearInterval(interval)
   }, [])
 
-  // Check AI config from localStorage and backend, sync localStorage → backend on startup
+  // Derive AI config from the active model's per-model config.
+  // Runs on startup (with or without backend) and whenever backendConnected changes.
   useEffect(() => {
-    const saved = localStorage.getItem('aiConfig')
-    if (saved) {
-      try {
-        const cfg = JSON.parse(saved) as AIConfig
-        if (cfg.api_key) {
-          setAiConfigured(true)
-          setAiConfig(cfg)
-          // Sync localStorage config to backend (it's in-memory only and lost on restart)
-          if (backendConnected) {
-            fetch('/api/config', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: saved,
-              signal: AbortSignal.timeout(3000),
-            }).catch(() => {
-              /* ignore */
-            })
-          }
-          return
-        }
-      } catch {
-        /* ignore */
+    migrateFromLegacyConfig()
+    const active = getActiveAIConfig()
+    if (active?.config.api_key) {
+      setAiConfigured(true)
+      setAiConfig(active.config)
+      if (backendConnected) {
+        void updateConfig(active.config)
       }
-    }
-    // Fallback: check backend config
-    if (backendConnected) {
-      fetch('/api/config', { signal: AbortSignal.timeout(3000) })
-        .then((res) => res.json())
-        .then((cfg: AIConfig) => {
-          if (cfg.api_key) {
-            setAiConfigured(true)
-            setAiConfig(cfg)
-            localStorage.setItem('aiConfig', JSON.stringify(cfg))
-          }
-        })
-        .catch(() => {
-          /* ignore */
-        })
+    } else {
+      setAiConfigured(false)
+      setAiConfig(null)
     }
   }, [backendConnected])
+
+  // Re-derive AI config when navigating away from the models page
+  // (user may have configured / changed the active model there).
+  useEffect(() => {
+    if (!isFullPage) {
+      const active = getActiveAIConfig()
+      setAiConfigured(!!active?.config.api_key)
+      setAiConfig(active?.config ?? null)
+      if (active?.config.api_key && backendConnected) {
+        void updateConfig(active.config)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullPage])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -379,19 +367,6 @@ const AppContent: React.FC<{
     },
     [t, message],
   )
-
-  const handleConfigSaved = useCallback(() => {
-    const saved = localStorage.getItem('aiConfig')
-    if (saved) {
-      try {
-        const cfg = JSON.parse(saved) as AIConfig
-        setAiConfigured(!!cfg.api_key)
-        setAiConfig(cfg)
-      } catch {
-        /* ignore */
-      }
-    }
-  }, [])
 
   const handleDirectoryPath = useCallback(
     async (dirPath: string) => {
@@ -606,7 +581,6 @@ const AppContent: React.FC<{
         onToggleTheme={onToggleTheme}
         language={language}
         onToggleLanguage={handleToggleLanguage}
-        onOpenSettings={() => setSettingsOpen(true)}
         siderCollapsed={siderCollapsed}
         onToggleSider={() => setSiderCollapsed((v) => !v)}
         backendConnected={backendConnected}
@@ -780,13 +754,6 @@ const AppContent: React.FC<{
           />
         </Routes>
       </div>
-
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onConfigSaved={handleConfigSaved}
-        backendConnected={backendConnected}
-      />
     </div>
   )
 }

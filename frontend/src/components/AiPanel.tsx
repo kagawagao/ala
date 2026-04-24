@@ -39,7 +39,7 @@ import {
   setSessionTrace,
   setSessionLogs,
 } from '../api/chat'
-import { getConfiguredModels, groupByProvider } from '../utils/models'
+import { getConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
 import type {
   Session,
   LogEntry,
@@ -347,7 +347,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const handleSend = async () => {
     if (!inputValue.trim() || !activeSessionId || streaming) return
-    if (!aiConfigured) {
+
+    // Determine the model config to use: session override has priority, else global config
+    const sessionModelConfigs = loadModelConfigs()
+    const sessionModelConfig = activeModelPreset ? sessionModelConfigs[activeModelPreset.id] : undefined
+    const canSendNow = aiConfigured || !!(sessionModelConfig?.api_key?.trim())
+
+    if (!canSendNow) {
       void messageApi.warning(t('aiNotConfigured'))
       return
     }
@@ -395,7 +401,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
         context,
         abortRef.current.signal,
         activeModelPreset
-          ? { model: activeModelPreset.model_id, api_endpoint: activeModelPreset.api_endpoint }
+          ? {
+              model: activeModelPreset.model_id,
+              api_endpoint: activeModelPreset.api_endpoint,
+              ...sessionModelConfig,
+            }
           : undefined,
       )) {
         if (chunk === '[DONE]') break
@@ -533,11 +543,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
 
-  // All models with complete configuration (model_id + api_endpoint non-empty)
+  // All models with a configured API key
   const configuredModels = getConfiguredModels()
 
-  // The model preset active for this session (may differ from global config)
+  // The model preset active for this session (may differ from global active model)
   const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
+
+  // Whether sending is possible: global active model configured, or session model configured
+  const sessionModelConfigs = loadModelConfigs()
+  const sessionModelConfigured = !!(
+    activeModelPreset && sessionModelConfigs[activeModelPreset.id]?.api_key?.trim()
+  )
+  const canSend = aiConfigured || sessionModelConfigured
 
   // Build grouped options for the Select component
   const modelSelectOptions = groupByProvider(configuredModels).map(([provider, models]) => ({
@@ -564,11 +581,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
   }
 
-  // The value shown in the Select: active session's preset id, or the preset matching global config model
-  const modelSelectValue =
-    activeModelPreset?.id ??
-    configuredModels.find((m) => m.model_id === aiConfig?.model)?.id ??
-    undefined
+  // The value shown in the Select: active session's preset id, else the global active model id
+  const modelSelectValue = activeModelPreset?.id ?? configuredModels[0]?.id ?? undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -925,7 +939,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             flexShrink: 0,
           }}
         >
-          {!aiConfigured && (
+          {!canSend && (
             <Text type="warning" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
               {t('aiNotConfigured')}
             </Text>
@@ -1000,11 +1014,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   onClick={() => {
                     void handleSend()
                   }}
-                  disabled={!inputValue.trim() || !aiConfigured}
+                  disabled={!inputValue.trim() || !canSend}
                   size="small"
                   style={{
                     color:
-                      inputValue.trim() && aiConfigured ? 'var(--ant-color-primary)' : undefined,
+                      inputValue.trim() && canSend ? 'var(--ant-color-primary)' : undefined,
                   }}
                 />
               )}

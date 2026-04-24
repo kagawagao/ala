@@ -1,6 +1,8 @@
-import type { ModelPreset } from '../types'
+import type { ModelPreset, ModelConfig, AIConfig } from '../types'
 
 export const MODELS_STORAGE_KEY = 'ala_models'
+export const MODEL_CONFIGS_STORAGE_KEY = 'ala_model_configs'
+export const ACTIVE_MODEL_STORAGE_KEY = 'ala_active_model_id'
 
 export const BUILTIN_MODELS: ModelPreset[] = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
@@ -210,12 +212,114 @@ export function groupByProvider(models: ModelPreset[]): [string, ModelPreset[]][
 }
 
 /**
- * Return all models (built-in + custom) that have a complete configuration,
- * i.e., both model_id and api_endpoint are non-empty strings.
+ * Return all models (built-in + custom) that have a complete configuration:
+ * model_id, api_endpoint, and an api_key stored in ala_model_configs.
  */
 export function getConfiguredModels(): ModelPreset[] {
-  const custom = loadCustomModels()
-  return [...BUILTIN_MODELS, ...custom].filter(
-    (m) => m.model_id.trim() !== '' && m.api_endpoint.trim() !== '',
+  const configs = loadModelConfigs()
+  return [...BUILTIN_MODELS, ...loadCustomModels()].filter(
+    (m) =>
+      m.model_id.trim() !== '' &&
+      m.api_endpoint.trim() !== '' &&
+      !!(configs[m.id]?.api_key?.trim()),
   )
+}
+
+// ── Per-model config storage ──────────────────────────────────────────────────
+
+export function loadModelConfigs(): Record<string, Partial<ModelConfig>> {
+  try {
+    return JSON.parse(
+      localStorage.getItem(MODEL_CONFIGS_STORAGE_KEY) || '{}',
+    ) as Record<string, Partial<ModelConfig>>
+  } catch {
+    return {}
+  }
+}
+
+export function saveModelConfig(presetId: string, config: Partial<ModelConfig>): void {
+  const all = loadModelConfigs()
+  all[presetId] = { ...all[presetId], ...config }
+  localStorage.setItem(MODEL_CONFIGS_STORAGE_KEY, JSON.stringify(all))
+}
+
+// ── Active model helpers ──────────────────────────────────────────────────────
+
+export function getActiveModelId(): string | null {
+  return localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)
+}
+
+export function setActiveModelId(id: string): void {
+  localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, id)
+}
+
+export function findPresetById(id: string): ModelPreset | undefined {
+  return [...BUILTIN_MODELS, ...loadCustomModels()].find((m) => m.id === id)
+}
+
+/** Build an AIConfig from a preset + its stored per-model config. */
+export function buildAIConfig(preset: ModelPreset, config: Partial<ModelConfig>): AIConfig {
+  return {
+    api_endpoint: preset.api_endpoint,
+    api_key: config.api_key ?? '',
+    model: preset.model_id,
+    temperature: config.temperature ?? 0.7,
+    thinking_mode: config.thinking_mode ?? 'off',
+    thinking_budget_tokens: config.thinking_budget_tokens ?? 8000,
+  }
+}
+
+/** Return the active model's derived AIConfig, or null if none is set. */
+export function getActiveAIConfig(): { config: AIConfig; preset: ModelPreset } | null {
+  const id = getActiveModelId()
+  if (!id) return null
+  const preset = findPresetById(id)
+  if (!preset) return null
+  const configs = loadModelConfigs()
+  return { config: buildAIConfig(preset, configs[id] ?? {}), preset }
+}
+
+/**
+ * One-time migration from the legacy global `aiConfig` localStorage key.
+ * Finds the matching built-in preset (by model_id + api_endpoint) and saves
+ * the api_key + settings under the per-model config store, setting it as active.
+ * If no preset matches, creates a new custom model.
+ */
+export function migrateFromLegacyConfig(): void {
+  if (getActiveModelId()) return // already migrated
+  const saved = localStorage.getItem('aiConfig')
+  if (!saved) return
+  try {
+    const cfg = JSON.parse(saved) as AIConfig
+    if (!cfg.api_key) return
+    const modelConfig: Partial<ModelConfig> = {
+      api_key: cfg.api_key,
+      temperature: cfg.temperature,
+      thinking_mode: cfg.thinking_mode,
+      thinking_budget_tokens: cfg.thinking_budget_tokens,
+    }
+    const all = [...BUILTIN_MODELS, ...loadCustomModels()]
+    const match = all.find(
+      (m) => m.model_id === cfg.model && m.api_endpoint === cfg.api_endpoint,
+    )
+    if (match) {
+      saveModelConfig(match.id, modelConfig)
+      setActiveModelId(match.id)
+    } else {
+      // Create a custom preset for this legacy config
+      const id = `migrated-${Date.now()}`
+      const newPreset: ModelPreset = {
+        id,
+        name: cfg.model,
+        provider: 'Custom',
+        model_id: cfg.model,
+        api_endpoint: cfg.api_endpoint,
+      }
+      saveCustomModels([...loadCustomModels(), newPreset])
+      saveModelConfig(id, modelConfig)
+      setActiveModelId(id)
+    }
+  } catch {
+    /* ignore */
+  }
 }

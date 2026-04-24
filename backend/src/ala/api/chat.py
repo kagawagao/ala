@@ -44,6 +44,10 @@ class CreateSessionRequest(BaseModel):
 class ModelOverride(BaseModel):
     model: str
     api_endpoint: str
+    api_key: str | None = None
+    temperature: float | None = None
+    thinking_mode: str | None = None
+    thinking_budget_tokens: int | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -131,19 +135,21 @@ async def send_message(session_id: str, req: SendMessageRequest):
         raise HTTPException(status_code=404, detail="Session not found")
 
     ai_config = get_ai_config()
-    if not ai_config.api_key:
+    ov = req.model_override
+    effective_api_key = (ov.api_key if ov and ov.api_key else ai_config.api_key)
+    if not effective_api_key:
         raise HTTPException(status_code=400, detail="AI not configured. Please set API key.")
 
     # Add user message to session
     _session_manager.add_message(session_id, "user", req.message)
 
     ai_service = AIService(
-        api_endpoint=req.model_override.api_endpoint if req.model_override else ai_config.api_endpoint,
-        api_key=ai_config.api_key,
-        model=req.model_override.model if req.model_override else ai_config.model,
-        temperature=ai_config.temperature,
-        thinking_mode=ai_config.thinking_mode,
-        thinking_budget_tokens=ai_config.thinking_budget_tokens,
+        api_endpoint=ov.api_endpoint if ov else ai_config.api_endpoint,
+        api_key=effective_api_key,
+        model=ov.model if ov else ai_config.model,
+        temperature=ov.temperature if ov and ov.temperature is not None else ai_config.temperature,
+        thinking_mode=ov.thinking_mode if ov and ov.thinking_mode else ai_config.thinking_mode,
+        thinking_budget_tokens=ov.thinking_budget_tokens if ov and ov.thinking_budget_tokens is not None else ai_config.thinking_budget_tokens,
     )
 
     # Build messages list including context if provided

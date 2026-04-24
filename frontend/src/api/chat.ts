@@ -49,7 +49,14 @@ export async function* sendMessage(
   message: string,
   context?: string,
   signal?: AbortSignal,
-  modelOverride?: { model: string; api_endpoint: string },
+  modelOverride?: {
+    model: string
+    api_endpoint: string
+    api_key?: string
+    temperature?: number
+    thinking_mode?: string
+    thinking_budget_tokens?: number
+  },
 ): AsyncGenerator<string> {
   yield* streamSSE(
     `/chat/sessions/${sessionId}/messages`,

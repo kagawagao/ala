@@ -4,7 +4,6 @@ import {
   MoonOutlined,
   SunOutlined,
   GlobalOutlined,
-  SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   WifiOutlined,
@@ -22,7 +21,6 @@ interface HeaderProps {
   onToggleTheme: () => void
   language: string
   onToggleLanguage: () => void
-  onOpenSettings: () => void
   siderCollapsed: boolean
   onToggleSider: () => void
   backendConnected: boolean
@@ -36,7 +34,6 @@ const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   language,
   onToggleLanguage,
-  onOpenSettings,
   siderCollapsed,
   onToggleSider,
   backendConnected,
@@ -110,9 +107,6 @@ const Header: React.FC<HeaderProps> = ({
         </Tooltip>
         <Tooltip title={t('modelManagement')}>
           <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/models')} />
-        </Tooltip>
-        <Tooltip title={t('settings')}>
-          <Button type="text" icon={<SettingOutlined />} onClick={onOpenSettings} />
         </Tooltip>
       </Space>
     </div>

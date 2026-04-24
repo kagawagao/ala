@@ -85,6 +85,13 @@ export interface AIConfig {
   thinking_budget_tokens: number
 }
 
+export interface ModelConfig {
+  api_key: string
+  temperature: number
+  thinking_mode: 'off' | 'auto' | 'on'
+  thinking_budget_tokens: number
+}
+
 export interface FilterPreset {
   id: string
   name: string
