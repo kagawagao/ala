@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
 
+    # Logging
+    log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
+    log_dir: str = "logs"  # directory for rotating log files; relative to CWD or absolute
+
     # AI defaults (user can override via API)
     ai_api_endpoint: str = "https://api.anthropic.com"
     ai_api_key: str = ""

@@ -1,5 +1,7 @@
 """Perfetto trace analysis endpoints."""
 
+import logging
+
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -9,6 +11,7 @@ from ..services.trace_analyzer import TraceSummary as ServiceTraceSummary
 
 router = APIRouter()
 _analyzer = TraceAnalyzer()
+logger = logging.getLogger(__name__)
 
 
 class TraceSummary(BaseModel):
@@ -83,14 +86,22 @@ async def parse_trace(file: UploadFile = File(...)):
     (``.pb`` / ``.perfetto-trace``) formats.
     """
     content = await file.read()
+    logger.debug("Parsing trace file — name=%s size=%d", file.filename, len(content))
     try:
         result = _analyzer.parse_trace(content, file.filename or "trace")
+        logger.debug(
+            "Trace parsed — format=%s duration_ms=%s processes=%d",
+            result.format,
+            result.summary.duration_ms,
+            result.summary.process_count,
+        )
         return TraceParseResult(
             summary=_summary_from_service(result.summary),
             format=result.format,
             file_size=len(content),
         )
     except TraceParseError as e:
+        logger.error("Failed to parse trace file %r: %s", file.filename, e)
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 

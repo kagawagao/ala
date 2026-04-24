@@ -8,6 +8,7 @@ Provider is detected automatically from the configured API endpoint.
 """
 
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import urlparse
@@ -22,6 +23,7 @@ from .project_manager import Project
 MAX_TOOL_ROUNDS = 10
 MAX_TOKENS = 8192
 _scanner = CodeScanner()
+logger = logging.getLogger(__name__)
 
 
 def _is_anthropic_endpoint(endpoint: str) -> bool:
@@ -79,6 +81,16 @@ class AIService:
             )
         else:
             self._openai_client = openai.AsyncOpenAI(api_key=api_key, base_url=api_endpoint)
+
+        provider = "anthropic" if self._use_anthropic else "openai-compat"
+        logger.debug(
+            "AIService initialised — provider=%s endpoint=%s model=%s temperature=%s thinking=%s",
+            provider,
+            api_endpoint,
+            model,
+            temperature,
+            thinking_mode,
+        )
 
     # ── Public interface ──────────────────────────────────────────────────────
 
@@ -218,27 +230,44 @@ class AIService:
         if extra_headers:
             stream_kwargs["extra_headers"] = extra_headers
 
+        logger.debug("Anthropic stream_chat — model=%s messages=%d", self._model, len(api_messages))
+
         in_thinking = False
         current_thinking = ""
 
-        async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
-            async for event in stream:
-                if event.type == "content_block_start":
-                    if event.content_block.type == "thinking":
-                        in_thinking = True
-                        current_thinking = ""
-                    else:
-                        in_thinking = False
-                elif event.type == "content_block_delta":
-                    if event.delta.type == "thinking_delta":
-                        current_thinking += event.delta.thinking
-                    elif event.delta.type == "text_delta":
-                        yield event.delta.text
-                elif event.type == "content_block_stop":
-                    if in_thinking:
-                        yield json.dumps({"type": "thinking", "content": current_thinking})
-                        in_thinking = False
-                        current_thinking = ""
+        try:
+            async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
+                async for event in stream:
+                    if event.type == "content_block_start":
+                        if event.content_block.type == "thinking":
+                            in_thinking = True
+                            current_thinking = ""
+                        else:
+                            in_thinking = False
+                    elif event.type == "content_block_delta":
+                        if event.delta.type == "thinking_delta":
+                            current_thinking += event.delta.thinking
+                        elif event.delta.type == "text_delta":
+                            yield event.delta.text
+                    elif event.type == "content_block_stop":
+                        if in_thinking:
+                            yield json.dumps({"type": "thinking", "content": current_thinking})
+                            in_thinking = False
+                            current_thinking = ""
+        except anthropic.APIStatusError as exc:
+            logger.error(
+                "Anthropic API error in stream_chat — status=%s message=%s",
+                exc.status_code,
+                exc.message,
+                exc_info=True,
+            )
+            raise
+        except anthropic.APIConnectionError as exc:
+            logger.error("Anthropic connection error in stream_chat: %s", exc, exc_info=True)
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error in Anthropic stream_chat: %s", exc)
+            raise
 
     async def _stream_chat_agentic_anthropic(
         self,
@@ -264,6 +293,13 @@ class AIService:
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
 
+        logger.debug(
+            "Anthropic agentic_chat — model=%s messages=%d tools=%d",
+            self._model,
+            len(api_messages),
+            len(tools),
+        )
+
         for _round in range(MAX_TOOL_ROUNDS):
             tool_uses: list[dict[str, Any]] = []
             current_tool: dict[str, Any] | None = None
@@ -282,46 +318,69 @@ class AIService:
             if extra_headers:
                 stream_kwargs["extra_headers"] = extra_headers
 
-            async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
-                async for event in stream:
-                    if event.type == "content_block_start":
-                        cb = event.content_block
-                        if cb.type == "thinking":
-                            in_thinking_block = True
-                            current_thinking = ""
-                        elif cb.type == "tool_use":
-                            in_thinking_block = False
-                            current_tool = {"id": cb.id, "name": cb.name}
-                            current_input_json = ""
-                        else:
-                            in_thinking_block = False
-                    elif event.type == "content_block_delta":
-                        if event.delta.type == "thinking_delta":
-                            current_thinking += event.delta.thinking
-                        elif event.delta.type == "text_delta":
-                            yield event.delta.text
-                        elif event.delta.type == "input_json_delta":
-                            current_input_json += event.delta.partial_json
-                    elif event.type == "content_block_stop":
-                        if in_thinking_block:
-                            yield json.dumps({"type": "thinking", "content": current_thinking})
-                            in_thinking_block = False
-                            current_thinking = ""
-                        elif current_tool is not None:
-                            try:
-                                parsed_input = (
-                                    json.loads(current_input_json) if current_input_json else {}
-                                )
-                            except json.JSONDecodeError:
-                                parsed_input = {}
-                            current_tool["input"] = parsed_input
-                            tool_uses.append(current_tool)
-                            current_tool = None
-                            current_input_json = ""
+            try:
+                async with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
+                    async for event in stream:
+                        if event.type == "content_block_start":
+                            cb = event.content_block
+                            if cb.type == "thinking":
+                                in_thinking_block = True
+                                current_thinking = ""
+                            elif cb.type == "tool_use":
+                                in_thinking_block = False
+                                current_tool = {"id": cb.id, "name": cb.name}
+                                current_input_json = ""
+                            else:
+                                in_thinking_block = False
+                        elif event.type == "content_block_delta":
+                            if event.delta.type == "thinking_delta":
+                                current_thinking += event.delta.thinking
+                            elif event.delta.type == "text_delta":
+                                yield event.delta.text
+                            elif event.delta.type == "input_json_delta":
+                                current_input_json += event.delta.partial_json
+                        elif event.type == "content_block_stop":
+                            if in_thinking_block:
+                                yield json.dumps({"type": "thinking", "content": current_thinking})
+                                in_thinking_block = False
+                                current_thinking = ""
+                            elif current_tool is not None:
+                                try:
+                                    parsed_input = (
+                                        json.loads(current_input_json) if current_input_json else {}
+                                    )
+                                except json.JSONDecodeError:
+                                    parsed_input = {}
+                                current_tool["input"] = parsed_input
+                                tool_uses.append(current_tool)
+                                current_tool = None
+                                current_input_json = ""
 
-                # Use get_final_message() to obtain exact content blocks (preserves
-                # thinking block signatures required for multi-turn correctness).
-                final_msg = await stream.get_final_message()
+                    # Use get_final_message() to obtain exact content blocks (preserves
+                    # thinking block signatures required for multi-turn correctness).
+                    final_msg = await stream.get_final_message()
+            except anthropic.APIStatusError as exc:
+                logger.error(
+                    "Anthropic API error in agentic_chat (round %d) — status=%s message=%s",
+                    _round,
+                    exc.status_code,
+                    exc.message,
+                    exc_info=True,
+                )
+                raise
+            except anthropic.APIConnectionError as exc:
+                logger.error(
+                    "Anthropic connection error in agentic_chat (round %d): %s",
+                    _round,
+                    exc,
+                    exc_info=True,
+                )
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "Unexpected error in Anthropic agentic_chat (round %d): %s", _round, exc
+                )
+                raise
 
             assistant_content: list[dict[str, Any]] = []
             for block in final_msg.content:
@@ -351,6 +410,8 @@ class AIService:
             for tu in tool_uses:
                 arguments_str = json.dumps(tu["input"])
 
+                logger.debug("Tool call — name=%s arguments=%s", tu["name"], arguments_str[:200])
+
                 yield json.dumps(
                     {"type": "tool_call", "name": tu["name"], "arguments": arguments_str}
                 )
@@ -362,6 +423,8 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                 )
+
+                logger.debug("Tool result — name=%s length=%d", tu["name"], len(result))
 
                 yield json.dumps(
                     {"type": "tool_result", "name": tu["name"], "content": result[:2000]}
@@ -381,16 +444,32 @@ class AIService:
 
     async def _stream_chat_openai(self, messages: list[dict]) -> AsyncIterator[str]:
         """Simple streaming chat via OpenAI-compatible API."""
-        stream = await self._openai_client.chat.completions.create(
-            model=self._model,
-            messages=messages,  # type: ignore[arg-type]
-            temperature=self._temperature,
-            max_tokens=MAX_TOKENS,
-            stream=True,
-        )
-        async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        logger.debug("OpenAI stream_chat — model=%s messages=%d", self._model, len(messages))
+        try:
+            stream = await self._openai_client.chat.completions.create(
+                model=self._model,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=self._temperature,
+                max_tokens=MAX_TOKENS,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except openai.APIStatusError as exc:
+            logger.error(
+                "OpenAI API error in stream_chat — status=%s message=%s",
+                exc.status_code,
+                exc.message,
+                exc_info=True,
+            )
+            raise
+        except openai.APIConnectionError as exc:
+            logger.error("OpenAI connection error in stream_chat: %s", exc, exc_info=True)
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error in OpenAI stream_chat: %s", exc)
+            raise
 
     async def _stream_chat_agentic_openai(
         self,
@@ -423,6 +502,13 @@ class AIService:
             openai_messages.append({"role": "system", "content": combined_system})
         openai_messages.extend(base_messages)
 
+        logger.debug(
+            "OpenAI agentic_chat — model=%s messages=%d tools=%d",
+            self._model,
+            len(openai_messages),
+            len(openai_tools),
+        )
+
         for _round in range(MAX_TOOL_ROUNDS):
             # Accumulate tool call deltas across streaming chunks
             tool_calls_acc: dict[int, dict[str, Any]] = {}
@@ -438,32 +524,55 @@ class AIService:
             if openai_tools:
                 stream_kwargs["tools"] = openai_tools
 
-            stream = await self._openai_client.chat.completions.create(
-                **stream_kwargs  # type: ignore[arg-type]
-            )
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
-                choice = chunk.choices[0]
-                delta = choice.delta
+            try:
+                stream = await self._openai_client.chat.completions.create(
+                    **stream_kwargs  # type: ignore[arg-type]
+                )
+                async for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    choice = chunk.choices[0]
+                    delta = choice.delta
 
-                if delta.content:
-                    text_content += delta.content
-                    yield delta.content
+                    if delta.content:
+                        text_content += delta.content
+                        yield delta.content
 
-                if delta.tool_calls:
-                    for tc_delta in delta.tool_calls:
-                        idx = tc_delta.index
-                        if idx not in tool_calls_acc:
-                            tool_calls_acc[idx] = {
-                                "id": tc_delta.id or "",
-                                "name": (tc_delta.function.name or "")
-                                if tc_delta.function
-                                else "",
-                                "arguments": "",
-                            }
-                        if tc_delta.function and tc_delta.function.arguments:
-                            tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+                    if delta.tool_calls:
+                        for tc_delta in delta.tool_calls:
+                            idx = tc_delta.index
+                            if idx not in tool_calls_acc:
+                                tool_calls_acc[idx] = {
+                                    "id": tc_delta.id or "",
+                                    "name": (tc_delta.function.name or "")
+                                    if tc_delta.function
+                                    else "",
+                                    "arguments": "",
+                                }
+                            if tc_delta.function and tc_delta.function.arguments:
+                                tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+            except openai.APIStatusError as exc:
+                logger.error(
+                    "OpenAI API error in agentic_chat (round %d) — status=%s message=%s",
+                    _round,
+                    exc.status_code,
+                    exc.message,
+                    exc_info=True,
+                )
+                raise
+            except openai.APIConnectionError as exc:
+                logger.error(
+                    "OpenAI connection error in agentic_chat (round %d): %s",
+                    _round,
+                    exc,
+                    exc_info=True,
+                )
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "Unexpected error in OpenAI agentic_chat (round %d): %s", _round, exc
+                )
+                raise
 
             tool_calls_list = list(tool_calls_acc.values())
 
@@ -487,6 +596,8 @@ class AIService:
             for tc in tool_calls_list:
                 arguments_str = tc["arguments"]
 
+                logger.debug("Tool call — name=%s arguments=%s", tc["name"], arguments_str[:200])
+
                 yield json.dumps({"type": "tool_call", "name": tc["name"], "arguments": arguments_str})
 
                 result = execute_tool(
@@ -496,6 +607,8 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                 )
+
+                logger.debug("Tool result — name=%s length=%d", tc["name"], len(result))
 
                 yield json.dumps(
                     {"type": "tool_result", "name": tc["name"], "content": result[:2000]}

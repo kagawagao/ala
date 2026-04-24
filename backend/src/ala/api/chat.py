@@ -1,6 +1,7 @@
 """Multi-turn chat with streaming SSE."""
 
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,7 @@ from .projects import get_project_manager
 
 router = APIRouter()
 _session_manager = SessionManager()
+logger = logging.getLogger(__name__)
 
 
 def _sse_encode(chunk: str) -> str:
@@ -171,6 +173,13 @@ async def send_message(session_id: str, req: SendMessageRequest):
     trace_summary = session.trace_summary
     log_entries = session.log_entries
 
+    logger.debug(
+        "send_message — session=%s model=%s agentic=%s",
+        session_id,
+        ov.model if ov else ai_config.model,
+        bool(project or trace_summary or log_entries is not None),
+    )
+
     async def event_stream():
         full_response = ""
         try:
@@ -207,6 +216,12 @@ async def send_message(session_id: str, req: SendMessageRequest):
             _session_manager.add_message(session_id, "assistant", full_response)
             yield "data: [DONE]\n\n"
         except Exception as e:
+            logger.exception(
+                "Error streaming AI response — session=%s model=%s: %s",
+                session_id,
+                ov.model if ov else ai_config.model,
+                e,
+            )
             yield f"data: [ERROR] {str(e)}\n\n"
 
     return StreamingResponse(
