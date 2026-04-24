@@ -232,6 +232,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track previous project to detect changes (undefined = component not yet mounted)
+  const prevProjectIdRef = useRef<string | null | undefined>(undefined)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -255,6 +257,32 @@ const AiPanel: React.FC<AiPanelProps> = ({
         /* backend may not be running */
       })
   }, [])
+
+  // Reset session state whenever the active project changes so the user starts
+  // fresh in the context of the new project.
+  useEffect(() => {
+    // Skip the initial mount — we just record the starting project here.
+    if (prevProjectIdRef.current === undefined) {
+      prevProjectIdRef.current = selectedProjectId
+      return
+    }
+    if (prevProjectIdRef.current === selectedProjectId) return
+    prevProjectIdRef.current = selectedProjectId
+
+    // Abort any in-flight streaming response
+    abortRef.current?.abort()
+    // Cancel any pending log-sync debounce timer
+    if (logSyncTimerRef.current) {
+      clearTimeout(logSyncTimerRef.current)
+      logSyncTimerRef.current = null
+    }
+    // Clear all session-related state
+    setSessions([])
+    setActiveSessionId(null)
+    setMessages([])
+    setSessionModels({})
+    setStreaming(false)
+  }, [selectedProjectId])
 
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {

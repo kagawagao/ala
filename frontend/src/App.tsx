@@ -297,6 +297,20 @@ const AppContent: React.FC<{
     })
   }, [])
 
+  const handleProjectChange = useCallback((projectId: string | null) => {
+    // Abort any in-flight log parse before clearing state
+    abortParseRef.current?.abort()
+    // Reset all file / log / trace state so the new project starts clean
+    setAllLogs([])
+    setTraceResult(null)
+    setFormatDetected(undefined)
+    setFilters(DEFAULT_FILTERS)
+    setFileNames([])
+    setFileError(undefined)
+    setActiveTab('log')
+    setSelectedProjectId(projectId)
+  }, [])
+
   const handleLogFiles = useCallback(
     async (files: File[]) => {
       // Cancel any in-flight parse
@@ -586,7 +600,7 @@ const AppContent: React.FC<{
         backendConnected={backendConnected}
         projects={projects}
         selectedProjectId={selectedProjectId}
-        onProjectChange={setSelectedProjectId}
+        onProjectChange={handleProjectChange}
       />
 
       {/* Backend warning */}
