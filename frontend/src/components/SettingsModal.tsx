@@ -164,7 +164,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => applyModelPreset(m)}
                       style={{ fontSize: 11, height: 'auto', padding: '2px 8px' }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+                      >
                         <span style={{ fontWeight: 500 }}>{m.name}</span>
                         {m.description && (
                           <Text type="secondary" style={{ fontSize: 10 }}>
@@ -176,12 +178,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             Anthropic
                           </Tag>
                         ) : m.anthropic_compatible === false ? (
-                          <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                          <Tag
+                            color="green"
+                            style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
+                          >
                             OpenAI
                           </Tag>
                         ) : null}
                         {m.supports_thinking && (
-                          <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                          <Tag
+                            color="purple"
+                            style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
+                          >
                             {t('supportsThinking')}
                           </Tag>
                         )}
@@ -338,12 +346,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           </Form.Item>
         </Form>
 
-        <Collapse
-          ghost
-          size="small"
-          items={modelLibraryItems}
-          style={{ marginTop: 4 }}
-        />
+        <Collapse ghost size="small" items={modelLibraryItems} style={{ marginTop: 4 }} />
       </Modal>
 
       <Modal

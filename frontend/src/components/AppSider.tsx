@@ -110,10 +110,7 @@ const AppSider: React.FC<AppSiderProps> = ({
   )
 
   // True when at least one non-default filter condition is set in pendingFilters.
-  const hasPendingConditions = useMemo(
-    () => hasFilterConditions(pendingFilters),
-    [pendingFilters],
-  )
+  const hasPendingConditions = useMemo(() => hasFilterConditions(pendingFilters), [pendingFilters])
 
   const updatePending = useCallback(
     (partial: Partial<LogFilters>) => setPendingFilters((prev) => ({ ...prev, ...partial })),
