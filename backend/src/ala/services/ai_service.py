@@ -86,6 +86,16 @@ class AIService:
                 api_key=api_key, base_url=api_endpoint
             )
         else:
+            try:
+                parsed = urlparse(api_endpoint)
+                if parsed.scheme and parsed.scheme != "https":
+                    logger.warning(
+                        "Non-HTTPS endpoint %r configured for OpenAI-compatible provider"
+                        " — API key may be transmitted in plain text",
+                        api_endpoint,
+                    )
+            except ValueError:
+                pass
             self._openai_client = openai.AsyncOpenAI(api_key=api_key, base_url=api_endpoint)
 
         provider = "anthropic" if self._use_anthropic else "openai-compat"
