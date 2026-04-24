@@ -182,11 +182,20 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
     async def event_stream():
         full_response = ""
+        api_messages_out: list[dict] = []
+        current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
             if project or trace_summary or log_entries is not None:
-                # Agentic mode: project tools, trace tools, log tools, or any combination
+                # Agentic mode: project tools, trace tools, log tools, or any combination.
+                # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
-                    messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+                    messages,
+                    project=project,
+                    trace_summary=trace_summary,
+                    log_entries=log_entries,
+                    api_messages_out=api_messages_out,
+                    resume_messages=session.raw_api_messages,
+                    resume_provider=session.raw_api_messages_provider,
                 ):
                     if chunk.startswith("{"):
                         try:
@@ -214,6 +223,11 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
             # Save assistant message
             _session_manager.add_message(session_id, "assistant", full_response)
+            # Persist full API message history (with tool-call blocks) for continuation.
+            if api_messages_out:
+                _session_manager.set_raw_api_messages(
+                    session_id, api_messages_out, current_provider
+                )
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.exception(

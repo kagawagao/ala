@@ -21,7 +21,7 @@ from .code_scanner import CodeScanner
 from .project_manager import Project
 
 MAX_TOOL_ROUNDS = 10
-MAX_TOKENS = 8192
+MAX_TOKENS = 32768
 _scanner = CodeScanner()
 logger = logging.getLogger(__name__)
 
@@ -125,16 +125,50 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        api_messages_out: list | None = None,
+        resume_messages: list[dict] | None = None,
+        resume_provider: str | None = None,
     ) -> AsyncIterator[str]:
-        """Agentic chat loop with tool calling."""
+        """Agentic chat loop with tool calling.
+
+        Parameters
+        ----------
+        api_messages_out:
+            Optional mutable list.  When provided, the final raw API message list
+            (including all tool-call and tool-result blocks) is appended to it
+            after the loop completes.  Callers can persist this for later resumption.
+        resume_messages:
+            Raw API messages from a previous agentic exchange.  When provided (and
+            the provider matches), they replace the rebuilt message history so the
+            model has full tool-call context for continuation requests.
+        resume_provider:
+            The provider tag ("anthropic" / "openai") used when ``resume_messages``
+            were captured.  Only used when resume_messages is not None.
+        """
+        current_provider = "anthropic" if self._use_anthropic else "openai"
+        # Only resume if the provider hasn't changed between requests.
+        can_resume = (
+            resume_messages is not None
+            and resume_provider == current_provider
+        )
         if self._use_anthropic:
             async for chunk in self._stream_chat_agentic_anthropic(
-                messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+                messages,
+                project=project,
+                trace_summary=trace_summary,
+                log_entries=log_entries,
+                api_messages_out=api_messages_out,
+                resume_messages=resume_messages if can_resume else None,
             ):
                 yield chunk
         else:
             async for chunk in self._stream_chat_agentic_openai(
-                messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+                messages,
+                project=project,
+                trace_summary=trace_summary,
+                log_entries=log_entries,
+                api_messages_out=api_messages_out,
+                resume_messages=resume_messages if can_resume else None,
             ):
                 yield chunk
 
@@ -170,8 +204,13 @@ class AIService:
                 f"You are an Android log and code analyzer agent. "
                 f"You have access to the source code of the project '{project.name}' "
                 f"located at: {', '.join(project.paths)}. "
-                f"Use the available tools to explore the project's source code when it would "
-                f"help you analyze logs, traces, crashes, or answer questions about the codebase. "
+                f"When analyzing logs or crashes, systematically explore the codebase: "
+                f"start with list_project_files to understand the project structure, "
+                f"then read relevant source files and search for specific symbols, "
+                f"class names, or error strings found in the logs. "
+                f"Always correlate log tags, PIDs, and error messages with specific "
+                f"source files and line numbers. "
+                f"Complete your full analysis before responding — never stop mid-analysis. "
                 f"Always cite specific files and line numbers when referencing code."
             )
             if context_docs:
@@ -185,8 +224,17 @@ class AIService:
             n_entries = len(log_entries)
             log_hint = (
                 f"{n_entries} Android log entries are loaded in this session. "
-                "Use query_log_overview to get statistics and search_logs to find relevant entries. "
-                "Do not guess log details — query them with tools."
+                "Always start with query_log_overview to understand the full log scope "
+                "(level distribution, time range, unique tags and PIDs). "
+                "Then use search_logs with targeted filters (level, tag, keyword, time range) "
+                "to retrieve relevant entries. "
+                "For large result sets, use the 'offset' parameter to paginate and ensure "
+                "you have seen all matching entries before drawing conclusions. "
+                "Perform multiple targeted searches to ensure comprehensive coverage. "
+                "Do not guess log details — always query them with tools. "
+                "Complete the full analysis before responding; never stop mid-analysis. "
+                "If asked to continue or resume, check the conversation history to see "
+                "what has already been analyzed and only search for what hasn't been covered yet."
             )
             if project:
                 parts.append(log_hint)
@@ -291,6 +339,8 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        api_messages_out: list | None = None,
+        resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with Anthropic tool calling. Supports extended thinking.
 
@@ -302,19 +352,35 @@ class AIService:
         """
         tools, system_text = self._build_agentic_context(project, trace_summary, log_entries)
 
-        existing_system, api_messages = self._extract_system(messages)
+        existing_system, rebuilt_messages = self._extract_system(messages)
         if existing_system:
             system_text = system_text + "\n\n" + existing_system
 
+        # If resuming from a previous exchange, start from the stored full API
+        # message history (which includes tool-call blocks) and append only the
+        # latest user message so the model has complete context.
+        if resume_messages:
+            api_messages: list[dict[str, Any]] = list(resume_messages)
+            # Append the new user message (last element of rebuilt_messages).
+            if rebuilt_messages and rebuilt_messages[-1].get("role") == "user":
+                api_messages.append(rebuilt_messages[-1])
+            logger.debug(
+                "Anthropic agentic_chat (resume) — model=%s resumed_msgs=%d tools=%d",
+                self._model,
+                len(api_messages),
+                len(tools),
+            )
+        else:
+            api_messages = rebuilt_messages
+            logger.debug(
+                "Anthropic agentic_chat — model=%s messages=%d tools=%d",
+                self._model,
+                len(api_messages),
+                len(tools),
+            )
+
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
-
-        logger.debug(
-            "Anthropic agentic_chat — model=%s messages=%d tools=%d",
-            self._model,
-            len(api_messages),
-            len(tools),
-        )
 
         for _round in range(MAX_TOOL_ROUNDS):
             tool_uses: list[dict[str, Any]] = []
@@ -456,6 +522,11 @@ class AIService:
 
             api_messages.append({"role": "user", "content": tool_result_blocks})
 
+        # Expose the final API messages (with full tool-call history) to the caller
+        # so they can be persisted in the session for continuation requests.
+        if api_messages_out is not None:
+            api_messages_out.extend(api_messages)
+
     # ── OpenAI-compatible implementation ─────────────────────────────────────
 
     async def _stream_chat_openai(self, messages: list[dict]) -> AsyncIterator[str]:
@@ -493,6 +564,8 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        api_messages_out: list | None = None,
+        resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with OpenAI function-calling.
 
@@ -513,17 +586,29 @@ class AIService:
         if existing_system:
             combined_system = combined_system + "\n\n" + existing_system
 
-        openai_messages: list[dict[str, Any]] = []
-        if combined_system:
-            openai_messages.append({"role": "system", "content": combined_system})
-        openai_messages.extend(base_messages)
-
-        logger.debug(
-            "OpenAI agentic_chat — model=%s messages=%d tools=%d",
-            self._model,
-            len(openai_messages),
-            len(openai_tools),
-        )
+        if resume_messages:
+            # Restore full conversation history (including tool-call blocks) and
+            # append only the latest user message.
+            openai_messages: list[dict[str, Any]] = list(resume_messages)
+            if base_messages and base_messages[-1].get("role") == "user":
+                openai_messages.append(base_messages[-1])
+            logger.debug(
+                "OpenAI agentic_chat (resume) — model=%s resumed_msgs=%d tools=%d",
+                self._model,
+                len(openai_messages),
+                len(openai_tools),
+            )
+        else:
+            openai_messages = []
+            if combined_system:
+                openai_messages.append({"role": "system", "content": combined_system})
+            openai_messages.extend(base_messages)
+            logger.debug(
+                "OpenAI agentic_chat — model=%s messages=%d tools=%d",
+                self._model,
+                len(openai_messages),
+                len(openai_tools),
+            )
 
         for _round in range(MAX_TOOL_ROUNDS):
             # Accumulate tool call deltas across streaming chunks
@@ -637,3 +722,7 @@ class AIService:
                         "content": result,
                     }
                 )
+
+        # Expose the final API messages (with full tool-call history) to the caller.
+        if api_messages_out is not None:
+            api_messages_out.extend(openai_messages)

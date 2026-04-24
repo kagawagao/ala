@@ -26,6 +26,11 @@ class Session:
     created_at: str = field(default_factory=_utcnow)
     trace_summary: dict | None = None
     log_entries: list[dict] | None = None
+    # Raw provider-specific API message history (including tool-call blocks).
+    # Stored after each agentic exchange so follow-up messages can resume with
+    # full tool-call context instead of text-only history.
+    raw_api_messages: list[dict] | None = None
+    raw_api_messages_provider: str | None = None  # "anthropic" | "openai"
 
 
 class SessionManager:
@@ -83,4 +88,16 @@ class SessionManager:
         if not session:
             return False
         session.log_entries = entries
+        return True
+
+    def set_raw_api_messages(
+        self, session_id: str, messages: list[dict], provider: str
+    ) -> bool:
+        """Persist the raw provider-specific API message list (including tool-call
+        blocks) so that subsequent agentic requests can resume with full context."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        session.raw_api_messages = messages
+        session.raw_api_messages_provider = provider
         return True

@@ -159,7 +159,8 @@ LOG_TOOLS: list[dict[str, Any]] = [
         "name": "search_logs",
         "description": (
             "Search and filter the loaded Android log entries. "
-            "Returns up to `limit` matching entries."
+            "Returns up to `limit` matching entries starting at `offset`. "
+            "Use offset for pagination when a single call does not return all results."
         ),
         "input_schema": {
             "type": "object",
@@ -190,7 +191,11 @@ LOG_TOOLS: list[dict[str, Any]] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results to return (default: 100)",
+                    "description": "Maximum number of results to return (default: 100, max: 500)",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of matching entries to skip before returning results (default: 0). Use for pagination.",
                 },
             },
             "required": [],
@@ -395,11 +400,12 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
         start_time = args.get("start_time", "")
         end_time = args.get("end_time", "")
         limit = min(int(args.get("limit", 100)), 500)
+        offset = max(int(args.get("offset", 0)), 0)
 
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
         keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
 
-        results = []
+        all_matched = []
         for entry in log_entries:
             lvl = entry.get("level", "V")
             if _LEVEL_ORDER.get(lvl, 0) < min_level:
@@ -417,14 +423,27 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
                 entry.get("message") or entry.get("raw_line") or ""
             ):
                 continue
-            results.append(entry)
-            if len(results) >= limit:
-                break
+            all_matched.append(entry)
+
+        total_matched = len(all_matched)
+        page = all_matched[offset : offset + limit]
+
+        # Trim message length to avoid token overflow when results are sent to the model
+        trimmed = []
+        for e in page:
+            entry_copy = dict(e)
+            msg = entry_copy.get("message") or entry_copy.get("raw_line") or ""
+            if len(msg) > 300:
+                entry_copy["message"] = msg[:300] + "…"
+            trimmed.append(entry_copy)
 
         return json.dumps(
             {
-                "total_matched": len(results),
-                "entries": results,
+                "total_matched": total_matched,
+                "offset": offset,
+                "returned": len(trimmed),
+                "has_more": (offset + limit) < total_matched,
+                "entries": trimmed,
             }
         )
 
