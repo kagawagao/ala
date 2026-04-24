@@ -39,6 +39,12 @@ def _is_anthropic_endpoint(endpoint: str) -> bool:
     except ValueError:
         return False
     if parsed.scheme != "https":
+        if parsed.scheme:
+            logger.warning(
+                "Non-HTTPS endpoint %r rejected for Anthropic detection — use HTTPS to avoid"
+                " API key interception",
+                endpoint,
+            )
         return False
     return hostname == "api.anthropic.com" or hostname.endswith(".anthropic.com")
 
