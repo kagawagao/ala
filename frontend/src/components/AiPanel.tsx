@@ -378,8 +378,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
     // Determine the model config to use: session override has priority, else global config
     const sessionModelConfigs = loadModelConfigs()
-    const sessionModelConfig = activeModelPreset ? sessionModelConfigs[activeModelPreset.id] : undefined
-    const canSendNow = aiConfigured || !!(sessionModelConfig?.api_key?.trim())
+    const sessionModelConfig = activeModelPreset
+      ? sessionModelConfigs[activeModelPreset.id]
+      : undefined
+    const canSendNow = aiConfigured || !!sessionModelConfig?.api_key?.trim()
 
     if (!canSendNow) {
       void messageApi.warning(t('aiNotConfigured'))
@@ -1046,8 +1048,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   disabled={!inputValue.trim() || !canSend}
                   size="small"
                   style={{
-                    color:
-                      inputValue.trim() && canSend ? 'var(--ant-color-primary)' : undefined,
+                    color: inputValue.trim() && canSend ? 'var(--ant-color-primary)' : undefined,
                   }}
                 />
               )}

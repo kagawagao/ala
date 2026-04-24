@@ -6,7 +6,7 @@
   "scripts": {
     "install:all": "npm install && cd backend && poetry install && cd ../frontend && npm install && cd ..",
     "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && LOG_LEVEL=DEBUG poetry run uvicorn ala.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
+    "dev:backend": "cd backend && cross-env LOG_LEVEL=DEBUG poetry run uvicorn ala.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
     "build:frontend": "cd frontend && npm run build",
@@ -28,6 +28,7 @@
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "husky": "^9.1.7",
     "prettier": "^3.5.3"
   }

@@ -114,9 +114,8 @@ const ModelManager: React.FC = () => {
   const navigate = useNavigate()
 
   const [customModels, setCustomModels] = useState<ModelPreset[]>(loadCustomModels)
-  const [modelConfigs, setModelConfigs] = useState<Record<string, Partial<ModelConfig>>>(
-    loadModelConfigs,
-  )
+  const [modelConfigs, setModelConfigs] =
+    useState<Record<string, Partial<ModelConfig>>>(loadModelConfigs)
   const [activeModelId, setActiveModelIdState] = useState<string | null>(getActiveModelId)
 
   useEffect(() => {
@@ -137,7 +136,9 @@ const ModelManager: React.FC = () => {
     const cfg = modelConfigs[preset.id]
     if (cfg?.api_key) {
       const aiCfg = buildAIConfig(preset, cfg)
-      updateConfig(aiCfg).catch(() => { /* backend may not be running */ })
+      updateConfig(aiCfg).catch(() => {
+        /* backend may not be running */
+      })
       localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
     }
     void message.success(t('modelActivated'))
@@ -170,13 +171,17 @@ const ModelManager: React.FC = () => {
         setModelConfigs(updated)
         if (configTarget.id === activeModelId && cfg.api_key) {
           const aiCfg = buildAIConfig(configTarget, cfg)
-          updateConfig(aiCfg).catch(() => { /* backend may not be running */ })
+          updateConfig(aiCfg).catch(() => {
+            /* backend may not be running */
+          })
           localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
         }
         setConfigTarget(null)
         void message.success(t('modelConfigSaved'))
       })
-      .catch(() => { /* validation error */ })
+      .catch(() => {
+        /* validation error */
+      })
   }
 
   const handleAdd = () => {
@@ -258,7 +263,7 @@ const ModelManager: React.FC = () => {
   const renderCard = (m: ModelPreset, isCustom: boolean) => {
     const cfg = modelConfigs[m.id] ?? {}
     const isActive = m.id === activeModelId
-    const hasKey = !!(cfg.api_key?.trim())
+    const hasKey = !!cfg.api_key?.trim()
     return (
       <Col key={m.id} xs={24} sm={12} md={8}>
         <Card
@@ -543,11 +548,7 @@ const ModelManager: React.FC = () => {
           >
             <Input placeholder="https://api.example.com" />
           </Form.Item>
-          <Form.Item
-            label={t('apiCompatibility')}
-            name="anthropic_compatible"
-            initialValue="auto"
-          >
+          <Form.Item label={t('apiCompatibility')} name="anthropic_compatible" initialValue="auto">
             <Select
               options={[
                 { value: 'auto', label: t('compatibilityAutoDetect') },
@@ -597,11 +598,7 @@ const ModelManager: React.FC = () => {
           >
             <Input placeholder="https://api.example.com" />
           </Form.Item>
-          <Form.Item
-            label={t('apiCompatibility')}
-            name="anthropic_compatible"
-            initialValue="auto"
-          >
+          <Form.Item label={t('apiCompatibility')} name="anthropic_compatible" initialValue="auto">
             <Select
               options={[
                 { value: 'auto', label: t('compatibilityAutoDetect') },

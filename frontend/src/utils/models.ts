@@ -219,9 +219,7 @@ export function getConfiguredModels(): ModelPreset[] {
   const configs = loadModelConfigs()
   return [...BUILTIN_MODELS, ...loadCustomModels()].filter(
     (m) =>
-      m.model_id.trim() !== '' &&
-      m.api_endpoint.trim() !== '' &&
-      !!(configs[m.id]?.api_key?.trim()),
+      m.model_id.trim() !== '' && m.api_endpoint.trim() !== '' && !!configs[m.id]?.api_key?.trim(),
   )
 }
 
@@ -229,9 +227,10 @@ export function getConfiguredModels(): ModelPreset[] {
 
 export function loadModelConfigs(): Record<string, Partial<ModelConfig>> {
   try {
-    return JSON.parse(
-      localStorage.getItem(MODEL_CONFIGS_STORAGE_KEY) || '{}',
-    ) as Record<string, Partial<ModelConfig>>
+    return JSON.parse(localStorage.getItem(MODEL_CONFIGS_STORAGE_KEY) || '{}') as Record<
+      string,
+      Partial<ModelConfig>
+    >
   } catch {
     return {}
   }
@@ -300,9 +299,7 @@ export function migrateFromLegacyConfig(): void {
       thinking_budget_tokens: cfg.thinking_budget_tokens,
     }
     const all = [...BUILTIN_MODELS, ...loadCustomModels()]
-    const match = all.find(
-      (m) => m.model_id === cfg.model && m.api_endpoint === cfg.api_endpoint,
-    )
+    const match = all.find((m) => m.model_id === cfg.model && m.api_endpoint === cfg.api_endpoint)
     if (match) {
       saveModelConfig(match.id, modelConfig)
       setActiveModelId(match.id)

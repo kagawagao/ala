@@ -285,7 +285,7 @@ const AppContent: React.FC<{
         void updateConfig(active.config)
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullPage])
 
   const handleToggleLanguage = useCallback(() => {
