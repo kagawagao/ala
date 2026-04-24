@@ -48,6 +48,7 @@ class ModelOverride(BaseModel):
     temperature: float | None = None
     thinking_mode: str | None = None
     thinking_budget_tokens: int | None = None
+    anthropic_compatible: bool | None = None  # None = auto-detect from endpoint
 
 
 class SendMessageRequest(BaseModel):
@@ -150,6 +151,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
         temperature=ov.temperature if ov and ov.temperature is not None else ai_config.temperature,
         thinking_mode=ov.thinking_mode if ov and ov.thinking_mode else ai_config.thinking_mode,
         thinking_budget_tokens=ov.thinking_budget_tokens if ov and ov.thinking_budget_tokens is not None else ai_config.thinking_budget_tokens,
+        use_anthropic=ov.anthropic_compatible if ov and ov.anthropic_compatible is not None else ai_config.anthropic_compatible,
     )
 
     # Build messages list including context if provided

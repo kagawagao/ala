@@ -83,6 +83,8 @@ export interface AIConfig {
   temperature: number
   thinking_mode: 'off' | 'auto' | 'on'
   thinking_budget_tokens: number
+  /** When set, overrides endpoint-based auto-detection of the API format. */
+  anthropic_compatible?: boolean
 }
 
 export interface ModelConfig {

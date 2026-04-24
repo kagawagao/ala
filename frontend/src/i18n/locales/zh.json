@@ -226,5 +226,9 @@
   "modelConfigSaved": "模型配置已保存",
   "modelConfigTitle": "配置模型",
   "apiKeyConfigured": "已配置 API Key",
-  "apiKeyNotConfigured": "未配置 API Key"
+  "apiKeyNotConfigured": "未配置 API Key",
+  "apiCompatibility": "API 兼容性",
+  "compatibilityAutoDetect": "从端点自动检测",
+  "compatibilityAnthropic": "Anthropic",
+  "compatibilityOpenAI": "OpenAI 兼容"
 }

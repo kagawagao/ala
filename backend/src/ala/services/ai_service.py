@@ -62,12 +62,16 @@ class AIService:
         temperature: float = 0.7,
         thinking_mode: str = "off",
         thinking_budget_tokens: int = 8000,
+        use_anthropic: bool | None = None,
     ):
         self._model = model
         self._temperature = temperature
         self._thinking_mode = thinking_mode
         self._thinking_budget = thinking_budget_tokens
-        self._use_anthropic = _is_anthropic_endpoint(api_endpoint)
+        # Explicit flag takes precedence over endpoint-based auto-detection
+        self._use_anthropic = (
+            use_anthropic if use_anthropic is not None else _is_anthropic_endpoint(api_endpoint)
+        )
 
         if self._use_anthropic:
             self._anthropic_client = anthropic.AsyncAnthropic(

@@ -404,6 +404,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           ? {
               model: activeModelPreset.model_id,
               api_endpoint: activeModelPreset.api_endpoint,
+              anthropic_compatible: activeModelPreset.anthropic_compatible,
               ...sessionModelConfig,
             }
           : undefined,

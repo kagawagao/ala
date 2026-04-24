@@ -53,6 +53,7 @@ interface CustomModelForm {
   provider: string
   model_id: string
   api_endpoint: string
+  anthropic_compatible: 'auto' | 'anthropic' | 'openai'
 }
 
 interface ConfigForm {
@@ -60,6 +61,19 @@ interface ConfigForm {
   temperature: number
   thinking_mode: 'off' | 'auto' | 'on'
   thinking_budget_tokens: number
+}
+
+/** Map the form's three-way select to the ModelPreset's boolean-or-undefined field. */
+function formCompatToPreset(val: 'auto' | 'anthropic' | 'openai'): boolean | undefined {
+  if (val === 'anthropic') return true
+  if (val === 'openai') return false
+  return undefined
+}
+
+function presetCompatToForm(v: boolean | undefined): 'auto' | 'anthropic' | 'openai' {
+  if (v === true) return 'anthropic'
+  if (v === false) return 'openai'
+  return 'auto'
 }
 
 const CopyableText: React.FC<{ value: string }> = ({ value }) => {
@@ -175,6 +189,7 @@ const ModelManager: React.FC = () => {
           provider: values.provider?.trim() || 'Custom',
           model_id: values.model_id.trim(),
           api_endpoint: values.api_endpoint.trim(),
+          anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
         }
         const updated = [...customModels, preset]
         setCustomModels(updated)
@@ -201,6 +216,7 @@ const ModelManager: React.FC = () => {
                 provider: values.provider?.trim() || 'Custom',
                 model_id: values.model_id.trim(),
                 api_endpoint: values.api_endpoint.trim(),
+                anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
               }
             : m,
         )
@@ -232,6 +248,7 @@ const ModelManager: React.FC = () => {
       provider: model.provider,
       model_id: model.model_id,
       api_endpoint: model.api_endpoint,
+      anthropic_compatible: presetCompatToForm(model.anthropic_compatible),
     })
   }
 
@@ -314,6 +331,11 @@ const ModelManager: React.FC = () => {
               {m.anthropic_compatible === false && (
                 <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
                   OpenAI
+                </Tag>
+              )}
+              {m.anthropic_compatible === undefined && isCustom && (
+                <Tag style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                  {t('compatibilityAutoDetect')}
                 </Tag>
               )}
               {m.provider && isCustom && (
@@ -521,6 +543,19 @@ const ModelManager: React.FC = () => {
           >
             <Input placeholder="https://api.example.com" />
           </Form.Item>
+          <Form.Item
+            label={t('apiCompatibility')}
+            name="anthropic_compatible"
+            initialValue="auto"
+          >
+            <Select
+              options={[
+                { value: 'auto', label: t('compatibilityAutoDetect') },
+                { value: 'anthropic', label: t('compatibilityAnthropic') },
+                { value: 'openai', label: t('compatibilityOpenAI') },
+              ]}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -561,6 +596,19 @@ const ModelManager: React.FC = () => {
             rules={[{ required: true, message: t('modelEndpointRequired') }]}
           >
             <Input placeholder="https://api.example.com" />
+          </Form.Item>
+          <Form.Item
+            label={t('apiCompatibility')}
+            name="anthropic_compatible"
+            initialValue="auto"
+          >
+            <Select
+              options={[
+                { value: 'auto', label: t('compatibilityAutoDetect') },
+                { value: 'anthropic', label: t('compatibilityAnthropic') },
+                { value: 'openai', label: t('compatibilityOpenAI') },
+              ]}
+            />
           </Form.Item>
         </Form>
       </Modal>

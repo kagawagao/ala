@@ -226,5 +226,9 @@
   "modelConfigSaved": "Model configuration saved",
   "modelConfigTitle": "Configure Model",
   "apiKeyConfigured": "API Key Set",
-  "apiKeyNotConfigured": "API Key Not Set"
+  "apiKeyNotConfigured": "API Key Not Set",
+  "apiCompatibility": "API Compatibility",
+  "compatibilityAutoDetect": "Auto-detect from endpoint",
+  "compatibilityAnthropic": "Anthropic",
+  "compatibilityOpenAI": "OpenAI-compatible"
 }

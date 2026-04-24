@@ -266,6 +266,7 @@ export function buildAIConfig(preset: ModelPreset, config: Partial<ModelConfig>)
     temperature: config.temperature ?? 0.7,
     thinking_mode: config.thinking_mode ?? 'off',
     thinking_budget_tokens: config.thinking_budget_tokens ?? 8000,
+    anthropic_compatible: preset.anthropic_compatible,
   }
 }
 

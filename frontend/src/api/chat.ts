@@ -56,6 +56,7 @@ export async function* sendMessage(
     temperature?: number
     thinking_mode?: string
     thinking_budget_tokens?: number
+    anthropic_compatible?: boolean
   },
 ): AsyncGenerator<string> {
   yield* streamSSE(
