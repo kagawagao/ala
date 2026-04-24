@@ -136,7 +136,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
     ai_config = get_ai_config()
     ov = req.model_override
-    effective_api_key = (ov.api_key if ov and ov.api_key else ai_config.api_key)
+    effective_api_key = ov.api_key if ov and ov.api_key else ai_config.api_key
     if not effective_api_key:
         raise HTTPException(status_code=400, detail="AI not configured. Please set API key.")
 
