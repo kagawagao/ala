@@ -394,7 +394,7 @@ const ModelManager: React.FC = () => {
       </Text>
 
       {/* ── Built-in models ─────────────────────────────────────── */}
-      <Divider orientation="left" orientationMargin={0} style={{ fontSize: 14, marginBottom: 16 }}>
+      <Divider titlePlacement="left" orientationMargin={0} style={{ fontSize: 14, marginBottom: 16 }}>
         {t('builtinModels')}
       </Divider>
 
@@ -409,7 +409,7 @@ const ModelManager: React.FC = () => {
 
       {/* ── Custom models ────────────────────────────────────────── */}
       <Divider
-        orientation="left"
+        titlePlacement="left"
         orientationMargin={0}
         style={{ fontSize: 14, margin: '24px 0 16px' }}
       >

@@ -7,11 +7,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ..config import settings
 from ..services.ai_service import AIService
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
-from ..config import settings
 
 router = APIRouter()
 _session_manager = SessionManager(max_sessions=settings.max_sessions)

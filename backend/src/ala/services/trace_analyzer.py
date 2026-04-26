@@ -301,7 +301,7 @@ class TraceAnalyzer:
         # ── Processes ──────────────────────────────────────────────────────
         processes: list[dict] = []
         try:
-            rows = self._query_with_timeout(tp, 
+            rows = self._query_with_timeout(tp,
                 "SELECT p.pid, p.name, COUNT(t.utid) AS thread_count "
                 "FROM process p "
                 "LEFT JOIN thread t ON t.upid = p.upid "
@@ -330,7 +330,7 @@ class TraceAnalyzer:
 
         if duration_ms is None:
             try:
-                for row in self._query_with_timeout(tp, 
+                for row in self._query_with_timeout(tp,
                     "SELECT MIN(ts) AS min_ts, "
                     "MAX(ts + CASE WHEN dur > 0 THEN dur ELSE 0 END) AS max_ts "
                     "FROM slice"
@@ -351,7 +351,7 @@ class TraceAnalyzer:
         # ── Top slices ─────────────────────────────────────────────────────
         top_slices: list[dict] = []
         try:
-            rows = self._query_with_timeout(tp, 
+            rows = self._query_with_timeout(tp,
                 "SELECT name, COUNT(*) AS cnt, SUM(dur) / 1e6 AS duration_ms "
                 "FROM slice "
                 "WHERE dur > 0 AND name IS NOT NULL "

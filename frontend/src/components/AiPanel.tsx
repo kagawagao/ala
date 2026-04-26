@@ -58,6 +58,7 @@ import type {
   AIConfig,
   ModelPreset,
 } from '../types'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -238,7 +239,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const textAreaRef = useRef<TextAreaRef>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)

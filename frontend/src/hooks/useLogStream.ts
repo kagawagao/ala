@@ -27,7 +27,7 @@ export function useLogStream(): UseLogStreamReturn {
   const [formatDetected, setFormatDetected] = useState<string | undefined>()
   const [parsedCount, setParsedCount] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
-  const formatRef = useRef<string | undefined>()
+  const formatRef = useRef<string | undefined>(undefined)
 
   const abort = useCallback(() => {
     abortRef.current?.abort()
