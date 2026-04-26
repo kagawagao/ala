@@ -87,3 +87,4 @@ coverage/
 .parcel-cache/
 .eslintcache
 .stylelintcache
+.hermes

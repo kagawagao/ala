@@ -1,8 +1,11 @@
 """In-memory session manager."""
 
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+
+from .agent_tools import LogIndex, build_log_index
 
 
 def _utcnow() -> str:
@@ -26,6 +29,7 @@ class Session:
     created_at: str = field(default_factory=_utcnow)
     trace_summary: dict | None = None
     log_entries: list[dict] | None = None
+    log_index: LogIndex | None = None
     # Raw provider-specific API message history (including tool-call blocks).
     # Stored after each agentic exchange so follow-up messages can resume with
     # full tool-call context instead of text-only history.
@@ -35,7 +39,7 @@ class Session:
 
 class SessionManager:
     def __init__(self, max_sessions: int = 100):
-        self._sessions: dict[str, Session] = {}
+        self._sessions: OrderedDict[str, Session] = OrderedDict()
         self._max_sessions = max_sessions
 
     def create_session(
@@ -55,7 +59,10 @@ class SessionManager:
         return session
 
     def get_session(self, session_id: str) -> Session | None:
-        return self._sessions.get(session_id)
+        session = self._sessions.get(session_id)
+        if session is not None:
+            self._sessions.move_to_end(session_id)
+        return session
 
     def list_sessions(self) -> list[Session]:
         return list(self._sessions.values())
@@ -88,6 +95,7 @@ class SessionManager:
         if not session:
             return False
         session.log_entries = entries
+        session.log_index = build_log_index(entries)
         return True
 
     def set_raw_api_messages(

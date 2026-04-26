@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Button,
   Card,
+  Checkbox,
   Typography,
   Space,
   Tag,
@@ -27,8 +28,6 @@ import {
   CopyOutlined,
   CheckOutlined,
   KeyOutlined,
-  StarFilled,
-  StarOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -40,8 +39,8 @@ import {
   saveCustomModels,
   loadModelConfigs,
   saveModelConfig,
-  getActiveModelId,
-  setActiveModelId,
+  getActiveModelIds,
+  toggleActiveModel,
   buildAIConfig,
 } from '../utils/models'
 import type { ModelPreset, ModelConfig } from '../types'
@@ -116,11 +115,11 @@ const ModelManager: React.FC = () => {
   const [customModels, setCustomModels] = useState<ModelPreset[]>(loadCustomModels)
   const [modelConfigs, setModelConfigs] =
     useState<Record<string, Partial<ModelConfig>>>(loadModelConfigs)
-  const [activeModelId, setActiveModelIdState] = useState<string | null>(getActiveModelId)
+  const [activeModelIds, setActiveModelIds] = useState<string[]>(getActiveModelIds)
 
   useEffect(() => {
     setModelConfigs(loadModelConfigs())
-    setActiveModelIdState(getActiveModelId())
+    setActiveModelIds(getActiveModelIds())
   }, [])
 
   const [addOpen, setAddOpen] = useState(false)
@@ -130,9 +129,9 @@ const ModelManager: React.FC = () => {
   const [editForm] = Form.useForm<CustomModelForm>()
   const [configForm] = Form.useForm<ConfigForm>()
 
-  const handleSetActive = (preset: ModelPreset) => {
-    setActiveModelId(preset.id)
-    setActiveModelIdState(preset.id)
+  const handleToggleActive = (preset: ModelPreset) => {
+    const updated = toggleActiveModel(preset.id)
+    setActiveModelIds(updated)
     const cfg = modelConfigs[preset.id]
     if (cfg?.api_key) {
       const aiCfg = buildAIConfig(preset, cfg)
@@ -141,7 +140,9 @@ const ModelManager: React.FC = () => {
       })
       localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
     }
-    void message.success(t('modelActivated'))
+    if (updated.includes(preset.id)) {
+      void message.success(t('modelActivated'))
+    }
   }
 
   const openConfigure = (preset: ModelPreset) => {
@@ -169,7 +170,7 @@ const ModelManager: React.FC = () => {
         saveModelConfig(configTarget.id, cfg)
         const updated = loadModelConfigs()
         setModelConfigs(updated)
-        if (configTarget.id === activeModelId && cfg.api_key) {
+        if (activeModelIds.includes(configTarget.id) && cfg.api_key) {
           const aiCfg = buildAIConfig(configTarget, cfg)
           updateConfig(aiCfg).catch(() => {
             /* backend may not be running */
@@ -239,9 +240,9 @@ const ModelManager: React.FC = () => {
     const updated = customModels.filter((m) => m.id !== id)
     setCustomModels(updated)
     saveCustomModels(updated)
-    if (activeModelId === id) {
-      localStorage.removeItem('ala_active_model_id')
-      setActiveModelIdState(null)
+    if (activeModelIds.includes(id)) {
+      const ids = toggleActiveModel(id)
+      setActiveModelIds(ids)
     }
     void message.success(t('customModelDeleted'))
   }
@@ -262,7 +263,7 @@ const ModelManager: React.FC = () => {
 
   const renderCard = (m: ModelPreset, isCustom: boolean) => {
     const cfg = modelConfigs[m.id] ?? {}
-    const isActive = m.id === activeModelId
+    const isActive = activeModelIds.includes(m.id)
     const hasKey = !!cfg.api_key?.trim()
     return (
       <Col key={m.id} xs={24} sm={12} md={8}>
@@ -275,24 +276,13 @@ const ModelManager: React.FC = () => {
           }}
           extra={
             <Space size={4}>
-              {isActive ? (
-                <Tag
-                  color="blue"
-                  icon={<StarFilled style={{ fontSize: 10 }} />}
-                  style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
-                >
-                  {t('activeModel')}
-                </Tag>
-              ) : (
-                <Tooltip title={t('setAsActive')}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<StarOutlined />}
-                    onClick={() => handleSetActive(m)}
-                  />
-                </Tooltip>
-              )}
+              <Tooltip
+                title={
+                  isActive ? t('clickToDeactivate') || 'Click to deactivate' : t('setAsActive')
+                }
+              >
+                <Checkbox checked={isActive} onChange={() => handleToggleActive(m)} />
+              </Tooltip>
               <Tooltip title={t('configureModel')}>
                 <Button
                   type="text"

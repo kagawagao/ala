@@ -174,8 +174,7 @@ class LogAnalyzer:
         text_files = extract_text_files(data, filename)
         for name, raw_bytes in text_files:
             text = raw_bytes.decode("utf-8", errors="replace")
-            result = self.parse_log(text, source_file=name)
-            yield from result.logs
+            yield from self.parse_log_iter(text, source_file=name)
 
     def _parse_android_logcat(self, content: str, source_file: str | None = None) -> list[LogEntry]:
         entries = []
@@ -269,6 +268,110 @@ class LogAnalyzer:
             for i, line in enumerate(content.split("\n"), 1)
             if line.strip()
         ]
+
+    # ------------------------------------------------------------------
+    # Iterator-based (streaming) parse methods — yield per-line, no list
+    # ------------------------------------------------------------------
+
+    def parse_log_iter(
+        self, content: str, source_file: str | None = None
+    ) -> Iterator[LogEntry]:
+        """Yield :class:`LogEntry` objects one at a time without building a list.
+
+        Detects the log format and delegates to the appropriate streaming parser.
+        """
+        fmt = self.detect_log_format(content)
+        if fmt == LogFormat.ANDROID_LOGCAT:
+            yield from self._parse_android_logcat_iter(content, source_file)
+        elif fmt == LogFormat.GENERIC_TIMESTAMPED:
+            yield from self._parse_generic_timestamped_iter(content, source_file)
+        else:
+            yield from self._parse_unknown_iter(content, source_file)
+
+    def _parse_android_logcat_iter(
+        self, content: str, source_file: str | None = None
+    ) -> Iterator[LogEntry]:
+        for i, raw in enumerate(content.split("\n"), 1):
+            line = raw.strip()
+            if not line:
+                continue
+            m = self._android_pattern.match(line)
+            if m:
+                yield LogEntry(
+                    line_number=i,
+                    timestamp=m.group(1).strip(),
+                    pid=m.group(2).strip(),
+                    tid=m.group(3).strip(),
+                    level=m.group(4).strip(),
+                    tag=m.group(5).strip(),
+                    message=m.group(6).strip(),
+                    raw_line=line,
+                    source_file=source_file,
+                )
+            else:
+                yield LogEntry(
+                    line_number=i,
+                    timestamp=None,
+                    pid=None,
+                    tid=None,
+                    level="U",
+                    tag="Unknown",
+                    message=line,
+                    raw_line=line,
+                    source_file=source_file,
+                )
+
+    def _parse_generic_timestamped_iter(
+        self, content: str, source_file: str | None = None
+    ) -> Iterator[LogEntry]:
+        for i, raw in enumerate(content.split("\n"), 1):
+            line = raw.strip()
+            if not line:
+                continue
+            m = self._generic_pattern.match(line)
+            if m:
+                yield LogEntry(
+                    line_number=i,
+                    timestamp=m.group(1).strip(),
+                    pid=None,
+                    tid=None,
+                    level=self._normalize_level(m.group(2)),
+                    tag="Generic",
+                    message=m.group(3).strip(),
+                    raw_line=line,
+                    source_file=source_file,
+                )
+            else:
+                yield LogEntry(
+                    line_number=i,
+                    timestamp=None,
+                    pid=None,
+                    tid=None,
+                    level="U",
+                    tag="Unknown",
+                    message=line,
+                    raw_line=line,
+                    source_file=source_file,
+                )
+
+    def _parse_unknown_iter(
+        self, content: str, source_file: str | None = None
+    ) -> Iterator[LogEntry]:
+        for i, raw in enumerate(content.split("\n"), 1):
+            line = raw.strip()
+            if not line:
+                continue
+            yield LogEntry(
+                line_number=i,
+                timestamp=None,
+                pid=None,
+                tid=None,
+                level="U",
+                tag="Unknown",
+                message=line,
+                raw_line=line,
+                source_file=source_file,
+            )
 
     def _normalize_level(self, level: str) -> str:
         u = level.upper()

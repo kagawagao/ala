@@ -2,62 +2,62 @@ import type { ModelPreset, ModelConfig, AIConfig } from '../types'
 
 export const MODELS_STORAGE_KEY = 'ala_models'
 export const MODEL_CONFIGS_STORAGE_KEY = 'ala_model_configs'
-export const ACTIVE_MODEL_STORAGE_KEY = 'ala_active_model_id'
+export const ACTIVE_MODELS_STORAGE_KEY = 'ala_active_models'
 
 export const BUILTIN_MODELS: ModelPreset[] = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
   {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
+    id: 'claude-opus-4.7',
+    name: 'Claude Opus 4.7',
     provider: 'Anthropic',
-    model_id: 'claude-opus-4-20250514',
+    model_id: 'claude-opus-4-7',
     api_endpoint: 'https://api.anthropic.com',
-    description: 'Most capable',
+    description: 'Most capable, adaptive thinking',
     builtin: true,
     anthropic_compatible: true,
     supports_thinking: true,
   },
   {
-    id: 'claude-sonnet-4',
-    name: 'Claude Sonnet 4',
+    id: 'claude-sonnet-4.6',
+    name: 'Claude Sonnet 4.6',
     provider: 'Anthropic',
-    model_id: 'claude-sonnet-4-20250514',
+    model_id: 'claude-sonnet-4-6',
     api_endpoint: 'https://api.anthropic.com',
-    description: 'Balanced',
+    description: 'Speed & intelligence, extended thinking',
     builtin: true,
     anthropic_compatible: true,
     supports_thinking: true,
   },
   {
-    id: 'claude-3-5-sonnet',
-    name: 'Claude 3.5 Sonnet',
+    id: 'claude-haiku-4.5',
+    name: 'Claude Haiku 4.5',
     provider: 'Anthropic',
-    model_id: 'claude-3-5-sonnet-20241022',
+    model_id: 'claude-haiku-4-5-20251001',
     api_endpoint: 'https://api.anthropic.com',
-    description: 'Previous generation',
-    builtin: true,
-    anthropic_compatible: true,
-    supports_thinking: false,
-  },
-  {
-    id: 'claude-haiku-3-5',
-    name: 'Claude Haiku 3.5',
-    provider: 'Anthropic',
-    model_id: 'claude-haiku-3-5-20241022',
-    api_endpoint: 'https://api.anthropic.com',
-    description: 'Fast & efficient',
+    description: 'Fastest near-frontier',
     builtin: true,
     anthropic_compatible: true,
     supports_thinking: false,
   },
   // ── OpenAI ─────────────────────────────────────────────────────────────────
   {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
+    id: 'gpt-5.5',
+    name: 'GPT-5.5',
     provider: 'OpenAI',
-    model_id: 'gpt-4o',
+    model_id: 'gpt-5.5',
     api_endpoint: 'https://api.openai.com/v1',
-    description: 'Multimodal flagship',
+    description: 'Frontier, 1.05M context',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'gpt-5.4',
+    name: 'GPT-5.4',
+    provider: 'OpenAI',
+    model_id: 'gpt-5.4',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Unified Codex+GPT, 1.05M',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
@@ -68,7 +68,18 @@ export const BUILTIN_MODELS: ModelPreset[] = [
     provider: 'OpenAI',
     model_id: 'gpt-4.1',
     api_endpoint: 'https://api.openai.com/v1',
-    description: 'Latest GPT-4.1',
+    description: 'Flagship, 1M context',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'o3',
+    name: 'o3',
+    provider: 'OpenAI',
+    model_id: 'o3',
+    api_endpoint: 'https://api.openai.com/v1',
+    description: 'Advanced reasoning',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
@@ -79,18 +90,133 @@ export const BUILTIN_MODELS: ModelPreset[] = [
     provider: 'OpenAI',
     model_id: 'o4-mini',
     api_endpoint: 'https://api.openai.com/v1',
-    description: 'Reasoning, efficient',
+    description: 'Compact reasoning',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── Google Gemini ──────────────────────────────────────────────────────────
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'Google',
+    model_id: 'gemini-2.5-pro-preview-03-25',
+    api_endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    description: 'Most capable Gemini',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: true,
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'Google',
+    model_id: 'gemini-2.5-flash-preview-04-17',
+    api_endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    description: 'Fast & capable',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: true,
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    provider: 'Google',
+    model_id: 'gemini-2.0-flash',
+    api_endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    description: 'Fast, efficient',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── DeepSeek ───────────────────────────────────────────────────────────────
+  {
+    id: 'deepseek-v4-pro',
+    name: 'DeepSeek-V4 Pro',
+    provider: 'DeepSeek',
+    model_id: 'deepseek-v4-pro',
+    api_endpoint: 'https://api.deepseek.com',
+    description: 'Flagship reasoning MoE',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: true,
+  },
+  {
+    id: 'deepseek-v4-flash',
+    name: 'DeepSeek-V4 Flash',
+    provider: 'DeepSeek',
+    model_id: 'deepseek-v4-flash',
+    api_endpoint: 'https://api.deepseek.com',
+    description: 'Fast & efficient',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: true,
+  },
+  // ── xAI (Grok) ─────────────────────────────────────────────────────────────
+  {
+    id: 'grok-4.20',
+    name: 'Grok 4.20',
+    provider: 'xAI',
+    model_id: 'grok-4.20',
+    api_endpoint: 'https://api.x.ai/v1',
+    description: 'Flagship, 2M context',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: true,
+  },
+  {
+    id: 'grok-4.1-fast',
+    name: 'Grok 4.1 Fast',
+    provider: 'xAI',
+    model_id: 'grok-4-1-fast',
+    api_endpoint: 'https://api.x.ai/v1',
+    description: 'Fast, 2M context',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── Mistral AI ─────────────────────────────────────────────────────────────
+  {
+    id: 'mistral-large',
+    name: 'Mistral Large 3',
+    provider: 'Mistral',
+    model_id: 'mistral-large-latest',
+    api_endpoint: 'https://api.mistral.ai/v1',
+    description: 'Most capable Mistral',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
   },
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o mini',
-    provider: 'OpenAI',
-    model_id: 'gpt-4o-mini',
-    api_endpoint: 'https://api.openai.com/v1',
-    description: 'Fast & cheap',
+    id: 'mistral-small',
+    name: 'Mistral Small 4',
+    provider: 'Mistral',
+    model_id: 'mistral-small-latest',
+    api_endpoint: 'https://api.mistral.ai/v1',
+    description: 'Fast & efficient',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  {
+    id: 'codestral',
+    name: 'Codestral',
+    provider: 'Mistral',
+    model_id: 'codestral-latest',
+    api_endpoint: 'https://api.mistral.ai/v1',
+    description: 'Code-optimised',
+    builtin: true,
+    anthropic_compatible: false,
+    supports_thinking: false,
+  },
+  // ── Cohere ─────────────────────────────────────────────────────────────────
+  {
+    id: 'command-r-plus',
+    name: 'Command R+',
+    provider: 'Cohere',
+    model_id: 'command-r-plus',
+    api_endpoint: 'https://api.cohere.com/v1',
+    description: 'Advanced RAG',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
@@ -118,17 +244,6 @@ export const BUILTIN_MODELS: ModelPreset[] = [
     anthropic_compatible: false,
     supports_thinking: false,
   },
-  {
-    id: 'moonshot-v1-128k',
-    name: 'Moonshot V1 128K',
-    provider: 'Kimi',
-    model_id: 'moonshot-v1-128k',
-    api_endpoint: 'https://api.moonshot.cn/v1',
-    description: 'Long context',
-    builtin: true,
-    anthropic_compatible: false,
-    supports_thinking: false,
-  },
   // ── MiniMax ────────────────────────────────────────────────────────────────
   {
     id: 'minimax-m2.7',
@@ -137,17 +252,6 @@ export const BUILTIN_MODELS: ModelPreset[] = [
     model_id: 'minimax-m2.7',
     api_endpoint: 'https://api.minimax.io/v1',
     description: 'Latest',
-    builtin: true,
-    anthropic_compatible: false,
-    supports_thinking: false,
-  },
-  {
-    id: 'minimax-m2.5',
-    name: 'MiniMax-M2.5',
-    provider: 'MiniMax',
-    model_id: 'minimax-m2.5',
-    api_endpoint: 'https://api.minimax.io/v1',
-    description: 'High performance',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
@@ -171,17 +275,6 @@ export const BUILTIN_MODELS: ModelPreset[] = [
     model_id: 'qwen-plus-latest',
     api_endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     description: 'Balanced',
-    builtin: true,
-    anthropic_compatible: false,
-    supports_thinking: false,
-  },
-  {
-    id: 'qwen-turbo',
-    name: 'Qwen Turbo',
-    provider: 'Qwen',
-    model_id: 'qwen-turbo-latest',
-    api_endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    description: 'Fast',
     builtin: true,
     anthropic_compatible: false,
     supports_thinking: false,
@@ -242,14 +335,53 @@ export function saveModelConfig(presetId: string, config: Partial<ModelConfig>):
   localStorage.setItem(MODEL_CONFIGS_STORAGE_KEY, JSON.stringify(all))
 }
 
-// ── Active model helpers ──────────────────────────────────────────────────────
+// ── Active model helpers (multi-select) ────────────────────────────────────────
 
-export function getActiveModelId(): string | null {
-  return localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)
+export function getActiveModelIds(): string[] {
+  // Backward compat: migrate old single ID to array
+  const old = localStorage.getItem('ala_active_model_id')
+  if (old) {
+    localStorage.removeItem('ala_active_model_id')
+    const ids = [old]
+    localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
+    return ids
+  }
+  try {
+    const stored = localStorage.getItem(ACTIVE_MODELS_STORAGE_KEY)
+    return stored ? (JSON.parse(stored) as string[]) : []
+  } catch {
+    return []
+  }
 }
 
+export function isModelActive(id: string): boolean {
+  return getActiveModelIds().includes(id)
+}
+
+export function toggleActiveModel(id: string): string[] {
+  const ids = getActiveModelIds()
+  const idx = ids.indexOf(id)
+  if (idx >= 0) {
+    ids.splice(idx, 1)
+  } else {
+    ids.push(id)
+  }
+  localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
+  return ids
+}
+
+/** @deprecated use getActiveModelIds() instead */
+export function getActiveModelId(): string | null {
+  return getActiveModelIds()[0] ?? null
+}
+
+/** @deprecated use toggleActiveModel() instead */
 export function setActiveModelId(id: string): void {
-  localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, id)
+  const ids = getActiveModelIds()
+  if (!ids.includes(id)) {
+    ids.push(id)
+    localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
+  }
 }
 
 export function findPresetById(id: string): ModelPreset | undefined {

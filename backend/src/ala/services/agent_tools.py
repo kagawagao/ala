@@ -2,12 +2,42 @@
 
 import json
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
+
+@dataclass
+class LogIndex:
+    """Pre-built indexes for O(1) log entry lookup by common dimensions."""
+    by_level: dict[str, list[int]] = field(default_factory=dict)  # level -> list of entry indices
+    by_tag: dict[str, list[int]] = field(default_factory=dict)     # tag (lower) -> list of entry indices
+    by_pid: dict[str, list[int]] = field(default_factory=dict)     # pid -> list of entry indices
+    total_entries: int = 0
+
+
+def build_log_index(entries: list[dict]) -> LogIndex:
+    """Build per-dimension indexes for O(1) filtering lookups."""
+    idx = LogIndex(total_entries=len(entries))
+    for i, entry in enumerate(entries):
+        level = entry.get("level")
+        if level:
+            idx.by_level.setdefault(level, []).append(i)
+        tag = entry.get("tag")
+        if tag:
+            idx.by_tag.setdefault(tag.lower(), []).append(i)
+        pid = entry.get("pid")
+        if pid is not None:
+            idx.by_pid.setdefault(str(pid), []).append(i)
+    return idx
+
 _scanner = CodeScanner()
+
+# Module-level cache: id(list) -> overview result.
+# Safe because id() changes when set_log_entries stores a new list reference.
+_overview_cache: dict[int, dict] = {}
 
 # Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
@@ -159,8 +189,9 @@ LOG_TOOLS: list[dict[str, Any]] = [
         "name": "search_logs",
         "description": (
             "Search and filter the loaded Android log entries. "
-            "Returns up to `limit` matching entries starting at `offset`. "
-            "Use offset for pagination when a single call does not return all results."
+            "Start with query_log_overview first, then use targeted search_logs with limit=50. "
+            "For more results, paginate with offset. "
+            "Returns up to `limit` matching entries starting at `offset`."
         ),
         "input_schema": {
             "type": "object",
@@ -191,7 +222,7 @@ LOG_TOOLS: list[dict[str, Any]] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results to return (default: 100, max: 500)",
+                    "description": "Maximum number of results to return (default: 50, max: 500)",
                 },
                 "offset": {
                     "type": "integer",
@@ -210,6 +241,7 @@ def execute_tool(
     arguments: str,
     trace_summary: dict | None = None,
     log_entries: list[dict] | None = None,
+    log_index: "LogIndex | None" = None,
 ) -> str:
     """Execute a tool call and return the result as a string."""
     try:
@@ -227,7 +259,7 @@ def execute_tool(
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
         if log_entries is None:
             return json.dumps({"error": "No logs loaded in this session"})
-        return _execute_log_tool(tool_name, args, log_entries)
+        return _execute_log_tool(tool_name, args, log_entries, log_index=log_index)
 
     # Project tools – project must be present
     if project is None:
@@ -352,7 +384,12 @@ def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
 _LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
 
 
-def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> str:
+def _execute_log_tool(
+    tool_name: str,
+    args: dict,
+    log_entries: list[dict],
+    log_index: "LogIndex | None" = None,
+) -> str:
     """Handle log-query tools against session-stored log entries."""
     if tool_name == "list_log_files":
         # Collect unique source files from loaded log entries
@@ -364,6 +401,10 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
         return json.dumps({"total_files": len(file_list), "files": file_list})
 
     if tool_name == "query_log_overview":
+        cache_key = id(log_entries)
+        if cache_key in _overview_cache:
+            return json.dumps(_overview_cache[cache_key])
+
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
         pids: set[str] = set()
@@ -377,20 +418,20 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
                 pids.add(str(entry["pid"]))
             if entry.get("timestamp"):
                 timestamps.append(entry["timestamp"])
-        return json.dumps(
-            {
-                "total_stored": len(log_entries),
-                "level_distribution": level_counts,
-                "unique_tags": len(tags),
-                "unique_pids": len(pids),
-                "time_range": {
-                    "start": min(timestamps) if timestamps else None,
-                    "end": max(timestamps) if timestamps else None,
-                },
-                "sample_tags": sorted(tags)[:30],
-                "sample_pids": sorted(pids)[:30],
-            }
-        )
+        result = {
+            "total_stored": len(log_entries),
+            "level_distribution": level_counts,
+            "unique_tags": len(tags),
+            "unique_pids": len(pids),
+            "time_range": {
+                "start": min(timestamps) if timestamps else None,
+                "end": max(timestamps) if timestamps else None,
+            },
+            "sample_tags": sorted(tags)[:30],
+            "sample_pids": sorted(pids)[:30],
+        }
+        _overview_cache[cache_key] = result
+        return json.dumps(result)
 
     if tool_name == "search_logs":
         level_filter = args.get("level", "").upper()
@@ -399,38 +440,76 @@ def _execute_log_tool(tool_name: str, args: dict, log_entries: list[dict]) -> st
         keyword = args.get("keyword", "")
         start_time = args.get("start_time", "")
         end_time = args.get("end_time", "")
-        limit = min(int(args.get("limit", 100)), 500)
+        limit = min(int(args.get("limit", 50)), 500)
         offset = max(int(args.get("offset", 0)), 0)
 
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
         keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
 
-        all_matched = []
-        for entry in log_entries:
-            lvl = entry.get("level", "V")
-            if _LEVEL_ORDER.get(lvl, 0) < min_level:
-                continue
-            if tag_filter and tag_filter not in (entry.get("tag") or "").lower():
-                continue
-            if pid_filter and pid_filter != str(entry.get("pid") or ""):
-                continue
-            ts = entry.get("timestamp") or ""
-            if start_time and ts < start_time:
-                continue
-            if end_time and ts > end_time:
-                continue
-            if keyword_re and not keyword_re.search(
-                entry.get("message") or entry.get("raw_line") or ""
-            ):
-                continue
-            all_matched.append(entry)
+        # Fast path: use pre-built index when no keyword regex or time range is specified
+        can_use_index = (
+            log_index is not None
+            and not keyword_re
+            and not start_time
+            and not end_time
+        )
+        if can_use_index:
+            # Start with all indices, then intersect by each active filter
+            full_set: set[int] | None = None
 
-        total_matched = len(all_matched)
-        page = all_matched[offset : offset + limit]
+            if level_filter:
+                level_candidates: set[int] = set()
+                for lvl, indices in log_index.by_level.items():
+                    if _LEVEL_ORDER.get(lvl, 0) >= min_level:
+                        level_candidates.update(indices)
+                full_set = level_candidates
+            else:
+                full_set = set(range(log_index.total_entries))
+
+            if tag_filter and full_set:
+                tag_indices = set(log_index.by_tag.get(tag_filter, []))
+                full_set &= tag_indices
+
+            if pid_filter and full_set:
+                pid_indices = set(log_index.by_pid.get(pid_filter, []))
+                full_set &= pid_indices
+
+            if full_set is not None:
+                candidate_indices = sorted(full_set)
+                total_matched = len(candidate_indices)
+                page_indices = candidate_indices[offset : offset + limit]
+                all_matched = [log_entries[i] for i in page_indices]
+            else:
+                all_matched = []
+                total_matched = 0
+        else:
+            # Slow path: linear scan (original behavior)
+            all_matched = []
+            for entry in log_entries:
+                lvl = entry.get("level", "V")
+                if _LEVEL_ORDER.get(lvl, 0) < min_level:
+                    continue
+                if tag_filter and tag_filter not in (entry.get("tag") or "").lower():
+                    continue
+                if pid_filter and pid_filter != str(entry.get("pid") or ""):
+                    continue
+                ts = entry.get("timestamp") or ""
+                if start_time and ts < start_time:
+                    continue
+                if end_time and ts > end_time:
+                    continue
+                if keyword_re and not keyword_re.search(
+                    entry.get("message") or entry.get("raw_line") or ""
+                ):
+                    continue
+                all_matched.append(entry)
+
+            total_matched = len(all_matched)
+            all_matched = all_matched[offset : offset + limit]
 
         # Trim message length to avoid token overflow when results are sent to the model
         trimmed = []
-        for e in page:
+        for e in all_matched:
             entry_copy = dict(e)
             msg = entry_copy.get("message") or entry_copy.get("raw_line") or ""
             if len(msg) > 300:

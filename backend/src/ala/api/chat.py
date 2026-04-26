@@ -11,9 +11,10 @@ from ..services.ai_service import AIService
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
+from ..config import settings
 
 router = APIRouter()
-_session_manager = SessionManager()
+_session_manager = SessionManager(max_sessions=settings.max_sessions)
 logger = logging.getLogger(__name__)
 
 
@@ -193,6 +194,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
                     project=project,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    log_index=session.log_index,
                     api_messages_out=api_messages_out,
                     resume_messages=session.raw_api_messages,
                     resume_provider=session.raw_api_messages_provider,

@@ -7,6 +7,7 @@ Supports:
 Provider is detected automatically from the configured API endpoint.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -16,7 +17,7 @@ from urllib.parse import urlparse
 import anthropic
 import openai
 
-from .agent_tools import AGENT_TOOLS, LOG_TOOLS, TRACE_TOOLS, execute_tool
+from .agent_tools import AGENT_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
@@ -59,6 +60,40 @@ def _anthropic_tool_to_openai(tool: dict) -> dict:
             "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
         },
     }
+
+
+def _truncate_tool_result(tool_name: str, result_str: str, max_chars: int = 8000) -> str:
+    """Truncate tool results intelligently based on tool type."""
+    if len(result_str) <= max_chars:
+        return result_str
+
+    try:
+        data = json.loads(result_str)
+    except json.JSONDecodeError:
+        return result_str[:max_chars] + "… (truncated)"
+
+    if tool_name == "search_logs":
+        entries = data.get("entries", [])
+        total = data.get("total_matched", len(entries))
+        if len(entries) > 50:
+            data["entries"] = entries[:30] + entries[-20:]
+            data["_note"] = f"Showing first 30 + last 20 of {total} matches. Use offset to paginate."
+    elif tool_name in ("list_project_files", "list_log_files"):
+        files = data.get("files", [])
+        if len(files) > 100:
+            data["files"] = files[:100]
+            data["_note"] = f"Showing first 100 of {len(files)} files."
+    elif tool_name == "search_project_code":
+        matches = data.get("matches", [])
+        total_matches = data.get("total_matches", len(matches))
+        if len(matches) > 20:
+            data["matches"] = matches[:20]
+            data["_note"] = f"Showing first 20 of {total_matches} matches."
+
+    result_str = json.dumps(data)
+    if len(result_str) > max_chars:
+        result_str = result_str[:max_chars] + "… (truncated)"
+    return result_str
 
 
 class AIService:
@@ -125,6 +160,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        log_index: LogIndex | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         resume_provider: str | None = None,
@@ -157,6 +193,7 @@ class AIService:
                 project=project,
                 trace_summary=trace_summary,
                 log_entries=log_entries,
+                log_index=log_index,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
             ):
@@ -167,6 +204,7 @@ class AIService:
                 project=project,
                 trace_summary=trace_summary,
                 log_entries=log_entries,
+                log_index=log_index,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
             ):
@@ -339,6 +377,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        log_index: LogIndex | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
@@ -488,35 +527,43 @@ class AIService:
             if not tool_uses:
                 break
 
-            tool_result_blocks: list[dict[str, Any]] = []
+            # Yield tool_call events immediately in original order
             for tu in tool_uses:
                 arguments_str = json.dumps(tu["input"])
-
                 logger.debug("Tool call — name=%s arguments=%s", tu["name"], arguments_str[:200])
-
                 yield json.dumps(
                     {"type": "tool_call", "name": tu["name"], "arguments": arguments_str}
                 )
 
-                result = execute_tool(
+            # Execute all tools concurrently
+            async def _run_one(tu: dict[str, Any]) -> tuple[dict[str, Any], str]:
+                arguments_str = json.dumps(tu["input"])
+                result = await asyncio.to_thread(
+                    execute_tool,
                     project,
                     tu["name"],
                     arguments_str,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    log_index=log_index,
                 )
+                return tu, result
 
+            tasks = [_run_one(tu) for tu in tool_uses]
+            results = await asyncio.gather(*tasks)
+
+            # Yield tool_result events in original order
+            tool_result_blocks: list[dict[str, Any]] = []
+            for tu, result in results:
                 logger.debug("Tool result — name=%s length=%d", tu["name"], len(result))
-
                 yield json.dumps(
                     {"type": "tool_result", "name": tu["name"], "content": result[:2000]}
                 )
-
                 tool_result_blocks.append(
                     {
                         "type": "tool_result",
                         "tool_use_id": tu["id"],
-                        "content": result,
+                        "content": _truncate_tool_result(tu["name"], result),
                     }
                 )
 
@@ -564,6 +611,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        log_index: LogIndex | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
@@ -707,6 +755,7 @@ class AIService:
                     arguments_str,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    log_index=log_index,
                 )
 
                 logger.debug("Tool result — name=%s length=%d", tc["name"], len(result))
@@ -719,7 +768,7 @@ class AIService:
                     {
                         "role": "tool",
                         "tool_call_id": tc["id"],
-                        "content": result,
+                        "content": _truncate_tool_result(tc["name"], result),
                     }
                 )
 

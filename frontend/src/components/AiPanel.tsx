@@ -39,7 +39,14 @@ import {
   setSessionTrace,
   setSessionLogs,
 } from '../api/chat'
-import { getConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
+import {
+  getConfiguredModels,
+  groupByProvider,
+  loadModelConfigs,
+  getActiveModelIds,
+  BUILTIN_MODELS,
+  loadCustomModels,
+} from '../utils/models'
 import type {
   Session,
   LogEntry,
@@ -231,6 +238,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)
@@ -305,6 +313,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
       if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
     }
   }, [allLogs, activeSessionId])
+
+  // Keyboard shortcut: Cmd/Ctrl+J to focus AI input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault()
+        textAreaRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const handleNewSession = async () => {
     try {
@@ -440,6 +460,15 @@ const AiPanel: React.FC<AiPanelProps> = ({
           : undefined,
       )) {
         if (chunk === '[DONE]') break
+
+        // Fast path: plain text chunks (95%+ of events) skip JSON.parse entirely
+        if (!chunk.startsWith('{')) {
+          accumulated += chunk
+          parts = appendText(parts, chunk)
+          updateMsg(parts)
+          continue
+        }
+
         try {
           const data = JSON.parse(chunk) as AgentEvent | Record<string, unknown>
 
@@ -577,10 +606,17 @@ const AiPanel: React.FC<AiPanelProps> = ({
   // All models with a configured API key
   const configuredModels = getConfiguredModels()
 
+  // All active models (user-toggled) that also have API keys configured
+  const activeModelIds = getActiveModelIds()
+  const modelConfigsForActive = loadModelConfigs()
+  const activeModels = [...BUILTIN_MODELS, ...loadCustomModels()].filter(
+    (m) => activeModelIds.includes(m.id) && !!modelConfigsForActive[m.id]?.api_key?.trim(),
+  )
+
   // The model preset active for this session (may differ from global active model)
   const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
 
-  // Whether sending is possible: global active model configured, or session model configured
+  // Whether sending is possible
   const sessionModelConfigs = loadModelConfigs()
   const sessionModelConfigured = !!(
     activeModelPreset && sessionModelConfigs[activeModelPreset.id]?.api_key?.trim()
@@ -609,6 +645,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
     if (!activeSessionId) return
     const preset = configuredModels.find((m) => m.id === presetId)
     if (!preset) return
+    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+  }
+
+  // Click an active model chip to switch the session's model
+  const handleActiveModelChipClick = (preset: ModelPreset) => {
+    if (!activeSessionId) return
     setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
   }
 
@@ -995,6 +1037,40 @@ const AiPanel: React.FC<AiPanelProps> = ({
               </Tag>
             </div>
           )}
+          {/* Active model chips — quick switch */}
+          {activeModels.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Text type="secondary" style={{ fontSize: 10 }}>
+                {t('activeModels')}:
+              </Text>
+              {activeModels.map((m) => {
+                const isSelected = activeModelPreset?.id === m.id
+                return (
+                  <Tag
+                    key={m.id}
+                    color={isSelected ? 'blue' : 'default'}
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      lineHeight: '18px',
+                      margin: 0,
+                    }}
+                    onClick={() => handleActiveModelChipClick(m)}
+                  >
+                    {m.name}
+                  </Tag>
+                )
+              })}
+            </div>
+          )}
           {/* Model selector for this session */}
           {configuredModels.length > 0 && (
             <div
@@ -1021,6 +1097,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
           )}
           <div style={{ position: 'relative' }}>
             <TextArea
+              ref={textAreaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}

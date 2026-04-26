@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     ai_thinking_mode: str = "off"  # off | auto | on
     ai_thinking_budget_tokens: int = 8000
 
+    # Session management
+    max_sessions: int = 100
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
