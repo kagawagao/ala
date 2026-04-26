@@ -87,4 +87,7 @@ coverage/
 .parcel-cache/
 .eslintcache
 .stylelintcache
-.hermes
+.hermes/
+.agents/
+.claude/
+.crush/
