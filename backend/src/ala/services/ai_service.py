@@ -741,7 +741,7 @@ class AIService:
             if not tool_calls_list:
                 break
 
-            # Execute each tool and append results
+            # Execute each tool via asyncio.to_thread to avoid blocking the event loop
             for tc in tool_calls_list:
                 arguments_str = tc["arguments"]
 
@@ -749,7 +749,8 @@ class AIService:
 
                 yield json.dumps({"type": "tool_call", "name": tc["name"], "arguments": arguments_str})
 
-                result = execute_tool(
+                result = await asyncio.to_thread(
+                    execute_tool,
                     project,
                     tc["name"],
                     arguments_str,

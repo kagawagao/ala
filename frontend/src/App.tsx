@@ -338,11 +338,11 @@ const AppContent: React.FC<{
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      await loadFromStream(
+      const ok = await loadFromStream(
         (signal) => parseLogStream(files, signal),
         files.map((f) => f.name),
       )
-      void message.success(t('fileUploaded'))
+      if (ok) void message.success(t('fileUploaded'))
     },
     [loadFromStream, t, message],
   )
@@ -372,8 +372,8 @@ const AppContent: React.FC<{
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      await loadFromStream((signal) => parseDirectoryStream(dirPath, signal), [dirPath])
-      void message.success(t('fileUploaded'))
+      const ok = await loadFromStream((signal) => parseDirectoryStream(dirPath, signal), [dirPath])
+      if (ok) void message.success(t('fileUploaded'))
     },
     [loadFromStream, t, message],
   )
@@ -383,11 +383,11 @@ const AppContent: React.FC<{
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      await loadFromStream(
+      const ok = await loadFromStream(
         (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
         selectedFiles.map((f) => f),
       )
-      void message.success(t('fileUploaded'))
+      if (ok) void message.success(t('fileUploaded'))
     },
     [loadFromStream, t, message],
   )

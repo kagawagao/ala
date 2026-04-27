@@ -35,9 +35,28 @@ def build_log_index(entries: list[dict]) -> LogIndex:
 
 _scanner = CodeScanner()
 
-# Module-level cache: id(list) -> overview result.
-# Safe because id() changes when set_log_entries stores a new list reference.
-_overview_cache: dict[int, dict] = {}
+
+class _NoOpOverviewCache:
+    """Compatibility shim for overview caching.
+
+    A module-level cache keyed by ``id(log_entries)`` is unsafe because entries
+    are never evicted and Python may reuse object ids after a list is freed.
+    Keep the existing cache interface for current call sites, but disable
+    storage so overviews are recomputed per request instead of being retained
+    across sessions.
+    """
+
+    def get(self, key: int, default: dict | None = None) -> dict | None:
+        return default
+
+    def __setitem__(self, key: int, value: dict) -> None:
+        return None
+
+    def clear(self) -> None:
+        return None
+
+
+_overview_cache = _NoOpOverviewCache()
 
 # Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
@@ -446,12 +465,15 @@ def _execute_log_tool(
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
         keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
 
-        # Fast path: use pre-built index when no keyword regex or time range is specified
+        # Fast path: use pre-built index when no keyword regex or time range is specified.
+        # Tag filter must also be an exact tag match for the index to apply; partial/substring
+        # tag filters fall through to the slow path to preserve consistent semantics.
         can_use_index = (
             log_index is not None
             and not keyword_re
             and not start_time
             and not end_time
+            and (not tag_filter or tag_filter in log_index.by_tag)
         )
         if can_use_index:
             # Start with all indices, then intersect by each active filter
@@ -466,11 +488,12 @@ def _execute_log_tool(
             else:
                 full_set = set(range(log_index.total_entries))
 
-            if tag_filter and full_set:
+            if tag_filter and full_set is not None:
+                # Exact match only (ensured by can_use_index check above)
                 tag_indices = set(log_index.by_tag.get(tag_filter, []))
                 full_set &= tag_indices
 
-            if pid_filter and full_set:
+            if pid_filter and full_set is not None:
                 pid_indices = set(log_index.by_pid.get(pid_filter, []))
                 full_set &= pid_indices
 

@@ -28,16 +28,16 @@ interface HighlightMatch {
 }
 
 // Module-level regex cache to avoid recompilation on every render
-const regexCache = new Map<string, RegExp>()
+const regexCache = new Map<string, RegExp | null>()
 function getRegex(pattern: string, flags: string): RegExp | null {
   const key = `${pattern}|${flags}`
-  if (regexCache.has(key)) return regexCache.get(key)!
+  if (regexCache.has(key)) return regexCache.get(key) ?? null
   try {
     const re = new RegExp(pattern, flags)
     regexCache.set(key, re)
     return re
   } catch {
-    regexCache.set(key, null!)
+    regexCache.set(key, null)
     return null
   }
 }

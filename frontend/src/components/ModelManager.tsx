@@ -76,6 +76,7 @@ function presetCompatToForm(v: boolean | undefined): 'auto' | 'anthropic' | 'ope
 }
 
 const CopyableText: React.FC<{ value: string }> = ({ value }) => {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const handleCopy = () => {
     void navigator.clipboard.writeText(value).then(() => {
@@ -88,7 +89,7 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
       <Text code style={{ fontSize: 11, wordBreak: 'break-all' }}>
         {value}
       </Text>
-      <Tooltip title={copied ? '✓' : 'Copy'}>
+      <Tooltip title={copied ? t('copied') : t('copy')}>
         <Button
           type="text"
           size="small"

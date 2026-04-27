@@ -12,7 +12,7 @@ interface UseLogStreamReturn {
   fileNames: string[]
   formatDetected: string | undefined
   parsedCount: number
-  loadFromStream: (streamFactory: StreamFactory, fileLabels: string[]) => Promise<void>
+  loadFromStream: (streamFactory: StreamFactory, fileLabels: string[]) => Promise<boolean>
   abort: () => void
   reset: () => void
 }
@@ -42,57 +42,65 @@ export function useLogStream(): UseLogStreamReturn {
     setParsedCount(0)
   }, [abort])
 
-  const loadFromStream = useCallback(async (streamFactory: StreamFactory, fileLabels: string[]) => {
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+  const loadFromStream = useCallback(
+    async (streamFactory: StreamFactory, fileLabels: string[]): Promise<boolean> => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
 
-    setLoading(true)
-    setError(undefined)
-    setFileNames(fileLabels)
-    setAllLogs([])
-    setFormatDetected(undefined)
-    setParsedCount(0)
-    formatRef.current = undefined
+      setLoading(true)
+      setError(undefined)
+      setFileNames(fileLabels)
+      setAllLogs([])
+      setFormatDetected(undefined)
+      setParsedCount(0)
+      formatRef.current = undefined
 
-    const buffer: LogEntry[] = []
-    let count = 0
+      const buffer: LogEntry[] = []
+      let count = 0
+      let streamError: string | undefined
 
-    const flush = () => {
-      if (buffer.length === 0) return
-      const toAdd = buffer.splice(0)
-      setAllLogs((prev) => [...prev, ...toAdd])
-    }
-
-    try {
-      const streamGen = streamFactory(controller.signal)
-      for await (const line of streamGen) {
-        if ('_done' in line) break
-        if ('_error' in line) {
-          setError(line._error as string)
-          break
-        }
-        const entry = line as LogEntry
-        buffer.push(entry)
-        count++
-        if (entry.source_file && !formatRef.current) {
-          formatRef.current = entry.source_file
-          setFormatDetected(entry.source_file)
-        }
-        if (buffer.length >= BATCH_SIZE) flush()
-        // Update parsed count periodically (every 100 entries) for progress display
-        if (count % 100 === 0) setParsedCount(count)
+      const flush = () => {
+        if (buffer.length === 0) return
+        const toAdd = buffer.splice(0)
+        setAllLogs((prev) => [...prev, ...toAdd])
       }
-      flush()
-      setParsedCount(count)
-    } catch (err: unknown) {
-      if ((err as Error).name === 'AbortError') return
-      const msg = err instanceof Error ? err.message : 'Parse error'
-      setError(msg)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+
+      try {
+        const streamGen = streamFactory(controller.signal)
+        for await (const line of streamGen) {
+          if ('_done' in line) break
+          if ('_error' in line) {
+            streamError = line._error as string
+            setError(streamError)
+            break
+          }
+          const entry = line as LogEntry
+          buffer.push(entry)
+          count++
+          if (entry.source_file && !formatRef.current) {
+            formatRef.current = entry.source_file
+            setFormatDetected(entry.source_file)
+          }
+          if (buffer.length >= BATCH_SIZE) flush()
+          // Update parsed count periodically (every 100 entries) for progress display
+          if (count % 100 === 0) setParsedCount(count)
+        }
+        flush()
+        setParsedCount(count)
+      } catch (err: unknown) {
+        if ((err as Error).name === 'AbortError') return false
+        const msg = err instanceof Error ? err.message : 'Parse error'
+        streamError = msg
+        setError(msg)
+      } finally {
+        setLoading(false)
+      }
+
+      return streamError === undefined
+    },
+    [],
+  )
 
   return {
     allLogs,

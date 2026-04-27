@@ -283,14 +283,17 @@ class TraceAnalyzer:
         """Run a TraceProcessor query with a timeout guard."""
         import concurrent.futures
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(tp.query, sql)
-            try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                raise Exception(
-                    f"TraceProcessor query timed out after {timeout}s: {sql[:80]}..."
-                )
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(tp.query, sql)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise Exception(
+                f"TraceProcessor query timed out after {timeout}s: {sql[:80]}..."
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     # type: ignore[no-untyped-def]
     def _summarize_via_tp(
