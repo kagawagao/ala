@@ -4,6 +4,7 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 from .agent_tools import LogIndex, build_log_index
 
@@ -28,7 +29,8 @@ class Session:
     messages: list[Message] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
     trace_summary: dict | None = None
-    log_entries: list[dict] | None = None
+    log_entries: list[dict[str, Any]] | None = None
+    file_path: str | None = None  # FEAT-LAZY-LOG: local file path for lazy analysis
     log_index: LogIndex | None = None
     # Raw provider-specific API message history (including tool-call blocks).
     # Stored after each agentic exchange so follow-up messages can resume with
@@ -89,12 +91,30 @@ class SessionManager:
         session.trace_summary = summary
         return True
 
-    def set_log_entries(self, session_id: str, entries: list[dict]) -> bool:
+    def set_file_path(self, session_id: str, path: str) -> None:
+        """Set local file path for lazy analysis. Clears log_entries."""
+        session = self._require_session(session_id)
+        session.file_path = path
+        session.log_entries = None
+
+    def get_file_path(self, session_id: str) -> str | None:
+        """Get the local file path for the session, if set."""
+        session = self._sessions.get(session_id)
+        return session.file_path if session else None
+
+    def clear_file_path(self, session_id: str) -> None:
+        """Clear the file path from the session."""
+        session = self._sessions.get(session_id)
+        if session:
+            session.file_path = None
+
+    def set_log_entries(self, session_id: str, entries: list[dict[str, Any]]) -> None:
         """Store log entries in the session for agentic tool access."""
         session = self._sessions.get(session_id)
         if not session:
             return False
         session.log_entries = entries
+        session.file_path = None  # Mutually exclusive with file_path
         session.log_index = build_log_index(entries)
         return True
 

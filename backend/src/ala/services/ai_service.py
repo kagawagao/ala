@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import anthropic
 import openai
 
-from .agent_tools import AGENT_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
+from .agent_tools import AGENT_TOOLS, LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
@@ -163,6 +163,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         resume_provider: str | None = None,
@@ -193,6 +194,7 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 log_index=log_index,
+                file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
             ):
@@ -204,6 +206,7 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 log_index=log_index,
+                file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
             ):
@@ -226,6 +229,7 @@ class AIService:
         project: Project | None,
         trace_summary: dict | None,
         log_entries: list[dict] | None,
+        file_path: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
         """Build tool list and system prompt text for agentic mode.
 
@@ -255,6 +259,22 @@ class AIService:
                 for doc in context_docs:
                     parts.append(f"\n### {doc.path}\n\n{doc.content}")
                 parts.append("\n--- End Project Context ---")
+
+        if file_path is not None:
+            # Lazy mode: tools that read local file on demand
+            tools.extend(LAZY_LOG_TOOLS)
+            lazy_hint = (
+                f"A local log file is available at: {file_path}. "
+                "Always start with overview_local_log to understand the log scope "
+                "(level distribution, time range, unique tags and PIDs). "
+                "Then use search_local_log with targeted filters to find relevant entries. "
+                "For large files, use offset/limit to paginate through results. "
+                "Use read_log_range for context around specific lines, "
+                "and tail_local_log for recent entries. "
+                "Do not guess log details — always query them with tools. "
+                "Complete the full analysis before responding; never stop mid-analysis."
+            )
+            parts.append(lazy_hint)
 
         if log_entries is not None:
             tools.extend(LOG_TOOLS)
@@ -377,6 +397,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
@@ -388,7 +409,7 @@ class AIService:
         - Tool calls: JSON with type="tool_call"
         - Tool results: JSON with type="tool_result"
         """
-        tools, system_text = self._build_agentic_context(project, trace_summary, log_entries)
+        tools, system_text = self._build_agentic_context(project, trace_summary, log_entries, file_path=file_path)
 
         existing_system, rebuilt_messages = self._extract_system(messages)
         if existing_system:
@@ -545,6 +566,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=log_index,
+                    file_path=file_path,
                 )
                 return tu, result
 
@@ -611,6 +633,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
     ) -> AsyncIterator[str]:
@@ -623,7 +646,7 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         anthropic_tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries
+            project, trace_summary, log_entries, file_path=file_path
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
 
@@ -758,6 +781,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=log_index,
+                    file_path=file_path,
                 )
 
                 logger.debug("Tool result — name=%s length=%d", tc["name"], len(result))

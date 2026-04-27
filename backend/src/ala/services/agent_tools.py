@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..services.log_analyzer import FileRef, LogAnalyzer, LogFormat
+
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
@@ -61,6 +63,110 @@ class _NoOpOverviewCache:
 
 
 _overview_cache = _NoOpOverviewCache()
+
+# Anthropic tool schemas – lazy local file tools (FEAT-LAZY-LOG)
+LAZY_LOG_TOOLS: list[dict] = [
+    {
+        "name": "overview_local_log",
+        "description": (
+            "Get statistics about a local Android log file by path. "
+            "Streams through the file once to compute level distribution, "
+            "unique tags/PIDs, time range, and line count. "
+            "Does NOT load the entire file into memory. "
+            "Use this FIRST before any other lazy log tool."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "search_local_log",
+        "description": (
+            "Search and filter a local Android log file by path. "
+            "Streams through the file line-by-line, applying filters. "
+            "Returns matching entries with pagination support. "
+            "Use overview_local_log first to see what's available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "Minimum log level (V, D, I, W, E, F)",
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Tag substring filter (case-insensitive)",
+                },
+                "pid": {
+                    "type": "string",
+                    "description": "Process ID to filter by",
+                },
+                "keyword": {
+                    "type": "string",
+                    "description": "Keyword or regex to match in log message",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "Only include entries after this timestamp",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "Only include entries before this timestamp",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default: 50, max: 500)",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Skip N matching entries before returning (pagination)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "read_log_range",
+        "description": (
+            "Read a specific line range from a local log file. "
+            "Useful for getting context around a particular line or timestamp."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_line": {
+                    "type": "integer",
+                    "description": "First line to read (1-based)",
+                },
+                "end_line": {
+                    "type": "integer",
+                    "description": "Last line to read (1-based, inclusive)",
+                },
+            },
+            "required": ["start_line", "end_line"],
+        },
+    },
+    {
+        "name": "tail_local_log",
+        "description": (
+            "Read the last N lines of a local log file. "
+            "Fast way to see recent entries without scanning the whole file."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lines": {
+                    "type": "integer",
+                    "description": "Number of lines to read from the end (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+]
 
 # Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
@@ -278,6 +384,14 @@ def execute_tool(
             return json.dumps({"error": "No trace loaded in this session"})
         return _execute_trace_tool(tool_name, args, trace_summary)
 
+    # Lazy log tools (operate on local file path, not in-memory entries)
+    if tool_name in (
+        "overview_local_log", "search_local_log", "read_log_range", "tail_local_log"
+    ):
+        if file_path is None:
+            return json.dumps({"error": "No local log file path set in this session"})
+        return _execute_lazy_log_tool(tool_name, args, file_path)
+
     # Log tools (work standalone or alongside project tools)
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
         if log_entries is None:
@@ -359,6 +473,154 @@ def execute_tool(
 
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+
+_analyzer = LogAnalyzer()
+_LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
+
+
+def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
+    """Execute a lazy log tool against a local file path (FEAT-LAZY-LOG).
+
+    All tools stream the file line-by-line; never load full file into memory.
+    """
+    import re as _re
+
+    if tool_name == "overview_local_log":
+        level_counts: dict[str, int] = {}
+        tags: set[str] = set()
+        pids: set[str] = set()
+        timestamps: list[str] = []
+        line_count = 0
+        for entry in _analyzer.stream_file(file_path):
+            line_count += 1
+            lvl = entry.level
+            level_counts[lvl] = level_counts.get(lvl, 0) + 1
+            if entry.tag:
+                tags.add(entry.tag)
+            if entry.pid:
+                pids.add(str(entry.pid))
+            if entry.timestamp:
+                timestamps.append(entry.timestamp)
+        return json.dumps({
+            "total_lines": line_count,
+            "level_distribution": level_counts,
+            "unique_tags": len(tags),
+            "unique_pids": len(pids),
+            "time_range": {
+                "start": min(timestamps) if timestamps else None,
+                "end": max(timestamps) if timestamps else None,
+            },
+            "sample_tags": sorted(tags)[:30],
+            "sample_pids": sorted(pids)[:30],
+        })
+
+    if tool_name == "search_local_log":
+        level_filter = args.get("level", "").upper()
+        tag_filter = args.get("tag", "").lower()
+        pid_filter = str(args.get("pid", ""))
+        keyword = args.get("keyword", "")
+        start_time = args.get("start_time", "")
+        end_time = args.get("end_time", "")
+        limit = min(int(args.get("limit", 50)), 500)
+        offset = max(int(args.get("offset", 0)), 0)
+
+        min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
+        keyword_re = _re.compile(keyword, _re.IGNORECASE) if keyword else None
+
+        matches: list[dict] = []
+        skipped = 0
+        for entry in _analyzer.stream_file(file_path):
+            # Level filter
+            if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
+                continue
+            # Tag filter
+            if tag_filter and tag_filter not in entry.tag.lower():
+                continue
+            # PID filter
+            if pid_filter and entry.pid != pid_filter:
+                continue
+            # Keyword filter
+            if keyword_re:
+                text = f"{entry.tag} {entry.message}"
+                if not keyword_re.search(text):
+                    continue
+            # Time filter
+            if start_time and entry.timestamp and entry.timestamp < start_time:
+                continue
+            if end_time and entry.timestamp and entry.timestamp > end_time:
+                continue
+
+            if skipped < offset:
+                skipped += 1
+                continue
+
+            matches.append({
+                "line_number": entry.line_number,
+                "timestamp": entry.timestamp,
+                "level": entry.level,
+                "tag": entry.tag,
+                "pid": entry.pid,
+                "tid": entry.tid,
+                "message": entry.message,
+            })
+
+            if len(matches) >= limit:
+                break
+
+        return json.dumps({
+            "total_matched": offset + len(matches),
+            "entries": matches,
+            "truncated": len(matches) >= limit,
+        })
+
+    if tool_name == "read_log_range":
+        start_line = max(int(args.get("start_line", 1)), 1)
+        end_line = max(int(args.get("end_line", start_line)), start_line)
+        entries = []
+        for entry in _analyzer.stream_file(file_path):
+            if entry.line_number < start_line:
+                continue
+            if entry.line_number > end_line:
+                break
+            entries.append({
+                "line_number": entry.line_number,
+                "timestamp": entry.timestamp,
+                "level": entry.level,
+                "tag": entry.tag,
+                "pid": entry.pid,
+                "tid": entry.tid,
+                "message": entry.message,
+            })
+        return json.dumps({
+            "range": f"{start_line}-{end_line}",
+            "entries": entries,
+            "count": len(entries),
+        })
+
+    if tool_name == "tail_local_log":
+        lines = min(int(args.get("lines", 50)), 500)
+        # Stream all lines to count, then only return last N
+        all_entries = list(_analyzer.stream_file(file_path))
+        tail = all_entries[-lines:] if len(all_entries) > lines else all_entries
+        return json.dumps({
+            "total_lines": len(all_entries),
+            "entries": [
+                {
+                    "line_number": e.line_number,
+                    "timestamp": e.timestamp,
+                    "level": e.level,
+                    "tag": e.tag,
+                    "pid": e.pid,
+                    "tid": e.tid,
+                    "message": e.message,
+                }
+                for e in tail
+            ],
+        })
+
+    return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
 
 
 def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:

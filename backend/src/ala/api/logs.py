@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..services.log_analyzer import LogAnalyzer
+from ..services.log_analyzer import FileRef, LogAnalyzer, PathTraversalError
 from ..services.log_analyzer import LogEntry as ServiceLogEntry
 from ..services.log_analyzer import LogFilters as ServiceLogFilters
 
@@ -43,6 +43,22 @@ class LogFilters(BaseModel):
     pid: str | None = None
     tid: str | None = None
     tag_keyword_relation: str = "AND"
+
+
+class LocalPathRequest(BaseModel):
+    """Request body for POST /api/logs/parse-local (FEAT-LAZY-LOG)."""
+    path: str
+    sandbox_root: str | None = None
+
+
+class LocalPathResponse(BaseModel):
+    """Response for POST /api/logs/parse-local."""
+    session_file: str
+    line_count: int
+    size_bytes: int
+    format_detected: str
+    is_gzip: bool
+    is_zip: bool
 
 
 class FilterRequest(BaseModel):
@@ -82,6 +98,36 @@ def _from_service_entry(e: ServiceLogEntry) -> LogEntry:
         message=e.message,
         raw_line=e.raw_line,
         source_file=e.source_file,
+    )
+
+
+@router.post("/parse-local", response_model=LocalPathResponse)
+async def parse_local_path(req: LocalPathRequest):
+    """Register a local log file for lazy analysis (FEAT-LAZY-LOG).
+
+    Validates the path, scans metadata, and sets the file as the active
+    session data source. No log entries are loaded into memory.
+    """
+    try:
+        validated = LogAnalyzer._validate_path(req.path, sandbox_root=req.sandbox_root)
+    except PathTraversalError as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Path traversal rejected: {e}",
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    ref = _analyzer.scan_file_meta(validated)
+    return LocalPathResponse(
+        session_file=ref.path,
+        line_count=ref.line_count,
+        size_bytes=ref.size_bytes,
+        format_detected=ref.format_detected,
+        is_gzip=ref.is_gzip,
+        is_zip=ref.is_zip,
     )
 
 
