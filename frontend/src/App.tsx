@@ -165,11 +165,6 @@ const AppContent: React.FC<{
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
-  // Clear stale localFilePath when data source changes
-  useEffect(() => {
-    setLocalFilePath(null)
-  }, [traceResult, selectedProjectId])
-
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
 
@@ -209,6 +204,11 @@ const AppContent: React.FC<{
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
+
+  // Clear stale localFilePath when data source changes
+  useEffect(() => {
+    setLocalFilePath(null)
+  }, [traceResult, selectedProjectId])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)

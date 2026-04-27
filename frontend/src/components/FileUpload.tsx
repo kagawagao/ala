@@ -120,6 +120,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onTraceFile,
   onDirectoryPath,
   onSelectedFiles,
+  onLocalFilePath,
   loading,
   error,
   fileNames = [],
