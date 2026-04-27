@@ -10,6 +10,7 @@ import {
   Empty,
   Tag,
   Collapse,
+  Select,
 } from 'antd'
 import {
   PlusOutlined,
@@ -25,6 +26,7 @@ import {
   LinkOutlined,
   BulbOutlined,
   DownloadOutlined,
+  SwapOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -37,6 +39,14 @@ import {
   setSessionTrace,
   setSessionLogs,
 } from '../api/chat'
+import {
+  getConfiguredModels,
+  groupByProvider,
+  loadModelConfigs,
+  getActiveModelIds,
+  BUILTIN_MODELS,
+  loadCustomModels,
+} from '../utils/models'
 import type {
   Session,
   LogEntry,
@@ -46,7 +56,9 @@ import type {
   AgentEvent,
   ContextDoc,
   AIConfig,
+  ModelPreset,
 } from '../types'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -223,9 +235,14 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  // Per-session model override: sessionId → ModelPreset (missing entry = use global config)
+  const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textAreaRef = useRef<TextAreaRef>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track previous project to detect changes (undefined = component not yet mounted)
+  const prevProjectIdRef = useRef<string | null | undefined>(undefined)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -250,6 +267,32 @@ const AiPanel: React.FC<AiPanelProps> = ({
       })
   }, [])
 
+  // Reset session state whenever the active project changes so the user starts
+  // fresh in the context of the new project.
+  useEffect(() => {
+    // Skip the initial mount — we just record the starting project here.
+    if (prevProjectIdRef.current === undefined) {
+      prevProjectIdRef.current = selectedProjectId
+      return
+    }
+    if (prevProjectIdRef.current === selectedProjectId) return
+    prevProjectIdRef.current = selectedProjectId
+
+    // Abort any in-flight streaming response
+    abortRef.current?.abort()
+    // Cancel any pending log-sync debounce timer
+    if (logSyncTimerRef.current) {
+      clearTimeout(logSyncTimerRef.current)
+      logSyncTimerRef.current = null
+    }
+    // Clear all session-related state
+    setSessions([])
+    setActiveSessionId(null)
+    setMessages([])
+    setSessionModels({})
+    setStreaming(false)
+  }, [selectedProjectId])
+
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {
     if (activeSessionId && traceResult) {
@@ -271,6 +314,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
       if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
     }
   }, [allLogs, activeSessionId])
+
+  // Keyboard shortcut: Cmd/Ctrl+J to focus AI input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault()
+        textAreaRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const handleNewSession = async () => {
     try {
@@ -341,7 +396,15 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const handleSend = async () => {
     if (!inputValue.trim() || !activeSessionId || streaming) return
-    if (!aiConfigured) {
+
+    // Determine the model config to use: session override has priority, else global config
+    const sessionModelConfigs = loadModelConfigs()
+    const sessionModelConfig = activeModelPreset
+      ? sessionModelConfigs[activeModelPreset.id]
+      : undefined
+    const canSendNow = aiConfigured || !!sessionModelConfig?.api_key?.trim()
+
+    if (!canSendNow) {
       void messageApi.warning(t('aiNotConfigured'))
       return
     }
@@ -388,8 +451,25 @@ const AiPanel: React.FC<AiPanelProps> = ({
         sentInput,
         context,
         abortRef.current.signal,
+        activeModelPreset
+          ? {
+              model: activeModelPreset.model_id,
+              api_endpoint: activeModelPreset.api_endpoint,
+              anthropic_compatible: activeModelPreset.anthropic_compatible,
+              ...sessionModelConfig,
+            }
+          : undefined,
       )) {
         if (chunk === '[DONE]') break
+
+        // Fast path: plain text chunks (95%+ of events) skip JSON.parse entirely
+        if (!chunk.startsWith('{')) {
+          accumulated += chunk
+          parts = appendText(parts, chunk)
+          updateMsg(parts)
+          continue
+        }
+
         try {
           const data = JSON.parse(chunk) as AgentEvent | Record<string, unknown>
 
@@ -523,6 +603,60 @@ const AiPanel: React.FC<AiPanelProps> = ({
       : traceResult
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
+
+  // All models with a configured API key
+  const configuredModels = getConfiguredModels()
+
+  // All active models (user-toggled) that also have API keys configured
+  const activeModelIds = getActiveModelIds()
+  const modelConfigsForActive = loadModelConfigs()
+  const activeModels = [...BUILTIN_MODELS, ...loadCustomModels()].filter(
+    (m) => activeModelIds.includes(m.id) && !!modelConfigsForActive[m.id]?.api_key?.trim(),
+  )
+
+  // The model preset active for this session (may differ from global active model)
+  const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
+
+  // Whether sending is possible
+  const sessionModelConfigs = loadModelConfigs()
+  const sessionModelConfigured = !!(
+    activeModelPreset && sessionModelConfigs[activeModelPreset.id]?.api_key?.trim()
+  )
+  const canSend = aiConfigured || sessionModelConfigured
+
+  // Build grouped options for the Select component
+  const modelSelectOptions = groupByProvider(configuredModels).map(([provider, models]) => ({
+    label: provider,
+    options: models.map((m) => ({
+      value: m.id,
+      label: (
+        <Space size={4}>
+          <span style={{ fontSize: 12 }}>{m.name}</span>
+          {m.description && (
+            <span style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }}>
+              · {m.description}
+            </span>
+          )}
+        </Space>
+      ),
+    })),
+  }))
+
+  const handleModelChange = (presetId: string) => {
+    if (!activeSessionId) return
+    const preset = configuredModels.find((m) => m.id === presetId)
+    if (!preset) return
+    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+  }
+
+  // Click an active model chip to switch the session's model
+  const handleActiveModelChipClick = (preset: ModelPreset) => {
+    if (!activeSessionId) return
+    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+  }
+
+  // The value shown in the Select: active session's preset id, else the global active model id
+  const modelSelectValue = activeModelPreset?.id ?? configuredModels[0]?.id ?? undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -879,7 +1013,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             flexShrink: 0,
           }}
         >
-          {!aiConfigured && (
+          {!canSend && (
             <Text type="warning" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
               {t('aiNotConfigured')}
             </Text>
@@ -904,8 +1038,67 @@ const AiPanel: React.FC<AiPanelProps> = ({
               </Tag>
             </div>
           )}
+          {/* Active model chips — quick switch */}
+          {activeModels.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Text type="secondary" style={{ fontSize: 10 }}>
+                {t('activeModels')}:
+              </Text>
+              {activeModels.map((m) => {
+                const isSelected = activeModelPreset?.id === m.id
+                return (
+                  <Tag
+                    key={m.id}
+                    color={isSelected ? 'blue' : 'default'}
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      lineHeight: '18px',
+                      margin: 0,
+                    }}
+                    onClick={() => handleActiveModelChipClick(m)}
+                  >
+                    {m.name}
+                  </Tag>
+                )
+              })}
+            </div>
+          )}
+          {/* Model selector for this session */}
+          {configuredModels.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+              }}
+            >
+              <SwapOutlined style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }} />
+              <Select
+                size="small"
+                style={{ flex: 1, fontSize: 11 }}
+                placeholder={t('switchModel')}
+                value={modelSelectValue}
+                onChange={handleModelChange}
+                disabled={streaming}
+                options={modelSelectOptions}
+                optionLabelProp="label"
+                popupMatchSelectWidth={false}
+              />
+            </div>
+          )}
           <div style={{ position: 'relative' }}>
             <TextArea
+              ref={textAreaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -930,11 +1123,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   onClick={() => {
                     void handleSend()
                   }}
-                  disabled={!inputValue.trim() || !aiConfigured}
+                  disabled={!inputValue.trim() || !canSend}
                   size="small"
                   style={{
-                    color:
-                      inputValue.trim() && aiConfigured ? 'var(--ant-color-primary)' : undefined,
+                    color: inputValue.trim() && canSend ? 'var(--ant-color-primary)' : undefined,
                   }}
                 />
               )}

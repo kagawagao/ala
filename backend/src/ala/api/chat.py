@@ -1,18 +1,21 @@
 """Multi-turn chat with streaming SSE."""
 
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ..config import settings
 from ..services.ai_service import AIService
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
 
 router = APIRouter()
-_session_manager = SessionManager()
+_session_manager = SessionManager(max_sessions=settings.max_sessions)
+logger = logging.getLogger(__name__)
 
 
 def _sse_encode(chunk: str) -> str:
@@ -41,9 +44,20 @@ class CreateSessionRequest(BaseModel):
     project_id: str | None = None
 
 
+class ModelOverride(BaseModel):
+    model: str
+    api_endpoint: str
+    api_key: str | None = None
+    temperature: float | None = None
+    thinking_mode: str | None = None
+    thinking_budget_tokens: int | None = None
+    anthropic_compatible: bool | None = None  # None = auto-detect from endpoint
+
+
 class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
+    model_override: ModelOverride | None = None
 
 
 class SetTraceRequest(BaseModel):
@@ -125,19 +139,28 @@ async def send_message(session_id: str, req: SendMessageRequest):
         raise HTTPException(status_code=404, detail="Session not found")
 
     ai_config = get_ai_config()
-    if not ai_config.api_key:
+    ov = req.model_override
+    effective_api_key = ov.api_key if ov and ov.api_key else ai_config.api_key
+    if not effective_api_key:
         raise HTTPException(status_code=400, detail="AI not configured. Please set API key.")
 
     # Add user message to session
     _session_manager.add_message(session_id, "user", req.message)
 
     ai_service = AIService(
-        api_endpoint=ai_config.api_endpoint,
-        api_key=ai_config.api_key,
-        model=ai_config.model,
-        temperature=ai_config.temperature,
-        thinking_mode=ai_config.thinking_mode,
-        thinking_budget_tokens=ai_config.thinking_budget_tokens,
+        api_endpoint=ov.api_endpoint if ov else ai_config.api_endpoint,
+        api_key=effective_api_key,
+        model=ov.model if ov else ai_config.model,
+        temperature=ov.temperature if ov and ov.temperature is not None else ai_config.temperature,
+        thinking_mode=ov.thinking_mode
+        if ov and ov.thinking_mode is not None
+        else ai_config.thinking_mode,
+        thinking_budget_tokens=ov.thinking_budget_tokens
+        if ov and ov.thinking_budget_tokens is not None
+        else ai_config.thinking_budget_tokens,
+        use_anthropic=ov.anthropic_compatible
+        if ov and ov.anthropic_compatible is not None
+        else ai_config.anthropic_compatible,
     )
 
     # Build messages list including context if provided
@@ -157,13 +180,30 @@ async def send_message(session_id: str, req: SendMessageRequest):
     trace_summary = session.trace_summary
     log_entries = session.log_entries
 
+    logger.debug(
+        "send_message — session=%s model=%s agentic=%s",
+        session_id,
+        ov.model if ov else ai_config.model,
+        bool(project or trace_summary or log_entries is not None),
+    )
+
     async def event_stream():
         full_response = ""
+        api_messages_out: list[dict] = []
+        current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
             if project or trace_summary or log_entries is not None:
-                # Agentic mode: project tools, trace tools, log tools, or any combination
+                # Agentic mode: project tools, trace tools, log tools, or any combination.
+                # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
-                    messages, project=project, trace_summary=trace_summary, log_entries=log_entries
+                    messages,
+                    project=project,
+                    trace_summary=trace_summary,
+                    log_entries=log_entries,
+                    log_index=session.log_index,
+                    api_messages_out=api_messages_out,
+                    resume_messages=session.raw_api_messages,
+                    resume_provider=session.raw_api_messages_provider,
                 ):
                     if chunk.startswith("{"):
                         try:
@@ -191,8 +231,19 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
             # Save assistant message
             _session_manager.add_message(session_id, "assistant", full_response)
+            # Persist full API message history (with tool-call blocks) for continuation.
+            if api_messages_out:
+                _session_manager.set_raw_api_messages(
+                    session_id, api_messages_out, current_provider
+                )
             yield "data: [DONE]\n\n"
         except Exception as e:
+            logger.exception(
+                "Error streaming AI response — session=%s model=%s: %s",
+                session_id,
+                ov.model if ov else ai_config.model,
+                e,
+            )
             yield f"data: [ERROR] {str(e)}\n\n"
 
     return StreamingResponse(

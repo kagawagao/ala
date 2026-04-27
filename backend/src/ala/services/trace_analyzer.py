@@ -278,6 +278,21 @@ class TraceAnalyzer:
         """
         return self.parse_trace(content, "trace.perfetto-trace")
 
+    @staticmethod
+    def _query_with_timeout(tp, sql: str, timeout: float = 30.0):
+        """Run a TraceProcessor query with a timeout guard."""
+        import concurrent.futures
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(tp.query, sql)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise Exception(f"TraceProcessor query timed out after {timeout}s: {sql[:80]}...")
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
     # type: ignore[no-untyped-def]
     def _summarize_via_tp(
         self, tp, file_size: int, fmt: str = "perfetto_proto"
@@ -287,12 +302,13 @@ class TraceAnalyzer:
         # ── Processes ──────────────────────────────────────────────────────
         processes: list[dict] = []
         try:
-            rows = tp.query(
+            rows = self._query_with_timeout(
+                tp,
                 "SELECT p.pid, p.name, COUNT(t.utid) AS thread_count "
                 "FROM process p "
                 "LEFT JOIN thread t ON t.upid = p.upid "
                 "WHERE p.pid IS NOT NULL AND p.pid != 0 "
-                "GROUP BY p.upid"
+                "GROUP BY p.upid",
             )
             for row in rows:
                 processes.append(
@@ -308,7 +324,7 @@ class TraceAnalyzer:
         # ── Duration ───────────────────────────────────────────────────────
         duration_ms: float | None = None
         try:
-            for row in tp.query("SELECT start_ts, end_ts FROM trace_bounds"):
+            for row in self._query_with_timeout(tp, "SELECT start_ts, end_ts FROM trace_bounds"):
                 if row.start_ts is not None and row.end_ts is not None:
                     duration_ms = (row.end_ts - row.start_ts) / 1e6
         except Exception:
@@ -316,10 +332,11 @@ class TraceAnalyzer:
 
         if duration_ms is None:
             try:
-                for row in tp.query(
+                for row in self._query_with_timeout(
+                    tp,
                     "SELECT MIN(ts) AS min_ts, "
                     "MAX(ts + CASE WHEN dur > 0 THEN dur ELSE 0 END) AS max_ts "
-                    "FROM slice"
+                    "FROM slice",
                 ):
                     if row.min_ts is not None and row.max_ts is not None:
                         duration_ms = (row.max_ts - row.min_ts) / 1e6
@@ -329,7 +346,7 @@ class TraceAnalyzer:
         # ── Event count ────────────────────────────────────────────────────
         event_count = 0
         try:
-            for row in tp.query("SELECT COUNT(*) AS cnt FROM slice"):
+            for row in self._query_with_timeout(tp, "SELECT COUNT(*) AS cnt FROM slice"):
                 event_count = row.cnt or 0
         except Exception:
             pass
@@ -337,12 +354,13 @@ class TraceAnalyzer:
         # ── Top slices ─────────────────────────────────────────────────────
         top_slices: list[dict] = []
         try:
-            rows = tp.query(
+            rows = self._query_with_timeout(
+                tp,
                 "SELECT name, COUNT(*) AS cnt, SUM(dur) / 1e6 AS duration_ms "
                 "FROM slice "
                 "WHERE dur > 0 AND name IS NOT NULL "
                 "GROUP BY name "
-                "ORDER BY duration_ms DESC "
+                "ORDER BY duration_ms DESC ",
             )
             for row in rows:
                 top_slices.append(
@@ -358,7 +376,9 @@ class TraceAnalyzer:
         # ── FTrace / raw events ────────────────────────────────────────────
         ftrace_events: list[str] = []
         try:
-            for row in tp.query("SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"):
+            for row in self._query_with_timeout(
+                tp, "SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"
+            ):
                 if row.name:
                     ftrace_events.append(row.name)
         except Exception:

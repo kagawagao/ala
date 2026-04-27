@@ -83,6 +83,15 @@ export interface AIConfig {
   temperature: number
   thinking_mode: 'off' | 'auto' | 'on'
   thinking_budget_tokens: number
+  /** When set, overrides endpoint-based auto-detection of the API format. */
+  anthropic_compatible?: boolean
+}
+
+export interface ModelConfig {
+  api_key: string
+  temperature: number
+  thinking_mode: 'off' | 'auto' | 'on'
+  thinking_budget_tokens: number
 }
 
 export interface FilterPreset {
@@ -90,6 +99,20 @@ export interface FilterPreset {
   name: string
   description?: string
   filters: LogFilters
+}
+
+export interface ModelPreset {
+  id: string
+  name: string
+  provider: string
+  model_id: string
+  api_endpoint: string
+  description?: string
+  builtin?: boolean
+  /** Whether this model requires the Anthropic API format (vs OpenAI-compatible). */
+  anthropic_compatible?: boolean
+  /** Whether this model supports thinking/reasoning mode as configured in this app. */
+  supports_thinking?: boolean
 }
 
 export interface Project {

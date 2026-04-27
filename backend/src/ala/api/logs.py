@@ -1,6 +1,7 @@
 """Log analysis endpoints."""
 
 import json
+import logging
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -12,6 +13,7 @@ from ..services.log_analyzer import LogFilters as ServiceLogFilters
 
 router = APIRouter()
 _analyzer = LogAnalyzer()
+logger = logging.getLogger(__name__)
 
 
 class LogEntry(BaseModel):
@@ -101,9 +103,11 @@ async def parse_log(files: list[UploadFile] = File(...)):
     for upload in files:
         content = await upload.read()
         filename = upload.filename or "log"
+        logger.debug("Parsing log file — name=%s size=%d", filename, len(content))
         try:
             parse_results = _analyzer.parse_log_bytes(content, filename)
         except ValueError as exc:
+            logger.error("Failed to parse log file %r: %s", filename, exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         for pr in parse_results:
             results.append(
@@ -135,12 +139,14 @@ async def parse_log_stream(files: list[UploadFile] = File(...)):
         for upload in files:
             data = await upload.read()
             filename = upload.filename or "log"
+            logger.debug("Stream-parsing log file — name=%s size=%d", filename, len(data))
             try:
                 for entry in _analyzer.stream_log_bytes(data, filename):
                     line = _from_service_entry(entry)
                     yield json.dumps(line.model_dump()) + "\n"
                     total += 1
             except ValueError as exc:
+                logger.error("Failed to stream-parse log file %r: %s", filename, exc)
                 yield json.dumps({"_error": str(exc)}) + "\n"
         yield json.dumps({"_done": True, "total": total}) + "\n"
 
