@@ -40,7 +40,6 @@ import type {
   FilterPreset,
   HighlightItem,
   LogEntry,
-  LocalFileRef,
   LogFilters,
   LogStatistics,
   Project,
@@ -412,14 +411,13 @@ const AppContent: React.FC<{
           setUploadPopoverOpen(false)
         }}
         onLocalFilePath={(path, ref) => {
-          setLocalFilePath(path)
+          setLocalFilePath(ref.session_file)
           setUploadPopoverOpen(false)
           void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
         }}
-        loading={false}
-        compact
+        loading={isLoading}
+        error={errorMessage}
         fileNames={fileNames}
-        compact
       />
     </div>
   )
@@ -461,7 +459,7 @@ const AppContent: React.FC<{
             void handleSelectedFiles(dirPath, files)
           }}
           onLocalFilePath={(path, ref) => {
-            setLocalFilePath(path)
+            setLocalFilePath(ref.session_file)
             void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
           }}
           loading={isLoading}

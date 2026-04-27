@@ -131,6 +131,18 @@ async def set_session_file_path(session_id: str, req: SetFilePathRequest):
     Sets the file_path on the session and clears any previously loaded
     log_entries (they are mutually exclusive).
     """
+    # Validate path before storing
+    from ..services.log_analyzer import LogAnalyzer, PathTraversalError
+
+    try:
+        LogAnalyzer._validate_path(req.file_path)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     ok = _session_manager.set_file_path(session_id, req.file_path)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")

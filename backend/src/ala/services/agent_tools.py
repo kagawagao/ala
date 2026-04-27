@@ -5,8 +5,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..services.log_analyzer import FileRef, LogAnalyzer, LogFormat
-
+from ..services.log_analyzer import LogAnalyzer
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
@@ -492,7 +491,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
         pids: set[str] = set()
-        timestamps: list[str] = []
+        min_timestamp: str | None = None
+        max_timestamp: str | None = None
         line_count = 0
         for entry in _analyzer.stream_file(file_path):
             line_count += 1
@@ -503,7 +503,10 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if entry.pid:
                 pids.add(str(entry.pid))
             if entry.timestamp:
-                timestamps.append(entry.timestamp)
+                if min_timestamp is None or entry.timestamp < min_timestamp:
+                    min_timestamp = entry.timestamp
+                if max_timestamp is None or entry.timestamp > max_timestamp:
+                    max_timestamp = entry.timestamp
         # Detect format
         ref = _analyzer.scan_file_meta(file_path)
         return json.dumps({
@@ -514,8 +517,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             "unique_tags": len(tags),
             "unique_pids": len(pids),
             "time_range": {
-                "start": min(timestamps) if timestamps else None,
-                "end": max(timestamps) if timestamps else None,
+                "start": min_timestamp,
+                "end": max_timestamp,
             },
             "sample_tags": sorted(tags)[:30],
             "sample_pids": sorted(pids)[:30],
@@ -532,10 +535,14 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         offset = max(int(args.get("offset", 0)), 0)
 
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
-        keyword_re = _re.compile(keyword, _re.IGNORECASE) if keyword else None
+        try:
+            keyword_re = _re.compile(keyword, _re.IGNORECASE) if keyword else None
+        except _re.error:
+            return json.dumps({"error": f"Invalid regex: {keyword}"})
 
         matches: list[dict] = []
         skipped = 0
+        total_matched = 0
         for entry in _analyzer.stream_file(file_path):
             # Level filter
             if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
@@ -557,6 +564,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if end_time and entry.timestamp and entry.timestamp > end_time:
                 continue
 
+            total_matched += 1
             if skipped < offset:
                 skipped += 1
                 continue
@@ -575,19 +583,19 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                 break
 
         return json.dumps({
-            "total_matched": skipped + len(matches) + (1 if matches else 0),
+            "total_matched": total_matched,
             "offset": offset,
             "returned": len(matches),
-            "has_more": len(matches) >= limit,
+            "has_more": total_matched > offset + len(matches),
             "entries": matches,
         })
 
     if tool_name == "read_log_range":
         start_line = max(int(args.get("start_line", 1)), 1)
         end_line = max(int(args.get("end_line", start_line)), start_line)
-        # Cap range at 10K lines to prevent huge responses
-        if end_line - start_line > 10_000:
-            end_line = start_line + 10_000
+        # Cap range at 10K lines (inclusive) to prevent huge responses
+        if end_line - start_line + 1 > 10_000:
+            end_line = start_line + 10_000 - 1
         entries = []
         total_lines = 0
         for entry in _analyzer.stream_file(file_path):
@@ -595,9 +603,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if entry.line_number < start_line:
                 continue
             if entry.line_number > end_line:
-                break
+                continue
             entries.append({
-                "line_number": entry.line_number,
                 "line_number": entry.line_number,
                 "timestamp": entry.timestamp,
                 "level": entry.level,

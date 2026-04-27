@@ -264,7 +264,7 @@ class AIService:
             # Lazy mode: tools that read local file on demand
             tools.extend(LAZY_LOG_TOOLS)
             lazy_hint = (
-                f"A local log file is available at: {file_path}. "
+                "A local log file is available to the session's log tools. "
                 "Always start with overview_local_log to understand the log scope "
                 "(level distribution, time range, unique tags and PIDs). "
                 "Then use search_local_log with targeted filters to find relevant entries. "

@@ -229,7 +229,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   contextDocs,
   localFilePath,
   aiConfig,
-}: AiPanelProps) {
+}: AiPanelProps) => {
   const { t } = useTranslation()
   const { message: messageApi } = App.useApp()
   const [sessions, setSessions] = useState<Session[]>([])
@@ -308,8 +308,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   // Sync local file path to the active session (FEAT-LAZY-LOG)
   useEffect(() => {
-    if (!activeSessionId || !localFilePath) return
-    void setSessionFilePath(activeSessionId, localFilePath)
+    if (!activeSessionId) return
+    if (localFilePath) {
+      void setSessionFilePath(activeSessionId, localFilePath)
+    } else {
+      void setSessionFilePath(activeSessionId, '')
+    }
   }, [localFilePath, activeSessionId])
 
   // Debounced sync of allLogs to the active session (500ms debounce)

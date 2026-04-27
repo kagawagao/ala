@@ -91,24 +91,32 @@ class SessionManager:
         session.trace_summary = summary
         return True
 
-    def set_file_path(self, session_id: str, path: str) -> None:
-        """Set local file path for lazy analysis. Clears log_entries."""
-        session = self._require_session(session_id)
+    def set_file_path(self, session_id: str, path: str) -> bool:
+        """Set local file path for lazy analysis. Clears log_entries and log_index."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
         session.file_path = path
         session.log_entries = None
+        session.log_index = None
+        return True
 
     def get_file_path(self, session_id: str) -> str | None:
         """Get the local file path for the session, if set."""
         session = self._sessions.get(session_id)
-        return session.file_path if session else None
+        if not session:
+            return None
+        return session.file_path
 
-    def clear_file_path(self, session_id: str) -> None:
-        """Clear the file path from the session."""
+    def clear_file_path(self, session_id: str) -> bool:
+        """Clear the file path from the session. Returns False if session not found."""
         session = self._sessions.get(session_id)
-        if session:
-            session.file_path = None
+        if not session:
+            return False
+        session.file_path = None
+        return True
 
-    def set_log_entries(self, session_id: str, entries: list[dict[str, Any]]) -> None:
+    def set_log_entries(self, session_id: str, entries: list[dict[str, Any]]) -> bool:
         """Store log entries in the session for agentic tool access."""
         session = self._sessions.get(session_id)
         if not session:

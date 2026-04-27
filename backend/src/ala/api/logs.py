@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..services.log_analyzer import FileRef, LogAnalyzer, PathTraversalError
+from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.log_analyzer import LogEntry as ServiceLogEntry
 from ..services.log_analyzer import LogFilters as ServiceLogFilters
 
@@ -48,7 +48,6 @@ class LogFilters(BaseModel):
 class LocalPathRequest(BaseModel):
     """Request body for POST /api/logs/parse-local (FEAT-LAZY-LOG)."""
     path: str
-    sandbox_root: str | None = None
 
 
 class LocalPathResponse(BaseModel):
@@ -109,7 +108,7 @@ async def parse_local_path(req: LocalPathRequest):
     session data source. No log entries are loaded into memory.
     """
     try:
-        validated = LogAnalyzer._validate_path(req.path, sandbox_root=req.sandbox_root)
+        validated = LogAnalyzer._validate_path(req.path)
     except PathTraversalError as e:
         raise HTTPException(
             status_code=403,

@@ -22,20 +22,20 @@ function isError(line: StreamLine): line is StreamError {
   return '_error' in line
 }
 
+/** Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG). */
+export async function parseLocalPath(path: string): Promise<LocalFileRef> {
+  return apiFetch<LocalFileRef>('/logs/parse-local', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
+}
+
 /**
  * Parse one or more log files.
  *
  * Returns the flat list of ``ParseResult`` objects (one per extracted
  * text member, so a ZIP with three logs → three results).
  */
-/** Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG). */
-export async function parseLocalPath(path: string, sandboxRoot?: string): Promise<LocalFileRef> {
-  return apiFetch<LocalFileRef>('/logs/parse-local', {
-    method: 'POST',
-    body: JSON.stringify({ path, sandbox_root: sandboxRoot ?? null }),
-  })
-}
-
 export async function parseLog(files: File | File[]): Promise<ParseResult[]> {
   const fileList = Array.isArray(files) ? files : [files]
   return apiUploadMulti<ParseResult[]>('/logs/parse', fileList)

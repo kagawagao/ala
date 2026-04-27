@@ -4,10 +4,9 @@ import gzip
 import io
 import os
 import re
-import stat
 import zipfile
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -475,21 +474,42 @@ class LogAnalyzer:
 
         line_count = 0
         format_detected = LogFormat.UNKNOWN.value
+        sample_lines = []
 
-        fh = self._open_log_path(validated)
-        try:
-            sample_lines = []
-            for raw_line in fh:
-                line_count += 1
-                stripped = raw_line.strip()
-                if stripped and len(sample_lines) < 10:
-                    sample_lines.append(stripped)
-            sample = "\n".join(sample_lines)
-            if sample:
-                format_detected = self.detect_log_format(sample).value
-        finally:
-            if hasattr(fh, "close"):
-                fh.close()
+        if is_zip:
+            # For ZIP archives, iterate all text members to count lines and collect samples
+            zf = zipfile.ZipFile(validated, "r")
+            try:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    member_lower = info.filename.lower()
+                    ext = os.path.splitext(member_lower)[1]
+                    if ext not in _LOG_TEXT_EXTS:
+                        continue
+                    with io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace") as fh:
+                        for raw_line in fh:
+                            line_count += 1
+                            stripped = raw_line.strip()
+                            if stripped and len(sample_lines) < 10:
+                                sample_lines.append(stripped)
+            finally:
+                zf.close()
+        else:
+            fh = self._open_log_path(validated)
+            try:
+                for raw_line in fh:
+                    line_count += 1
+                    stripped = raw_line.strip()
+                    if stripped and len(sample_lines) < 10:
+                        sample_lines.append(stripped)
+            finally:
+                if hasattr(fh, "close"):
+                    fh.close()
+
+        sample = "\n".join(sample_lines)
+        if sample:
+            format_detected = self.detect_log_format(sample).value
 
         return FileRef(
             path=validated,
@@ -604,7 +624,7 @@ class LogAnalyzer:
                 zf.close()
                 raise
 
-        return open(file_path, mode="r", encoding="utf-8", errors="replace")
+        return open(file_path, encoding="utf-8", errors="replace")
 
     def _parse_single_line(
         self, line: str, line_number: int, fmt: LogFormat, source_file: str | None = None
