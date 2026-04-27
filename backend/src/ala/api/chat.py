@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from ..services.ai_service import AIService
+from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
@@ -132,22 +133,28 @@ async def set_session_file_path(session_id: str, req: SetFilePathRequest):
     Sets the file_path on the session and clears any previously loaded
     log_entries (they are mutually exclusive).
     """
-    # Validate path before storing
-    from ..services.log_analyzer import LogAnalyzer, PathTraversalError
+    # Empty path clears the session file
+    raw_path = req.file_path.strip() if req.file_path else ""
+    if not raw_path:
+        _session_manager.clear_file_path(session_id)
+        return {"success": True, "file_path": None}
 
+    # Validate path and use canonical (normalized) path
     try:
-        LogAnalyzer._validate_path(req.file_path)
+        canonical = LogAnalyzer._validate_path(raw_path)
     except PathTraversalError as e:
         raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
     except FileNotFoundError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    ok = _session_manager.set_file_path(session_id, req.file_path)
+    ok = _session_manager.set_file_path(session_id, canonical)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True, "file_path": req.file_path}
+    return {"success": True, "file_path": canonical}
 
 
 @router.put("/sessions/{session_id}/logs")
@@ -224,7 +231,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
         api_messages_out: list[dict] = []
         current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
-            if project or trace_summary or log_entries is not None or file_path:
+            if project or trace_summary or log_entries is not None or file_path is not None:
                 # Agentic mode: project, trace, log, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(

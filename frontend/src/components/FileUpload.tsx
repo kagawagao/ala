@@ -203,7 +203,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         setLocalPathLoading(false)
       }
     },
-    [setLocalPath, setScanError, setLocalPathLoading],
+    [onLocalFilePath],
   )
 
   const handlePickerConfirm = useCallback(

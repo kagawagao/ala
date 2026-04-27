@@ -421,9 +421,9 @@ def execute_tool(
         )
 
     elif tool_name == "read_project_file":
-        file_path = args.get("file_path", "")
+        requested_path = args.get("file_path", "")
         for path in project.paths:
-            result = _scanner.read_file(path, file_path)
+            result = _scanner.read_file(path, requested_path)
             if result:
                 return json.dumps(
                     {
@@ -433,7 +433,7 @@ def execute_tool(
                         "content": result.content,
                     }
                 )
-        return json.dumps({"error": f"File not found or unreadable: {file_path}"})
+        return json.dumps({"error": f"File not found or unreadable: {requested_path}"})
 
     elif tool_name == "search_project_code":
         pattern = args.get("pattern", "")
@@ -474,7 +474,6 @@ def execute_tool(
 
 
 _analyzer = LogAnalyzer()
-_LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
 
 
 def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
@@ -482,7 +481,6 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
     All tools stream the file line-by-line; never load full file into memory.
     """
-    import re as _re
 
     if tool_name == "overview_local_log":
         level_counts: dict[str, int] = {}
@@ -491,9 +489,10 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         min_timestamp: str | None = None
         max_timestamp: str | None = None
         line_count = 0
+        format_detected = "android"
         for entry in _analyzer.stream_file(file_path):
             line_count += 1
-            lvl = entry.level
+            lvl = entry.level or "?"
             level_counts[lvl] = level_counts.get(lvl, 0) + 1
             if entry.tag:
                 tags.add(entry.tag)
@@ -504,13 +503,11 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     min_timestamp = entry.timestamp
                 if max_timestamp is None or entry.timestamp > max_timestamp:
                     max_timestamp = entry.timestamp
-        # Detect format
-        ref = _analyzer.scan_file_meta(file_path)
         return json.dumps(
             {
                 "total_lines": line_count,
                 "parsed_entries": line_count,
-                "format_detected": ref.format_detected,
+                "format_detected": format_detected,
                 "level_distribution": level_counts,
                 "unique_tags": len(tags),
                 "unique_pids": len(pids),
@@ -535,8 +532,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
         try:
-            keyword_re = _re.compile(keyword, _re.IGNORECASE) if keyword else None
-        except _re.error:
+            keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
+        except re.error:
             return json.dumps({"error": f"Invalid regex: {keyword}"})
 
         matches: list[dict] = []

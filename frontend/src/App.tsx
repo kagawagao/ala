@@ -323,6 +323,7 @@ const AppContent: React.FC<{
     (projectId: string | null) => {
       // Abort any in-flight log parse before clearing state
       abortParse()
+      setLocalFilePath(null)
       // Reset all file / log / trace state so the new project starts clean
       resetLogs()
       setTraceResult(null)
@@ -335,6 +336,7 @@ const AppContent: React.FC<{
 
   const handleLogFiles = useCallback(
     async (files: File[]) => {
+      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
@@ -369,6 +371,7 @@ const AppContent: React.FC<{
 
   const handleDirectoryPath = useCallback(
     async (dirPath: string) => {
+      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
@@ -380,6 +383,7 @@ const AppContent: React.FC<{
 
   const handleSelectedFiles = useCallback(
     async (dirPath: string, selectedFiles: string[]) => {
+      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
@@ -413,7 +417,7 @@ const AppContent: React.FC<{
         onLocalFilePath={(path, ref) => {
           setLocalFilePath(ref.session_file)
           setUploadPopoverOpen(false)
-          void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
+          void message.success(t('fileUploaded'))
         }}
         loading={isLoading}
         error={errorMessage}
@@ -460,7 +464,7 @@ const AppContent: React.FC<{
           }}
           onLocalFilePath={(path, ref) => {
             setLocalFilePath(ref.session_file)
-            void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
+            void message.success(t('fileUploaded'))
           }}
           loading={isLoading}
           error={errorMessage}
