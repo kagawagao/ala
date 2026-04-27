@@ -66,6 +66,7 @@ class SetTraceRequest(BaseModel):
 
 class SetFilePathRequest(BaseModel):
     """Set local file path for lazy log analysis (FEAT-LAZY-LOG)."""
+
     file_path: str
 
 

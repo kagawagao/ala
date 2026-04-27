@@ -47,11 +47,13 @@ class LogFilters(BaseModel):
 
 class LocalPathRequest(BaseModel):
     """Request body for POST /api/logs/parse-local (FEAT-LAZY-LOG)."""
+
     path: str
 
 
 class LocalPathResponse(BaseModel):
     """Response for POST /api/logs/parse-local."""
+
     session_file: str
     line_count: int
     size_bytes: int

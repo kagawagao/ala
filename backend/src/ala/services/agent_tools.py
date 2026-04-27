@@ -385,9 +385,7 @@ def execute_tool(
         return _execute_trace_tool(tool_name, args, trace_summary)
 
     # Lazy log tools (operate on local file path, not in-memory entries)
-    if tool_name in (
-        "overview_local_log", "search_local_log", "read_log_range", "tail_local_log"
-    ):
+    if tool_name in ("overview_local_log", "search_local_log", "read_log_range", "tail_local_log"):
         if file_path is None:
             return json.dumps({"error": "No local log file path set in this session"})
         return _execute_lazy_log_tool(tool_name, args, file_path)
@@ -475,7 +473,6 @@ def execute_tool(
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 
-
 _analyzer = LogAnalyzer()
 _LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
 
@@ -509,20 +506,22 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     max_timestamp = entry.timestamp
         # Detect format
         ref = _analyzer.scan_file_meta(file_path)
-        return json.dumps({
-            "total_lines": line_count,
-            "parsed_entries": line_count,
-            "format_detected": ref.format_detected,
-            "level_distribution": level_counts,
-            "unique_tags": len(tags),
-            "unique_pids": len(pids),
-            "time_range": {
-                "start": min_timestamp,
-                "end": max_timestamp,
-            },
-            "sample_tags": sorted(tags)[:30],
-            "sample_pids": sorted(pids)[:30],
-        })
+        return json.dumps(
+            {
+                "total_lines": line_count,
+                "parsed_entries": line_count,
+                "format_detected": ref.format_detected,
+                "level_distribution": level_counts,
+                "unique_tags": len(tags),
+                "unique_pids": len(pids),
+                "time_range": {
+                    "start": min_timestamp,
+                    "end": max_timestamp,
+                },
+                "sample_tags": sorted(tags)[:30],
+                "sample_pids": sorted(pids)[:30],
+            }
+        )
 
     if tool_name == "search_local_log":
         level_filter = args.get("level", "").upper()
@@ -569,26 +568,30 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                 skipped += 1
                 continue
 
-            matches.append({
-                "line_number": entry.line_number,
-                "timestamp": entry.timestamp,
-                "level": entry.level,
-                "tag": entry.tag,
-                "pid": entry.pid,
-                "tid": entry.tid,
-                "message": entry.message,
-            })
+            matches.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
 
             if len(matches) >= limit:
                 break
 
-        return json.dumps({
-            "total_matched": total_matched,
-            "offset": offset,
-            "returned": len(matches),
-            "has_more": total_matched > offset + len(matches),
-            "entries": matches,
-        })
+        return json.dumps(
+            {
+                "total_matched": total_matched,
+                "offset": offset,
+                "returned": len(matches),
+                "has_more": total_matched > offset + len(matches),
+                "entries": matches,
+            }
+        )
 
     if tool_name == "read_log_range":
         start_line = max(int(args.get("start_line", 1)), 1)
@@ -604,43 +607,52 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                 continue
             if entry.line_number > end_line:
                 continue
-            entries.append({
-                "line_number": entry.line_number,
-                "timestamp": entry.timestamp,
-                "level": entry.level,
-                "tag": entry.tag,
-                "pid": entry.pid,
-                "tid": entry.tid,
-                "message": entry.message,
-            })
-        return json.dumps({
-            "range": f"{start_line}-{end_line}",
-            "total_lines_in_file": total_lines,
-            "entries": entries,
-            "count": len(entries),
-        })
+            entries.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
+        return json.dumps(
+            {
+                "range": f"{start_line}-{end_line}",
+                "total_lines_in_file": total_lines,
+                "entries": entries,
+                "count": len(entries),
+            }
+        )
 
     if tool_name == "tail_local_log":
         from collections import deque
+
         lines = min(int(args.get("lines", 50)), 500)
         # Use a ring buffer — O(N) scan, O(1) memory (only stores last N entries)
         ring: deque[dict] = deque(maxlen=lines)
         total_lines = 0
         for entry in _analyzer.stream_file(file_path):
             total_lines += 1
-            ring.append({
-                "line_number": entry.line_number,
-                "timestamp": entry.timestamp,
-                "level": entry.level,
-                "tag": entry.tag,
-                "pid": entry.pid,
-                "tid": entry.tid,
-                "message": entry.message,
-            })
-        return json.dumps({
-            "total_lines": total_lines,
-            "entries": list(ring),
-        })
+            ring.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
+        return json.dumps(
+            {
+                "total_lines": total_lines,
+                "entries": list(ring),
+            }
+        )
 
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
 

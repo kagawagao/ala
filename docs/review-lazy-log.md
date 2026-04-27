@@ -15,16 +15,16 @@ The core engine (`LogAnalyzer.stream_file`, `_validate_path`, `scan_file_meta`, 
 
 ## Checklist
 
-| Criterion | Status | Notes |
-|---|---|---|
-| Every acceptance criteria addressed? | ❌ | Multiple gaps (see §1) |
-| API signatures match architecture.md? | ❌ | `execute_tool` missing `file_path`; missing `PUT /sessions/{id}/file-path`; error codes wrong |
-| `LAZY_LOG_TOOLS` schemas match requirements? | ❌ | Missing `path`/`max_lines` on `overview_local_log`; missing `path` on all tools |
-| Security: path traversal, sandbox, symlinks? | ✅ | Well-implemented in `_validate_path()` |
-| Memory: `stream_file` never loads entire file? | ⚠️ | `stream_file` is fine, but `tail_local_log` calls `list()` (loads full file) |
-| Error handling: proper HTTP codes, tool errors? | ❌ | HTTP status codes don't match spec |
-| Zero breaking changes to existing flows? | ✅ | All 27 existing tests pass |
-| Code quality: patterns, type hints, comments? | ⚠️ | Mostly good; see issues below |
+| Criterion                                       | Status | Notes                                                                                         |
+| ----------------------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| Every acceptance criteria addressed?            | ❌     | Multiple gaps (see §1)                                                                        |
+| API signatures match architecture.md?           | ❌     | `execute_tool` missing `file_path`; missing `PUT /sessions/{id}/file-path`; error codes wrong |
+| `LAZY_LOG_TOOLS` schemas match requirements?    | ❌     | Missing `path`/`max_lines` on `overview_local_log`; missing `path` on all tools               |
+| Security: path traversal, sandbox, symlinks?    | ✅     | Well-implemented in `_validate_path()`                                                        |
+| Memory: `stream_file` never loads entire file?  | ⚠️     | `stream_file` is fine, but `tail_local_log` calls `list()` (loads full file)                  |
+| Error handling: proper HTTP codes, tool errors? | ❌     | HTTP status codes don't match spec                                                            |
+| Zero breaking changes to existing flows?        | ✅     | All 27 existing tests pass                                                                    |
+| Code quality: patterns, type hints, comments?   | ⚠️     | Mostly good; see issues below                                                                 |
 
 ---
 
@@ -35,6 +35,7 @@ The core engine (`LogAnalyzer.stream_file`, `_validate_path`, `scan_file_meta`, 
 **File**: `backend/src/ala/services/agent_tools.py`, line 367
 
 **Problem**: The function signature does not accept `file_path`, but:
+
 - `ai_service.py` calls it with `file_path=file_path` (lines 569, 784) → **TypeError at runtime**
 - The function body references `file_path` as a bare variable (line 391) → **NameError**
 
@@ -61,13 +62,16 @@ def execute_tool(
 **File**: `backend/src/ala/services/agent_tools.py`, line 605
 
 **Problem**:
+
 ```python
 all_entries = list(_analyzer.stream_file(file_path))
 tail = all_entries[-lines:]
 ```
+
 This defeats the entire purpose of lazy streaming. For a 2 GB log file, this loads all entries into RAM. NFR-2 requires "ring buffer of size N (default 50, max 500). Memory: O(lines), max 500 entries."
 
 **Fix**: Use a `collections.deque` with `maxlen=lines` as a ring buffer:
+
 ```python
 from collections import deque
 ring = deque(maxlen=lines)
@@ -98,6 +102,7 @@ for entry in _analyzer.stream_file(file_path):
 **Implementation**: The schemas do NOT include `path` in `input_schema.properties`. The `file_path` comes from the session instead.
 
 **Assessment**: This may be an intentional design choice (path from session = simpler for AI). However:
+
 - It means the AI CANNOT analyze different files in the same session
 - It diverges from the architecture doc which explicitly lists `path` as a required property
 - The tool descriptions say "by path" but the schema doesn't expose it
@@ -113,6 +118,7 @@ for entry in _analyzer.stream_file(file_path):
 **Implementation**: Not present in `backend/src/ala/api/chat.py`. The `session_manager.py` has `set_file_path()` but no API endpoint calls it. Without this, the frontend cannot register the file path with the session.
 
 **Also missing**:
+
 - `SetFilePathRequest` Pydantic model
 - Frontend won't have a way to link the parsed local path to the chat session
 
@@ -190,12 +196,12 @@ This means even if a session has `file_path` set, the AI service never knows abo
 
 **Requirements (US-5) & Architecture (§6.1)**:
 
-| Condition | Expected | Actual |
-|---|---|---|
-| File not found | 400 | **422** |
-| Path is directory | 400 | **422** |
-| Path traversal | 400 | **403** |
-| Permission denied | 403 | **422** |
+| Condition         | Expected | Actual  |
+| ----------------- | -------- | ------- |
+| File not found    | 400      | **422** |
+| Path is directory | 400      | **422** |
+| Path traversal    | 400      | **403** |
+| Permission denied | 403      | **422** |
 
 **File**: `backend/src/ala/api/logs.py`, lines 113–121
 
@@ -240,6 +246,7 @@ This is a module-level name collision — the second definition overwrites the f
 ```python
 def set_file_path(self, session_id: str, path: str) -> None:
 ```
+
 Returns `None` but `set_log_entries` and `set_trace_summary` return `bool`. The `set_file_path` method also lacks the `file_ref` parameter from the architecture doc (§3.3).
 
 ---
@@ -257,6 +264,7 @@ Lines 479–492 call `_open_log_path` and iterate lines manually, duplicating so
 ### 🔵 L3: Missing test coverage for tool execution layer
 
 The 28 tests cover `LogAnalyzer` methods but there are zero tests for:
+
 - `_execute_lazy_log_tool` and its sub-functions
 - `_execute_overview_local_log`, `_execute_search_local_log`, `_execute_read_log_range`, `_execute_tail_local_log`
 - `execute_tool` dispatch with `file_path`
@@ -304,24 +312,24 @@ Line 98 sets `session.log_entries = None` but doesn't clear `session.log_index`.
 
 ### Must-Fix Before Merge (Blocker)
 
-| # | Issue | File | Priority |
-|---|---|---|---|
-| C1 | Add `file_path` param to `execute_tool()` | `agent_tools.py:367` | 🔴 P0 |
-| C2 | Replace `list()` with `deque` ring buffer in `tail_local_log` | `agent_tools.py:605` | 🔴 P0 |
-| C3 | Fix `ZipFile` resource leak in `_open_log_path` | `log_analyzer.py:586` | 🔴 P0 |
+| #   | Issue                                                         | File                  | Priority |
+| --- | ------------------------------------------------------------- | --------------------- | -------- |
+| C1  | Add `file_path` param to `execute_tool()`                     | `agent_tools.py:367`  | 🔴 P0    |
+| C2  | Replace `list()` with `deque` ring buffer in `tail_local_log` | `agent_tools.py:605`  | 🔴 P0    |
+| C3  | Fix `ZipFile` resource leak in `_open_log_path`               | `log_analyzer.py:586` | 🔴 P0    |
 
 ### Should-Fix Before Merge
 
-| # | Issue | File | Priority |
-|---|---|---|---|
-| H1 | Add `path` to `LAZY_LOG_TOOLS` schemas (or update docs) | `agent_tools.py:68` | 🟠 P1 |
-| H2 | Implement `PUT /api/chat/sessions/{id}/file-path` | `api/chat.py` | 🟠 P1 |
-| H3 | Pass `file_path` from `send_message` to `stream_chat_agentic` | `api/chat.py:198` | 🟠 P1 |
-| H4 | Add `ala_sandbox_root` to Settings | `config.py` | 🟠 P1 |
-| M1–M4 | Fix tool response schemas to match requirements | `agent_tools.py` | 🟡 P2 |
-| M5 | Fix HTTP error status codes | `api/logs.py:113-121` | 🟡 P2 |
-| M6 | Early break in `scan_file_meta` after format detection | `log_analyzer.py:476` | 🟡 P2 |
-| M7 | Remove duplicate `_LEVEL_ORDER` | `agent_tools.py:669` | 🟡 P3 |
+| #     | Issue                                                         | File                  | Priority |
+| ----- | ------------------------------------------------------------- | --------------------- | -------- |
+| H1    | Add `path` to `LAZY_LOG_TOOLS` schemas (or update docs)       | `agent_tools.py:68`   | 🟠 P1    |
+| H2    | Implement `PUT /api/chat/sessions/{id}/file-path`             | `api/chat.py`         | 🟠 P1    |
+| H3    | Pass `file_path` from `send_message` to `stream_chat_agentic` | `api/chat.py:198`     | 🟠 P1    |
+| H4    | Add `ala_sandbox_root` to Settings                            | `config.py`           | 🟠 P1    |
+| M1–M4 | Fix tool response schemas to match requirements               | `agent_tools.py`      | 🟡 P2    |
+| M5    | Fix HTTP error status codes                                   | `api/logs.py:113-121` | 🟡 P2    |
+| M6    | Early break in `scan_file_meta` after format detection        | `log_analyzer.py:476` | 🟡 P2    |
+| M7    | Remove duplicate `_LEVEL_ORDER`                               | `agent_tools.py:669`  | 🟡 P3    |
 
 ---
 

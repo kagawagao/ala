@@ -10,14 +10,14 @@
 
 ## 1. Tech Stack
 
-| Layer | Technology | Notes |
-|-------|-----------|-------|
-| Backend | Python 3.12+, FastAPI, Pydantic | Existing stack — no new dependencies |
-| AI | Anthropic SDK / OpenAI SDK | Existing `ai_service.py` tool orchestrator |
-| Streaming I/O | `io.TextIOWrapper` + `gzip.open` + `zipfile` | Python stdlib; line-buffered reads |
-| Frontend | React 19, TypeScript 5, Ant Design 6 | Existing stack |
-| Session | In-memory `SessionManager` | Existing `OrderedDict`-based store |
-| Security | Path validation + optional `ALA_SANDBOX_ROOT` | Server-side only |
+| Layer         | Technology                                    | Notes                                      |
+| ------------- | --------------------------------------------- | ------------------------------------------ |
+| Backend       | Python 3.12+, FastAPI, Pydantic               | Existing stack — no new dependencies       |
+| AI            | Anthropic SDK / OpenAI SDK                    | Existing `ai_service.py` tool orchestrator |
+| Streaming I/O | `io.TextIOWrapper` + `gzip.open` + `zipfile`  | Python stdlib; line-buffered reads         |
+| Frontend      | React 19, TypeScript 5, Ant Design 6          | Existing stack                             |
+| Session       | In-memory `SessionManager`                    | Existing `OrderedDict`-based store         |
+| Security      | Path validation + optional `ALA_SANDBOX_ROOT` | Server-side only                           |
 
 ---
 
@@ -172,8 +172,8 @@ export interface LocalFileRef {
 // AiPanel props addition
 interface AiPanelProps {
   // ... existing ...
-  localFilePath: string | null       // NEW
-  localFileRef: LocalFileRef | null  // NEW
+  localFilePath: string | null // NEW
+  localFileRef: LocalFileRef | null // NEW
 }
 ```
 
@@ -186,6 +186,7 @@ interface AiPanelProps {
 **Purpose**: Register a local file path for lazy AI-driven analysis. Performs a fast first-pass scan.
 
 **Request**:
+
 ```json
 {
   "path": "/data/logs/logcat.txt"
@@ -193,6 +194,7 @@ interface AiPanelProps {
 ```
 
 **Success (200)**:
+
 ```json
 {
   "session_file": "/data/logs/logcat.txt",
@@ -206,16 +208,17 @@ interface AiPanelProps {
 
 **Error Responses**:
 
-| Status | Condition | Body |
-|--------|-----------|------|
-| 400 | File not found | `{"detail": "File not found: /bad/path"}` |
-| 400 | Path is a directory | `{"detail": "Path is a directory: /some/dir"}` |
-| 400 | Path traversal | `{"detail": "Path traversal not allowed"}` |
-| 400 | Outside sandbox | `{"detail": "Path outside allowed directory: ..."}` |
-| 403 | Permission denied | `{"detail": "Permission denied: /root/file"}` |
-| 422 | Missing `path` | Pydantic validation error |
+| Status | Condition           | Body                                                |
+| ------ | ------------------- | --------------------------------------------------- |
+| 400    | File not found      | `{"detail": "File not found: /bad/path"}`           |
+| 400    | Path is a directory | `{"detail": "Path is a directory: /some/dir"}`      |
+| 400    | Path traversal      | `{"detail": "Path traversal not allowed"}`          |
+| 400    | Outside sandbox     | `{"detail": "Path outside allowed directory: ..."}` |
+| 403    | Permission denied   | `{"detail": "Permission denied: /root/file"}`       |
+| 422    | Missing `path`      | Pydantic validation error                           |
 
 **Implementation (Pydantic model + endpoint)**:
+
 ```python
 # api/logs.py
 
@@ -250,6 +253,7 @@ async def parse_local_path(req: ParseLocalRequest):
 **Purpose**: Store the local file path in the session so the AI agent can use lazy tools.
 
 **Request**:
+
 ```json
 {
   "file_path": "/data/logs/logcat.txt",
@@ -264,6 +268,7 @@ async def parse_local_path(req: ParseLocalRequest):
 ```
 
 **Success (200)**:
+
 ```json
 { "success": true }
 ```
@@ -329,10 +334,10 @@ def stream_file(self, path: str) -> Iterator[LogEntry]:
 
 **Key sub-methods**:
 
-| Method | Purpose |
-|--------|---------|
-| `_open_log_path(path)` | Opens file. If `.gz` → wraps with `gzip.open()`. If `.zip` → iterates members, yielding from each. Returns `Iterator[tuple[str, TextIOWrapper]]`. |
-| `_detect_format_from_file(fh)` | Reads first 10 non-empty lines, runs regex matching, returns `LogFormat`. Consumes minimal data. |
+| Method                                          | Purpose                                                                                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_open_log_path(path)`                          | Opens file. If `.gz` → wraps with `gzip.open()`. If `.zip` → iterates members, yielding from each. Returns `Iterator[tuple[str, TextIOWrapper]]`.                        |
+| `_detect_format_from_file(fh)`                  | Reads first 10 non-empty lines, runs regex matching, returns `LogFormat`. Consumes minimal data.                                                                         |
 | `_parse_file_handle_iter(fh, fmt, source_file)` | Reads line-by-line from the file handle, parses each line using the existing per-line regex logic (extracted from `_parse_android_logcat_iter` etc.), yields `LogEntry`. |
 
 **Design decisions**:
@@ -385,6 +390,7 @@ def _validate_path(path: str, sandbox_root: str | None = None) -> str:
 ```
 
 **Key decisions**:
+
 - `os.path.realpath()` resolves symlinks, preventing `sandbox/../../etc/passwd` via symlink trickery.
 - Path traversal check splits on OS separator to catch `..` segments regardless of platform.
 - Sandbox is **opt-in**: only enforced when `ALA_SANDBOX_ROOT` env var is set. This mirrors the existing directory scan behaviour.
@@ -439,10 +445,12 @@ def _build_agentic_context(
 ```
 
 **Call site changes in `stream_chat_agentic`**, `_stream_chat_agentic_anthropic`, `_stream_chat_agentic_openai`:
+
 - Pass `file_path=session.file_path, file_ref=session.file_ref` to `_build_agentic_context`.
 - Pass `file_path` to `execute_tool()` so lazy tools can access it.
 
 **Chat endpoint changes** (`api/chat.py`):
+
 ```python
 # In send_message(), after resolving session:
 file_path = session.file_path
@@ -579,16 +587,16 @@ def scan_file_meta(self, path: str) -> FileRef:
 
 ### 6.1 API-Level Errors
 
-| Scenario | HTTP Status | Response Body |
-|----------|-------------|---------------|
-| File not found | 400 | `{"detail": "File not found: /path/to/file"}` |
-| Path is directory | 400 | `{"detail": "Path is a directory: /path/to/dir"}` |
-| Path traversal | 400 | `{"detail": "Path traversal not allowed"}` |
-| Outside sandbox | 400 | `{"detail": "Path outside allowed directory: ..."}` |
-| Permission denied | 403 | `{"detail": "Permission denied: /path/to/file"}` |
-| File empty | 200 | Valid `ParseLocalResponse` with `line_count=0` |
-| Binary file | 200 | Valid response with warning field |
-| Missing path field | 422 | Pydantic validation error |
+| Scenario           | HTTP Status | Response Body                                       |
+| ------------------ | ----------- | --------------------------------------------------- |
+| File not found     | 400         | `{"detail": "File not found: /path/to/file"}`       |
+| Path is directory  | 400         | `{"detail": "Path is a directory: /path/to/dir"}`   |
+| Path traversal     | 400         | `{"detail": "Path traversal not allowed"}`          |
+| Outside sandbox    | 400         | `{"detail": "Path outside allowed directory: ..."}` |
+| Permission denied  | 403         | `{"detail": "Permission denied: /path/to/file"}`    |
+| File empty         | 200         | Valid `ParseLocalResponse` with `line_count=0`      |
+| Binary file        | 200         | Valid response with warning field                   |
+| Missing path field | 422         | Pydantic validation error                           |
 
 ### 6.2 Tool-Level Errors
 
@@ -617,56 +625,59 @@ Kata/pattern: A new section in `FileUpload.tsx` (not a separate component file �
 ```tsx
 // Inside FileUpload.tsx, after the directory input section:
 
-{!compact && (
-  <>
-    <Divider style={{ margin: '12px 0', fontSize: 12 }}>
-      {t('orAnalyzeLocalFile')}
-    </Divider>
-    <Space.Compact style={{ width: '100%' }}>
-      <Input
-        placeholder={t('localFilePathPlaceholder')}
-        prefix={<FileTextOutlined />}
-        value={localPath}
-        onChange={(e) => setLocalPath(e.target.value)}
-        onPressEnter={() => {
-          if (localPath.trim()) onLocalPath?.(localPath.trim())
-        }}
-        disabled={loading}
-      />
-      <Button
-        type="primary"
-        onClick={() => {
-          if (localPath.trim()) onLocalPath?.(localPath.trim())
-        }}
-        disabled={!localPath.trim() || loading}
-      >
-        {t('analyze')}
-      </Button>
-    </Space.Compact>
-  </>
-)}
+{
+  !compact && (
+    <>
+      <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orAnalyzeLocalFile')}</Divider>
+      <Space.Compact style={{ width: '100%' }}>
+        <Input
+          placeholder={t('localFilePathPlaceholder')}
+          prefix={<FileTextOutlined />}
+          value={localPath}
+          onChange={(e) => setLocalPath(e.target.value)}
+          onPressEnter={() => {
+            if (localPath.trim()) onLocalPath?.(localPath.trim())
+          }}
+          disabled={loading}
+        />
+        <Button
+          type="primary"
+          onClick={() => {
+            if (localPath.trim()) onLocalPath?.(localPath.trim())
+          }}
+          disabled={!localPath.trim() || loading}
+        >
+          {t('analyze')}
+        </Button>
+      </Space.Compact>
+    </>
+  )
+}
 ```
 
 **New prop on `FileUpload`**:
+
 ```typescript
 interface FileUploadProps {
   // ... existing ...
-  onLocalPath?: (path: string) => void  // NEW
+  onLocalPath?: (path: string) => void // NEW
 }
 ```
 
 ### 7.2 AiPanel Changes
 
 **New props**:
+
 ```typescript
 interface AiPanelProps {
   // ... existing ...
-  localFilePath: string | null       // NEW
-  localFileRef: LocalFileRef | null  // NEW
+  localFilePath: string | null // NEW
+  localFileRef: LocalFileRef | null // NEW
 }
 ```
 
 **`buildContext()` extension**:
+
 ```typescript
 const buildContext = (): string | undefined => {
   if (localFilePath && localFileRef) {
@@ -703,7 +714,7 @@ const handleLocalPath = useCallback(
       setLocalFilePath(path)
       setLocalFileRef(ref)
       setFileNames([path])
-      resetLogs()  // clear any previously loaded log entries
+      resetLogs() // clear any previously loaded log entries
       void message.success(t('filePathRegistered'))
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('parseError')
@@ -715,6 +726,7 @@ const handleLocalPath = useCallback(
 ```
 
 **Pass to AiPanel**:
+
 ```tsx
 <AiPanel
   // ... existing props ...
@@ -727,26 +739,26 @@ const handleLocalPath = useCallback(
 
 ## 8. File Path Reference
 
-| File | Change | Description |
-|------|--------|-------------|
-| `backend/src/ala/services/log_analyzer.py` | **Add** | `stream_file()`, `scan_file_meta()`, `_open_log_path()`, `_validate_path()`, `_parse_single_line()`, `_parse_file_handle_iter()`, `_detect_format_from_file()`, `FileRef` dataclass, `PathTraversalError` exception |
-| `backend/src/ala/services/agent_tools.py` | **Add** | `LAZY_LOG_TOOLS` list (4 schemas), `_execute_lazy_log_tool()`, `_execute_overview_local_log()`, `_execute_search_local_log()`, `_execute_read_log_range()`, `_execute_tail_local_log()` |
-| `backend/src/ala/services/agent_tools.py` | **Modify** | `execute_tool()` — add `file_path` param, add lazy tool dispatch branch |
-| `backend/src/ala/services/ai_service.py` | **Modify** | `_build_agentic_context()` — add `file_path`/`file_ref` params, select `LAZY_LOG_TOOLS` when set |
-| `backend/src/ala/services/ai_service.py` | **Modify** | `stream_chat_agentic()`, `_stream_chat_agentic_anthropic()`, `_stream_chat_agentic_openai()` — accept and forward `file_path`/`file_ref` |
-| `backend/src/ala/services/session_manager.py` | **Add** | `file_path`, `file_ref` fields on `Session`; `set_file_path()`, `clear_file_path()` methods |
-| `backend/src/ala/api/logs.py` | **Add** | `POST /parse-local` endpoint, `ParseLocalRequest`, `ParseLocalResponse` models |
-| `backend/src/ala/api/chat.py` | **Add** | `PUT /sessions/{id}/file-path` endpoint, `SetFilePathRequest` model |
-| `backend/src/ala/api/chat.py` | **Modify** | `send_message()` — pass `file_path`/`file_ref` to agentic stream |
-| `backend/src/ala/config.py` | **Add** | `ala_sandbox_root: str = ""` env var |
-| `frontend/src/api/logs.ts` | **Add** | `parseLocalPath()`, `LocalFileRef` type |
-| `frontend/src/api/chat.ts` | **Add** | `setSessionFilePath()` |
-| `frontend/src/types/index.ts` | **Add** | `LocalFileRef` interface |
-| `frontend/src/components/FileUpload.tsx` | **Modify** | Add `onLocalPath` prop, local path input section |
-| `frontend/src/components/AiPanel.tsx` | **Modify** | Add `localFilePath`/`localFileRef` props, extend `buildContext()`, sync to session on change |
-| `frontend/src/App.tsx` | **Modify** | Add `localFilePath`/`localFileRef` state, `handleLocalPath()` callback, wire props |
-| `frontend/src/i18n/locales/en.json` | **Add** | `orAnalyzeLocalFile`, `localFilePathPlaceholder`, `analyze`, `filePathRegistered` |
-| `frontend/src/i18n/locales/zh.json` | **Add** | Corresponding Chinese strings |
+| File                                          | Change     | Description                                                                                                                                                                                                         |
+| --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/src/ala/services/log_analyzer.py`    | **Add**    | `stream_file()`, `scan_file_meta()`, `_open_log_path()`, `_validate_path()`, `_parse_single_line()`, `_parse_file_handle_iter()`, `_detect_format_from_file()`, `FileRef` dataclass, `PathTraversalError` exception |
+| `backend/src/ala/services/agent_tools.py`     | **Add**    | `LAZY_LOG_TOOLS` list (4 schemas), `_execute_lazy_log_tool()`, `_execute_overview_local_log()`, `_execute_search_local_log()`, `_execute_read_log_range()`, `_execute_tail_local_log()`                             |
+| `backend/src/ala/services/agent_tools.py`     | **Modify** | `execute_tool()` — add `file_path` param, add lazy tool dispatch branch                                                                                                                                             |
+| `backend/src/ala/services/ai_service.py`      | **Modify** | `_build_agentic_context()` — add `file_path`/`file_ref` params, select `LAZY_LOG_TOOLS` when set                                                                                                                    |
+| `backend/src/ala/services/ai_service.py`      | **Modify** | `stream_chat_agentic()`, `_stream_chat_agentic_anthropic()`, `_stream_chat_agentic_openai()` — accept and forward `file_path`/`file_ref`                                                                            |
+| `backend/src/ala/services/session_manager.py` | **Add**    | `file_path`, `file_ref` fields on `Session`; `set_file_path()`, `clear_file_path()` methods                                                                                                                         |
+| `backend/src/ala/api/logs.py`                 | **Add**    | `POST /parse-local` endpoint, `ParseLocalRequest`, `ParseLocalResponse` models                                                                                                                                      |
+| `backend/src/ala/api/chat.py`                 | **Add**    | `PUT /sessions/{id}/file-path` endpoint, `SetFilePathRequest` model                                                                                                                                                 |
+| `backend/src/ala/api/chat.py`                 | **Modify** | `send_message()` — pass `file_path`/`file_ref` to agentic stream                                                                                                                                                    |
+| `backend/src/ala/config.py`                   | **Add**    | `ala_sandbox_root: str = ""` env var                                                                                                                                                                                |
+| `frontend/src/api/logs.ts`                    | **Add**    | `parseLocalPath()`, `LocalFileRef` type                                                                                                                                                                             |
+| `frontend/src/api/chat.ts`                    | **Add**    | `setSessionFilePath()`                                                                                                                                                                                              |
+| `frontend/src/types/index.ts`                 | **Add**    | `LocalFileRef` interface                                                                                                                                                                                            |
+| `frontend/src/components/FileUpload.tsx`      | **Modify** | Add `onLocalPath` prop, local path input section                                                                                                                                                                    |
+| `frontend/src/components/AiPanel.tsx`         | **Modify** | Add `localFilePath`/`localFileRef` props, extend `buildContext()`, sync to session on change                                                                                                                        |
+| `frontend/src/App.tsx`                        | **Modify** | Add `localFilePath`/`localFileRef` state, `handleLocalPath()` callback, wire props                                                                                                                                  |
+| `frontend/src/i18n/locales/en.json`           | **Add**    | `orAnalyzeLocalFile`, `localFilePathPlaceholder`, `analyze`, `filePathRegistered`                                                                                                                                   |
+| `frontend/src/i18n/locales/zh.json`           | **Add**    | Corresponding Chinese strings                                                                                                                                                                                       |
 
 ---
 
@@ -796,30 +808,30 @@ const handleLocalPath = useCallback(
 
 ## 10. Risks & Mitigations
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| **Race condition**: file changes between tool calls | Medium | Accept for v1. Document that analysis is a point-in-time snapshot. Tools re-validate path on each call. Future: detect mtime change and warn. |
-| **Slow tool responses for large files** | Medium | AI instructed to use `max_lines` cap. `search_local_log` short-circuits after finding offset+limit matches. Future: progress events in SSE. |
-| **GZ/ZIP streaming edge cases** | Low | Python stdlib handles streaming natively. Tested with multi-GB archives. |
-| **AI calls wrong tool for mode** | Low | `_build_agentic_context` selects exactly one toolset. If `file_path` is set, `LOG_TOOLS` are excluded. Prompt guides the AI. |
-| **Tool result truncation in SSE** | Low | Reuse existing `_truncate_tool_result()` with `search_local_log` added to its known-tool list. |
-| **Session resumption with wrong toolset** | Low | `raw_api_messages` stored per-session include tool definitions. Resumption works because the same tools are active. If a user switches from lazy to in-memory mode, a new session is expected. |
+| Risk                                                | Severity | Mitigation                                                                                                                                                                                     |
+| --------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Race condition**: file changes between tool calls | Medium   | Accept for v1. Document that analysis is a point-in-time snapshot. Tools re-validate path on each call. Future: detect mtime change and warn.                                                  |
+| **Slow tool responses for large files**             | Medium   | AI instructed to use `max_lines` cap. `search_local_log` short-circuits after finding offset+limit matches. Future: progress events in SSE.                                                    |
+| **GZ/ZIP streaming edge cases**                     | Low      | Python stdlib handles streaming natively. Tested with multi-GB archives.                                                                                                                       |
+| **AI calls wrong tool for mode**                    | Low      | `_build_agentic_context` selects exactly one toolset. If `file_path` is set, `LOG_TOOLS` are excluded. Prompt guides the AI.                                                                   |
+| **Tool result truncation in SSE**                   | Low      | Reuse existing `_truncate_tool_result()` with `search_local_log` added to its known-tool list.                                                                                                 |
+| **Session resumption with wrong toolset**           | Low      | `raw_api_messages` stored per-session include tool definitions. Resumption works because the same tools are active. If a user switches from lazy to in-memory mode, a new session is expected. |
 
 ---
 
 ## 11. Testing Strategy
 
-| Layer | What to test | Framework |
-|-------|-------------|-----------|
-| `log_analyzer.py` | `_validate_path()` for traversal, sandbox, missing, dir, permissions | pytest |
-| `log_analyzer.py` | `stream_file()` yields correct entries for `.txt`, `.gz`, `.zip` | pytest |
-| `log_analyzer.py` | `scan_file_meta()` returns correct counts + format | pytest |
-| `agent_tools.py` | Each lazy tool returns correct JSON for small test files | pytest |
-| `agent_tools.py` | Error conditions: missing file, permission denied mid-scan | pytest |
-| `api/logs.py` | `POST /parse-local` happy path + all error cases | pytest + httpx |
-| `api/chat.py` | `PUT /sessions/{id}/file-path` + `send_message` with file_path | pytest + httpx |
-| `ai_service.py` | `_build_agentic_context` selects correct tools per mode | pytest |
-| `session_manager.py` | `set_file_path` stores + clears log_entries | pytest |
-| Frontend | `FileUpload` renders path input, calls `onLocalPath` | vitest + testing-library |
-| Frontend | `AiPanel` shows lazy context, calls `setSessionFilePath` | vitest |
-| Integration | End-to-end: path → parse-local → session → AI question → tool → response | Manual + future e2e |
+| Layer                | What to test                                                             | Framework                |
+| -------------------- | ------------------------------------------------------------------------ | ------------------------ |
+| `log_analyzer.py`    | `_validate_path()` for traversal, sandbox, missing, dir, permissions     | pytest                   |
+| `log_analyzer.py`    | `stream_file()` yields correct entries for `.txt`, `.gz`, `.zip`         | pytest                   |
+| `log_analyzer.py`    | `scan_file_meta()` returns correct counts + format                       | pytest                   |
+| `agent_tools.py`     | Each lazy tool returns correct JSON for small test files                 | pytest                   |
+| `agent_tools.py`     | Error conditions: missing file, permission denied mid-scan               | pytest                   |
+| `api/logs.py`        | `POST /parse-local` happy path + all error cases                         | pytest + httpx           |
+| `api/chat.py`        | `PUT /sessions/{id}/file-path` + `send_message` with file_path           | pytest + httpx           |
+| `ai_service.py`      | `_build_agentic_context` selects correct tools per mode                  | pytest                   |
+| `session_manager.py` | `set_file_path` stores + clears log_entries                              | pytest                   |
+| Frontend             | `FileUpload` renders path input, calls `onLocalPath`                     | vitest + testing-library |
+| Frontend             | `AiPanel` shows lazy context, calls `setSessionFilePath`                 | vitest                   |
+| Integration          | End-to-end: path → parse-local → session → AI question → tool → response | Manual + future e2e      |

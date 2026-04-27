@@ -60,6 +60,7 @@ class ParseResult:
 @dataclass
 class FileRef:
     """Metadata about a local log file, returned by scan_file_meta()."""
+
     path: str
     line_count: int
     size_bytes: int
@@ -425,15 +426,11 @@ class LogAnalyzer:
         # Reject path traversal patterns — check original string first
         # (normpath would resolve ../ before we can detect it)
         if ".." in file_path.split(os.sep) or file_path.startswith(".."):
-            raise PathTraversalError(
-                f"Path traversal detected: {file_path}"
-            )
+            raise PathTraversalError(f"Path traversal detected: {file_path}")
         normalized = os.path.normpath(file_path)
         # Double-check the normalized path too
         if ".." in normalized.split(os.sep):
-            raise PathTraversalError(
-                f"Path traversal detected (after normalization): {normalized}"
-            )
+            raise PathTraversalError(f"Path traversal detected (after normalization): {normalized}")
 
         # Resolve symlinks to real path
         real = os.path.realpath(normalized)
@@ -608,13 +605,17 @@ class LogAnalyzer:
                     member_lower = info.filename.lower()
                     ext = os.path.splitext(member_lower)[1]
                     if ext in _LOG_TEXT_EXTS:
-                        wrapper = io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace")
+                        wrapper = io.TextIOWrapper(
+                            zf.open(info), encoding="utf-8", errors="replace"
+                        )
                         # Attach the ZipFile to the wrapper so it gets closed too
                         wrapper._ala_zipfile = zf  # type: ignore[attr-defined]
                         orig_close = wrapper.close
+
                         def _close_with_zip():
                             orig_close()
                             zf.close()
+
                         wrapper.close = _close_with_zip  # type: ignore[method-assign]
                         return wrapper
                 # No text member found — close zip and return empty

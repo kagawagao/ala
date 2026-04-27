@@ -94,7 +94,7 @@ interface AiPanelProps {
   selectedProjectId: string | null
   projects: Project[]
   contextDocs: ContextDoc[]
-  localFilePath?: string | null  // FEAT-LAZY-LOG
+  localFilePath?: string | null // FEAT-LAZY-LOG
   aiConfig?: AIConfig
 }
 

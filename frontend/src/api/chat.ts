@@ -34,10 +34,7 @@ export async function setSessionTrace(
   })
 }
 
-export async function setSessionFilePath(
-  sessionId: string,
-  filePath: string,
-): Promise<void> {
+export async function setSessionFilePath(sessionId: string, filePath: string): Promise<void> {
   await apiFetch(`/chat/sessions/${sessionId}/file-path`, {
     method: 'PUT',
     body: JSON.stringify({ file_path: filePath }),

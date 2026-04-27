@@ -163,7 +163,7 @@ const AppContent: React.FC<{
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
-  const [localFilePath, setLocalFilePath] = useState<string | null>(null)  // FEAT-LAZY-LOG
+  const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'

@@ -409,7 +409,9 @@ class AIService:
         - Tool calls: JSON with type="tool_call"
         - Tool results: JSON with type="tool_result"
         """
-        tools, system_text = self._build_agentic_context(project, trace_summary, log_entries, file_path=file_path)
+        tools, system_text = self._build_agentic_context(
+            project, trace_summary, log_entries, file_path=file_path
+        )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
         if existing_system:

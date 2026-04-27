@@ -13,7 +13,7 @@
 Currently, ALA requires users to fully upload log files via multipart form. The backend parses the entire file into memory (capped at 256 MiB), builds indexes, and stores all entries before the AI agent can begin analysis. This causes three problems:
 
 1. **OOM risk** — large log files exceed the 256 MiB cap and crash the parser.
-2. **Slow time-to-first-insight** — users wait through a full upload + parse cycle before the AI can answer *any* question.
+2. **Slow time-to-first-insight** — users wait through a full upload + parse cycle before the AI can answer _any_ question.
 3. **Wasted work** — the AI agent typically only inspects a small fraction of the entries (e.g., crash-relevant lines, a specific PID's output). Pre-loading the entire file is unnecessary.
 
 The "Local File Path Input + Lazy AI-Driven Analysis" feature flips the model:
@@ -60,7 +60,7 @@ This feature is **additive** — the existing upload+parse flow remains unchange
 
 1. The tool reads the file **line-by-line** (never loading the entire file into memory).
 2. For each line, it attempts to parse an Android logcat entry (using the existing `LogAnalyzer` format detection and parsing logic, but applied to a single line at a time).
-3. It accumulates aggregate statistics in memory (counters, sets for unique tags/PIDs, min/max timestamps, level distribution). The memory overhead is bounded by the number of *distinct* tags/PIDs, not the file size.
+3. It accumulates aggregate statistics in memory (counters, sets for unique tags/PIDs, min/max timestamps, level distribution). The memory overhead is bounded by the number of _distinct_ tags/PIDs, not the file size.
 4. The tool returns a JSON object containing:
    - `total_lines` (int) — total lines in the file.
    - `parsed_entries` (int) — lines successfully parsed as log entries.
@@ -226,12 +226,14 @@ This feature is **additive** — the existing upload+parse flow remains unchange
 ## 3. Non-Functional Requirements
 
 ### NFR-1: Performance
+
 - `overview_local_log` must process files at ≥ 50 MB/s on commodity hardware (SSD).
 - `search_local_log` with simple filters (level only) must match `overview_local_log` throughput.
 - Regex keyword search may be slower but must not exceed 2× the baseline throughput.
 - File open/close overhead must be negligible — the tools are designed for single-pass streaming.
 
 ### NFR-2: Memory
+
 - No tool shall ever load the entire file into memory.
 - `overview_local_log` memory: O(unique_tags + unique_pids), expected < 10 MB for typical Android logs.
 - `search_local_log` memory: O(limit), max ~500 entries × ~500 bytes ≈ 250 KB.
@@ -239,23 +241,27 @@ This feature is **additive** — the existing upload+parse flow remains unchange
 - `read_log_range` memory: O(range_size), max 10,000 entries × ~500 bytes ≈ 5 MB.
 
 ### NFR-3: Compatibility
+
 - Existing upload + parse flow unchanged. No regression in existing tests.
 - Existing `LOG_TOOLS` (`query_log_overview`, `search_logs`) unchanged.
 - Existing frontend components (`FileUpload`, `AiPanel`, `LogViewer`) are extended, not rewritten.
 - Support both Anthropic and OpenAI-compatible API formats for tool schemas.
 
 ### NFR-4: Security
+
 - File paths are validated server-side. Path traversal (`../`) is rejected.
 - If a sandbox root is configured (e.g., via env var `ALA_SANDBOX_ROOT`), all file access is restricted to that subtree.
 - No file content is persisted or cached server-side beyond the request lifetime.
 - API endpoint rate-limiting should be considered to prevent disk I/O abuse (out of scope for v1, noted for future).
 
 ### NFR-5: Observability
+
 - All file access operations are logged at DEBUG level (path, duration, line count).
 - Errors (permission denied, file not found) are logged at WARNING level.
 - A new Prometheus metric `ala_lazy_log_scan_duration_seconds` tracks tool latency.
 
 ### NFR-6: Internationalization (i18n)
+
 - New UI strings (placeholder text, error messages, labels) are added to both `en.json` and `zh.json`.
 - Tool names and descriptions are in English (they are part of the AI interface, not user-facing UI).
 
@@ -275,19 +281,19 @@ This feature is **additive** — the existing upload+parse flow remains unchange
 
 ## 5. Dependencies & Integration Points
 
-| Component | File(s) | Change Required |
-|-----------|---------|-----------------|
-| Backend API | `backend/src/ala/api/logs.py` | New endpoint: `POST /api/logs/parse-local` |
-| Backend Tools | `backend/src/ala/services/agent_tools.py` | New `LAZY_LOG_TOOLS` list + 4 tool executors |
-| Backend AI Service | `backend/src/ala/services/ai_service.py` | Extend `_build_agentic_context` for `file_path` sessions; wire lazy tools |
-| Backend Log Analyzer | `backend/src/ala/services/log_analyzer.py` | New `stream_file(path)` method |
-| Backend Session Manager | `backend/src/ala/services/session_manager.py` | Store `file_path` in session; expose to AI service |
-| Frontend API Client | `frontend/src/api/logs.ts` | New `parseLocalPath(path)` function |
-| Frontend Chat API | `frontend/src/api/chat.ts` | New `setSessionFilePath()` function |
-| Frontend FileUpload | `frontend/src/components/FileUpload.tsx` | Add "Local File Path" input section |
-| Frontend AiPanel | `frontend/src/components/AiPanel.tsx` | Extend `buildContext()` for file path mode |
-| Frontend Types | `frontend/src/types/index.ts` | Add `LocalFileRef` type |
-| Frontend i18n | `frontend/src/i18n/locales/en.json`, `zh.json` | New strings for local path input |
+| Component               | File(s)                                        | Change Required                                                           |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| Backend API             | `backend/src/ala/api/logs.py`                  | New endpoint: `POST /api/logs/parse-local`                                |
+| Backend Tools           | `backend/src/ala/services/agent_tools.py`      | New `LAZY_LOG_TOOLS` list + 4 tool executors                              |
+| Backend AI Service      | `backend/src/ala/services/ai_service.py`       | Extend `_build_agentic_context` for `file_path` sessions; wire lazy tools |
+| Backend Log Analyzer    | `backend/src/ala/services/log_analyzer.py`     | New `stream_file(path)` method                                            |
+| Backend Session Manager | `backend/src/ala/services/session_manager.py`  | Store `file_path` in session; expose to AI service                        |
+| Frontend API Client     | `frontend/src/api/logs.ts`                     | New `parseLocalPath(path)` function                                       |
+| Frontend Chat API       | `frontend/src/api/chat.ts`                     | New `setSessionFilePath()` function                                       |
+| Frontend FileUpload     | `frontend/src/components/FileUpload.tsx`       | Add "Local File Path" input section                                       |
+| Frontend AiPanel        | `frontend/src/components/AiPanel.tsx`          | Extend `buildContext()` for file path mode                                |
+| Frontend Types          | `frontend/src/types/index.ts`                  | Add `LocalFileRef` type                                                   |
+| Frontend i18n           | `frontend/src/i18n/locales/en.json`, `zh.json` | New strings for local path input                                          |
 
 ---
 
@@ -428,6 +434,7 @@ These are the exact tool schemas to be added. They follow the existing Anthropic
 **Purpose**: Register a local file path for lazy AI-driven analysis. Performs a fast first-pass scan to count lines and detect the log format.
 
 **Request Body**:
+
 ```json
 {
   "path": "/data/logs/logcat.txt"
@@ -435,6 +442,7 @@ These are the exact tool schemas to be added. They follow the existing Anthropic
 ```
 
 **Success Response (200)**:
+
 ```json
 {
   "session_file": "/data/logs/logcat.txt",
@@ -446,6 +454,7 @@ These are the exact tool schemas to be added. They follow the existing Anthropic
 ```
 
 **Error Responses**:
+
 - `400` — File not found, path is a directory, or path traversal detected.
 - `403` — Permission denied.
 - `422` — Validation error (missing `path` field).
@@ -471,10 +480,10 @@ These are the exact tool schemas to be added. They follow the existing Anthropic
 
 ## 9. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| File changes between tool calls (race condition) | Medium | Accept for v1. Document that analysis is a point-in-time snapshot. Future: detect mtime changes and warn. |
-| Very large files cause slow tool responses | Medium | The AI agent is instructed to use `max_lines` cap on `overview_local_log` for files > 10M lines. Tool descriptions guide the AI. Future: add progress events to SSE stream. |
-| GZ/ZIP streaming adds complexity | Low | Python's `gzip` module and `zipfile` support streaming natively. Iterate members/line-by-line. |
-| AI agent calls tools excessively (cost) | Low | The existing `MAX_TOOL_ROUNDS = 10` cap limits total tool calls per message. Tool descriptions encourage starting with `overview_local_log`. |
-| Sandbox-constrained deployments | Low | The `ALA_SANDBOX_ROOT` env var provides opt-in path restriction. Default: no restriction (same as existing directory scan). |
+| Risk                                             | Impact | Mitigation                                                                                                                                                                  |
+| ------------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File changes between tool calls (race condition) | Medium | Accept for v1. Document that analysis is a point-in-time snapshot. Future: detect mtime changes and warn.                                                                   |
+| Very large files cause slow tool responses       | Medium | The AI agent is instructed to use `max_lines` cap on `overview_local_log` for files > 10M lines. Tool descriptions guide the AI. Future: add progress events to SSE stream. |
+| GZ/ZIP streaming adds complexity                 | Low    | Python's `gzip` module and `zipfile` support streaming natively. Iterate members/line-by-line.                                                                              |
+| AI agent calls tools excessively (cost)          | Low    | The existing `MAX_TOOL_ROUNDS = 10` cap limits total tool calls per message. Tool descriptions encourage starting with `overview_local_log`.                                |
+| Sandbox-constrained deployments                  | Low    | The `ALA_SANDBOX_ROOT` env var provides opt-in path restriction. Default: no restriction (same as existing directory scan).                                                 |
