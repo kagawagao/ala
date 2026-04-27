@@ -371,6 +371,7 @@ def execute_tool(
     trace_summary: dict | None = None,
     log_entries: list[dict] | None = None,
     log_index: "LogIndex | None" = None,
+    file_path: str | None = None,
 ) -> str:
     """Execute a tool call and return the result as a string."""
     try:
@@ -600,24 +601,25 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         })
 
     if tool_name == "tail_local_log":
+        from collections import deque
         lines = min(int(args.get("lines", 50)), 500)
-        # Stream all lines to count, then only return last N
-        all_entries = list(_analyzer.stream_file(file_path))
-        tail = all_entries[-lines:] if len(all_entries) > lines else all_entries
+        # Use a ring buffer — O(N) scan, O(1) memory (only stores last N entries)
+        ring: deque[dict] = deque(maxlen=lines)
+        total_lines = 0
+        for entry in _analyzer.stream_file(file_path):
+            total_lines += 1
+            ring.append({
+                "line_number": entry.line_number,
+                "timestamp": entry.timestamp,
+                "level": entry.level,
+                "tag": entry.tag,
+                "pid": entry.pid,
+                "tid": entry.tid,
+                "message": entry.message,
+            })
         return json.dumps({
-            "total_lines": len(all_entries),
-            "entries": [
-                {
-                    "line_number": e.line_number,
-                    "timestamp": e.timestamp,
-                    "level": e.level,
-                    "tag": e.tag,
-                    "pid": e.pid,
-                    "tid": e.tid,
-                    "message": e.message,
-                }
-                for e in tail
-            ],
+            "total_lines": total_lines,
+            "entries": list(ring),
         })
 
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})

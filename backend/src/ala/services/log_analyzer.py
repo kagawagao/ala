@@ -533,8 +533,7 @@ class LogAnalyzer:
         # For zip files, iterate all text members
         lower_path = validated.lower()
         if lower_path.endswith(".zip") and not lower_path.endswith(".tar.gz"):
-            zf = zipfile.ZipFile(validated, "r")
-            try:
+            with zipfile.ZipFile(validated, "r") as zf:
                 line_num = 0
                 for info in zf.infolist():
                     if info.is_dir():
@@ -544,18 +543,14 @@ class LogAnalyzer:
                     if ext not in _LOG_TEXT_EXTS:
                         continue
                     source = info.filename
-                    fh = io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace")
-                    try:
+                    with zf.open(info) as member_fh:
+                        fh = io.TextIOWrapper(member_fh, encoding="utf-8", errors="replace")
                         for raw_line in fh:
                             line_num += 1
                             line = raw_line.rstrip("\n\r")
                             if not line.strip():
                                 continue
                             yield self._parse_single_line(line, line_num, fmt, source)
-                    finally:
-                        fh.close()
-            finally:
-                zf.close()
         else:
             source = Path(validated).name
             fh = self._open_log_path(validated)
@@ -576,7 +571,8 @@ class LogAnalyzer:
         """Open a log file for line-by-line reading.
 
         Handles plain text, .gz (gzip), and .zip (first text member).
-        Returns a file-like object with text-mode readline support.
+        Returns a context-manager compatible object.  For zip files the returned
+        TextIOWrapper is wrapped so closing it also closes the parent ZipFile.
         """
         lower = file_path.lower()
 
@@ -585,16 +581,28 @@ class LogAnalyzer:
 
         if lower.endswith(".zip"):
             zf = zipfile.ZipFile(file_path, "r")
-            # Find the first text log member
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
-                member_lower = info.filename.lower()
-                ext = os.path.splitext(member_lower)[1]
-                if ext in _LOG_TEXT_EXTS:
-                    return io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace")
-            # No text member found — return empty
-            return io.StringIO("")
+            try:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    member_lower = info.filename.lower()
+                    ext = os.path.splitext(member_lower)[1]
+                    if ext in _LOG_TEXT_EXTS:
+                        wrapper = io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace")
+                        # Attach the ZipFile to the wrapper so it gets closed too
+                        wrapper._ala_zipfile = zf  # type: ignore[attr-defined]
+                        orig_close = wrapper.close
+                        def _close_with_zip():
+                            orig_close()
+                            zf.close()
+                        wrapper.close = _close_with_zip  # type: ignore[method-assign]
+                        return wrapper
+                # No text member found — close zip and return empty
+                zf.close()
+                return io.StringIO("")
+            except Exception:
+                zf.close()
+                raise
 
         return open(file_path, mode="r", encoding="utf-8", errors="replace")
 
