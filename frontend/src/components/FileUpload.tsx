@@ -4,7 +4,7 @@ import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/ico
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
 import DirectoryFilePicker from './DirectoryFilePicker'
-import { listDirectoryFiles } from '../api/logs'
+import { listDirectoryFiles, parseLocalPath } from '../api/logs'
 import type { DirectoryFileInfo } from '../api/logs'
 
 const { Dragger } = Upload
@@ -15,6 +15,7 @@ interface FileUploadProps {
   onTraceFile: (file: File) => void
   onDirectoryPath?: (path: string) => void
   onSelectedFiles?: (dirPath: string, files: string[]) => void
+  onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
   loading: boolean
   error?: string
   fileNames?: string[]
@@ -127,6 +128,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
   const [dirPath, setDirPath] = useState('')
+  const [localPath, setLocalPath] = useState('')
+  const [localPathLoading, setLocalPathLoading] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerFiles, setPickerFiles] = useState<DirectoryFileInfo[]>([])
@@ -182,6 +185,25 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
     },
     [onDirectoryPath, t],
+  )
+
+  const handleLocalPathSubmit = useCallback(
+    async (path: string) => {
+      if (!onLocalFilePath) return
+      setLocalPathLoading(true)
+      setScanError(undefined)
+      try {
+        const ref = await parseLocalPath(path)
+        onLocalFilePath(path, ref)
+        setLocalPath('')
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load file'
+        setScanError(msg)
+      } finally {
+        setLocalPathLoading(false)
+      }
+    },
+    [onLocalFilePath],
   )
 
   const handlePickerConfirm = useCallback(
@@ -251,6 +273,41 @@ const FileUpload: React.FC<FileUploadProps> = ({
         </div>
         {!compact && <div className="ant-upload-hint">{t('supportedFormats')}</div>}
       </Dragger>
+
+      {/* Local file path input (FEAT-LAZY-LOG) */}
+      {!compact && onLocalFilePath && (
+        <>
+          <Divider style={{ margin: '12px 0', fontSize: 12 }}>
+            {t('orEnterLocalFilePath') || 'Or enter a local file path'}
+          </Divider>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              placeholder="/path/to/logcat.log"
+              prefix={<FileOutlined />}
+              value={localPath}
+              onChange={(e) => setLocalPath(e.target.value)}
+              onPressEnter={() => {
+                if (localPath.trim()) {
+                  void handleLocalPathSubmit(localPath.trim())
+                }
+              }}
+              disabled={loading || localPathLoading}
+            />
+            <Button
+              type="primary"
+              onClick={() => {
+                if (localPath.trim()) {
+                  void handleLocalPathSubmit(localPath.trim())
+                }
+              }}
+              disabled={!localPath.trim() || loading || localPathLoading}
+              loading={localPathLoading}
+            >
+              {t('analyze') || 'Analyze'}
+            </Button>
+          </Space.Compact>
+        </>
+      )}
 
       {/* Log directory input */}
       {!compact && onDirectoryPath && (

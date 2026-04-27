@@ -138,6 +138,15 @@ export interface ProjectFileInfo {
   extension: string
 }
 
+export interface LocalFileRef {
+  session_file: string
+  line_count: number
+  size_bytes: number
+  format_detected: string
+  is_gzip: boolean
+  is_zip: boolean
+}
+
 export interface ContextDoc {
   path: string
   content: string
