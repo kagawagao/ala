@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
 
+    # Logging
+    log_level: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
+    log_dir: str = "logs"  # directory for rotating log files; relative to CWD or absolute
+
     # AI defaults (user can override via API)
     ai_api_endpoint: str = "https://api.anthropic.com"
     ai_api_key: str = ""
@@ -37,6 +41,9 @@ class Settings(BaseSettings):
     ai_temperature: float = 0.7
     ai_thinking_mode: str = "off"  # off | auto | on
     ai_thinking_budget_tokens: int = 8000
+
+    # Session management
+    max_sessions: int = 100
 
     @field_validator("cors_origins", mode="before")
     @classmethod

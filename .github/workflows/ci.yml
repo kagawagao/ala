@@ -35,7 +35,7 @@ jobs:
         run: npm run lint
 
       - name: Format check
-        run: npm run format:check
+        run: npm run format:check:frontend
 
       - name: Type check
         run: npm run test:frontend

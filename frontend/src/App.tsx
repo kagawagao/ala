@@ -1,46 +1,52 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import {
-  ConfigProvider,
-  theme,
-  Tabs,
-  Alert,
-  Splitter,
-  App as AntApp,
-  Popover,
-  Button,
-  Tooltip,
-} from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
-import { useTranslation } from 'react-i18next'
-import { Routes, Route, useLocation } from 'react-router-dom'
-import i18next from './i18n/config'
-import Header from './components/Header'
-import AppSider from './components/AppSider'
-import LogViewer from './components/LogViewer'
-import TraceViewer from './components/TraceViewer'
-import AiPanel from './components/AiPanel'
-import SettingsModal from './components/SettingsModal'
-import FileUpload from './components/FileUpload'
-import ProjectManager from './components/ProjectManager'
-import { parseLogStream, parseDirectoryStream, parseSelectedFilesStream } from './api/logs'
-import { parseTrace } from './api/trace'
 import {
-  listProjects,
-  listContextDocs,
+  Alert,
+  App as AntApp,
+  Button,
+  ConfigProvider,
+  Empty,
+  Popover,
+  Splitter,
+  Tabs,
+  theme,
+  Tooltip,
+  Typography,
+} from 'antd'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Route, Routes, useLocation } from 'react-router-dom'
+import { updateConfig } from './api/config'
+import { parseDirectoryStream, parseLogStream, parseSelectedFilesStream } from './api/logs'
+import {
   getProjectPresets,
+  listContextDocs,
+  listProjects,
   updateProjectPresets,
 } from './api/projects'
+import { parseTrace } from './api/trace'
+import AiPanel from './components/AiPanel'
+import AppSider from './components/AppSider'
+import FileUpload from './components/FileUpload'
+import Header from './components/Header'
+import LogViewer from './components/LogViewer'
+import ModelManager from './components/ModelManager'
+import ProjectManager from './components/ProjectManager'
+import TraceViewer from './components/TraceViewer'
+import { useLogStream } from './hooks/useLogStream'
+import i18next from './i18n/config'
 import type {
+  AIConfig,
+  ContextDoc,
+  FilterPreset,
+  HighlightItem,
   LogEntry,
   LogFilters,
   LogStatistics,
-  TraceParseResult,
-  FilterPreset,
-  HighlightItem,
   Project,
-  ContextDoc,
-  AIConfig,
+  TraceParseResult,
 } from './types'
+import { hasFilterConditions } from './utils/filters'
+import { getActiveAIConfig, migrateFromLegacyConfig } from './utils/models'
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -128,6 +134,15 @@ function computeStatistics(logs: LogEntry[]): LogStatistics {
   return { total: logs.length, by_level, tags, pids }
 }
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 const AppContent: React.FC<{
   isDark: boolean
   onToggleTheme: () => void
@@ -139,7 +154,6 @@ const AppContent: React.FC<{
   const [siderCollapsed, setSiderCollapsed] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [uploadPopoverOpen, setUploadPopoverOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [backendConnected, setBackendConnected] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
@@ -151,7 +165,7 @@ const AppContent: React.FC<{
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
 
   const location = useLocation()
-  const isProjectsPage = location.pathname === '/projects'
+  const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
 
   // Load projects on mount, when backend connects, and when navigating away from /projects
   useEffect(() => {
@@ -161,7 +175,7 @@ const AppContent: React.FC<{
       .catch(() => {
         /* backend may not be running */
       })
-  }, [backendConnected, isProjectsPage])
+  }, [backendConnected, isFullPage])
 
   // Load context docs when project changes
   useEffect(() => {
@@ -176,13 +190,19 @@ const AppContent: React.FC<{
 
   // File state
   // allLogs is built incrementally as the stream arrives
-  const [allLogs, setAllLogs] = useState<LogEntry[]>([])
-  const [formatDetected, setFormatDetected] = useState<string | undefined>()
+  const {
+    allLogs,
+    loading: loadingFile,
+    error: fileError,
+    fileNames,
+    formatDetected,
+    loadFromStream,
+    abort: abortParse,
+    reset: resetLogs,
+  } = useLogStream()
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
-  const [loadingFile, setLoadingFile] = useState(false)
-  const [fileError, setFileError] = useState<string | undefined>()
-  const [fileNames, setFileNames] = useState<string[]>([])
-  const abortParseRef = useRef<AbortController | null>(null)
+  const [traceLoading, setTraceLoading] = useState(false)
+  const [traceError, setTraceError] = useState<string | undefined>()
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -227,7 +247,14 @@ const AppContent: React.FC<{
     [selectedProjectId],
   )
 
-  const filteredLogs = useMemo(() => applyFiltersClient(allLogs, filters), [allLogs, filters])
+  const debouncedFilters = useDebouncedValue(filters, 300)
+
+  const filteredLogs = useMemo(
+    () => applyFiltersClient(allLogs, debouncedFilters),
+    [allLogs, debouncedFilters],
+  )
+
+  const hasActiveFilters = useMemo(() => hasFilterConditions(filters), [filters])
 
   const statistics = useMemo(
     () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
@@ -251,48 +278,36 @@ const AppContent: React.FC<{
     return () => clearInterval(interval)
   }, [])
 
-  // Check AI config from localStorage and backend, sync localStorage → backend on startup
+  // Derive AI config from the active model's per-model config.
+  // Runs on startup (with or without backend) and whenever backendConnected changes.
   useEffect(() => {
-    const saved = localStorage.getItem('aiConfig')
-    if (saved) {
-      try {
-        const cfg = JSON.parse(saved) as AIConfig
-        if (cfg.api_key) {
-          setAiConfigured(true)
-          setAiConfig(cfg)
-          // Sync localStorage config to backend (it's in-memory only and lost on restart)
-          if (backendConnected) {
-            fetch('/api/config', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: saved,
-              signal: AbortSignal.timeout(3000),
-            }).catch(() => {
-              /* ignore */
-            })
-          }
-          return
-        }
-      } catch {
-        /* ignore */
+    migrateFromLegacyConfig()
+    const active = getActiveAIConfig()
+    if (active?.config.api_key) {
+      setAiConfigured(true)
+      setAiConfig(active.config)
+      if (backendConnected) {
+        void updateConfig(active.config)
       }
-    }
-    // Fallback: check backend config
-    if (backendConnected) {
-      fetch('/api/config', { signal: AbortSignal.timeout(3000) })
-        .then((res) => res.json())
-        .then((cfg: AIConfig) => {
-          if (cfg.api_key) {
-            setAiConfigured(true)
-            setAiConfig(cfg)
-            localStorage.setItem('aiConfig', JSON.stringify(cfg))
-          }
-        })
-        .catch(() => {
-          /* ignore */
-        })
+    } else {
+      setAiConfigured(false)
+      setAiConfig(null)
     }
   }, [backendConnected])
+
+  // Re-derive AI config when navigating away from the models page
+  // (user may have configured / changed the active model there).
+  useEffect(() => {
+    if (!isFullPage) {
+      const active = getActiveAIConfig()
+      setAiConfigured(!!active?.config.api_key)
+      setAiConfig(active?.config ?? null)
+      if (active?.config.api_key && backendConnected) {
+        void updateConfig(active.config)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullPage])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -303,61 +318,38 @@ const AppContent: React.FC<{
     })
   }, [])
 
+  const handleProjectChange = useCallback(
+    (projectId: string | null) => {
+      // Abort any in-flight log parse before clearing state
+      abortParse()
+      // Reset all file / log / trace state so the new project starts clean
+      resetLogs()
+      setTraceResult(null)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+      setSelectedProjectId(projectId)
+    },
+    [abortParse, resetLogs],
+  )
+
   const handleLogFiles = useCallback(
     async (files: File[]) => {
-      // Cancel any in-flight parse
-      abortParseRef.current?.abort()
-      const controller = new AbortController()
-      abortParseRef.current = controller
-
-      setLoadingFile(true)
-      setFileError(undefined)
-      setFileNames(files.map((f) => f.name))
-      setAllLogs([])
-      setFormatDetected(undefined)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      // Batch incoming entries to avoid re-renders per-entry
-      const BATCH_SIZE = 500
-      const buffer: LogEntry[] = []
-
-      const flush = () => {
-        if (buffer.length === 0) return
-        const toAdd = buffer.splice(0)
-        setAllLogs((prev) => [...prev, ...toAdd])
-      }
-
-      try {
-        for await (const line of parseLogStream(files, controller.signal)) {
-          if ('_done' in line) break
-          const entry = line as LogEntry
-          buffer.push(entry)
-          if (entry.source_file && !formatDetected) {
-            setFormatDetected(entry.source_file)
-          }
-          if (buffer.length >= BATCH_SIZE) flush()
-        }
-        flush()
-        void message.success(t('fileUploaded'))
-      } catch (err: unknown) {
-        if ((err as Error).name === 'AbortError') return
-        const msg = err instanceof Error ? err.message : t('parseError')
-        setFileError(msg)
-        void message.error(msg)
-      } finally {
-        setLoadingFile(false)
-      }
+      const ok = await loadFromStream(
+        (signal) => parseLogStream(files, signal),
+        files.map((f) => f.name),
+      )
+      if (ok) void message.success(t('fileUploaded'))
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t],
+    [loadFromStream, t, message],
   )
 
   const handleTraceFile = useCallback(
     async (file: File) => {
-      setLoadingFile(true)
-      setFileError(undefined)
-      setFileNames([file.name])
+      setTraceLoading(true)
+      setTraceError(undefined)
       try {
         const result = await parseTrace(file)
         setTraceResult(result)
@@ -365,129 +357,44 @@ const AppContent: React.FC<{
         void message.success(t('fileUploaded'))
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : t('parseError')
-        setFileError(msg)
+        setTraceError(msg)
         void message.error(msg)
       } finally {
-        setLoadingFile(false)
+        setTraceLoading(false)
       }
     },
     [t, message],
   )
 
-  const handleConfigSaved = useCallback(() => {
-    const saved = localStorage.getItem('aiConfig')
-    if (saved) {
-      try {
-        const cfg = JSON.parse(saved) as AIConfig
-        setAiConfigured(!!cfg.api_key)
-        setAiConfig(cfg)
-      } catch {
-        /* ignore */
-      }
-    }
-  }, [])
-
   const handleDirectoryPath = useCallback(
     async (dirPath: string) => {
-      abortParseRef.current?.abort()
-      const controller = new AbortController()
-      abortParseRef.current = controller
-
-      setLoadingFile(true)
-      setFileError(undefined)
-      setFileNames([dirPath])
-      setAllLogs([])
-      setFormatDetected(undefined)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      const BATCH_SIZE = 500
-      const buffer: LogEntry[] = []
-
-      const flush = () => {
-        if (buffer.length === 0) return
-        const toAdd = buffer.splice(0)
-        setAllLogs((prev) => [...prev, ...toAdd])
-      }
-
-      try {
-        for await (const line of parseDirectoryStream(dirPath, controller.signal)) {
-          if ('_done' in line) break
-          const entry = line as LogEntry
-          buffer.push(entry)
-          if (entry.source_file && !formatDetected) {
-            setFormatDetected(entry.source_file)
-          }
-          if (buffer.length >= BATCH_SIZE) flush()
-        }
-        flush()
-        void message.success(t('fileUploaded'))
-      } catch (err: unknown) {
-        if ((err as Error).name === 'AbortError') return
-        const msg = err instanceof Error ? err.message : t('parseError')
-        setFileError(msg)
-        void message.error(msg)
-      } finally {
-        setLoadingFile(false)
-      }
+      const ok = await loadFromStream((signal) => parseDirectoryStream(dirPath, signal), [dirPath])
+      if (ok) void message.success(t('fileUploaded'))
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t],
+    [loadFromStream, t, message],
   )
 
   const handleSelectedFiles = useCallback(
     async (dirPath: string, selectedFiles: string[]) => {
-      abortParseRef.current?.abort()
-      const controller = new AbortController()
-      abortParseRef.current = controller
-
-      setLoadingFile(true)
-      setFileError(undefined)
-      setFileNames(selectedFiles.map((f) => f))
-      setAllLogs([])
-      setFormatDetected(undefined)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
-      const BATCH_SIZE = 500
-      const buffer: LogEntry[] = []
-
-      const flush = () => {
-        if (buffer.length === 0) return
-        const toAdd = buffer.splice(0)
-        setAllLogs((prev) => [...prev, ...toAdd])
-      }
-
-      try {
-        for await (const line of parseSelectedFilesStream(
-          dirPath,
-          selectedFiles,
-          controller.signal,
-        )) {
-          if ('_done' in line) break
-          const entry = line as LogEntry
-          buffer.push(entry)
-          if (entry.source_file && !formatDetected) {
-            setFormatDetected(entry.source_file)
-          }
-          if (buffer.length >= BATCH_SIZE) flush()
-        }
-        flush()
-        void message.success(t('fileUploaded'))
-      } catch (err: unknown) {
-        if ((err as Error).name === 'AbortError') return
-        const msg = err instanceof Error ? err.message : t('parseError')
-        setFileError(msg)
-        void message.error(msg)
-      } finally {
-        setLoadingFile(false)
-      }
+      const ok = await loadFromStream(
+        (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
+        selectedFiles.map((f) => f),
+      )
+      if (ok) void message.success(t('fileUploaded'))
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t],
+    [loadFromStream, t, message],
   )
 
   const showFileUpload = allLogs.length === 0 && !traceResult
+
+  const isLoading = loadingFile || traceLoading
+  const errorMessage = fileError || traceError
 
   // Upload popover content – compact FileUpload dragger always accessible from
   // the tab bar, even after files have already been loaded.
@@ -502,8 +409,8 @@ const AppContent: React.FC<{
           void handleTraceFile(f)
           setUploadPopoverOpen(false)
         }}
-        loading={loadingFile}
-        error={fileError}
+        loading={isLoading}
+        error={errorMessage}
         fileNames={fileNames}
         compact
       />
@@ -520,7 +427,7 @@ const AppContent: React.FC<{
         placement="bottomRight"
       >
         <Tooltip title={fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}>
-          <Button size="small" icon={<UploadOutlined />} loading={loadingFile}>
+          <Button size="small" icon={<UploadOutlined />} loading={isLoading}>
             {fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}
           </Button>
         </Tooltip>
@@ -546,10 +453,27 @@ const AppContent: React.FC<{
           onSelectedFiles={(dirPath, files) => {
             void handleSelectedFiles(dirPath, files)
           }}
-          loading={loadingFile}
-          error={fileError}
+          loading={isLoading}
+          error={errorMessage}
           fileNames={fileNames}
         />
+      ) : !hasActiveFilters ? (
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          <Empty description={t('noFilterApplied')} />
+          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
+            {t('applyFiltersToView')}
+          </Typography.Text>
+        </div>
       ) : (
         <LogViewer
           logs={filteredLogs}
@@ -583,13 +507,12 @@ const AppContent: React.FC<{
         onToggleTheme={onToggleTheme}
         language={language}
         onToggleLanguage={handleToggleLanguage}
-        onOpenSettings={() => setSettingsOpen(true)}
         siderCollapsed={siderCollapsed}
         onToggleSider={() => setSiderCollapsed((v) => !v)}
         backendConnected={backendConnected}
         projects={projects}
         selectedProjectId={selectedProjectId}
-        onProjectChange={setSelectedProjectId}
+        onProjectChange={handleProjectChange}
       />
 
       {/* Backend warning */}
@@ -607,12 +530,13 @@ const AppContent: React.FC<{
       <div
         style={{
           flex: 1,
-          overflow: isProjectsPage ? 'auto' : 'hidden',
+          overflow: isFullPage ? 'auto' : 'hidden',
           position: 'relative',
         }}
       >
         <Routes>
           <Route path="/projects" element={<ProjectManager />} />
+          <Route path="/models" element={<ModelManager />} />
           <Route
             path="*"
             element={
@@ -676,7 +600,7 @@ const AppContent: React.FC<{
                       <Splitter.Panel
                         defaultSize={520}
                         min={320}
-                        max={800}
+                        max={'50%'}
                         style={{
                           borderLeft: '1px solid var(--ant-color-border)',
                           overflow: 'hidden',
@@ -756,13 +680,6 @@ const AppContent: React.FC<{
           />
         </Routes>
       </div>
-
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onConfigSaved={handleConfigSaved}
-        backendConnected={backendConnected}
-      />
     </div>
   )
 }

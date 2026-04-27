@@ -15,6 +15,7 @@ class AIConfig(BaseModel):
     temperature: float = 0.7
     thinking_mode: str = "off"  # off | auto | on
     thinking_budget_tokens: int = 8000
+    anthropic_compatible: bool | None = None  # None = auto-detect from endpoint
 
 
 # Runtime mutable config (overrides default settings)
@@ -45,6 +46,7 @@ async def get_config():
         temperature=cfg.temperature,
         thinking_mode=cfg.thinking_mode,
         thinking_budget_tokens=cfg.thinking_budget_tokens,
+        anthropic_compatible=cfg.anthropic_compatible,
     )
 
 

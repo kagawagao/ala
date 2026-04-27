@@ -1,5 +1,6 @@
 """ALA Backend FastAPI application."""
 
+import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,7 +13,13 @@ from fastapi.staticfiles import StaticFiles
 from .api import chat, health, logs, projects, trace
 from .api import config as config_router
 from .config import settings
+from .logging_config import setup_logging
 from .mcp.server import mcp
+
+# Initialise logging as early as possible so every subsequent import can log.
+setup_logging(log_level=settings.log_level, log_dir=settings.log_dir)
+
+logger = logging.getLogger(__name__)
 
 # Resolve the bundled frontend directory when running as a PyInstaller executable.
 # sys._MEIPASS is set by PyInstaller to the temp extraction directory.
@@ -32,11 +39,18 @@ _mcp_http_app = mcp.http_app(path="/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info(
+        "ALA backend starting — host=%s port=%d log_level=%s",
+        settings.host,
+        settings.port,
+        settings.log_level,
+    )
     # Start the FastMCP session-manager task-group alongside the FastAPI app.
     # The mcp_http_app lifespan initialises StreamableHTTPSessionManager.run()
     # which is required before any MCP request can be handled.
     async with _mcp_http_app.lifespan(_mcp_http_app):
         yield
+    logger.info("ALA backend stopped.")
 
 
 app = FastAPI(

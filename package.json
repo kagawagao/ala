@@ -6,7 +6,7 @@
   "scripts": {
     "install:all": "npm install && cd backend && poetry install && cd ../frontend && npm install && cd ..",
     "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && poetry run uvicorn ala.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:backend": "cd backend && cross-env LOG_LEVEL=DEBUG poetry run uvicorn ala.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
     "build:frontend": "cd frontend && npm run build",
@@ -20,14 +20,17 @@
     "lint:fix": "npm run lint:fix:frontend",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:fix:frontend": "cd frontend && npm run lint:fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore && cd backend && poetry run ruff format src/ tests/ && poetry run ruff check --fix src/ tests/",
+    "format:check": "npm run format:check:frontend && npm run format:check:backend",
+    "format:check:frontend": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
+    "format:check:backend": "cd backend && poetry run ruff format --check src/ tests/ && poetry run ruff check src/ tests/",
     "prepare": "husky"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "husky": "^9.1.7",
     "prettier": "^3.5.3"
   }

@@ -32,6 +32,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
 import { generateFilters } from '../api/projects'
+import { hasFilterConditions } from '../utils/filters'
 
 const { Text } = Typography
 
@@ -107,6 +108,9 @@ const AppSider: React.FC<AppSiderProps> = ({
       ),
     [pendingFilters, filters],
   )
+
+  // True when at least one non-default filter condition is set in pendingFilters.
+  const hasPendingConditions = useMemo(() => hasFilterConditions(pendingFilters), [pendingFilters])
 
   const updatePending = useCallback(
     (partial: Partial<LogFilters>) => setPendingFilters((prev) => ({ ...prev, ...partial })),
@@ -273,12 +277,13 @@ const AppSider: React.FC<AppSiderProps> = ({
     <div style={{ height: '100%', overflowY: 'auto', padding: '8px 0' }}>
       {/* Toolbar */}
       <div style={{ padding: '0 12px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <Tooltip title={t('applyFilters')}>
+        <Tooltip title={hasPendingConditions ? t('applyFilters') : t('filterDisabledNoConditions')}>
           <Button
             size="small"
-            type={isDirty ? 'primary' : 'default'}
+            type={isDirty && hasPendingConditions ? 'primary' : 'default'}
             icon={<FilterOutlined />}
             onClick={applyFilters}
+            disabled={!hasPendingConditions}
           >
             {t('applyFilters')}
           </Button>

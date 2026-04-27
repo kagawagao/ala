@@ -27,18 +27,29 @@ interface HighlightMatch {
   color: string
 }
 
+// Module-level regex cache to avoid recompilation on every render
+const regexCache = new Map<string, RegExp | null>()
+function getRegex(pattern: string, flags: string): RegExp | null {
+  const key = `${pattern}|${flags}`
+  if (regexCache.has(key)) return regexCache.get(key) ?? null
+  try {
+    const re = new RegExp(pattern, flags)
+    regexCache.set(key, re)
+    return re
+  } catch {
+    regexCache.set(key, null)
+    return null
+  }
+}
+
 function highlightText(text: string, items: HighlightItem[]): React.ReactNode {
   const activeItems = items.filter((h) => h.pattern.trim())
   if (!activeItems.length) return text
 
   const matches: HighlightMatch[] = []
   for (const item of activeItems) {
-    let re: RegExp
-    try {
-      re = new RegExp(item.pattern, 'gi')
-    } catch {
-      continue
-    }
+    const re = getRegex(item.pattern, 'gi')
+    if (!re) continue
     let m: RegExpExecArray | null
     while ((m = re.exec(text)) !== null) {
       matches.push({ start: m.index, end: m.index + m[0].length, color: item.color })
@@ -105,23 +116,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
     let maxLen = 0
     for (const entry of logs) {
       if (entry.tag && entry.tag.length > maxLen) maxLen = entry.tag.length
-    }
-    // Measure with canvas for accuracy (11px default font)
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (ctx && maxLen > 0) {
-      ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      // Find the actual longest tag string
-      let maxWidth = 0
-      const threshold = maxLen - 2 // Only measure tags close to max length
-      for (const entry of logs) {
-        if (entry.tag && entry.tag.length >= threshold) {
-          const w = ctx.measureText(entry.tag).width
-          if (w > maxWidth) maxWidth = w
-        }
-      }
-      // Add cell padding (8px each side) + 4px buffer
-      return Math.min(Math.max(Math.ceil(maxWidth) + 20, 80), 400)
     }
     return Math.min(Math.max(maxLen * 7 + 20, 80), 400)
   }, [logs])
