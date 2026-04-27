@@ -40,6 +40,7 @@ import type {
   FilterPreset,
   HighlightItem,
   LogEntry,
+  LocalFileRef,
   LogFilters,
   LogStatistics,
   Project,
@@ -163,6 +164,7 @@ const AppContent: React.FC<{
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
+  const [localFilePath, setLocalFilePath] = useState<string | null>(null)  // FEAT-LAZY-LOG
 
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
@@ -409,8 +411,13 @@ const AppContent: React.FC<{
           void handleTraceFile(f)
           setUploadPopoverOpen(false)
         }}
-        loading={isLoading}
-        error={errorMessage}
+        onLocalFilePath={(path, ref) => {
+          setLocalFilePath(path)
+          setUploadPopoverOpen(false)
+          void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
+        }}
+        loading={false}
+        compact
         fileNames={fileNames}
         compact
       />
@@ -452,6 +459,10 @@ const AppContent: React.FC<{
           }}
           onSelectedFiles={(dirPath, files) => {
             void handleSelectedFiles(dirPath, files)
+          }}
+          onLocalFilePath={(path, ref) => {
+            setLocalFilePath(path)
+            void message.success(`Local file: ${ref.line_count} lines, ${ref.format_detected}`)
           }}
           loading={isLoading}
           error={errorMessage}
@@ -644,6 +655,7 @@ const AppContent: React.FC<{
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
+                              localFilePath={localFilePath}
                               aiConfig={aiConfig ?? undefined}
                             />
                           </div>

@@ -37,6 +37,7 @@ import {
   deleteSession,
   sendMessage,
   setSessionTrace,
+  setSessionFilePath,
   setSessionLogs,
 } from '../api/chat'
 import {
@@ -93,6 +94,7 @@ interface AiPanelProps {
   selectedProjectId: string | null
   projects: Project[]
   contextDocs: ContextDoc[]
+  localFilePath?: string | null  // FEAT-LAZY-LOG
   aiConfig?: AIConfig
 }
 
@@ -225,8 +227,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
   selectedProjectId,
   projects,
   contextDocs,
+  localFilePath,
   aiConfig,
-}) => {
+}: AiPanelProps) {
   const { t } = useTranslation()
   const { message: messageApi } = App.useApp()
   const [sessions, setSessions] = useState<Session[]>([])
@@ -302,6 +305,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
       )
     }
   }, [traceResult, activeSessionId])
+
+  // Sync local file path to the active session (FEAT-LAZY-LOG)
+  useEffect(() => {
+    if (!activeSessionId || !localFilePath) return
+    void setSessionFilePath(activeSessionId, localFilePath)
+  }, [localFilePath, activeSessionId])
 
   // Debounced sync of allLogs to the active session (500ms debounce)
   useEffect(() => {

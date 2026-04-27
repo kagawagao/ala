@@ -504,8 +504,12 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                 pids.add(str(entry.pid))
             if entry.timestamp:
                 timestamps.append(entry.timestamp)
+        # Detect format
+        ref = _analyzer.scan_file_meta(file_path)
         return json.dumps({
             "total_lines": line_count,
+            "parsed_entries": line_count,
+            "format_detected": ref.format_detected,
             "level_distribution": level_counts,
             "unique_tags": len(tags),
             "unique_pids": len(pids),
@@ -571,21 +575,29 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                 break
 
         return json.dumps({
-            "total_matched": offset + len(matches),
+            "total_matched": skipped + len(matches) + (1 if matches else 0),
+            "offset": offset,
+            "returned": len(matches),
+            "has_more": len(matches) >= limit,
             "entries": matches,
-            "truncated": len(matches) >= limit,
         })
 
     if tool_name == "read_log_range":
         start_line = max(int(args.get("start_line", 1)), 1)
         end_line = max(int(args.get("end_line", start_line)), start_line)
+        # Cap range at 10K lines to prevent huge responses
+        if end_line - start_line > 10_000:
+            end_line = start_line + 10_000
         entries = []
+        total_lines = 0
         for entry in _analyzer.stream_file(file_path):
+            total_lines += 1
             if entry.line_number < start_line:
                 continue
             if entry.line_number > end_line:
                 break
             entries.append({
+                "line_number": entry.line_number,
                 "line_number": entry.line_number,
                 "timestamp": entry.timestamp,
                 "level": entry.level,
@@ -596,6 +608,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             })
         return json.dumps({
             "range": f"{start_line}-{end_line}",
+            "total_lines_in_file": total_lines,
             "entries": entries,
             "count": len(entries),
         })

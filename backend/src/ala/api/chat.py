@@ -64,6 +64,11 @@ class SetTraceRequest(BaseModel):
     summary: dict
 
 
+class SetFilePathRequest(BaseModel):
+    """Set local file path for lazy log analysis (FEAT-LAZY-LOG)."""
+    file_path: str
+
+
 class SetLogsRequest(BaseModel):
     entries: list[dict]
 
@@ -117,6 +122,19 @@ async def set_session_trace(session_id: str, req: SetTraceRequest):
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"success": True}
+
+
+@router.put("/sessions/{session_id}/file-path")
+async def set_session_file_path(session_id: str, req: SetFilePathRequest):
+    """Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG).
+
+    Sets the file_path on the session and clears any previously loaded
+    log_entries (they are mutually exclusive).
+    """
+    ok = _session_manager.set_file_path(session_id, req.file_path)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "file_path": req.file_path}
 
 
 @router.put("/sessions/{session_id}/logs")
@@ -179,6 +197,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
     trace_summary = session.trace_summary
     log_entries = session.log_entries
+    file_path = session.file_path
 
     logger.debug(
         "send_message — session=%s model=%s agentic=%s",
@@ -192,8 +211,8 @@ async def send_message(session_id: str, req: SendMessageRequest):
         api_messages_out: list[dict] = []
         current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
-            if project or trace_summary or log_entries is not None:
-                # Agentic mode: project tools, trace tools, log tools, or any combination.
+            if project or trace_summary or log_entries is not None or file_path:
+                # Agentic mode: project, trace, log, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
                     messages,
@@ -201,6 +220,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=session.log_index,
+                    file_path=file_path,
                     api_messages_out=api_messages_out,
                     resume_messages=session.raw_api_messages,
                     resume_provider=session.raw_api_messages_provider,
