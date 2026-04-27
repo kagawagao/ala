@@ -80,7 +80,14 @@ def _truncate_tool_result(tool_name: str, result_str: str, max_chars: int = 8000
             data["_note"] = (
                 f"Showing first 30 + last 20 of {total} matches. Use offset to paginate."
             )
-    elif tool_name in ("list_project_files", "list_log_files"):
+    elif tool_name in ("search_local_log", "read_log_range", "tail_local_log"):
+        entries = data.get("entries", [])
+        total = data.get("total_matched", data.get("total_lines", len(entries)))
+        if len(entries) > 30:
+            data["entries"] = entries[:15] + entries[-15:]
+            data["_note"] = (
+                f"Showing first 15 + last 15 of {total} results. Use offset/limit to paginate."
+            )
         files = data.get("files", [])
         if len(files) > 100:
             data["files"] = files[:100]

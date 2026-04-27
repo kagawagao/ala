@@ -165,6 +165,11 @@ const AppContent: React.FC<{
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
+  // Clear stale localFilePath when data source changes
+  useEffect(() => {
+    setLocalFilePath(null)
+  }, [traceResult, selectedProjectId])
+
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
 
@@ -414,7 +419,7 @@ const AppContent: React.FC<{
           void handleTraceFile(f)
           setUploadPopoverOpen(false)
         }}
-        onLocalFilePath={(path, ref) => {
+        onLocalFilePath={(_path, ref) => {
           setLocalFilePath(ref.session_file)
           setUploadPopoverOpen(false)
           void message.success(t('fileUploaded'))
@@ -462,7 +467,7 @@ const AppContent: React.FC<{
           onSelectedFiles={(dirPath, files) => {
             void handleSelectedFiles(dirPath, files)
           }}
-          onLocalFilePath={(path, ref) => {
+          onLocalFilePath={(_path, ref) => {
             setLocalFilePath(ref.session_file)
             void message.success(t('fileUploaded'))
           }}

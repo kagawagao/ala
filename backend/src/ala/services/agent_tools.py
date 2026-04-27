@@ -388,7 +388,10 @@ def execute_tool(
     if tool_name in ("overview_local_log", "search_local_log", "read_log_range", "tail_local_log"):
         if file_path is None:
             return json.dumps({"error": "No local log file path set in this session"})
-        return _execute_lazy_log_tool(tool_name, args, file_path)
+        try:
+            return _execute_lazy_log_tool(tool_name, args, file_path)
+        except Exception as e:
+            return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
 
     # Log tools (work standalone or alongside project tools)
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):

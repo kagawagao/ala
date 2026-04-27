@@ -58,7 +58,6 @@
 │  │  ┌──────────────────┐        ┌───────────────────────────┐     │   │
 │  │  │ Session          │        │ _build_agentic_context()  │     │   │
 │  │  │ + file_path: str │───────▶│  if file_path:            │     │   │
-│  │  │ + file_ref: dict │        │    tools += LAZY_LOG_TOOLS│     │   │
 │  │  └──────────────────┘        │    prompt = lazy_prompt    │     │   │
 │  │                              └───────────┬───────────────┘     │   │
 │  │                                          │                      │   │
@@ -125,23 +124,21 @@ class Session:
 
     # ── NEW: lazy/local log fields ──
     file_path: str | None = None          # absolute path to local log file
-    file_ref: dict | None = None          # {path, line_count, size_bytes, format_detected, is_gzip, is_zip}
 ```
 
-**Rationale**: `file_path` is the canonical single path. `file_ref` carries metadata from the first-pass scan for display/context. When `file_path` is set, `LAZY_LOG_TOOLS` are active (and `LOG_TOOLS` are not). When `log_entries` is set, `LOG_TOOLS` are active. These are mutually exclusive modes for the same session. Trace tools (`TRACE_TOOLS`) and project tools (`AGENT_TOOLS`) are orthogonal and always included when applicable.
+**Rationale**: `file_path` is the canonical single path validated by `_validate_path`. When `file_path` is set, `LAZY_LOG_TOOLS` are active (and `LOG_TOOLS` are not). When `log_entries` is set, `LOG_TOOLS` are active. These are mutually exclusive modes for the same session. Trace tools (`TRACE_TOOLS`) and project tools (`AGENT_TOOLS`) are orthogonal and always included when applicable.
 
 ### 3.3 New Session Manager Methods
 
 ```python
 # session_manager.py
 
-def set_file_path(self, session_id: str, file_path: str, file_ref: dict) -> bool:
+def set_file_path(self, session_id: str, file_path: str) -> bool:
     """Store a local file path reference for lazy AI-driven analysis."""
     session = self._sessions.get(session_id)
     if not session:
         return False
     session.file_path = file_path
-    session.file_ref = file_ref
     session.log_entries = None  # mutually exclusive
     session.log_index = None
     return True
@@ -151,7 +148,6 @@ def clear_file_path(self, session_id: str) -> bool:
     if not session:
         return False
     session.file_path = None
-    session.file_ref = None
     return True
 ```
 
@@ -173,7 +169,6 @@ export interface LocalFileRef {
 interface AiPanelProps {
   // ... existing ...
   localFilePath: string | null // NEW
-  localFileRef: LocalFileRef | null // NEW
 }
 ```
 
@@ -280,11 +275,10 @@ async def parse_local_path(req: ParseLocalRequest):
 
 class SetFilePathRequest(BaseModel):
     file_path: str
-    file_ref: dict
 
 @router.put("/sessions/{session_id}/file-path")
 async def set_session_file_path(session_id: str, req: SetFilePathRequest):
-    ok = _session_manager.set_file_path(session_id, req.file_path, req.file_ref)
+    ok = _session_manager.set_file_path(session_id, req.file_path)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"success": True}

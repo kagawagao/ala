@@ -123,7 +123,16 @@ async def parse_local_path(req: LocalPathRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    ref = _analyzer.scan_file_meta(validated)
+    try:
+        ref = _analyzer.scan_file_meta(validated)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except PathTraversalError as e:
+        raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+    except (ValueError, OSError) as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return LocalPathResponse(
         session_file=ref.path,
         line_count=ref.line_count,
