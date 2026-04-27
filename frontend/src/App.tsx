@@ -196,7 +196,6 @@ const AppContent: React.FC<{
     error: fileError,
     fileNames,
     formatDetected,
-    parsedCount: _parsedCount,
     loadFromStream,
     abort: abortParse,
     reset: resetLogs,

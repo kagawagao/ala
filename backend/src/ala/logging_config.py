@@ -62,7 +62,9 @@ def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:
     except OSError as exc:
         # Non-fatal: log directory may not be writable (read-only filesystem,
         # containerised deployment without a volume, etc.)
-        root_logger.warning("Could not create log directory %r: %s — file logging disabled", log_dir, exc)
+        root_logger.warning(
+            "Could not create log directory %r: %s — file logging disabled", log_dir, exc
+        )
 
     # Suppress overly-verbose third-party loggers at DEBUG level
     logging.getLogger("httpcore").setLevel(logging.WARNING)

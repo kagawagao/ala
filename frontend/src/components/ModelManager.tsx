@@ -395,7 +395,11 @@ const ModelManager: React.FC = () => {
       </Text>
 
       {/* ── Built-in models ─────────────────────────────────────── */}
-      <Divider titlePlacement="left" orientationMargin={0} style={{ fontSize: 14, marginBottom: 16 }}>
+      <Divider
+        titlePlacement="left"
+        orientationMargin={0}
+        style={{ fontSize: 14, marginBottom: 16 }}
+      >
         {t('builtinModels')}
       </Divider>
 

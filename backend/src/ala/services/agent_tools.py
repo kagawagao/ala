@@ -12,9 +12,12 @@ from .project_manager import Project
 @dataclass
 class LogIndex:
     """Pre-built indexes for O(1) log entry lookup by common dimensions."""
+
     by_level: dict[str, list[int]] = field(default_factory=dict)  # level -> list of entry indices
-    by_tag: dict[str, list[int]] = field(default_factory=dict)     # tag (lower) -> list of entry indices
-    by_pid: dict[str, list[int]] = field(default_factory=dict)     # pid -> list of entry indices
+    by_tag: dict[str, list[int]] = field(
+        default_factory=dict
+    )  # tag (lower) -> list of entry indices
+    by_pid: dict[str, list[int]] = field(default_factory=dict)  # pid -> list of entry indices
     total_entries: int = 0
 
 
@@ -32,6 +35,7 @@ def build_log_index(entries: list[dict]) -> LogIndex:
         if pid is not None:
             idx.by_pid.setdefault(str(pid), []).append(i)
     return idx
+
 
 _scanner = CodeScanner()
 

@@ -98,9 +98,7 @@ class SessionManager:
         session.log_index = build_log_index(entries)
         return True
 
-    def set_raw_api_messages(
-        self, session_id: str, messages: list[dict], provider: str
-    ) -> bool:
+    def set_raw_api_messages(self, session_id: str, messages: list[dict], provider: str) -> bool:
         """Persist the raw provider-specific API message list (including tool-call
         blocks) so that subsequent agentic requests can resume with full context."""
         session = self._sessions.get(session_id)

@@ -289,9 +289,7 @@ class TraceAnalyzer:
             return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             future.cancel()
-            raise Exception(
-                f"TraceProcessor query timed out after {timeout}s: {sql[:80]}..."
-            )
+            raise Exception(f"TraceProcessor query timed out after {timeout}s: {sql[:80]}...")
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -304,12 +302,13 @@ class TraceAnalyzer:
         # ── Processes ──────────────────────────────────────────────────────
         processes: list[dict] = []
         try:
-            rows = self._query_with_timeout(tp,
+            rows = self._query_with_timeout(
+                tp,
                 "SELECT p.pid, p.name, COUNT(t.utid) AS thread_count "
                 "FROM process p "
                 "LEFT JOIN thread t ON t.upid = p.upid "
                 "WHERE p.pid IS NOT NULL AND p.pid != 0 "
-                "GROUP BY p.upid"
+                "GROUP BY p.upid",
             )
             for row in rows:
                 processes.append(
@@ -333,10 +332,11 @@ class TraceAnalyzer:
 
         if duration_ms is None:
             try:
-                for row in self._query_with_timeout(tp,
+                for row in self._query_with_timeout(
+                    tp,
                     "SELECT MIN(ts) AS min_ts, "
                     "MAX(ts + CASE WHEN dur > 0 THEN dur ELSE 0 END) AS max_ts "
-                    "FROM slice"
+                    "FROM slice",
                 ):
                     if row.min_ts is not None and row.max_ts is not None:
                         duration_ms = (row.max_ts - row.min_ts) / 1e6
@@ -354,12 +354,13 @@ class TraceAnalyzer:
         # ── Top slices ─────────────────────────────────────────────────────
         top_slices: list[dict] = []
         try:
-            rows = self._query_with_timeout(tp,
+            rows = self._query_with_timeout(
+                tp,
                 "SELECT name, COUNT(*) AS cnt, SUM(dur) / 1e6 AS duration_ms "
                 "FROM slice "
                 "WHERE dur > 0 AND name IS NOT NULL "
                 "GROUP BY name "
-                "ORDER BY duration_ms DESC "
+                "ORDER BY duration_ms DESC ",
             )
             for row in rows:
                 top_slices.append(
@@ -375,7 +376,9 @@ class TraceAnalyzer:
         # ── FTrace / raw events ────────────────────────────────────────────
         ftrace_events: list[str] = []
         try:
-            for row in self._query_with_timeout(tp, "SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"):
+            for row in self._query_with_timeout(
+                tp, "SELECT DISTINCT name FROM raw WHERE name IS NOT NULL LIMIT 30"
+            ):
                 if row.name:
                     ftrace_events.append(row.name)
         except Exception:

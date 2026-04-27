@@ -77,7 +77,9 @@ def _truncate_tool_result(tool_name: str, result_str: str, max_chars: int = 8000
         total = data.get("total_matched", len(entries))
         if len(entries) > 50:
             data["entries"] = entries[:30] + entries[-20:]
-            data["_note"] = f"Showing first 30 + last 20 of {total} matches. Use offset to paginate."
+            data["_note"] = (
+                f"Showing first 30 + last 20 of {total} matches. Use offset to paginate."
+            )
     elif tool_name in ("list_project_files", "list_log_files"):
         files = data.get("files", [])
         if len(files) > 100:
@@ -183,10 +185,7 @@ class AIService:
         """
         current_provider = "anthropic" if self._use_anthropic else "openai"
         # Only resume if the provider hasn't changed between requests.
-        can_resume = (
-            resume_messages is not None
-            and resume_provider == current_provider
-        )
+        can_resume = resume_messages is not None and resume_provider == current_provider
         if self._use_anthropic:
             async for chunk in self._stream_chat_agentic_anthropic(
                 messages,
@@ -747,7 +746,9 @@ class AIService:
 
                 logger.debug("Tool call — name=%s arguments=%s", tc["name"], arguments_str[:200])
 
-                yield json.dumps({"type": "tool_call", "name": tc["name"], "arguments": arguments_str})
+                yield json.dumps(
+                    {"type": "tool_call", "name": tc["name"], "arguments": arguments_str}
+                )
 
                 result = await asyncio.to_thread(
                     execute_tool,

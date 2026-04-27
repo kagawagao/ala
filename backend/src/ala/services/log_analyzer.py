@@ -273,9 +273,7 @@ class LogAnalyzer:
     # Iterator-based (streaming) parse methods — yield per-line, no list
     # ------------------------------------------------------------------
 
-    def parse_log_iter(
-        self, content: str, source_file: str | None = None
-    ) -> Iterator[LogEntry]:
+    def parse_log_iter(self, content: str, source_file: str | None = None) -> Iterator[LogEntry]:
         """Yield :class:`LogEntry` objects one at a time without building a list.
 
         Detects the log format and delegates to the appropriate streaming parser.
