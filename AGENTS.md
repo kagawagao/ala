@@ -124,6 +124,7 @@ ala/
 ```
 
 Run `npm run format` before committing. CI enforces `npm run format:check`.
+`npm run format` runs Prettier for all JS/TS/JSON/YAML/MD files **and** `ruff format` + `ruff check --fix` for Python.
 
 ### Frontend (ESLint + TypeScript)
 
@@ -204,11 +205,11 @@ poetry run pytest tests/test_trace_analyzer.py::TestTraceFilter::test_filter_by_
 npm run lint              # ESLint (frontend only)
 npm run lint:fix          # ESLint auto-fix
 
-# All files
-npm run format            # Prettier format
-npm run format:check      # Prettier check-only (CI)
+# All files (Prettier + ruff)
+npm run format            # Prettier (JS/TS/JSON/MD) + ruff format/lint-fix (Python)
+npm run format:check      # Prettier + ruff check-only (CI)
 
-# Backend
+# Backend (standalone)
 cd backend
 poetry run ruff check src/
 poetry run ruff format --check src/

@@ -20,8 +20,8 @@
     "lint:fix": "npm run lint:fix:frontend",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:fix:frontend": "cd frontend && npm run lint:fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore && cd backend && poetry run ruff format src/ tests/ && poetry run ruff check --fix src/ tests/",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore && cd backend && poetry run ruff format --check src/ tests/ && poetry run ruff check src/ tests/",
     "prepare": "husky"
   },
   "devDependencies": {
