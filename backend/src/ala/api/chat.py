@@ -3,7 +3,7 @@
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -171,7 +171,7 @@ async def set_session_logs(session_id: str, req: SetLogsRequest):
 
 
 @router.post("/sessions/{session_id}/messages")
-async def send_message(session_id: str, req: SendMessageRequest):
+async def send_message(session_id: str, req: SendMessageRequest, request: Request):
     session = _session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -245,6 +245,9 @@ async def send_message(session_id: str, req: SendMessageRequest):
                     resume_messages=session.raw_api_messages,
                     resume_provider=session.raw_api_messages_provider,
                 ):
+                    if await request.is_disconnected():
+                        logger.debug("Client disconnected — stopping agentic stream for session %s", session_id)
+                        return
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
@@ -258,6 +261,9 @@ async def send_message(session_id: str, req: SendMessageRequest):
             else:
                 # Simple streaming mode (thinking events still forwarded)
                 async for chunk in ai_service.stream_chat(messages):
+                    if await request.is_disconnected():
+                        logger.debug("Client disconnected — stopping stream for session %s", session_id)
+                        return
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
