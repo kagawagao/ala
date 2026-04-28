@@ -2,6 +2,7 @@
 
 import json
 import logging
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -295,14 +296,63 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 )
             yield "data: [DONE]\n\n"
         except Exception as e:
+            # ── Build rich error context for diagnosis ──────────────────────────
+            exc_type = type(e).__name__
+            exc_repr = repr(e)
+            # Truncate extremely long repr strings (e.g. large response bodies)
+            if len(exc_repr) > 4000:
+                exc_repr = exc_repr[:4000] + f"... [truncated, total={len(exc_repr)}]"
+
+            # Extract API-level details when the exception carries them
+            # (anthropic.APIStatusError / openai.APIStatusError both expose these)
+            api_status = getattr(e, "status_code", None)
+            api_message = getattr(e, "message", None)
+            api_body = getattr(e, "body", None)
+            api_request_id = getattr(e, "request_id", None)
+
+            effective_model = ov.model if ov else ai_config.model
+            # Mask API key hostname from endpoint to avoid leaking it in logs
+            effective_endpoint = (
+                ov.api_endpoint if ov and ov.api_endpoint else ai_config.api_endpoint
+            )
+            try:
+                endpoint_host = urlparse(effective_endpoint).hostname or "unknown"
+            except Exception:
+                endpoint_host = "unknown"
+
             logger.exception(
-                "Error streaming AI response — session=%s model=%s: %s",
+                "Error streaming AI response — "
+                "session=%s model=%s endpoint=%s "
+                "provider=%s thinking=%s "
+                "exc_type=%s exc_repr=%s "
+                "api_status=%s api_message=%s api_body=%s request_id=%s "
+                "session_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
                 session_id,
-                ov.model if ov else ai_config.model,
-                e,
+                effective_model,
+                endpoint_host,
+                "anthropic" if ai_service._use_anthropic else "openai",
+                ov.thinking_mode
+                if ov and ov.thinking_mode is not None
+                else ai_config.thinking_mode,
+                exc_type,
+                exc_repr,
+                api_status,
+                api_message,
+                api_body,
+                api_request_id,
+                len(session.messages),
+                bool(project),
+                bool(file_path),
+                log_entries is not None,
             )
             if not await request.is_disconnected():
-                yield f"data: [ERROR] {str(e)}\n\n"
+                # Include exception type and status in the frontend error so the
+                # user can see what went wrong without digging through logs.
+                user_msg_parts = [f"[{exc_type}]"]
+                if api_status:
+                    user_msg_parts.append(f"(HTTP {api_status})")
+                user_msg_parts.append(str(e))
+                yield f"data: [ERROR] {' '.join(user_msg_parts)}\n\n"
 
     return StreamingResponse(
         event_stream(),

@@ -28,6 +28,21 @@ _scanner = CodeScanner()
 logger = logging.getLogger(__name__)
 
 
+def _safe_repr(obj: Any, max_len: int = 2000) -> str:
+    """Safely represent any object as a string, truncated if too long.
+
+    Prevents log flooding from large response bodies while preserving
+    the essential content for debugging API errors.
+    """
+    try:
+        s = repr(obj)
+    except Exception:
+        s = f"<unrepresentable: {type(obj).__name__}>"
+    if len(s) > max_len:
+        s = s[:max_len] + f"... [truncated total={len(s)}]"
+    return s
+
+
 def _is_anthropic_endpoint(endpoint: str) -> bool:
     """Return True when the endpoint's hostname belongs to Anthropic's API.
 
@@ -415,17 +430,30 @@ class AIService:
                             current_thinking = ""
         except anthropic.APIStatusError as exc:
             logger.error(
-                "Anthropic API error in stream_chat — status=%s message=%s",
+                "Anthropic API error in stream_chat — "
+                "model=%s status=%s message=%s body=%s request_id=%s",
+                self._model,
                 exc.status_code,
                 exc.message,
+                _safe_repr(getattr(exc, "body", None)),
+                getattr(exc, "request_id", None),
                 exc_info=True,
             )
             raise
         except anthropic.APIConnectionError as exc:
-            logger.error("Anthropic connection error in stream_chat: %s", exc, exc_info=True)
+            logger.error(
+                "Anthropic connection error in stream_chat — model=%s: %s",
+                self._model,
+                exc,
+                exc_info=True,
+            )
             raise
         except Exception as exc:
-            logger.exception("Unexpected error in Anthropic stream_chat: %s", exc)
+            logger.exception(
+                "Unexpected error in Anthropic stream_chat — model=%s: %s",
+                self._model,
+                exc,
+            )
             raise
 
     async def _stream_chat_agentic_anthropic(
@@ -544,16 +572,21 @@ class AIService:
                     final_msg = await stream.get_final_message()
             except anthropic.APIStatusError as exc:
                 logger.error(
-                    "Anthropic API error in agentic_chat (round %d) — status=%s message=%s",
+                    "Anthropic API error in agentic_chat — "
+                    "model=%s round=%d status=%s message=%s body=%s request_id=%s",
+                    self._model,
                     _round,
                     exc.status_code,
                     exc.message,
+                    _safe_repr(getattr(exc, "body", None)),
+                    getattr(exc, "request_id", None),
                     exc_info=True,
                 )
                 raise
             except anthropic.APIConnectionError as exc:
                 logger.error(
-                    "Anthropic connection error in agentic_chat (round %d): %s",
+                    "Anthropic connection error in agentic_chat — model=%s round=%d: %s",
+                    self._model,
                     _round,
                     exc,
                     exc_info=True,
@@ -561,7 +594,10 @@ class AIService:
                 raise
             except Exception as exc:
                 logger.exception(
-                    "Unexpected error in Anthropic agentic_chat (round %d): %s", _round, exc
+                    "Unexpected error in Anthropic agentic_chat — model=%s round=%d: %s",
+                    self._model,
+                    _round,
+                    exc,
                 )
                 raise
 
@@ -669,17 +705,28 @@ class AIService:
                     yield chunk.choices[0].delta.content
         except openai.APIStatusError as exc:
             logger.error(
-                "OpenAI API error in stream_chat — status=%s message=%s",
+                "OpenAI API error in stream_chat — model=%s status=%s message=%s body=%s",
+                self._model,
                 exc.status_code,
                 exc.message,
+                _safe_repr(getattr(exc, "body", None)),
                 exc_info=True,
             )
             raise
         except openai.APIConnectionError as exc:
-            logger.error("OpenAI connection error in stream_chat: %s", exc, exc_info=True)
+            logger.error(
+                "OpenAI connection error in stream_chat — model=%s: %s",
+                self._model,
+                exc,
+                exc_info=True,
+            )
             raise
         except Exception as exc:
-            logger.exception("Unexpected error in OpenAI stream_chat: %s", exc)
+            logger.exception(
+                "Unexpected error in OpenAI stream_chat — model=%s: %s",
+                self._model,
+                exc,
+            )
             raise
 
     async def _stream_chat_agentic_openai(
@@ -794,16 +841,20 @@ class AIService:
                                 tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
             except openai.APIStatusError as exc:
                 logger.error(
-                    "OpenAI API error in agentic_chat (round %d) — status=%s message=%s",
+                    "OpenAI API error in agentic_chat — "
+                    "model=%s round=%d status=%s message=%s body=%s",
+                    self._model,
                     _round,
                     exc.status_code,
                     exc.message,
+                    _safe_repr(getattr(exc, "body", None)),
                     exc_info=True,
                 )
                 raise
             except openai.APIConnectionError as exc:
                 logger.error(
-                    "OpenAI connection error in agentic_chat (round %d): %s",
+                    "OpenAI connection error in agentic_chat — model=%s round=%d: %s",
+                    self._model,
                     _round,
                     exc,
                     exc_info=True,
@@ -811,7 +862,10 @@ class AIService:
                 raise
             except Exception as exc:
                 logger.exception(
-                    "Unexpected error in OpenAI agentic_chat (round %d): %s", _round, exc
+                    "Unexpected error in OpenAI agentic_chat — model=%s round=%d: %s",
+                    self._model,
+                    _round,
+                    exc,
                 )
                 raise
 
