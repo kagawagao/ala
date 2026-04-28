@@ -17,11 +17,12 @@ from urllib.parse import urlparse
 import anthropic
 import openai
 
+from ..config import settings
 from .agent_tools import AGENT_TOOLS, LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
-MAX_TOOL_ROUNDS = 10
+MAX_TOOL_ROUNDS = settings.ai_max_tool_rounds
 MAX_TOKENS = 32768
 _scanner = CodeScanner()
 logger = logging.getLogger(__name__)
@@ -288,6 +289,10 @@ class AIService:
             n_entries = len(log_entries)
             log_hint = (
                 f"{n_entries} Android log entries are loaded in this session. "
+                "**IMPORTANT**: Complete the ENTIRE analysis in one session. "
+                "Do NOT ask 'would you like me to continue' or 'shall I dig deeper' — "
+                "just keep analyzing until you have a definitive conclusion with all "
+                "relevant evidence. You have enough tool-calling rounds to finish. "
                 "Always start with query_log_overview to understand the full log scope "
                 "(level distribution, time range, time distribution, unique tags and PIDs). "
                 "Then use search_logs with targeted filters (level, tag, keyword, time range) "
@@ -454,6 +459,7 @@ class AIService:
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
 
+        _finished_naturally = False
         for _round in range(MAX_TOOL_ROUNDS):
             tool_uses: list[dict[str, Any]] = []
             current_tool: dict[str, Any] | None = None
@@ -558,6 +564,7 @@ class AIService:
             api_messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
+                _finished_naturally = True
                 break
 
             # Yield tool_call events immediately in original order
@@ -602,6 +609,19 @@ class AIService:
                 )
 
             api_messages.append({"role": "user", "content": tool_result_blocks})
+
+        # Report round usage to the frontend
+        rounds_used = _round + 1
+        yield json.dumps(
+            {"type": "agent_meta", "rounds_used": rounds_used, "max_rounds": MAX_TOOL_ROUNDS}
+        )
+        if not _finished_naturally and rounds_used >= MAX_TOOL_ROUNDS:
+            yield json.dumps(
+                {
+                    "type": "max_rounds_reached",
+                    "message": f"Analysis may be incomplete after {rounds_used} rounds. Click Continue to resume.",
+                }
+            )
 
         # Expose the final API messages (with full tool-call history) to the caller
         # so they can be persisted in the session for continuation requests.
@@ -693,6 +713,7 @@ class AIService:
                 len(openai_tools),
             )
 
+        _finished_naturally = False
         for _round in range(MAX_TOOL_ROUNDS):
             # Accumulate tool call deltas across streaming chunks
             tool_calls_acc: dict[int, dict[str, Any]] = {}
@@ -774,6 +795,7 @@ class AIService:
             openai_messages.append(assistant_msg)
 
             if not tool_calls_list:
+                _finished_naturally = True
                 break
 
             # Execute each tool via asyncio.to_thread to avoid blocking the event loop
@@ -812,5 +834,18 @@ class AIService:
                 )
 
         # Expose the final API messages (with full tool-call history) to the caller.
+        # Report round usage to the frontend
+        rounds_used = _round + 1
+        yield json.dumps(
+            {"type": "agent_meta", "rounds_used": rounds_used, "max_rounds": MAX_TOOL_ROUNDS}
+        )
+        if not _finished_naturally and rounds_used >= MAX_TOOL_ROUNDS:
+            yield json.dumps(
+                {
+                    "type": "max_rounds_reached",
+                    "message": f"Analysis may be incomplete after {rounds_used} rounds. Click Continue to resume.",
+                }
+            )
+
         if api_messages_out is not None:
             api_messages_out.extend(openai_messages)

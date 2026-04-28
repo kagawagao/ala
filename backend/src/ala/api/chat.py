@@ -244,12 +244,21 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                     resume_provider=session.raw_api_messages_provider,
                 ):
                     if await request.is_disconnected():
-                        logger.debug("Client disconnected — stopping agentic stream for session %s", session_id)
+                        logger.debug(
+                            "Client disconnected — stopping agentic stream for session %s",
+                            session_id,
+                        )
                         return
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
-                            if event.get("type") in ("tool_call", "tool_result", "thinking"):
+                            if event.get("type") in (
+                                "tool_call",
+                                "tool_result",
+                                "thinking",
+                                "agent_meta",
+                                "max_rounds_reached",
+                            ):
                                 yield _sse_encode(chunk)
                                 continue
                         except json.JSONDecodeError:
@@ -260,7 +269,9 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 # Simple streaming mode (thinking events still forwarded)
                 async for chunk in ai_service.stream_chat(messages):
                     if await request.is_disconnected():
-                        logger.debug("Client disconnected — stopping stream for session %s", session_id)
+                        logger.debug(
+                            "Client disconnected — stopping stream for session %s", session_id
+                        )
                         return
                     if chunk.startswith("{"):
                         try:
