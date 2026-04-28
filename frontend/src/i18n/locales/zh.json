@@ -76,7 +76,7 @@
   "settings": "设置",
   "aiSettings": "AI 设置",
   "apiEndpoint": "API 端点",
-  "apiKey": "API 密钥",
+  "apiKey": "***",
   "model": "模型",
   "temperature": "温度",
   "save": "保存",
@@ -232,5 +232,6 @@
   "apiCompatibility": "API 兼容性",
   "compatibilityAutoDetect": "从端点自动检测",
   "compatibilityAnthropic": "Anthropic",
-  "compatibilityOpenAI": "OpenAI 兼容"
+  "compatibilityOpenAI": "OpenAI 兼容",
+  "continueAnalysis": "继续分析"
 }

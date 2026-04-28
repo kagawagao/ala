@@ -170,4 +170,9 @@ export interface ThinkingEvent {
   content: string
 }
 
-export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent
+export interface MaxRoundsReachedEvent {
+  type: 'max_rounds_reached'
+  message: string
+}
+
+export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent | MaxRoundsReachedEvent

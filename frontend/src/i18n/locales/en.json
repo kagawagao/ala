@@ -76,7 +76,7 @@
   "settings": "Settings",
   "aiSettings": "AI Settings",
   "apiEndpoint": "API Endpoint",
-  "apiKey": "API Key",
+  "apiKey": "***",
   "model": "Model",
   "temperature": "Temperature",
   "save": "Save",
@@ -232,5 +232,6 @@
   "apiCompatibility": "API Compatibility",
   "compatibilityAutoDetect": "Auto-detect from endpoint",
   "compatibilityAnthropic": "Anthropic",
-  "compatibilityOpenAI": "OpenAI-compatible"
+  "compatibilityOpenAI": "OpenAI-compatible",
+  "continueAnalysis": "Continue Analysis"
 }

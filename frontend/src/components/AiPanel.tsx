@@ -238,6 +238,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [continueMessage, setContinueMessage] = useState<string | null>(null)
   // Per-session model override: sessionId → ModelPreset (missing entry = use global config)
   const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
@@ -427,6 +428,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
     const sentInput = inputValue
     setInputValue('')
     setStreaming(true)
+    setContinueMessage(null)  // dismiss any previous Continue prompt
 
     const assistantMsg: DisplayMessage = { role: 'assistant', content: '', parts: [] }
     setMessages((prev) => [...prev, assistantMsg])
@@ -530,7 +532,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
             continue
           }
 
-          // Regular text content
+          if ('type' in data && data.type === 'max_rounds_reached') {
+            const event = data as AgentEvent
+            if (event.type === 'max_rounds_reached') {
+              setContinueMessage(event.message)
+            }
+            continue
+          }
           const delta =
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (data as any).choices?.[0]?.delta?.content ||
@@ -1013,6 +1021,37 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 </div>
               </div>
             ))}
+            {continueMessage && !streaming && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--ant-color-warning-bg)',
+                  border: '1px solid var(--ant-color-warning-border)',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <BulbOutlined style={{ color: '#faad14', fontSize: 18 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: 500 }}>{continueMessage}</Text>
+                </div>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => {
+                    setContinueMessage(null)
+                    setInputValue(t('continueAnalysis'))
+                    // Focus the input so user can press Enter to send
+                    setTimeout(() => textAreaRef.current?.focus(), 50)
+                  }}
+                >
+                  {t('continueAnalysis')}
+                </Button>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
