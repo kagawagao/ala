@@ -290,7 +290,8 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 ov.model if ov else ai_config.model,
                 e,
             )
-            yield f"data: [ERROR] {str(e)}\n\n"
+            if not await request.is_disconnected():
+                yield f"data: [ERROR] {str(e)}\n\n"
 
     return StreamingResponse(
         event_stream(),
