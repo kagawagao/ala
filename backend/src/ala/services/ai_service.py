@@ -175,6 +175,7 @@ class AIService:
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         resume_provider: str | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with tool calling.
 
@@ -205,6 +206,7 @@ class AIService:
                 file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
+                language=language,
             ):
                 yield chunk
         else:
@@ -217,6 +219,7 @@ class AIService:
                 file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
+                language=language,
             ):
                 yield chunk
 
@@ -238,6 +241,7 @@ class AIService:
         trace_summary: dict | None,
         log_entries: list[dict] | None,
         file_path: str | None = None,
+        language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
         """Build tool list and system prompt text for agentic mode.
 
@@ -245,6 +249,11 @@ class AIService:
         """
         tools: list[dict[str, Any]] = []
         parts: list[str] = []
+
+        # Prepend language instruction when the frontend specifies a non-English UI
+        _lang_map = {"zh": "Respond in Chinese (Simplified). 请用简体中文回答。"}
+        if language and language in _lang_map:
+            parts.append(_lang_map[language])
 
         if project:
             tools.extend(AGENT_TOOLS)
@@ -416,6 +425,7 @@ class AIService:
         file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with Anthropic tool calling. Supports extended thinking.
 
@@ -426,7 +436,7 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, file_path=file_path
+            project, trace_summary, log_entries, file_path=file_path, language=language
         )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
@@ -669,6 +679,7 @@ class AIService:
         file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with OpenAI function-calling.
 
@@ -679,7 +690,7 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         anthropic_tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, file_path=file_path
+            project, trace_summary, log_entries, file_path=file_path, language=language
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
 

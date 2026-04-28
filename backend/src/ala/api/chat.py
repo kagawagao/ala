@@ -59,6 +59,7 @@ class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
     model_override: ModelOverride | None = None
+    language: str | None = None  # UI language for AI responses (e.g. "en", "zh")
 
 
 class SetTraceRequest(BaseModel):
@@ -242,6 +243,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                     api_messages_out=api_messages_out,
                     resume_messages=session.raw_api_messages,
                     resume_provider=session.raw_api_messages_provider,
+                    language=req.language,
                 ):
                     if await request.is_disconnected():
                         logger.debug(
