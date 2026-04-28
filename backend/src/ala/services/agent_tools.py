@@ -51,6 +51,9 @@ class _NoOpOverviewCache:
     across sessions.
     """
 
+    def __contains__(self, key: int) -> bool:
+        return False
+
     def get(self, key: int, default: dict | None = None) -> dict | None:
         return default
 
