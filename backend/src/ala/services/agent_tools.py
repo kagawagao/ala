@@ -321,7 +321,12 @@ LOG_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Search and filter the loaded Android log entries. "
             "Start with query_log_overview first, then use targeted search_logs with limit=50. "
-            "For more results, paginate with offset. "
+            "**Time-filtering strategy**: when the user mentions a specific time "
+            "(e.g. 'around 14:30', 'at 3pm'), use start_time/end_time with a narrow "
+            "±2 minute window first. If that yields fewer than 20 results, expand "
+            "the window to ±5 min, then ±15 min, until sufficient context is found. "
+            "For large result sets, use the 'offset' parameter to paginate and ensure "
+            "you have seen all matching entries before drawing conclusions. "
             "Returns up to `limit` matching entries starting at `offset`."
         ),
         "input_schema": {
@@ -740,6 +745,29 @@ def _execute_log_tool(
                 pids.add(str(entry["pid"]))
             if entry.get("timestamp"):
                 timestamps.append(entry["timestamp"])
+
+        # Build adaptive time-distribution buckets so the AI can pick
+        # sensible start_time / end_time windows for search_logs.
+        time_dist: list[dict] = []
+        if timestamps:
+            t_min = min(timestamps)
+            t_max = max(timestamps)
+            # Choose bucket size that yields 20-60 buckets
+            span = max(t_max - t_min, 1)
+            bucket_s = span / 40
+            for boundary in (1, 5, 10, 30, 60, 300, 600, 1800, 3600):
+                if bucket_s <= boundary:
+                    bucket_s = boundary
+                    break
+            buckets: dict[int, int] = {}
+            for ts in timestamps:
+                slot = int((ts - t_min) / bucket_s)
+                buckets[slot] = buckets.get(slot, 0) + 1
+            time_dist = [
+                {"bucket_start": t_min + s * bucket_s, "count": c}
+                for s, c in sorted(buckets.items())
+            ]
+
         result = {
             "total_stored": len(log_entries),
             "level_distribution": level_counts,
@@ -749,6 +777,7 @@ def _execute_log_tool(
                 "start": min(timestamps) if timestamps else None,
                 "end": max(timestamps) if timestamps else None,
             },
+            "time_distribution": time_dist,
             "sample_tags": sorted(tags)[:30],
             "sample_pids": sorted(pids)[:30],
         }
