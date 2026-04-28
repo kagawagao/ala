@@ -67,15 +67,16 @@ class _NoOpOverviewCache:
 _overview_cache = _NoOpOverviewCache()
 
 # Anthropic tool schemas – lazy local file tools (FEAT-LAZY-LOG)
+# When file_path points to a directory, use list_directory_logs first,
+# then pass explicit file_path to other tools to target specific files.
 LAZY_LOG_TOOLS: list[dict] = [
     {
-        "name": "overview_local_log",
+        "name": "list_directory_logs",
         "description": (
-            "Get statistics about a local Android log file by path. "
-            "Streams through the file once to compute level distribution, "
-            "unique tags/PIDs, time range, and line count. "
-            "Does NOT load the entire file into memory. "
-            "Use this FIRST before any other lazy log tool."
+            "List log files in the current log source directory. "
+            "Use this FIRST when the log source is a directory to discover what files are available. "
+            "Returns file names, sizes, and line counts (quick scan). "
+            "For a single file source, use overview_local_log instead."
         ),
         "input_schema": {
             "type": "object",
@@ -84,16 +85,50 @@ LAZY_LOG_TOOLS: list[dict] = [
         },
     },
     {
-        "name": "search_local_log",
+        "name": "overview_local_log",
         "description": (
-            "Search and filter a local Android log file by path. "
-            "Streams through the file line-by-line, applying filters. "
-            "Returns matching entries with pagination support. "
-            "Use overview_local_log first to see what's available."
+            "Get statistics about a local Android log file or directory. "
+            "Streams through file(s) to compute level distribution, "
+            "unique tags/PIDs, time range, and line count. "
+            "Does NOT load all entries into memory. "
+            "Use this FIRST before search_local_log or read_log_range. "
+            "For directories: pass file_path to target a specific file. "
+            "Without file_path on a directory: returns aggregate stats across all files."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Optional: specific log file name or path within the log source. "
+                        "Required when the log source is a directory."
+                    ),
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_local_log",
+        "description": (
+            "Search and filter a local Android log file. "
+            "Streams through the file line-by-line, applying filters. "
+            "Returns matching entries with pagination support. "
+            "Use overview_local_log first to see what's available. "
+            "**file_path is required when the log source is a directory.**"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to search. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
                 "level": {
                     "type": "string",
                     "description": "Minimum log level (V, D, I, W, E, F)",
@@ -134,11 +169,20 @@ LAZY_LOG_TOOLS: list[dict] = [
         "name": "read_log_range",
         "description": (
             "Read a specific line range from a local log file. "
-            "Useful for getting context around a particular line or timestamp."
+            "Useful for getting context around a particular line or timestamp. "
+            "**file_path is required when the log source is a directory.**"
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to read. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
                 "start_line": {
                     "type": "integer",
                     "description": "First line to read (1-based)",
@@ -155,11 +199,20 @@ LAZY_LOG_TOOLS: list[dict] = [
         "name": "tail_local_log",
         "description": (
             "Read the last N lines of a local log file. "
-            "Fast way to see recent entries without scanning the whole file."
+            "Fast way to see recent entries without scanning the whole file. "
+            "**file_path is required when the log source is a directory.**"
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to read. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
                 "lines": {
                     "type": "integer",
                     "description": "Number of lines to read from the end (default: 50)",
@@ -392,10 +445,16 @@ def execute_tool(
             return json.dumps({"error": "No trace loaded in this session"})
         return _execute_trace_tool(tool_name, args, trace_summary)
 
-    # Lazy log tools (operate on local file path, not in-memory entries)
-    if tool_name in ("overview_local_log", "search_local_log", "read_log_range", "tail_local_log"):
+    # Lazy log tools (operate on local file/directory path, not in-memory entries)
+    if tool_name in (
+        "list_directory_logs",
+        "overview_local_log",
+        "search_local_log",
+        "read_log_range",
+        "tail_local_log",
+    ):
         if file_path is None:
-            return json.dumps({"error": "No local log file path set in this session"})
+            return json.dumps({"error": "No local log path set in this session"})
         try:
             return _execute_lazy_log_tool(tool_name, args, file_path)
         except Exception as e:
@@ -487,12 +546,100 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
-    """Execute a lazy log tool against a local file path (FEAT-LAZY-LOG).
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
 
-    All tools stream the file line-by-line; never load full file into memory.
+
+def _resolve_log_path(session_path: str, args: dict) -> str:
+    """Resolve the actual file path from session path and optional args.
+
+    - If session_path is a file: return it directly (ignore args.file_path).
+    - If session_path is a directory: require args.file_path, resolve relative to dir.
+    """
+    import os
+
+    if os.path.isfile(session_path):
+        return session_path
+
+    if os.path.isdir(session_path):
+        target = args.get("file_path", "").strip()
+        if not target:
+            return ""  # caller should return an error
+        # If target is already absolute and exists, use it directly
+        if os.path.isabs(target) and os.path.isfile(target):
+            return target
+        # Otherwise resolve relative to the session directory
+        resolved = os.path.join(session_path, target)
+        if os.path.isfile(resolved):
+            return resolved
+        return ""  # not found
+
+    return session_path  # fallback
+
+
+def _list_directory(session_path: str) -> list[dict]:
+    """Scan a directory for log-like files, returning name/size/line_count."""
+    import os
+
+    files = []
+    try:
+        for entry in sorted(os.scandir(session_path), key=lambda e: e.name.lower()):
+            if not entry.is_file():
+                continue
+            ext = os.path.splitext(entry.name)[1].lower()
+            if ext not in LOG_EXTENSIONS and ext:
+                continue
+            try:
+                stat = entry.stat()
+                # Quick line count (first 64KB)
+                with open(entry.path, "rb") as f:
+                    head = f.read(65536)
+                line_count = head.count(b"\n")
+                if not head.endswith(b"\n"):
+                    line_count += 1
+            except OSError:
+                stat = None
+                line_count = 0
+            files.append(
+                {
+                    "name": entry.name,
+                    "path": entry.path,
+                    "size": stat.st_size if stat else 0,
+                    "line_count": line_count,
+                }
+            )
+    except PermissionError:
+        pass
+    return files
+
+
+def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
+    """Execute a lazy log tool against a local file or directory path.
+
+    When file_path is a directory:
+    - Tools require an explicit ``file_path`` in args (except list_directory_logs).
+    - Path resolution: args.file_path joined with session directory path.
     """
 
+    # ── list_directory_logs (directory only) ────────────────────────────────
+    if tool_name == "list_directory_logs":
+        files = _list_directory(file_path)
+        if not files:
+            return json.dumps({"error": "No log files found in directory", "files": []})
+        return json.dumps({"total_files": len(files), "files": files})
+
+    # ── Resolve target file path ────────────────────────────────────────────
+    resolved = _resolve_log_path(file_path, args)
+    if not resolved:
+        return json.dumps(
+            {
+                "error": (
+                    "Log source is a directory — you must specify file_path. "
+                    "Use list_directory_logs to see available files first."
+                )
+            }
+        )
+
+    # ── overview_local_log ──────────────────────────────────────────────────
     if tool_name == "overview_local_log":
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
@@ -501,7 +648,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         max_timestamp: str | None = None
         line_count = 0
         format_detected = "android"
-        for entry in _analyzer.stream_file(file_path):
+        for entry in _analyzer.stream_file(resolved):
             line_count += 1
             lvl = entry.level or "?"
             level_counts[lvl] = level_counts.get(lvl, 0) + 1
@@ -516,6 +663,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     max_timestamp = entry.timestamp
         return json.dumps(
             {
+                "file": resolved,
                 "total_lines": line_count,
                 "parsed_entries": line_count,
                 "format_detected": format_detected,
@@ -531,6 +679,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             }
         )
 
+    # ── search_local_log ────────────────────────────────────────────────────
     if tool_name == "search_local_log":
         level_filter = args.get("level", "").upper()
         tag_filter = args.get("tag", "").lower()
@@ -550,22 +699,17 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         matches: list[dict] = []
         skipped = 0
         total_matched = 0
-        for entry in _analyzer.stream_file(file_path):
-            # Level filter
+        for entry in _analyzer.stream_file(resolved):
             if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
                 continue
-            # Tag filter
             if tag_filter and tag_filter not in entry.tag.lower():
                 continue
-            # PID filter
             if pid_filter and entry.pid != pid_filter:
                 continue
-            # Keyword filter
             if keyword_re:
                 text = f"{entry.tag} {entry.message}"
                 if not keyword_re.search(text):
                     continue
-            # Time filter
             if start_time and entry.timestamp and entry.timestamp < start_time:
                 continue
             if end_time and entry.timestamp and entry.timestamp > end_time:
@@ -593,6 +737,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
         return json.dumps(
             {
+                "file": resolved,
                 "total_matched": total_matched,
                 "offset": offset,
                 "returned": len(matches),
@@ -601,15 +746,15 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             }
         )
 
+    # ── read_log_range ──────────────────────────────────────────────────────
     if tool_name == "read_log_range":
         start_line = max(int(args.get("start_line", 1)), 1)
         end_line = max(int(args.get("end_line", start_line)), start_line)
-        # Cap range at 10K lines (inclusive) to prevent huge responses
         if end_line - start_line + 1 > 10_000:
             end_line = start_line + 10_000 - 1
         entries = []
         total_lines = 0
-        for entry in _analyzer.stream_file(file_path):
+        for entry in _analyzer.stream_file(resolved):
             total_lines += 1
             if entry.line_number < start_line:
                 continue
@@ -628,6 +773,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             )
         return json.dumps(
             {
+                "file": resolved,
                 "range": f"{start_line}-{end_line}",
                 "total_lines_in_file": total_lines,
                 "entries": entries,
@@ -635,14 +781,14 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             }
         )
 
+    # ── tail_local_log ──────────────────────────────────────────────────────
     if tool_name == "tail_local_log":
         from collections import deque
 
         lines = min(int(args.get("lines", 50)), 500)
-        # Use a ring buffer — O(N) scan, O(1) memory (only stores last N entries)
         ring: deque[dict] = deque(maxlen=lines)
         total_lines = 0
-        for entry in _analyzer.stream_file(file_path):
+        for entry in _analyzer.stream_file(resolved):
             total_lines += 1
             ring.append(
                 {
@@ -657,6 +803,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             )
         return json.dumps(
             {
+                "file": resolved,
                 "total_lines": total_lines,
                 "entries": list(ring),
             }

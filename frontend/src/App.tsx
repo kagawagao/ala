@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
-import { parseDirectoryStream, parseLogStream, parseSelectedFilesStream } from './api/logs'
+import { parseLogStream } from './api/logs'
 import {
   getProjectPresets,
   listContextDocs,
@@ -374,33 +374,6 @@ const AppContent: React.FC<{
     [t, message],
   )
 
-  const handleDirectoryPath = useCallback(
-    async (dirPath: string) => {
-      setLocalFilePath(null)
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
-
-      const ok = await loadFromStream((signal) => parseDirectoryStream(dirPath, signal), [dirPath])
-      if (ok) void message.success(t('fileUploaded'))
-    },
-    [loadFromStream, t, message],
-  )
-
-  const handleSelectedFiles = useCallback(
-    async (dirPath: string, selectedFiles: string[]) => {
-      setLocalFilePath(null)
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
-
-      const ok = await loadFromStream(
-        (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
-        selectedFiles.map((f) => f),
-      )
-      if (ok) void message.success(t('fileUploaded'))
-    },
-    [loadFromStream, t, message],
-  )
-
   const showFileUpload = allLogs.length === 0 && !traceResult
 
   const isLoading = loadingFile || traceLoading
@@ -460,12 +433,6 @@ const AppContent: React.FC<{
           }}
           onTraceFile={(f) => {
             void handleTraceFile(f)
-          }}
-          onDirectoryPath={(p) => {
-            void handleDirectoryPath(p)
-          }}
-          onSelectedFiles={(dirPath, files) => {
-            void handleSelectedFiles(dirPath, files)
           }}
           onLocalFilePath={(_path, ref) => {
             setLocalFilePath(ref.session_file)

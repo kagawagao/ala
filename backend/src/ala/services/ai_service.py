@@ -278,19 +278,32 @@ class AIService:
                 parts.append("\n--- End Project Context ---")
 
         if file_path is not None:
-            # Lazy mode: tools that read local file on demand
+            import os
+
+            # Lazy mode: tools that read local file/directory on demand
             tools.extend(LAZY_LOG_TOOLS)
-            lazy_hint = (
-                "A local log file is available to the session's log tools. "
-                "Always start with overview_local_log to understand the log scope "
-                "(level distribution, time range, unique tags and PIDs). "
-                "Then use search_local_log with targeted filters to find relevant entries. "
-                "For large files, use offset/limit to paginate through results. "
-                "Use read_log_range for context around specific lines, "
-                "and tail_local_log for recent entries. "
-                "Do not guess log details — always query them with tools. "
-                "Complete the full analysis before responding; never stop mid-analysis."
-            )
+            is_dir = os.path.isdir(file_path)
+            if is_dir:
+                lazy_hint = (
+                    "A local log directory is available to the session's tools. "
+                    "Start with list_directory_logs to see what files are available. "
+                    "Then use overview_local_log, search_local_log, read_log_range, "
+                    "or tail_local_log with an explicit file_path parameter "
+                    "to target specific files. "
+                    "Complete the full analysis before responding; never stop mid-analysis."
+                )
+            else:
+                lazy_hint = (
+                    "A local log file is available to the session's log tools. "
+                    "Always start with overview_local_log to understand the log scope "
+                    "(level distribution, time range, unique tags and PIDs). "
+                    "Then use search_local_log with targeted filters to find relevant entries. "
+                    "For large files, use offset/limit to paginate through results. "
+                    "Use read_log_range for context around specific lines, "
+                    "and tail_local_log for recent entries. "
+                    "Do not guess log details — always query them with tools. "
+                    "Complete the full analysis before responding; never stop mid-analysis."
+                )
             parts.append(lazy_hint)
 
         if log_entries is not None:

@@ -3,9 +3,7 @@ import { Upload, Typography, Spin, Alert, Tag, Input, Button, Space, Divider } f
 import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
-import DirectoryFilePicker from './DirectoryFilePicker'
 import { autoPath } from '../api/logs'
-import type { DirectoryFileInfo } from '../api/logs'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -13,8 +11,6 @@ const { Text } = Typography
 interface FileUploadProps {
   onLogFiles: (files: File[]) => void
   onTraceFile: (file: File) => void
-  onDirectoryPath?: (path: string) => void
-  onSelectedFiles?: (dirPath: string, files: string[]) => void
   onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
   loading: boolean
   error?: string
@@ -118,8 +114,6 @@ async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
 const FileUpload: React.FC<FileUploadProps> = ({
   onLogFiles,
   onTraceFile,
-  onDirectoryPath,
-  onSelectedFiles,
   onLocalFilePath,
   loading,
   error,
@@ -130,12 +124,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [dragOver, setDragOver] = useState(false)
   const [inputPath, setInputPath] = useState('')
   const [inputLoading, setInputLoading] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerFiles, setPickerFiles] = useState<DirectoryFileInfo[]>([])
-  const [pickerDirPath, setPickerDirPath] = useState('')
   const [scanError, setScanError] = useState<string>()
-
-  const FILE_COUNT_THRESHOLD = 50
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -165,7 +154,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         const result = await autoPath(path)
 
         if (result.type === 'file' && result.session_file) {
-          // File: register for lazy log analysis
+          // File or directory: register for lazy analysis
           onLocalFilePath?.(path, {
             session_file: result.session_file,
             line_count: result.line_count ?? 0,
@@ -175,25 +164,17 @@ const FileUpload: React.FC<FileUploadProps> = ({
             is_zip: result.is_zip ?? false,
           })
           setInputPath('')
-        } else if (result.type === 'directory' && result.files) {
-          // Directory
-          if (result.total_files === 0) {
-            setScanError(t('noFilesFound'))
-            return
-          }
-          // Show picker when many files or subdirectories
-          if (
-            (result.total_files ?? 0) > FILE_COUNT_THRESHOLD ||
-            result.has_subdirectories
-          ) {
-            setPickerFiles(result.files)
-            setPickerDirPath(path)
-            setPickerOpen(true)
-          } else {
-            // Few files, flat directory — load all directly
-            onDirectoryPath?.(path)
-            setInputPath('')
-          }
+        } else if (result.type === 'directory') {
+          // Directory — use lazy analysis (AI lists files on demand)
+          onLocalFilePath?.(path, {
+            session_file: path,
+            line_count: result.total_files ?? 0,
+            size_bytes: 0,
+            format_detected: 'directory',
+            is_gzip: false,
+            is_zip: false,
+          })
+          setInputPath('')
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : t('parseError')
@@ -202,20 +183,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         setInputLoading(false)
       }
     },
-    [onLocalFilePath, onDirectoryPath, t],
-  )
-
-  const handlePickerConfirm = useCallback(
-    (selectedFiles: string[]) => {
-      setPickerOpen(false)
-      if (onSelectedFiles) {
-        onSelectedFiles(pickerDirPath, selectedFiles)
-      } else {
-        // Fallback: load entire directory
-        onDirectoryPath?.(pickerDirPath)
-      }
-    },
-    [onSelectedFiles, onDirectoryPath, pickerDirPath],
+    [onLocalFilePath, t],
   )
 
   const props: UploadProps = {
@@ -342,13 +310,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
         />
       )}
 
-      <DirectoryFilePicker
-        open={pickerOpen}
-        files={pickerFiles}
-        dirPath={pickerDirPath}
-        onConfirm={handlePickerConfirm}
-        onCancel={() => setPickerOpen(false)}
-      />
     </div>
   )
 }
