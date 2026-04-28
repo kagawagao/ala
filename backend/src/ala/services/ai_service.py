@@ -729,6 +729,11 @@ class AIService:
             # Accumulate tool call deltas across streaming chunks
             tool_calls_acc: dict[int, dict[str, Any]] = {}
             text_content = ""
+            # reasoning_content is returned by some providers (e.g. DeepSeek) and
+            # must be echoed back verbatim in the assistant message for subsequent
+            # rounds — omitting it causes a 400 "reasoning_content must be passed
+            # back" error.
+            reasoning_content = ""
 
             stream_kwargs: dict[str, Any] = {
                 "model": self._model,
@@ -749,6 +754,13 @@ class AIService:
                         continue
                     choice = chunk.choices[0]
                     delta = choice.delta
+
+                    # Capture reasoning_content produced by thinking-capable providers
+                    # (e.g. DeepSeek). The field is not part of the standard OpenAI
+                    # schema so it arrives in model_extra.
+                    rc = (delta.model_extra or {}).get("reasoning_content") or ""
+                    if rc:
+                        reasoning_content += rc
 
                     if delta.content:
                         text_content += delta.content
@@ -792,8 +804,12 @@ class AIService:
 
             tool_calls_list = list(tool_calls_acc.values())
 
-            # Record the assistant turn in the conversation
+            # Record the assistant turn in the conversation.
+            # reasoning_content must be included when present so that providers
+            # that require it (e.g. DeepSeek) accept the next round's request.
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": text_content or None}
+            if reasoning_content:
+                assistant_msg["reasoning_content"] = reasoning_content
             if tool_calls_list:
                 assistant_msg["tool_calls"] = [
                     {
