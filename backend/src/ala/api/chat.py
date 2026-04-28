@@ -75,10 +75,6 @@ class SetLogsRequest(BaseModel):
     entries: list[dict]
 
 
-# Maximum number of log entries stored per session (tail-biased to catch recent errors)
-_MAX_SESSION_LOGS = 10_000
-
-
 def _session_to_response(session) -> Session:
     return Session(
         id=session.id,
@@ -159,11 +155,13 @@ async def set_session_file_path(session_id: str, req: SetFilePathRequest):
 
 @router.put("/sessions/{session_id}/logs")
 async def set_session_logs(session_id: str, req: SetLogsRequest):
-    """Store log entries in the session for agentic tool access (capped at MAX_SESSION_LOGS)."""
+    """Store log entries in the session for agentic tool access (no hard limit).
+
+    All entries from the frontend are stored in full.  The app is a desktop
+    single-user tool, so per-session memory (~100 KB per 1 K log lines) is
+    bounded by what a single user uploads, not by concurrent tenants.
+    """
     entries = req.entries
-    if len(entries) > _MAX_SESSION_LOGS:
-        # Keep the tail (most recent entries are most likely to contain errors)
-        entries = entries[-_MAX_SESSION_LOGS:]
     ok = _session_manager.set_log_entries(session_id, entries)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
