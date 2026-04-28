@@ -32,7 +32,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({
   isDark,
   onToggleTheme,
-  language,
+  language: _language,
   onToggleLanguage,
   siderCollapsed,
   onToggleSider,

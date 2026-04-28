@@ -428,7 +428,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
     const sentInput = inputValue
     setInputValue('')
     setStreaming(true)
-    setContinueMessage(null)  // dismiss any previous Continue prompt
+    setContinueMessage(null) // dismiss any previous Continue prompt
 
     const assistantMsg: DisplayMessage = { role: 'assistant', content: '', parts: [] }
     setMessages((prev) => [...prev, assistantMsg])

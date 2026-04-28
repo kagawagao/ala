@@ -244,9 +244,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {/* Local path input — auto-detects file vs directory */}
       {!compact && (onLocalFilePath || onDirectoryPath) && (
         <>
-          <Divider style={{ margin: '12px 0', fontSize: 12 }}>
-            {t('orEnterLocalFilePath')}
-          </Divider>
+          <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orEnterLocalFilePath')}</Divider>
           <Space.Compact style={{ width: '100%' }}>
             <Input
               placeholder="/path/to/logs (file or directory)"
@@ -309,7 +307,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
           onClose={() => setScanError(undefined)}
         />
       )}
-
     </div>
   )
 }
