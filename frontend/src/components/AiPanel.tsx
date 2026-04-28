@@ -230,7 +230,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   localFilePath,
   aiConfig,
 }: AiPanelProps) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { message: messageApi } = App.useApp()
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -472,6 +472,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               ...sessionModelConfig,
             }
           : undefined,
+        i18n.language,
       )) {
         if (chunk === '[DONE]') break
 

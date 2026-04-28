@@ -65,10 +65,11 @@ export async function* sendMessage(
     thinking_budget_tokens?: number
     anthropic_compatible?: boolean
   },
+  language?: string,
 ): AsyncGenerator<string> {
   yield* streamSSE(
     `/chat/sessions/${sessionId}/messages`,
-    { message, context, model_override: modelOverride ?? null },
+    { message, context, model_override: modelOverride ?? null, language },
     signal,
   )
 }
