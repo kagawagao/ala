@@ -62,6 +62,24 @@ class LocalPathResponse(BaseModel):
     is_zip: bool
 
 
+class AutoPathResponse(BaseModel):
+    """Response for POST /api/logs/auto-path — discriminated by type."""
+
+    type: str  # "file" or "directory"
+    # File-specific fields (when type="file")
+    session_file: str | None = None
+    line_count: int | None = None
+    size_bytes: int | None = None
+    format_detected: str | None = None
+    is_gzip: bool | None = None
+    is_zip: bool | None = None
+    # Directory-specific fields (when type="directory")
+    files: list["DirectoryFileInfo"] | None = None
+    has_subdirectories: bool | None = None
+    total_files: int | None = None
+    max_depth: int | None = None
+
+
 class FilterRequest(BaseModel):
     logs: list[LogEntry]
     filters: LogFilters
@@ -141,6 +159,69 @@ async def parse_local_path(req: LocalPathRequest):
         is_gzip=ref.is_gzip,
         is_zip=ref.is_zip,
     )
+
+
+@router.post("/auto-path", response_model=AutoPathResponse)
+async def auto_path(req: LocalPathRequest):
+    """Auto-detect path type — file or directory — and route accordingly.
+
+    - File: returns file metadata (session_file, line_count, …) for lazy log analysis.
+    - Directory: scans and returns log-like files list.
+    """
+    import os
+
+    path = req.path
+
+    # ── File path ─────────────────────────────────────────────────────────
+    if os.path.isfile(path):
+        try:
+            validated = LogAnalyzer._validate_path(path)
+        except PathTraversalError as e:
+            raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        try:
+            ref = _analyzer.scan_file_meta(validated)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+        except PathTraversalError as e:
+            raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+        except (ValueError, OSError) as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        return AutoPathResponse(
+            type="file",
+            session_file=ref.path,
+            line_count=ref.line_count,
+            size_bytes=ref.size_bytes,
+            format_detected=ref.format_detected,
+            is_gzip=ref.is_gzip,
+            is_zip=ref.is_zip,
+        )
+
+    # ── Directory path ────────────────────────────────────────────────────
+    if os.path.isdir(path):
+        try:
+            files, has_subdirs, depth = _scan_directory(path)
+        except PermissionError:
+            raise HTTPException(status_code=403, detail=f"Permission denied: {path}")
+
+        return AutoPathResponse(
+            type="directory",
+            files=files,
+            has_subdirectories=has_subdirs,
+            total_files=len(files),
+            max_depth=depth,
+        )
+
+    raise HTTPException(status_code=404, detail=f"Path not found or unsupported: {path}")
 
 
 @router.post("/parse", response_model=list[ParseResult])

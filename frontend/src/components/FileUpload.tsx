@@ -4,7 +4,7 @@ import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/ico
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
 import DirectoryFilePicker from './DirectoryFilePicker'
-import { listDirectoryFiles, parseLocalPath } from '../api/logs'
+import { autoPath } from '../api/logs'
 import type { DirectoryFileInfo } from '../api/logs'
 
 const { Dragger } = Upload
@@ -128,10 +128,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
 }) => {
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
-  const [dirPath, setDirPath] = useState('')
-  const [localPath, setLocalPath] = useState('')
-  const [localPathLoading, setLocalPathLoading] = useState(false)
-  const [scanning, setScanning] = useState(false)
+  const [inputPath, setInputPath] = useState('')
+  const [inputLoading, setInputLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerFiles, setPickerFiles] = useState<DirectoryFileInfo[]>([])
   const [pickerDirPath, setPickerDirPath] = useState('')
@@ -159,52 +157,52 @@ const FileUpload: React.FC<FileUploadProps> = ({
     [onLogFiles, onTraceFile],
   )
 
-  const handleDirectorySubmit = useCallback(
+  const handlePathSubmit = useCallback(
     async (path: string) => {
       setScanError(undefined)
-      setScanning(true)
+      setInputLoading(true)
       try {
-        const result = await listDirectoryFiles(path)
-        if (result.total_files === 0) {
-          setScanError(t('noFilesFound'))
-          return
-        }
-        // Show picker when there are many files or subdirectories
-        if (result.total_files > FILE_COUNT_THRESHOLD || result.has_subdirectories) {
-          setPickerFiles(result.files)
-          setPickerDirPath(path)
-          setPickerOpen(true)
-        } else {
-          // Few files, flat directory – load all directly
-          onDirectoryPath?.(path)
+        const result = await autoPath(path)
+
+        if (result.type === 'file' && result.session_file) {
+          // File: register for lazy log analysis
+          onLocalFilePath?.(path, {
+            session_file: result.session_file,
+            line_count: result.line_count ?? 0,
+            size_bytes: result.size_bytes ?? 0,
+            format_detected: result.format_detected ?? 'unknown',
+            is_gzip: result.is_gzip ?? false,
+            is_zip: result.is_zip ?? false,
+          })
+          setInputPath('')
+        } else if (result.type === 'directory' && result.files) {
+          // Directory
+          if (result.total_files === 0) {
+            setScanError(t('noFilesFound'))
+            return
+          }
+          // Show picker when many files or subdirectories
+          if (
+            (result.total_files ?? 0) > FILE_COUNT_THRESHOLD ||
+            result.has_subdirectories
+          ) {
+            setPickerFiles(result.files)
+            setPickerDirPath(path)
+            setPickerOpen(true)
+          } else {
+            // Few files, flat directory — load all directly
+            onDirectoryPath?.(path)
+            setInputPath('')
+          }
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : t('parseError')
         setScanError(msg)
       } finally {
-        setScanning(false)
+        setInputLoading(false)
       }
     },
-    [onDirectoryPath, t],
-  )
-
-  const handleLocalPathSubmit = useCallback(
-    async (path: string) => {
-      if (!onLocalFilePath) return
-      setLocalPathLoading(true)
-      setScanError(undefined)
-      try {
-        const ref = await parseLocalPath(path)
-        onLocalFilePath(path, ref)
-        setLocalPath('')
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to load file'
-        setScanError(msg)
-      } finally {
-        setLocalPathLoading(false)
-      }
-    },
-    [onLocalFilePath],
+    [onLocalFilePath, onDirectoryPath, t],
   )
 
   const handlePickerConfirm = useCallback(
@@ -275,69 +273,36 @@ const FileUpload: React.FC<FileUploadProps> = ({
         {!compact && <div className="ant-upload-hint">{t('supportedFormats')}</div>}
       </Dragger>
 
-      {/* Local file path input (FEAT-LAZY-LOG) */}
-      {!compact && onLocalFilePath && (
+      {/* Local path input — auto-detects file vs directory */}
+      {!compact && (onLocalFilePath || onDirectoryPath) && (
         <>
           <Divider style={{ margin: '12px 0', fontSize: 12 }}>
             {t('orEnterLocalFilePath')}
           </Divider>
           <Space.Compact style={{ width: '100%' }}>
             <Input
-              placeholder="/path/to/logcat.log"
-              prefix={<FileOutlined />}
-              value={localPath}
-              onChange={(e) => setLocalPath(e.target.value)}
-              onPressEnter={() => {
-                if (localPath.trim()) {
-                  void handleLocalPathSubmit(localPath.trim())
-                }
-              }}
-              disabled={loading || localPathLoading}
-            />
-            <Button
-              type="primary"
-              onClick={() => {
-                if (localPath.trim()) {
-                  void handleLocalPathSubmit(localPath.trim())
-                }
-              }}
-              disabled={!localPath.trim() || loading || localPathLoading}
-              loading={localPathLoading}
-            >
-              {t('analyze') || 'Analyze'}
-            </Button>
-          </Space.Compact>
-        </>
-      )}
-
-      {/* Log directory input */}
-      {!compact && onDirectoryPath && (
-        <>
-          <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orLoadFromDirectory')}</Divider>
-          <Space.Compact style={{ width: '100%' }}>
-            <Input
-              placeholder={t('logDirectoryPlaceholder')}
+              placeholder="/path/to/logs (file or directory)"
               prefix={<FolderOpenOutlined />}
-              value={dirPath}
-              onChange={(e) => setDirPath(e.target.value)}
+              value={inputPath}
+              onChange={(e) => setInputPath(e.target.value)}
               onPressEnter={() => {
-                if (dirPath.trim()) {
-                  void handleDirectorySubmit(dirPath.trim())
+                if (inputPath.trim()) {
+                  void handlePathSubmit(inputPath.trim())
                 }
               }}
-              disabled={loading || scanning}
+              disabled={loading || inputLoading}
             />
             <Button
               type="primary"
               onClick={() => {
-                if (dirPath.trim()) {
-                  void handleDirectorySubmit(dirPath.trim())
+                if (inputPath.trim()) {
+                  void handlePathSubmit(inputPath.trim())
                 }
               }}
-              disabled={!dirPath.trim() || loading || scanning}
-              loading={loading || scanning}
+              disabled={!inputPath.trim() || loading || inputLoading}
+              loading={inputLoading}
             >
-              {scanning ? t('directoryScanning') : t('loadLogs')}
+              {t('loadLogs')}
             </Button>
           </Space.Compact>
         </>

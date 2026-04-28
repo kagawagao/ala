@@ -155,9 +155,6 @@
   "contextDocs": "上下文文档",
   "noContextDocs": "未发现上下文文档",
   "loading": "加载中...",
-  "logDirectory": "日志目录",
-  "logDirectoryPlaceholder": "/path/to/logs",
-  "orLoadFromDirectory": "或从本地目录加载",
   "loadLogs": "加载",
   "presetGeneral": "通用分析",
   "presetCrash": "崩溃分析",
@@ -181,7 +178,6 @@
   "loadSelected": "加载所选文件",
   "noFilesFound": "此目录中未找到日志文件",
   "fileSize": "大小",
-  "directoryScanning": "正在扫描目录...",
   "traceAgentMode": "Trace 代理模式",
   "logAgentMode": "日志代理模式",
   "thinkingMode": "思考模式",
@@ -235,7 +231,7 @@
   "compatibilityOpenAI": "OpenAI 兼容",
   "continueAnalysis": "继续分析",
   "copyFailed": "复制失败",
-  "orEnterLocalFilePath": "或输入本地文件路径",
+  "orEnterLocalFilePath": "或输入本地路径",
   "switchLanguage": "切换语言",
   "langCode": "中文"
 }

@@ -93,6 +93,30 @@ export interface DirectoryListResponse {
   max_depth: number
 }
 
+export interface AutoPathResponse {
+  type: 'file' | 'directory'
+  // File fields
+  session_file?: string
+  line_count?: number
+  size_bytes?: number
+  format_detected?: string
+  is_gzip?: boolean
+  is_zip?: boolean
+  // Directory fields
+  files?: DirectoryFileInfo[]
+  has_subdirectories?: boolean
+  total_files?: number
+  max_depth?: number
+}
+
+/** Auto-detect path type — file or directory — and route accordingly. */
+export async function autoPath(path: string): Promise<AutoPathResponse> {
+  return apiFetch<AutoPathResponse>('/logs/auto-path', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
+}
+
 /**
  * List log files in a local directory on the server (recursive).
  */

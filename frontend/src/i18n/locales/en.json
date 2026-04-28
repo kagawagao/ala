@@ -155,9 +155,6 @@
   "contextDocs": "Context Docs",
   "noContextDocs": "No context docs found",
   "loading": "Loading...",
-  "logDirectory": "Log Directory",
-  "logDirectoryPlaceholder": "/path/to/logs",
-  "orLoadFromDirectory": "Or load from local directory",
   "loadLogs": "Load",
   "presetGeneral": "General Analysis",
   "presetCrash": "Crash Analysis",
@@ -181,7 +178,6 @@
   "loadSelected": "Load Selected",
   "noFilesFound": "No log files found in this directory",
   "fileSize": "Size",
-  "directoryScanning": "Scanning directory...",
   "traceAgentMode": "Trace agent mode",
   "logAgentMode": "Log agent mode",
   "thinkingMode": "Thinking mode",
@@ -235,7 +231,7 @@
   "compatibilityOpenAI": "OpenAI-compatible",
   "continueAnalysis": "Continue Analysis",
   "copyFailed": "Copy failed",
-  "orEnterLocalFilePath": "Or enter a local file path",
+  "orEnterLocalFilePath": "Or enter a local path",
   "switchLanguage": "Switch language",
   "langCode": "EN"
 }
