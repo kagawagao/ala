@@ -279,7 +279,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {!compact && onLocalFilePath && (
         <>
           <Divider style={{ margin: '12px 0', fontSize: 12 }}>
-            {t('orEnterLocalFilePath') || 'Or enter a local file path'}
+            {t('orEnterLocalFilePath')}
           </Divider>
           <Space.Compact style={{ width: '100%' }}>
             <Input

@@ -599,7 +599,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setCopiedIdx(idx)
       setTimeout(() => setCopiedIdx(null), 1500)
     } catch {
-      void messageApi.error('Copy failed')
+      void messageApi.error(t('copyFailed'))
     }
   }
 
@@ -1155,7 +1155,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine') || '换行'})`}
+              placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine')})`}
               autoSize={{ minRows: 2, maxRows: 6 }}
               disabled={streaming}
               style={{ fontSize: 13, paddingRight: 42 }}

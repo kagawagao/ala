@@ -233,5 +233,9 @@
   "compatibilityAutoDetect": "Auto-detect from endpoint",
   "compatibilityAnthropic": "Anthropic",
   "compatibilityOpenAI": "OpenAI-compatible",
-  "continueAnalysis": "Continue Analysis"
+  "continueAnalysis": "Continue Analysis",
+  "copyFailed": "Copy failed",
+  "orEnterLocalFilePath": "Or enter a local file path",
+  "switchLanguage": "Switch language",
+  "langCode": "EN"
 }

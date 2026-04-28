@@ -233,5 +233,9 @@
   "compatibilityAutoDetect": "从端点自动检测",
   "compatibilityAnthropic": "Anthropic",
   "compatibilityOpenAI": "OpenAI 兼容",
-  "continueAnalysis": "继续分析"
+  "continueAnalysis": "继续分析",
+  "copyFailed": "复制失败",
+  "orEnterLocalFilePath": "或输入本地文件路径",
+  "switchLanguage": "切换语言",
+  "langCode": "中文"
 }

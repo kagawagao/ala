@@ -97,9 +97,9 @@ const Header: React.FC<HeaderProps> = ({
             onClick={onToggleTheme}
           />
         </Tooltip>
-        <Tooltip title={language === 'en' ? '中文' : 'English'}>
+        <Tooltip title={t('switchLanguage')}>
           <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage}>
-            {language === 'en' ? 'EN' : '中文'}
+            {t('langCode')}
           </Button>
         </Tooltip>
         <Tooltip title={t('projectSettings')}>
