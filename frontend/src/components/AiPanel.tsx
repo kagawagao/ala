@@ -40,11 +40,7 @@ import {
   setSessionFilePath,
   setSessionLogs,
 } from '../api/chat'
-import {
-  getConfiguredModels,
-  groupByProvider,
-  loadModelConfigs,
-} from '../utils/models'
+import { getConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
 import type {
   Session,
   LogEntry,

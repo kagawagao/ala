@@ -183,11 +183,7 @@ const AppContent: React.FC<{
         setProjects(loaded)
         // Clear saved project selection if it no longer exists
         const current = selectedProjectIdRef.current
-        if (
-          current &&
-          loaded.length > 0 &&
-          !loaded.some((p) => p.id === current)
-        ) {
+        if (current && loaded.length > 0 && !loaded.some((p) => p.id === current)) {
           setSelectedProjectId(null)
           localStorage.removeItem('ala_last_project_id')
         }
