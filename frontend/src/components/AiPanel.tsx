@@ -539,6 +539,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
             }
             continue
           }
+
+          // Internal metadata events — discard silently
+          if ('type' in data && data.type === 'agent_meta') {
+            continue
+          }
+
           const delta =
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (data as any).choices?.[0]?.delta?.content ||
