@@ -19,7 +19,7 @@ import openai
 
 from ..config import settings
 from .agent_tools import AGENT_TOOLS, LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
-from .code_scanner import CodeScanner
+from .code_scanner import CodeScanner, ContextDoc
 from .project_manager import Project
 
 MAX_TOOL_ROUNDS = settings.ai_max_tool_rounds
@@ -261,6 +261,11 @@ class AIService:
         """Build tool list and system prompt text for agentic mode.
 
         Returns (tools, system_text).
+
+        Context docs (AGENTS.md, README.md, .cursorrules, etc.) are placed at the
+        very top of the system prompt — before the agent identity — so the model
+        grounds itself in project knowledge FIRST, matching how Cline (clinerules),
+        OpenCode (AGENTS.md), and Cursor (.cursorrules) structure their context.
         """
         tools: list[dict[str, Any]] = []
         parts: list[str] = []
@@ -270,9 +275,33 @@ class AIService:
         if language and language in _lang_map:
             parts.append(_lang_map[language])
 
+        # ── PROJECT CONTEXT (top priority — grounds the model) ─────────────────
+        # Following Cline/OpenCode/Cursor convention: project context docs come
+        # BEFORE the agent role, so the model understands the codebase first.
+        context_docs: list[ContextDoc] = []
+        if project:
+            context_docs = _scanner.discover_context_docs(project.paths)
+
         if project:
             tools.extend(AGENT_TOOLS)
-            context_docs = _scanner.discover_context_docs(project.paths)
+
+        if context_docs:
+            parts.append(
+                "=== PROJECT CONTEXT (read this first — it describes the project "
+                "you are working on) ==="
+            )
+            total_size = 0
+            for doc in context_docs:
+                # Cap total context doc injection at 50 KB to avoid overwhelming
+                # the system prompt while still giving the model enough ground.
+                if total_size > 50_000:
+                    parts.append(f"\n// {doc.path}: skipped (context budget exceeded)")
+                    continue
+                parts.append(f"\n--- {doc.path} ---\n\n{doc.content}")
+                total_size += doc.size
+            parts.append("\n=== END PROJECT CONTEXT ===")
+
+        if project:
             parts.append(
                 f"You are an Android log and code analyzer agent. "
                 f"You have access to the source code of the project '{project.name}' "
@@ -286,11 +315,6 @@ class AIService:
                 f"Complete your full analysis before responding — never stop mid-analysis. "
                 f"Always cite specific files and line numbers when referencing code."
             )
-            if context_docs:
-                parts.append("\n--- Project Context Documents ---")
-                for doc in context_docs:
-                    parts.append(f"\n### {doc.path}\n\n{doc.content}")
-                parts.append("\n--- End Project Context ---")
 
         if file_path is not None:
             import os
