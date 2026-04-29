@@ -44,9 +44,6 @@ import {
   getConfiguredModels,
   groupByProvider,
   loadModelConfigs,
-  getActiveModelIds,
-  BUILTIN_MODELS,
-  loadCustomModels,
 } from '../utils/models'
 import type {
   Session,
@@ -216,6 +213,9 @@ const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls })
     />
   )
 }
+
+/** localStorage key for persisting the last-used model selection. */
+const ALA_LAST_MODEL_KEY = 'ala_last_model_id'
 
 const AiPanel: React.FC<AiPanelProps> = ({
   logs: _logs,
@@ -635,13 +635,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
   // All models with a configured API key
   const configuredModels = getConfiguredModels()
 
-  // All active models (user-toggled) that also have API keys configured
-  const activeModelIds = getActiveModelIds()
-  const modelConfigsForActive = loadModelConfigs()
-  const activeModels = [...BUILTIN_MODELS, ...loadCustomModels()].filter(
-    (m) => activeModelIds.includes(m.id) && !!modelConfigsForActive[m.id]?.api_key?.trim(),
-  )
-
   // The model preset active for this session (may differ from global active model)
   const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
 
@@ -670,21 +663,22 @@ const AiPanel: React.FC<AiPanelProps> = ({
     })),
   }))
 
+  // Persist last-used model to localStorage
   const handleModelChange = (presetId: string) => {
     if (!activeSessionId) return
     const preset = configuredModels.find((m) => m.id === presetId)
     if (!preset) return
     setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+    localStorage.setItem(ALA_LAST_MODEL_KEY, presetId)
   }
 
-  // Click an active model chip to switch the session's model
-  const handleActiveModelChipClick = (preset: ModelPreset) => {
-    if (!activeSessionId) return
-    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
-  }
-
-  // The value shown in the Select: active session's preset id, else the global active model id
-  const modelSelectValue = activeModelPreset?.id ?? configuredModels[0]?.id ?? undefined
+  // The value shown in the Select: session model > last-used model > first configured
+  const modelSelectValue = (() => {
+    if (activeModelPreset?.id) return activeModelPreset.id
+    const lastId = localStorage.getItem(ALA_LAST_MODEL_KEY)
+    if (lastId && configuredModels.some((m) => m.id === lastId)) return lastId
+    return configuredModels[0]?.id ?? undefined
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1097,41 +1091,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               </Tag>
             </div>
           )}
-          {/* Active model chips — quick switch */}
-          {activeModels.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 6,
-                flexWrap: 'wrap',
-              }}
-            >
-              <Text type="secondary" style={{ fontSize: 10 }}>
-                {t('activeModels')}:
-              </Text>
-              {activeModels.map((m) => {
-                const isSelected = activeModelPreset?.id === m.id
-                return (
-                  <Tag
-                    key={m.id}
-                    color={isSelected ? 'blue' : 'default'}
-                    style={{
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      lineHeight: '18px',
-                      margin: 0,
-                    }}
-                    onClick={() => handleActiveModelChipClick(m)}
-                  >
-                    {m.name}
-                  </Tag>
-                )
-              })}
-            </div>
-          )}
-          {/* Model selector for this session */}
+          {/* Model selector — remembers last choice */}
           {configuredModels.length > 0 && (
             <div
               style={{

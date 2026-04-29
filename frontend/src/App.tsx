@@ -12,7 +12,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
@@ -161,18 +161,37 @@ const AppContent: React.FC<{
 
   // Project state (lifted here so Header and AiPanel share it)
   const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    // Restore last selected project on page load
+    return localStorage.getItem('ala_last_project_id') || null
+  })
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
 
+  // Ref to avoid stale closure in the project-loading effect
+  const selectedProjectIdRef = useRef(selectedProjectId)
+  selectedProjectIdRef.current = selectedProjectId
+
   // Load projects on mount, when backend connects, and when navigating away from /projects
   useEffect(() => {
     if (!backendConnected) return
     listProjects()
-      .then(setProjects)
+      .then((loaded) => {
+        setProjects(loaded)
+        // Clear saved project selection if it no longer exists
+        const current = selectedProjectIdRef.current
+        if (
+          current &&
+          loaded.length > 0 &&
+          !loaded.some((p) => p.id === current)
+        ) {
+          setSelectedProjectId(null)
+          localStorage.removeItem('ala_last_project_id')
+        }
+      })
       .catch(() => {
         /* backend may not be running */
       })
@@ -326,6 +345,12 @@ const AppContent: React.FC<{
 
   const handleProjectChange = useCallback(
     (projectId: string | null) => {
+      // Persist last selected project
+      if (projectId) {
+        localStorage.setItem('ala_last_project_id', projectId)
+      } else {
+        localStorage.removeItem('ala_last_project_id')
+      }
       // Abort any in-flight log parse before clearing state
       abortParse()
       setLocalFilePath(null)
