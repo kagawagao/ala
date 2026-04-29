@@ -840,9 +840,14 @@ class AIService:
                     delta = choice.delta
 
                     # Capture reasoning_content produced by thinking-capable providers
-                    # (e.g. DeepSeek). The field is not part of the standard OpenAI
-                    # schema so it arrives in model_extra.
-                    rc = (delta.model_extra or {}).get("reasoning_content") or ""
+                    # (e.g. DeepSeek). The field may arrive as a direct attribute on
+                    # the delta object (newer SDK versions) or inside model_extra
+                    # (older SDK versions / non-standard schemas). We check both.
+                    rc = (
+                        getattr(delta, "reasoning_content", None)
+                        or (delta.model_extra or {}).get("reasoning_content")
+                        or ""
+                    )
                     if rc:
                         reasoning_content += rc
 
@@ -901,6 +906,11 @@ class AIService:
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": text_content or None}
             if reasoning_content:
                 assistant_msg["reasoning_content"] = reasoning_content
+                logger.debug(
+                    "OpenAI agentic_chat — round=%d captured reasoning_content (%d chars)",
+                    _round,
+                    len(reasoning_content),
+                )
             if tool_calls_list:
                 assistant_msg["tool_calls"] = [
                     {
