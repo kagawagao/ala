@@ -293,6 +293,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setStreaming(false)
   }, [selectedProjectId])
 
+  // Auto-assign last-used model to newly activated sessions
+  useEffect(() => {
+    if (!activeSessionId) return
+    if (sessionModels[activeSessionId] !== undefined) return
+    const lastId = localStorage.getItem(ALA_LAST_MODEL_KEY)
+    if (!lastId) return
+    const preset = configuredModels.find((m) => m.id === lastId)
+    if (preset) {
+      setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+    }
+  }, [activeSessionId, sessionModels, configuredModels])
+
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {
     if (activeSessionId && traceResult) {
@@ -668,13 +680,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
     localStorage.setItem(ALA_LAST_MODEL_KEY, presetId)
   }
 
-  // The value shown in the Select: session model > last-used model > first configured
-  const modelSelectValue = (() => {
-    if (activeModelPreset?.id) return activeModelPreset.id
-    const lastId = localStorage.getItem(ALA_LAST_MODEL_KEY)
-    if (lastId && configuredModels.some((m) => m.id === lastId)) return lastId
-    return configuredModels[0]?.id ?? undefined
-  })()
+  // The value shown in the Select — strictly derived from activeModelPreset only.
+  // Never reads localStorage directly; the useEffect above handles initialization.
+  const modelSelectValue =
+    activeModelPreset?.id ?? (configuredModels.length > 0 ? configuredModels[0]?.id : undefined)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
