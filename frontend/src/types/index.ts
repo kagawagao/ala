@@ -138,6 +138,15 @@ export interface ProjectFileInfo {
   extension: string
 }
 
+export interface LocalFileRef {
+  session_file: string
+  line_count: number
+  size_bytes: number
+  format_detected: string
+  is_gzip: boolean
+  is_zip: boolean
+}
+
 export interface ContextDoc {
   path: string
   content: string
@@ -161,4 +170,9 @@ export interface ThinkingEvent {
   content: string
 }
 
-export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent
+export interface MaxRoundsReachedEvent {
+  type: 'max_rounds_reached'
+  message: string
+}
+
+export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent | MaxRoundsReachedEvent

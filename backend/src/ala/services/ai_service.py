@@ -17,14 +17,30 @@ from urllib.parse import urlparse
 import anthropic
 import openai
 
-from .agent_tools import AGENT_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
-from .code_scanner import CodeScanner
+from ..config import settings
+from .agent_tools import AGENT_TOOLS, LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
+from .code_scanner import CodeScanner, ContextDoc
 from .project_manager import Project
 
-MAX_TOOL_ROUNDS = 10
+MAX_TOOL_ROUNDS = settings.ai_max_tool_rounds
 MAX_TOKENS = 32768
 _scanner = CodeScanner()
 logger = logging.getLogger(__name__)
+
+
+def _safe_repr(obj: Any, max_len: int = 2000) -> str:
+    """Safely represent any object as a string, truncated if too long.
+
+    Prevents log flooding from large response bodies while preserving
+    the essential content for debugging API errors.
+    """
+    try:
+        s = repr(obj)
+    except Exception:
+        s = f"<unrepresentable: {type(obj).__name__}>"
+    if len(s) > max_len:
+        s = s[:max_len] + f"... [truncated total={len(s)}]"
+    return s
 
 
 def _is_anthropic_endpoint(endpoint: str) -> bool:
@@ -80,7 +96,14 @@ def _truncate_tool_result(tool_name: str, result_str: str, max_chars: int = 8000
             data["_note"] = (
                 f"Showing first 30 + last 20 of {total} matches. Use offset to paginate."
             )
-    elif tool_name in ("list_project_files", "list_log_files"):
+    elif tool_name in ("search_local_log", "read_log_range", "tail_local_log"):
+        entries = data.get("entries", [])
+        total = data.get("total_matched", data.get("total_lines", len(entries)))
+        if len(entries) > 30:
+            data["entries"] = entries[:15] + entries[-15:]
+            data["_note"] = (
+                f"Showing first 15 + last 15 of {total} results. Use offset/limit to paginate."
+            )
         files = data.get("files", [])
         if len(files) > 100:
             data["files"] = files[:100]
@@ -163,9 +186,11 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         resume_provider: str | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with tool calling.
 
@@ -193,8 +218,10 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 log_index=log_index,
+                file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
+                language=language,
             ):
                 yield chunk
         else:
@@ -204,8 +231,10 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 log_index=log_index,
+                file_path=file_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
+                language=language,
             ):
                 yield chunk
 
@@ -226,17 +255,53 @@ class AIService:
         project: Project | None,
         trace_summary: dict | None,
         log_entries: list[dict] | None,
+        file_path: str | None = None,
+        language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
         """Build tool list and system prompt text for agentic mode.
 
         Returns (tools, system_text).
+
+        Context docs (AGENTS.md, README.md, .cursorrules, etc.) are placed at the
+        very top of the system prompt — before the agent identity — so the model
+        grounds itself in project knowledge FIRST, matching how Cline (clinerules),
+        OpenCode (AGENTS.md), and Cursor (.cursorrules) structure their context.
         """
         tools: list[dict[str, Any]] = []
         parts: list[str] = []
 
+        # Prepend language instruction when the frontend specifies a non-English UI
+        _lang_map = {"zh": "Respond in Chinese (Simplified). 请用简体中文回答。"}
+        if language and language in _lang_map:
+            parts.append(_lang_map[language])
+
+        # ── PROJECT CONTEXT (top priority — grounds the model) ─────────────────
+        # Following Cline/OpenCode/Cursor convention: project context docs come
+        # BEFORE the agent role, so the model understands the codebase first.
+        context_docs: list[ContextDoc] = []
+        if project:
+            context_docs = _scanner.discover_context_docs(project.paths)
+
         if project:
             tools.extend(AGENT_TOOLS)
-            context_docs = _scanner.discover_context_docs(project.paths)
+
+        if context_docs:
+            parts.append(
+                "=== PROJECT CONTEXT (read this first — it describes the project "
+                "you are working on) ==="
+            )
+            total_size = 0
+            for doc in context_docs:
+                # Cap total context doc injection at 50 KB to avoid overwhelming
+                # the system prompt while still giving the model enough ground.
+                if total_size > 50_000:
+                    parts.append(f"\n// {doc.path}: skipped (context budget exceeded)")
+                    continue
+                parts.append(f"\n--- {doc.path} ---\n\n{doc.content}")
+                total_size += doc.size
+            parts.append("\n=== END PROJECT CONTEXT ===")
+
+        if project:
             parts.append(
                 f"You are an Android log and code analyzer agent. "
                 f"You have access to the source code of the project '{project.name}' "
@@ -250,21 +315,53 @@ class AIService:
                 f"Complete your full analysis before responding — never stop mid-analysis. "
                 f"Always cite specific files and line numbers when referencing code."
             )
-            if context_docs:
-                parts.append("\n--- Project Context Documents ---")
-                for doc in context_docs:
-                    parts.append(f"\n### {doc.path}\n\n{doc.content}")
-                parts.append("\n--- End Project Context ---")
+
+        if file_path is not None:
+            import os
+
+            # Lazy mode: tools that read local file/directory on demand
+            tools.extend(LAZY_LOG_TOOLS)
+            is_dir = os.path.isdir(file_path)
+            if is_dir:
+                lazy_hint = (
+                    "A local log directory is available to the session's tools. "
+                    "Start with list_directory_logs to see what files are available. "
+                    "Then use overview_local_log, search_local_log, read_log_range, "
+                    "or tail_local_log with an explicit file_path parameter "
+                    "to target specific files. "
+                    "Complete the full analysis before responding; never stop mid-analysis."
+                )
+            else:
+                lazy_hint = (
+                    "A local log file is available to the session's log tools. "
+                    "Always start with overview_local_log to understand the log scope "
+                    "(level distribution, time range, unique tags and PIDs). "
+                    "Then use search_local_log with targeted filters to find relevant entries. "
+                    "For large files, use offset/limit to paginate through results. "
+                    "Use read_log_range for context around specific lines, "
+                    "and tail_local_log for recent entries. "
+                    "Do not guess log details — always query them with tools. "
+                    "Complete the full analysis before responding; never stop mid-analysis."
+                )
+            parts.append(lazy_hint)
 
         if log_entries is not None:
             tools.extend(LOG_TOOLS)
             n_entries = len(log_entries)
             log_hint = (
                 f"{n_entries} Android log entries are loaded in this session. "
+                "**IMPORTANT**: Complete the ENTIRE analysis in one session. "
+                "Do NOT ask 'would you like me to continue' or 'shall I dig deeper' — "
+                "just keep analyzing until you have a definitive conclusion with all "
+                "relevant evidence. You have enough tool-calling rounds to finish. "
                 "Always start with query_log_overview to understand the full log scope "
-                "(level distribution, time range, unique tags and PIDs). "
+                "(level distribution, time range, time distribution, unique tags and PIDs). "
                 "Then use search_logs with targeted filters (level, tag, keyword, time range) "
                 "to retrieve relevant entries. "
+                "**Time filtering**: when the user mentions a time point, use "
+                "query_log_overview first to see the time_distribution, then set "
+                "start_time/end_time with a narrow ±2 min window around that time. "
+                "If fewer than 20 results, expand to ±5 min, then ±15 min. "
                 "For large result sets, use the 'offset' parameter to paginate and ensure "
                 "you have seen all matching entries before drawing conclusions. "
                 "Perform multiple targeted searches to ensure comprehensive coverage. "
@@ -357,17 +454,30 @@ class AIService:
                             current_thinking = ""
         except anthropic.APIStatusError as exc:
             logger.error(
-                "Anthropic API error in stream_chat — status=%s message=%s",
+                "Anthropic API error in stream_chat — "
+                "model=%s status=%s message=%s body=%s request_id=%s",
+                self._model,
                 exc.status_code,
                 exc.message,
+                _safe_repr(getattr(exc, "body", None)),
+                getattr(exc, "request_id", None),
                 exc_info=True,
             )
             raise
         except anthropic.APIConnectionError as exc:
-            logger.error("Anthropic connection error in stream_chat: %s", exc, exc_info=True)
+            logger.error(
+                "Anthropic connection error in stream_chat — model=%s: %s",
+                self._model,
+                exc,
+                exc_info=True,
+            )
             raise
         except Exception as exc:
-            logger.exception("Unexpected error in Anthropic stream_chat: %s", exc)
+            logger.exception(
+                "Unexpected error in Anthropic stream_chat — model=%s: %s",
+                self._model,
+                exc,
+            )
             raise
 
     async def _stream_chat_agentic_anthropic(
@@ -377,8 +487,10 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with Anthropic tool calling. Supports extended thinking.
 
@@ -388,7 +500,9 @@ class AIService:
         - Tool calls: JSON with type="tool_call"
         - Tool results: JSON with type="tool_result"
         """
-        tools, system_text = self._build_agentic_context(project, trace_summary, log_entries)
+        tools, system_text = self._build_agentic_context(
+            project, trace_summary, log_entries, file_path=file_path, language=language
+        )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
         if existing_system:
@@ -420,6 +534,7 @@ class AIService:
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
 
+        _finished_naturally = False
         for _round in range(MAX_TOOL_ROUNDS):
             tool_uses: list[dict[str, Any]] = []
             current_tool: dict[str, Any] | None = None
@@ -481,16 +596,21 @@ class AIService:
                     final_msg = await stream.get_final_message()
             except anthropic.APIStatusError as exc:
                 logger.error(
-                    "Anthropic API error in agentic_chat (round %d) — status=%s message=%s",
+                    "Anthropic API error in agentic_chat — "
+                    "model=%s round=%d status=%s message=%s body=%s request_id=%s",
+                    self._model,
                     _round,
                     exc.status_code,
                     exc.message,
+                    _safe_repr(getattr(exc, "body", None)),
+                    getattr(exc, "request_id", None),
                     exc_info=True,
                 )
                 raise
             except anthropic.APIConnectionError as exc:
                 logger.error(
-                    "Anthropic connection error in agentic_chat (round %d): %s",
+                    "Anthropic connection error in agentic_chat — model=%s round=%d: %s",
+                    self._model,
                     _round,
                     exc,
                     exc_info=True,
@@ -498,7 +618,10 @@ class AIService:
                 raise
             except Exception as exc:
                 logger.exception(
-                    "Unexpected error in Anthropic agentic_chat (round %d): %s", _round, exc
+                    "Unexpected error in Anthropic agentic_chat — model=%s round=%d: %s",
+                    self._model,
+                    _round,
+                    exc,
                 )
                 raise
 
@@ -524,6 +647,7 @@ class AIService:
             api_messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
+                _finished_naturally = True
                 break
 
             # Yield tool_call events immediately in original order
@@ -545,6 +669,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=log_index,
+                    file_path=file_path,
                 )
                 return tu, result
 
@@ -567,6 +692,19 @@ class AIService:
                 )
 
             api_messages.append({"role": "user", "content": tool_result_blocks})
+
+        # Report round usage to the frontend
+        rounds_used = _round + 1
+        yield json.dumps(
+            {"type": "agent_meta", "rounds_used": rounds_used, "max_rounds": MAX_TOOL_ROUNDS}
+        )
+        if not _finished_naturally and rounds_used >= MAX_TOOL_ROUNDS:
+            yield json.dumps(
+                {
+                    "type": "max_rounds_reached",
+                    "message": f"Analysis may be incomplete after {rounds_used} rounds. Click Continue to resume.",
+                }
+            )
 
         # Expose the final API messages (with full tool-call history) to the caller
         # so they can be persisted in the session for continuation requests.
@@ -591,17 +729,28 @@ class AIService:
                     yield chunk.choices[0].delta.content
         except openai.APIStatusError as exc:
             logger.error(
-                "OpenAI API error in stream_chat — status=%s message=%s",
+                "OpenAI API error in stream_chat — model=%s status=%s message=%s body=%s",
+                self._model,
                 exc.status_code,
                 exc.message,
+                _safe_repr(getattr(exc, "body", None)),
                 exc_info=True,
             )
             raise
         except openai.APIConnectionError as exc:
-            logger.error("OpenAI connection error in stream_chat: %s", exc, exc_info=True)
+            logger.error(
+                "OpenAI connection error in stream_chat — model=%s: %s",
+                self._model,
+                exc,
+                exc_info=True,
+            )
             raise
         except Exception as exc:
-            logger.exception("Unexpected error in OpenAI stream_chat: %s", exc)
+            logger.exception(
+                "Unexpected error in OpenAI stream_chat — model=%s: %s",
+                self._model,
+                exc,
+            )
             raise
 
     async def _stream_chat_agentic_openai(
@@ -611,8 +760,10 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
+        file_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
+        language: str | None = None,
     ) -> AsyncIterator[str]:
         """Agentic chat loop with OpenAI function-calling.
 
@@ -623,7 +774,7 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         anthropic_tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries
+            project, trace_summary, log_entries, file_path=file_path, language=language
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
 
@@ -657,10 +808,16 @@ class AIService:
                 len(openai_tools),
             )
 
+        _finished_naturally = False
         for _round in range(MAX_TOOL_ROUNDS):
             # Accumulate tool call deltas across streaming chunks
             tool_calls_acc: dict[int, dict[str, Any]] = {}
             text_content = ""
+            # reasoning_content is returned by some providers (e.g. DeepSeek) and
+            # must be echoed back verbatim in the assistant message for subsequent
+            # rounds — omitting it causes a 400 "reasoning_content must be passed
+            # back" error.
+            reasoning_content = ""
 
             stream_kwargs: dict[str, Any] = {
                 "model": self._model,
@@ -682,6 +839,18 @@ class AIService:
                     choice = chunk.choices[0]
                     delta = choice.delta
 
+                    # Capture reasoning_content produced by thinking-capable providers
+                    # (e.g. DeepSeek). The field may arrive as a direct attribute on
+                    # the delta object (newer SDK versions) or inside model_extra
+                    # (older SDK versions / non-standard schemas). We check both.
+                    rc = (
+                        getattr(delta, "reasoning_content", None)
+                        or (delta.model_extra or {}).get("reasoning_content")
+                        or ""
+                    )
+                    if rc:
+                        reasoning_content += rc
+
                     if delta.content:
                         text_content += delta.content
                         yield delta.content
@@ -701,16 +870,20 @@ class AIService:
                                 tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
             except openai.APIStatusError as exc:
                 logger.error(
-                    "OpenAI API error in agentic_chat (round %d) — status=%s message=%s",
+                    "OpenAI API error in agentic_chat — "
+                    "model=%s round=%d status=%s message=%s body=%s",
+                    self._model,
                     _round,
                     exc.status_code,
                     exc.message,
+                    _safe_repr(getattr(exc, "body", None)),
                     exc_info=True,
                 )
                 raise
             except openai.APIConnectionError as exc:
                 logger.error(
-                    "OpenAI connection error in agentic_chat (round %d): %s",
+                    "OpenAI connection error in agentic_chat — model=%s round=%d: %s",
+                    self._model,
                     _round,
                     exc,
                     exc_info=True,
@@ -718,14 +891,26 @@ class AIService:
                 raise
             except Exception as exc:
                 logger.exception(
-                    "Unexpected error in OpenAI agentic_chat (round %d): %s", _round, exc
+                    "Unexpected error in OpenAI agentic_chat — model=%s round=%d: %s",
+                    self._model,
+                    _round,
+                    exc,
                 )
                 raise
 
             tool_calls_list = list(tool_calls_acc.values())
 
-            # Record the assistant turn in the conversation
+            # Record the assistant turn in the conversation.
+            # reasoning_content must be included when present so that providers
+            # that require it (e.g. DeepSeek) accept the next round's request.
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": text_content or None}
+            if reasoning_content:
+                assistant_msg["reasoning_content"] = reasoning_content
+                logger.debug(
+                    "OpenAI agentic_chat — round=%d captured reasoning_content (%d chars)",
+                    _round,
+                    len(reasoning_content),
+                )
             if tool_calls_list:
                 assistant_msg["tool_calls"] = [
                     {
@@ -738,6 +923,7 @@ class AIService:
             openai_messages.append(assistant_msg)
 
             if not tool_calls_list:
+                _finished_naturally = True
                 break
 
             # Execute each tool via asyncio.to_thread to avoid blocking the event loop
@@ -758,6 +944,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=log_index,
+                    file_path=file_path,
                 )
 
                 logger.debug("Tool result — name=%s length=%d", tc["name"], len(result))
@@ -775,5 +962,18 @@ class AIService:
                 )
 
         # Expose the final API messages (with full tool-call history) to the caller.
+        # Report round usage to the frontend
+        rounds_used = _round + 1
+        yield json.dumps(
+            {"type": "agent_meta", "rounds_used": rounds_used, "max_rounds": MAX_TOOL_ROUNDS}
+        )
+        if not _finished_naturally and rounds_used >= MAX_TOOL_ROUNDS:
+            yield json.dumps(
+                {
+                    "type": "max_rounds_reached",
+                    "message": f"Analysis may be incomplete after {rounds_used} rounds. Click Continue to resume.",
+                }
+            )
+
         if api_messages_out is not None:
             api_messages_out.extend(openai_messages)

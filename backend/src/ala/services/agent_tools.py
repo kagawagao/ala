@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..services.log_analyzer import LogAnalyzer
 from .code_scanner import CodeScanner
 from .project_manager import Project
 
@@ -50,6 +51,9 @@ class _NoOpOverviewCache:
     across sessions.
     """
 
+    def __contains__(self, key: int) -> bool:
+        return False
+
     def get(self, key: int, default: dict | None = None) -> dict | None:
         return default
 
@@ -61,6 +65,163 @@ class _NoOpOverviewCache:
 
 
 _overview_cache = _NoOpOverviewCache()
+
+# Anthropic tool schemas – lazy local file tools (FEAT-LAZY-LOG)
+# When file_path points to a directory, use list_directory_logs first,
+# then pass explicit file_path to other tools to target specific files.
+LAZY_LOG_TOOLS: list[dict] = [
+    {
+        "name": "list_directory_logs",
+        "description": (
+            "List log files in the current log source directory. "
+            "Use this FIRST when the log source is a directory to discover what files are available. "
+            "Returns file names, sizes, and line counts (quick scan). "
+            "For a single file source, use overview_local_log instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "overview_local_log",
+        "description": (
+            "Get statistics about a local Android log file or directory. "
+            "Streams through file(s) to compute level distribution, "
+            "unique tags/PIDs, time range, and line count. "
+            "Does NOT load all entries into memory. "
+            "Use this FIRST before search_local_log or read_log_range. "
+            "For directories: pass file_path to target a specific file. "
+            "Without file_path on a directory: returns aggregate stats across all files."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Optional: specific log file name or path within the log source. "
+                        "Required when the log source is a directory."
+                    ),
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_local_log",
+        "description": (
+            "Search and filter a local Android log file. "
+            "Streams through the file line-by-line, applying filters. "
+            "Returns matching entries with pagination support. "
+            "Use overview_local_log first to see what's available. "
+            "**file_path is required when the log source is a directory.**"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to search. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
+                "level": {
+                    "type": "string",
+                    "description": "Minimum log level (V, D, I, W, E, F)",
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Tag substring filter (case-insensitive)",
+                },
+                "pid": {
+                    "type": "string",
+                    "description": "Process ID to filter by",
+                },
+                "keyword": {
+                    "type": "string",
+                    "description": "Keyword or regex to match in log message",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "Only include entries after this timestamp",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "Only include entries before this timestamp",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default: 50, max: 500)",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Skip N matching entries before returning (pagination)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "read_log_range",
+        "description": (
+            "Read a specific line range from a local log file. "
+            "Useful for getting context around a particular line or timestamp. "
+            "**file_path is required when the log source is a directory.**"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to read. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
+                "start_line": {
+                    "type": "integer",
+                    "description": "First line to read (1-based)",
+                },
+                "end_line": {
+                    "type": "integer",
+                    "description": "Last line to read (1-based, inclusive)",
+                },
+            },
+            "required": ["start_line", "end_line"],
+        },
+    },
+    {
+        "name": "tail_local_log",
+        "description": (
+            "Read the last N lines of a local log file. "
+            "Fast way to see recent entries without scanning the whole file. "
+            "**file_path is required when the log source is a directory.**"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Log file name or path to read. "
+                        "Required when the log source is a directory. "
+                        "Optional when source is a single file."
+                    ),
+                },
+                "lines": {
+                    "type": "integer",
+                    "description": "Number of lines to read from the end (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+]
 
 # Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
@@ -213,7 +374,12 @@ LOG_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Search and filter the loaded Android log entries. "
             "Start with query_log_overview first, then use targeted search_logs with limit=50. "
-            "For more results, paginate with offset. "
+            "**Time-filtering strategy**: when the user mentions a specific time "
+            "(e.g. 'around 14:30', 'at 3pm'), use start_time/end_time with a narrow "
+            "±2 minute window first. If that yields fewer than 20 results, expand "
+            "the window to ±5 min, then ±15 min, until sufficient context is found. "
+            "For large result sets, use the 'offset' parameter to paginate and ensure "
+            "you have seen all matching entries before drawing conclusions. "
             "Returns up to `limit` matching entries starting at `offset`."
         ),
         "input_schema": {
@@ -265,6 +431,7 @@ def execute_tool(
     trace_summary: dict | None = None,
     log_entries: list[dict] | None = None,
     log_index: "LogIndex | None" = None,
+    file_path: str | None = None,
 ) -> str:
     """Execute a tool call and return the result as a string."""
     try:
@@ -277,6 +444,21 @@ def execute_tool(
         if trace_summary is None:
             return json.dumps({"error": "No trace loaded in this session"})
         return _execute_trace_tool(tool_name, args, trace_summary)
+
+    # Lazy log tools (operate on local file/directory path, not in-memory entries)
+    if tool_name in (
+        "list_directory_logs",
+        "overview_local_log",
+        "search_local_log",
+        "read_log_range",
+        "tail_local_log",
+    ):
+        if file_path is None:
+            return json.dumps({"error": "No local log path set in this session"})
+        try:
+            return _execute_lazy_log_tool(tool_name, args, file_path)
+        except Exception as e:
+            return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
 
     # Log tools (work standalone or alongside project tools)
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
@@ -309,9 +491,9 @@ def execute_tool(
         )
 
     elif tool_name == "read_project_file":
-        file_path = args.get("file_path", "")
+        requested_path = args.get("file_path", "")
         for path in project.paths:
-            result = _scanner.read_file(path, file_path)
+            result = _scanner.read_file(path, requested_path)
             if result:
                 return json.dumps(
                     {
@@ -321,7 +503,7 @@ def execute_tool(
                         "content": result.content,
                     }
                 )
-        return json.dumps({"error": f"File not found or unreadable: {file_path}"})
+        return json.dumps({"error": f"File not found or unreadable: {requested_path}"})
 
     elif tool_name == "search_project_code":
         pattern = args.get("pattern", "")
@@ -359,6 +541,275 @@ def execute_tool(
 
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+_analyzer = LogAnalyzer()
+
+
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+
+
+def _resolve_log_path(session_path: str, args: dict) -> str:
+    """Resolve the actual file path from session path and optional args.
+
+    - If session_path is a file: return it directly (ignore args.file_path).
+    - If session_path is a directory: require args.file_path, resolve relative to dir.
+    """
+    import os
+
+    if os.path.isfile(session_path):
+        return session_path
+
+    if os.path.isdir(session_path):
+        target = args.get("file_path", "").strip()
+        if not target:
+            return ""  # caller should return an error
+        # If target is already absolute and exists, use it directly
+        if os.path.isabs(target) and os.path.isfile(target):
+            return target
+        # Otherwise resolve relative to the session directory
+        resolved = os.path.join(session_path, target)
+        if os.path.isfile(resolved):
+            return resolved
+        return ""  # not found
+
+    return session_path  # fallback
+
+
+def _list_directory(session_path: str) -> list[dict]:
+    """Scan a directory for log-like files, returning name/size/line_count."""
+    import os
+
+    files = []
+    try:
+        for entry in sorted(os.scandir(session_path), key=lambda e: e.name.lower()):
+            if not entry.is_file():
+                continue
+            ext = os.path.splitext(entry.name)[1].lower()
+            if ext not in LOG_EXTENSIONS and ext:
+                continue
+            try:
+                stat = entry.stat()
+                # Quick line count (first 64KB)
+                with open(entry.path, "rb") as f:
+                    head = f.read(65536)
+                line_count = head.count(b"\n")
+                if not head.endswith(b"\n"):
+                    line_count += 1
+            except OSError:
+                stat = None
+                line_count = 0
+            files.append(
+                {
+                    "name": entry.name,
+                    "path": entry.path,
+                    "size": stat.st_size if stat else 0,
+                    "line_count": line_count,
+                }
+            )
+    except PermissionError:
+        pass
+    return files
+
+
+def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
+    """Execute a lazy log tool against a local file or directory path.
+
+    When file_path is a directory:
+    - Tools require an explicit ``file_path`` in args (except list_directory_logs).
+    - Path resolution: args.file_path joined with session directory path.
+    """
+
+    # ── list_directory_logs (directory only) ────────────────────────────────
+    if tool_name == "list_directory_logs":
+        files = _list_directory(file_path)
+        if not files:
+            return json.dumps({"error": "No log files found in directory", "files": []})
+        return json.dumps({"total_files": len(files), "files": files})
+
+    # ── Resolve target file path ────────────────────────────────────────────
+    resolved = _resolve_log_path(file_path, args)
+    if not resolved:
+        return json.dumps(
+            {
+                "error": (
+                    "Log source is a directory — you must specify file_path. "
+                    "Use list_directory_logs to see available files first."
+                )
+            }
+        )
+
+    # ── overview_local_log ──────────────────────────────────────────────────
+    if tool_name == "overview_local_log":
+        level_counts: dict[str, int] = {}
+        tags: set[str] = set()
+        pids: set[str] = set()
+        min_timestamp: str | None = None
+        max_timestamp: str | None = None
+        line_count = 0
+        format_detected = "android"
+        for entry in _analyzer.stream_file(resolved):
+            line_count += 1
+            lvl = entry.level or "?"
+            level_counts[lvl] = level_counts.get(lvl, 0) + 1
+            if entry.tag:
+                tags.add(entry.tag)
+            if entry.pid:
+                pids.add(str(entry.pid))
+            if entry.timestamp:
+                if min_timestamp is None or entry.timestamp < min_timestamp:
+                    min_timestamp = entry.timestamp
+                if max_timestamp is None or entry.timestamp > max_timestamp:
+                    max_timestamp = entry.timestamp
+        return json.dumps(
+            {
+                "file": resolved,
+                "total_lines": line_count,
+                "parsed_entries": line_count,
+                "format_detected": format_detected,
+                "level_distribution": level_counts,
+                "unique_tags": len(tags),
+                "unique_pids": len(pids),
+                "time_range": {
+                    "start": min_timestamp,
+                    "end": max_timestamp,
+                },
+                "sample_tags": sorted(tags)[:30],
+                "sample_pids": sorted(pids)[:30],
+            }
+        )
+
+    # ── search_local_log ────────────────────────────────────────────────────
+    if tool_name == "search_local_log":
+        level_filter = args.get("level", "").upper()
+        tag_filter = args.get("tag", "").lower()
+        pid_filter = str(args.get("pid", ""))
+        keyword = args.get("keyword", "")
+        start_time = args.get("start_time", "")
+        end_time = args.get("end_time", "")
+        limit = min(int(args.get("limit", 50)), 500)
+        offset = max(int(args.get("offset", 0)), 0)
+
+        min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
+        try:
+            keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
+        except re.error:
+            return json.dumps({"error": f"Invalid regex: {keyword}"})
+
+        matches: list[dict] = []
+        skipped = 0
+        total_matched = 0
+        for entry in _analyzer.stream_file(resolved):
+            if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
+                continue
+            if tag_filter and tag_filter not in entry.tag.lower():
+                continue
+            if pid_filter and entry.pid != pid_filter:
+                continue
+            if keyword_re:
+                text = f"{entry.tag} {entry.message}"
+                if not keyword_re.search(text):
+                    continue
+            if start_time and entry.timestamp and entry.timestamp < start_time:
+                continue
+            if end_time and entry.timestamp and entry.timestamp > end_time:
+                continue
+
+            total_matched += 1
+            if skipped < offset:
+                skipped += 1
+                continue
+
+            matches.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
+
+            if len(matches) >= limit:
+                break
+
+        return json.dumps(
+            {
+                "file": resolved,
+                "total_matched": total_matched,
+                "offset": offset,
+                "returned": len(matches),
+                "has_more": total_matched > offset + len(matches),
+                "entries": matches,
+            }
+        )
+
+    # ── read_log_range ──────────────────────────────────────────────────────
+    if tool_name == "read_log_range":
+        start_line = max(int(args.get("start_line", 1)), 1)
+        end_line = max(int(args.get("end_line", start_line)), start_line)
+        if end_line - start_line + 1 > 10_000:
+            end_line = start_line + 10_000 - 1
+        entries = []
+        total_lines = 0
+        for entry in _analyzer.stream_file(resolved):
+            total_lines += 1
+            if entry.line_number < start_line:
+                continue
+            if entry.line_number > end_line:
+                continue
+            entries.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
+        return json.dumps(
+            {
+                "file": resolved,
+                "range": f"{start_line}-{end_line}",
+                "total_lines_in_file": total_lines,
+                "entries": entries,
+                "count": len(entries),
+            }
+        )
+
+    # ── tail_local_log ──────────────────────────────────────────────────────
+    if tool_name == "tail_local_log":
+        from collections import deque
+
+        lines = min(int(args.get("lines", 50)), 500)
+        ring: deque[dict] = deque(maxlen=lines)
+        total_lines = 0
+        for entry in _analyzer.stream_file(resolved):
+            total_lines += 1
+            ring.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": entry.message,
+                }
+            )
+        return json.dumps(
+            {
+                "file": resolved,
+                "total_lines": total_lines,
+                "entries": list(ring),
+            }
+        )
+
+    return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
 
 
 def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
@@ -441,6 +892,29 @@ def _execute_log_tool(
                 pids.add(str(entry["pid"]))
             if entry.get("timestamp"):
                 timestamps.append(entry["timestamp"])
+
+        # Build adaptive time-distribution buckets so the AI can pick
+        # sensible start_time / end_time windows for search_logs.
+        time_dist: list[dict] = []
+        if timestamps:
+            t_min = min(timestamps)
+            t_max = max(timestamps)
+            # Choose bucket size that yields 20-60 buckets
+            span = max(t_max - t_min, 1)
+            bucket_s = span / 40
+            for boundary in (1, 5, 10, 30, 60, 300, 600, 1800, 3600):
+                if bucket_s <= boundary:
+                    bucket_s = boundary
+                    break
+            buckets: dict[int, int] = {}
+            for ts in timestamps:
+                slot = int((ts - t_min) / bucket_s)
+                buckets[slot] = buckets.get(slot, 0) + 1
+            time_dist = [
+                {"bucket_start": t_min + s * bucket_s, "count": c}
+                for s, c in sorted(buckets.items())
+            ]
+
         result = {
             "total_stored": len(log_entries),
             "level_distribution": level_counts,
@@ -450,6 +924,7 @@ def _execute_log_tool(
                 "start": min(timestamps) if timestamps else None,
                 "end": max(timestamps) if timestamps else None,
             },
+            "time_distribution": time_dist,
             "sample_tags": sorted(tags)[:30],
             "sample_pids": sorted(pids)[:30],
         }

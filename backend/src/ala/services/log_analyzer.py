@@ -2,11 +2,13 @@
 
 import gzip
 import io
+import os
 import re
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 
 class LogFormat(StrEnum):
@@ -53,6 +55,22 @@ class ParseResult:
     logs: list[LogEntry]
     total_lines: int
     format_detected: str
+
+
+@dataclass
+class FileRef:
+    """Metadata about a local log file, returned by scan_file_meta()."""
+
+    path: str
+    line_count: int
+    size_bytes: int
+    format_detected: str  # LogFormat value
+    is_gzip: bool = False
+    is_zip: bool = False
+
+
+class PathTraversalError(ValueError):
+    """Raised when a file path contains traversal patterns like ../"""
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +404,288 @@ class LogAnalyzer:
         if u == "FATAL" or u == "F":
             return "F"
         return "U"
+
+    # ------------------------------------------------------------------
+    # Lazy log file helpers (FEAT-LAZY-LOG)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_path(file_path: str, sandbox_root: str | None = None) -> str:
+        """Validate and resolve a file path for security.
+
+        Raises:
+            PathTraversalError: If path contains traversal patterns.
+            FileNotFoundError: If file does not exist.
+            ValueError: If path points to a directory.
+            PermissionError: If sandbox restricts access or file is unreadable.
+        """
+        # Resolve sandbox root from env var if not explicitly passed
+        if sandbox_root is None:
+            sandbox_root = os.environ.get("ALA_SANDBOX_ROOT")
+
+        # Reject path traversal patterns — check original string first
+        # (normpath would resolve ../ before we can detect it)
+        if ".." in file_path.split(os.sep) or file_path.startswith(".."):
+            raise PathTraversalError(f"Path traversal detected: {file_path}")
+        normalized = os.path.normpath(file_path)
+        # Double-check the normalized path too
+        if ".." in normalized.split(os.sep):
+            raise PathTraversalError(f"Path traversal detected (after normalization): {normalized}")
+
+        # Resolve symlinks to real path
+        real = os.path.realpath(normalized)
+
+        # Check sandbox confinement
+        if sandbox_root:
+            sandbox_real = os.path.realpath(os.path.normpath(sandbox_root))
+            # Both must be on the same path prefix
+            if not os.path.commonpath([real, sandbox_real]).startswith(sandbox_real):
+                raise PermissionError(
+                    f"Path {file_path} is outside allowed sandbox root {sandbox_root}"
+                )
+
+        # Must exist and be a file
+        if not os.path.exists(real):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if os.path.isdir(real):
+            raise ValueError(f"Path is a directory, not a file: {file_path}")
+
+        # Must be readable
+        if not os.access(real, os.R_OK):
+            raise PermissionError(f"Permission denied: cannot read {file_path}")
+
+        return real
+
+    def scan_file_meta(self, file_path: str) -> FileRef:
+        """Scan a local log file and return metadata without parsing entries.
+
+        Counts lines, detects format, and identifies compression type.
+        """
+        validated = self._validate_path(file_path)
+        file_stat = os.stat(validated)
+
+        lower = file_path.lower()
+        is_gzip = lower.endswith(".gz") and not lower.endswith(".tar.gz")
+        is_zip = lower.endswith(".zip")
+
+        line_count = 0
+        format_detected = LogFormat.UNKNOWN.value
+        sample_lines = []
+
+        if is_zip:
+            # For ZIP archives, iterate all text members to count lines and collect samples
+            zf = zipfile.ZipFile(validated, "r")
+            try:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    member_lower = info.filename.lower()
+                    ext = os.path.splitext(member_lower)[1]
+                    if ext not in _LOG_TEXT_EXTS:
+                        continue
+                    with io.TextIOWrapper(zf.open(info), encoding="utf-8", errors="replace") as fh:
+                        for raw_line in fh:
+                            line_count += 1
+                            stripped = raw_line.strip()
+                            if stripped and len(sample_lines) < 10:
+                                sample_lines.append(stripped)
+            finally:
+                zf.close()
+        else:
+            fh = self._open_log_path(validated)
+            try:
+                for raw_line in fh:
+                    line_count += 1
+                    stripped = raw_line.strip()
+                    if stripped and len(sample_lines) < 10:
+                        sample_lines.append(stripped)
+            finally:
+                if hasattr(fh, "close"):
+                    fh.close()
+
+        sample = "\n".join(sample_lines)
+        if sample:
+            format_detected = self.detect_log_format(sample).value
+
+        return FileRef(
+            path=validated,
+            line_count=line_count,
+            size_bytes=file_stat.st_size,
+            format_detected=format_detected,
+            is_gzip=is_gzip,
+            is_zip=is_zip,
+        )
+
+    def stream_file(self, file_path: str, sandbox_root: str | None = None) -> Iterator[LogEntry]:
+        """Stream LogEntry objects from a local file path, one at a time.
+
+        Never loads the entire file into memory. Handles .gz, .zip, and plain text.
+
+        Yields:
+            LogEntry objects one-by-one.
+        """
+        validated = self._validate_path(file_path, sandbox_root=sandbox_root)
+
+        # Detect format from first 10 lines
+        fmt = LogFormat.UNKNOWN
+        sample_lines = []
+        fh = self._open_log_path(validated)
+        try:
+            for raw_line in fh:
+                stripped = raw_line.strip()
+                if stripped and len(sample_lines) < 10:
+                    sample_lines.append(stripped)
+                if len(sample_lines) >= 10:
+                    break
+        finally:
+            if hasattr(fh, "close"):
+                fh.close()
+
+        if sample_lines:
+            sample = "\n".join(sample_lines)
+            fmt = self.detect_log_format(sample)
+
+        # Re-open and parse all lines
+        # For zip files, iterate all text members
+        lower_path = validated.lower()
+        if lower_path.endswith(".zip") and not lower_path.endswith(".tar.gz"):
+            with zipfile.ZipFile(validated, "r") as zf:
+                line_num = 0
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    member_lower = info.filename.lower()
+                    ext = os.path.splitext(member_lower)[1]
+                    if ext not in _LOG_TEXT_EXTS:
+                        continue
+                    source = info.filename
+                    with zf.open(info) as member_fh:
+                        fh = io.TextIOWrapper(member_fh, encoding="utf-8", errors="replace")
+                        for raw_line in fh:
+                            line_num += 1
+                            line = raw_line.rstrip("\n\r")
+                            if not line.strip():
+                                continue
+                            yield self._parse_single_line(line, line_num, fmt, source)
+        else:
+            source = Path(validated).name
+            fh = self._open_log_path(validated)
+            try:
+                line_num = 0
+                for raw_line in fh:
+                    line_num += 1
+                    line = raw_line.rstrip("\n\r")
+                    if not line.strip():
+                        continue
+                    yield self._parse_single_line(line, line_num, fmt, source)
+            finally:
+                if hasattr(fh, "close"):
+                    fh.close()
+
+    @staticmethod
+    def _open_log_path(file_path: str):
+        """Open a log file for line-by-line reading.
+
+        Handles plain text, .gz (gzip), and .zip (first text member).
+        Returns a context-manager compatible object.  For zip files the returned
+        TextIOWrapper is wrapped so closing it also closes the parent ZipFile.
+        """
+        lower = file_path.lower()
+
+        if lower.endswith(".gz") and not lower.endswith(".tar.gz"):
+            return gzip.open(file_path, mode="rt", encoding="utf-8", errors="replace")
+
+        if lower.endswith(".zip"):
+            zf = zipfile.ZipFile(file_path, "r")
+            try:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    member_lower = info.filename.lower()
+                    ext = os.path.splitext(member_lower)[1]
+                    if ext in _LOG_TEXT_EXTS:
+                        wrapper = io.TextIOWrapper(
+                            zf.open(info), encoding="utf-8", errors="replace"
+                        )
+                        # Attach the ZipFile to the wrapper so it gets closed too
+                        wrapper._ala_zipfile = zf  # type: ignore[attr-defined]
+                        orig_close = wrapper.close
+
+                        def _close_with_zip():
+                            orig_close()
+                            zf.close()
+
+                        wrapper.close = _close_with_zip  # type: ignore[method-assign]
+                        return wrapper
+                # No text member found — close zip and return empty
+                zf.close()
+                return io.StringIO("")
+            except Exception:
+                zf.close()
+                raise
+
+        return open(file_path, encoding="utf-8", errors="replace")
+
+    def _parse_single_line(
+        self, line: str, line_number: int, fmt: LogFormat, source_file: str | None = None
+    ) -> LogEntry:
+        """Parse a single log line into a LogEntry.
+
+        Args:
+            line: The raw log line (already stripped of newline).
+            line_number: 1-based line number in the file.
+            fmt: Detected log format.
+            source_file: Name of the source file.
+
+        Returns:
+            A LogEntry with parsed fields.
+        """
+        if fmt == LogFormat.ANDROID_LOGCAT:
+            m = self._android_pattern.match(line.strip())
+            if m:
+                return LogEntry(
+                    line_number=line_number,
+                    timestamp=m.group(1).strip(),
+                    pid=m.group(2).strip(),
+                    tid=m.group(3).strip(),
+                    level=m.group(4).strip(),
+                    tag=m.group(5).strip(),
+                    message=m.group(6).strip(),
+                    raw_line=line,
+                    source_file=source_file,
+                )
+        elif fmt == LogFormat.GENERIC_TIMESTAMPED:
+            m = self._generic_pattern.match(line.strip())
+            if m:
+                return LogEntry(
+                    line_number=line_number,
+                    timestamp=m.group(1).strip(),
+                    pid=None,
+                    tid=None,
+                    level=self._normalize_level(m.group(2)),
+                    tag="Generic",
+                    message=m.group(3).strip(),
+                    raw_line=line,
+                    source_file=source_file,
+                )
+
+        # Fallback: unknown format or no match
+        return LogEntry(
+            line_number=line_number,
+            timestamp=None,
+            pid=None,
+            tid=None,
+            level="U",
+            tag="Unknown",
+            message=line.strip(),
+            raw_line=line,
+            source_file=source_file,
+        )
+
+    # ------------------------------------------------------------------
+    # End lazy log helpers
+    # ------------------------------------------------------------------
 
     def filter_logs(self, logs: list[LogEntry], filters: LogFilters) -> list[LogEntry]:
         # Pre-compile regexes

@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Session management
     max_sessions: int = 100
 
+    # AI agent behaviour
+    ai_max_tool_rounds: int = 50  # max iterations in agentic tool-calling loop
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
