@@ -293,6 +293,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setStreaming(false)
   }, [selectedProjectId])
 
+  // All models with a configured API key (must precede useEffect below)
+  const configuredModels = getConfiguredModels()
+
   // Auto-assign last-used model to newly activated sessions
   useEffect(() => {
     if (!activeSessionId) return
@@ -639,9 +642,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
       : traceResult
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
-
-  // All models with a configured API key
-  const configuredModels = getConfiguredModels()
 
   // The model preset active for this session (may differ from global active model)
   const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
