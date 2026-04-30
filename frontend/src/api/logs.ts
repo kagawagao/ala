@@ -1,4 +1,5 @@
 import { apiFetch, apiUploadMulti, streamUploadNDJSON, streamNDJSON } from './client'
+import type { LocalFileRef } from '../types'
 import type { LogEntry, LogFilters, LogStatistics, ParseResult } from '../types'
 
 /** Sentinel line emitted by the backend at the end of a stream. */
@@ -19,6 +20,14 @@ function isDone(line: StreamLine): line is StreamDone {
 
 function isError(line: StreamLine): line is StreamError {
   return '_error' in line
+}
+
+/** Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG). */
+export async function parseLocalPath(path: string): Promise<LocalFileRef> {
+  return apiFetch<LocalFileRef>('/logs/parse-local', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
 }
 
 /**
@@ -82,6 +91,30 @@ export interface DirectoryListResponse {
   has_subdirectories: boolean
   total_files: number
   max_depth: number
+}
+
+export interface AutoPathResponse {
+  type: 'file' | 'directory'
+  // File fields
+  session_file?: string
+  line_count?: number
+  size_bytes?: number
+  format_detected?: string
+  is_gzip?: boolean
+  is_zip?: boolean
+  // Directory fields
+  files?: DirectoryFileInfo[]
+  has_subdirectories?: boolean
+  total_files?: number
+  max_depth?: number
+}
+
+/** Auto-detect path type — file or directory — and route accordingly. */
+export async function autoPath(path: string): Promise<AutoPathResponse> {
+  return apiFetch<AutoPathResponse>('/logs/auto-path', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
 }
 
 /**

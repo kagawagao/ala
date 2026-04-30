@@ -72,3 +72,8 @@ def setup_logging(log_level: str = "INFO", log_dir: str = "logs") -> None:
     logging.getLogger("anthropic").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    # asyncio emits WARNING-level "socket.send() raised exception." when a
+    # client disconnects mid-stream (SSE / streaming responses).  This is
+    # expected behaviour and not actionable — raise the threshold to ERROR so
+    # it does not flood the log during normal use.
+    logging.getLogger("asyncio").setLevel(logging.ERROR)

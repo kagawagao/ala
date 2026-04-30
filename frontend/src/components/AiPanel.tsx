@@ -37,16 +37,10 @@ import {
   deleteSession,
   sendMessage,
   setSessionTrace,
+  setSessionFilePath,
   setSessionLogs,
 } from '../api/chat'
-import {
-  getConfiguredModels,
-  groupByProvider,
-  loadModelConfigs,
-  getActiveModelIds,
-  BUILTIN_MODELS,
-  loadCustomModels,
-} from '../utils/models'
+import { getConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
 import type {
   Session,
   LogEntry,
@@ -93,6 +87,7 @@ interface AiPanelProps {
   selectedProjectId: string | null
   projects: Project[]
   contextDocs: ContextDoc[]
+  localFilePath?: string | null // FEAT-LAZY-LOG
   aiConfig?: AIConfig
 }
 
@@ -215,6 +210,9 @@ const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls })
   )
 }
 
+/** localStorage key for persisting the last-used model selection. */
+const ALA_LAST_MODEL_KEY = 'ala_last_model_id'
+
 const AiPanel: React.FC<AiPanelProps> = ({
   logs: _logs,
   allLogs,
@@ -225,9 +223,10 @@ const AiPanel: React.FC<AiPanelProps> = ({
   selectedProjectId,
   projects,
   contextDocs,
+  localFilePath,
   aiConfig,
-}) => {
-  const { t } = useTranslation()
+}: AiPanelProps) => {
+  const { t, i18n } = useTranslation()
   const { message: messageApi } = App.useApp()
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -235,6 +234,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [continueMessage, setContinueMessage] = useState<string | null>(null)
   // Per-session model override: sessionId → ModelPreset (missing entry = use global config)
   const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
@@ -293,6 +293,21 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setStreaming(false)
   }, [selectedProjectId])
 
+  // All models with a configured API key (must precede useEffect below)
+  const configuredModels = getConfiguredModels()
+
+  // Auto-assign last-used model to newly activated sessions
+  useEffect(() => {
+    if (!activeSessionId) return
+    if (sessionModels[activeSessionId] !== undefined) return
+    const lastId = localStorage.getItem(ALA_LAST_MODEL_KEY)
+    if (!lastId) return
+    const preset = configuredModels.find((m) => m.id === lastId)
+    if (preset) {
+      setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+    }
+  }, [activeSessionId, sessionModels, configuredModels])
+
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {
     if (activeSessionId && traceResult) {
@@ -302,6 +317,16 @@ const AiPanel: React.FC<AiPanelProps> = ({
       )
     }
   }, [traceResult, activeSessionId])
+
+  // Sync local file path to the active session (FEAT-LAZY-LOG)
+  useEffect(() => {
+    if (!activeSessionId) return
+    if (localFilePath) {
+      void setSessionFilePath(activeSessionId, localFilePath)
+    } else {
+      void setSessionFilePath(activeSessionId, '')
+    }
+  }, [localFilePath, activeSessionId])
 
   // Debounced sync of allLogs to the active session (500ms debounce)
   useEffect(() => {
@@ -414,6 +439,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
     const sentInput = inputValue
     setInputValue('')
     setStreaming(true)
+    setContinueMessage(null) // dismiss any previous Continue prompt
 
     const assistantMsg: DisplayMessage = { role: 'assistant', content: '', parts: [] }
     setMessages((prev) => [...prev, assistantMsg])
@@ -459,6 +485,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               ...sessionModelConfig,
             }
           : undefined,
+        i18n.language,
       )) {
         if (chunk === '[DONE]') break
 
@@ -516,7 +543,19 @@ const AiPanel: React.FC<AiPanelProps> = ({
             continue
           }
 
-          // Regular text content
+          if ('type' in data && data.type === 'max_rounds_reached') {
+            const event = data as AgentEvent
+            if (event.type === 'max_rounds_reached') {
+              setContinueMessage(event.message)
+            }
+            continue
+          }
+
+          // Internal metadata events — discard silently
+          if ('type' in data && data.type === 'agent_meta') {
+            continue
+          }
+
           const delta =
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (data as any).choices?.[0]?.delta?.content ||
@@ -577,7 +616,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setCopiedIdx(idx)
       setTimeout(() => setCopiedIdx(null), 1500)
     } catch {
-      void messageApi.error('Copy failed')
+      void messageApi.error(t('copyFailed'))
     }
   }
 
@@ -603,16 +642,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
       : traceResult
         ? { type: 'trace' as const, detail: t('traceLoaded') }
         : null
-
-  // All models with a configured API key
-  const configuredModels = getConfiguredModels()
-
-  // All active models (user-toggled) that also have API keys configured
-  const activeModelIds = getActiveModelIds()
-  const modelConfigsForActive = loadModelConfigs()
-  const activeModels = [...BUILTIN_MODELS, ...loadCustomModels()].filter(
-    (m) => activeModelIds.includes(m.id) && !!modelConfigsForActive[m.id]?.api_key?.trim(),
-  )
 
   // The model preset active for this session (may differ from global active model)
   const activeModelPreset = activeSessionId ? sessionModels[activeSessionId] : undefined
@@ -642,21 +671,19 @@ const AiPanel: React.FC<AiPanelProps> = ({
     })),
   }))
 
+  // Persist last-used model to localStorage
   const handleModelChange = (presetId: string) => {
     if (!activeSessionId) return
     const preset = configuredModels.find((m) => m.id === presetId)
     if (!preset) return
     setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
+    localStorage.setItem(ALA_LAST_MODEL_KEY, presetId)
   }
 
-  // Click an active model chip to switch the session's model
-  const handleActiveModelChipClick = (preset: ModelPreset) => {
-    if (!activeSessionId) return
-    setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
-  }
-
-  // The value shown in the Select: active session's preset id, else the global active model id
-  const modelSelectValue = activeModelPreset?.id ?? configuredModels[0]?.id ?? undefined
+  // The value shown in the Select — strictly derived from activeModelPreset only.
+  // Never reads localStorage directly; the useEffect above handles initialization.
+  const modelSelectValue =
+    activeModelPreset?.id ?? (configuredModels.length > 0 ? configuredModels[0]?.id : undefined)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -999,6 +1026,37 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 </div>
               </div>
             ))}
+            {continueMessage && !streaming && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--ant-color-warning-bg)',
+                  border: '1px solid var(--ant-color-warning-border)',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <BulbOutlined style={{ color: '#faad14', fontSize: 18 }} />
+                <div style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: 500 }}>{continueMessage}</Text>
+                </div>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => {
+                    setContinueMessage(null)
+                    setInputValue(t('continueAnalysis'))
+                    // Focus the input so user can press Enter to send
+                    setTimeout(() => textAreaRef.current?.focus(), 50)
+                  }}
+                >
+                  {t('continueAnalysis')}
+                </Button>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -1038,41 +1096,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               </Tag>
             </div>
           )}
-          {/* Active model chips — quick switch */}
-          {activeModels.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 6,
-                flexWrap: 'wrap',
-              }}
-            >
-              <Text type="secondary" style={{ fontSize: 10 }}>
-                {t('activeModels')}:
-              </Text>
-              {activeModels.map((m) => {
-                const isSelected = activeModelPreset?.id === m.id
-                return (
-                  <Tag
-                    key={m.id}
-                    color={isSelected ? 'blue' : 'default'}
-                    style={{
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      lineHeight: '18px',
-                      margin: 0,
-                    }}
-                    onClick={() => handleActiveModelChipClick(m)}
-                  >
-                    {m.name}
-                  </Tag>
-                )
-              })}
-            </div>
-          )}
-          {/* Model selector for this session */}
+          {/* Model selector — remembers last choice */}
           {configuredModels.length > 0 && (
             <div
               style={{
@@ -1102,7 +1126,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine') || '换行'})`}
+              placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine')})`}
               autoSize={{ minRows: 2, maxRows: 6 }}
               disabled={streaming}
               style={{ fontSize: 13, paddingRight: 42 }}

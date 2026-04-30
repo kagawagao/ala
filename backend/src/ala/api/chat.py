@@ -2,13 +2,15 @@
 
 import json
 import logging
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
 from ..services.ai_service import AIService
+from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
@@ -58,18 +60,21 @@ class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
     model_override: ModelOverride | None = None
+    language: str | None = None  # UI language for AI responses (e.g. "en", "zh")
 
 
 class SetTraceRequest(BaseModel):
     summary: dict
 
 
+class SetFilePathRequest(BaseModel):
+    """Set local file path for lazy log analysis (FEAT-LAZY-LOG)."""
+
+    file_path: str
+
+
 class SetLogsRequest(BaseModel):
     entries: list[dict]
-
-
-# Maximum number of log entries stored per session (tail-biased to catch recent errors)
-_MAX_SESSION_LOGS = 10_000
 
 
 def _session_to_response(session) -> Session:
@@ -119,13 +124,46 @@ async def set_session_trace(session_id: str, req: SetTraceRequest):
     return {"success": True}
 
 
+@router.put("/sessions/{session_id}/file-path")
+async def set_session_file_path(session_id: str, req: SetFilePathRequest):
+    """Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG).
+
+    Sets the file_path on the session and clears any previously loaded
+    log_entries (they are mutually exclusive).
+    """
+    # Empty path clears the session file
+    raw_path = req.file_path.strip() if req.file_path else ""
+    if not raw_path:
+        _session_manager.clear_file_path(session_id)
+        return {"success": True, "file_path": None}
+
+    # Validate path and use canonical (normalized) path
+    try:
+        canonical = LogAnalyzer._validate_path(raw_path)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    ok = _session_manager.set_file_path(session_id, canonical)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "file_path": canonical}
+
+
 @router.put("/sessions/{session_id}/logs")
 async def set_session_logs(session_id: str, req: SetLogsRequest):
-    """Store log entries in the session for agentic tool access (capped at MAX_SESSION_LOGS)."""
+    """Store log entries in the session for agentic tool access (no hard limit).
+
+    All entries from the frontend are stored in full.  The app is a desktop
+    single-user tool, so per-session memory (~100 KB per 1 K log lines) is
+    bounded by what a single user uploads, not by concurrent tenants.
+    """
     entries = req.entries
-    if len(entries) > _MAX_SESSION_LOGS:
-        # Keep the tail (most recent entries are most likely to contain errors)
-        entries = entries[-_MAX_SESSION_LOGS:]
     ok = _session_manager.set_log_entries(session_id, entries)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -133,7 +171,7 @@ async def set_session_logs(session_id: str, req: SetLogsRequest):
 
 
 @router.post("/sessions/{session_id}/messages")
-async def send_message(session_id: str, req: SendMessageRequest):
+async def send_message(session_id: str, req: SendMessageRequest, request: Request):
     session = _session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -179,6 +217,7 @@ async def send_message(session_id: str, req: SendMessageRequest):
 
     trace_summary = session.trace_summary
     log_entries = session.log_entries
+    file_path = session.file_path
 
     logger.debug(
         "send_message — session=%s model=%s agentic=%s",
@@ -192,8 +231,8 @@ async def send_message(session_id: str, req: SendMessageRequest):
         api_messages_out: list[dict] = []
         current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
-            if project or trace_summary or log_entries is not None:
-                # Agentic mode: project tools, trace tools, log tools, or any combination.
+            if project or trace_summary or log_entries is not None or file_path is not None:
+                # Agentic mode: project, trace, log, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
                     messages,
@@ -201,14 +240,28 @@ async def send_message(session_id: str, req: SendMessageRequest):
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     log_index=session.log_index,
+                    file_path=file_path,
                     api_messages_out=api_messages_out,
                     resume_messages=session.raw_api_messages,
                     resume_provider=session.raw_api_messages_provider,
+                    language=req.language,
                 ):
+                    if await request.is_disconnected():
+                        logger.debug(
+                            "Client disconnected — stopping agentic stream for session %s",
+                            session_id,
+                        )
+                        return
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
-                            if event.get("type") in ("tool_call", "tool_result", "thinking"):
+                            if event.get("type") in (
+                                "tool_call",
+                                "tool_result",
+                                "thinking",
+                                "agent_meta",
+                                "max_rounds_reached",
+                            ):
                                 yield _sse_encode(chunk)
                                 continue
                         except json.JSONDecodeError:
@@ -218,6 +271,11 @@ async def send_message(session_id: str, req: SendMessageRequest):
             else:
                 # Simple streaming mode (thinking events still forwarded)
                 async for chunk in ai_service.stream_chat(messages):
+                    if await request.is_disconnected():
+                        logger.debug(
+                            "Client disconnected — stopping stream for session %s", session_id
+                        )
+                        return
                     if chunk.startswith("{"):
                         try:
                             event = json.loads(chunk)
@@ -238,13 +296,63 @@ async def send_message(session_id: str, req: SendMessageRequest):
                 )
             yield "data: [DONE]\n\n"
         except Exception as e:
-            logger.exception(
-                "Error streaming AI response — session=%s model=%s: %s",
-                session_id,
-                ov.model if ov else ai_config.model,
-                e,
+            # ── Build rich error context for diagnosis ──────────────────────────
+            exc_type = type(e).__name__
+            exc_repr = repr(e)
+            # Truncate extremely long repr strings (e.g. large response bodies)
+            if len(exc_repr) > 4000:
+                exc_repr = exc_repr[:4000] + f"... [truncated, total={len(exc_repr)}]"
+
+            # Extract API-level details when the exception carries them
+            # (anthropic.APIStatusError / openai.APIStatusError both expose these)
+            api_status = getattr(e, "status_code", None)
+            api_message = getattr(e, "message", None)
+            api_body = getattr(e, "body", None)
+            api_request_id = getattr(e, "request_id", None)
+
+            effective_model = ov.model if ov else ai_config.model
+            # Mask API key hostname from endpoint to avoid leaking it in logs
+            effective_endpoint = (
+                ov.api_endpoint if ov and ov.api_endpoint else ai_config.api_endpoint
             )
-            yield f"data: [ERROR] {str(e)}\n\n"
+            try:
+                endpoint_host = urlparse(effective_endpoint).hostname or "unknown"
+            except Exception:
+                endpoint_host = "unknown"
+
+            logger.exception(
+                "Error streaming AI response — "
+                "session=%s model=%s endpoint=%s "
+                "provider=%s thinking=%s "
+                "exc_type=%s exc_repr=%s "
+                "api_status=%s api_message=%s api_body=%s request_id=%s "
+                "session_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
+                session_id,
+                effective_model,
+                endpoint_host,
+                "anthropic" if ai_service._use_anthropic else "openai",
+                ov.thinking_mode
+                if ov and ov.thinking_mode is not None
+                else ai_config.thinking_mode,
+                exc_type,
+                exc_repr,
+                api_status,
+                api_message,
+                api_body,
+                api_request_id,
+                len(session.messages),
+                bool(project),
+                bool(file_path),
+                log_entries is not None,
+            )
+            if not await request.is_disconnected():
+                # Include exception type and status in the frontend error so the
+                # user can see what went wrong without digging through logs.
+                user_msg_parts = [f"[{exc_type}]"]
+                if api_status:
+                    user_msg_parts.append(f"(HTTP {api_status})")
+                user_msg_parts.append(str(e))
+                yield f"data: [ERROR] {' '.join(user_msg_parts)}\n\n"
 
     return StreamingResponse(
         event_stream(),

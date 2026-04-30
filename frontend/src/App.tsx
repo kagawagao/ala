@@ -12,11 +12,11 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
-import { parseDirectoryStream, parseLogStream, parseSelectedFilesStream } from './api/logs'
+import { parseLogStream } from './api/logs'
 import {
   getProjectPresets,
   listContextDocs,
@@ -161,17 +161,33 @@ const AppContent: React.FC<{
 
   // Project state (lifted here so Header and AiPanel share it)
   const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    // Restore last selected project on page load
+    return localStorage.getItem('ala_last_project_id') || null
+  })
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
+  const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
   const location = useLocation()
   const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
+
+  // Ref to avoid stale closure in the project-loading effect
+  const selectedProjectIdRef = useRef(selectedProjectId)
+  selectedProjectIdRef.current = selectedProjectId
 
   // Load projects on mount, when backend connects, and when navigating away from /projects
   useEffect(() => {
     if (!backendConnected) return
     listProjects()
-      .then(setProjects)
+      .then((loaded) => {
+        setProjects(loaded)
+        // Clear saved project selection if it no longer exists
+        const current = selectedProjectIdRef.current
+        if (current && loaded.length > 0 && !loaded.some((p) => p.id === current)) {
+          setSelectedProjectId(null)
+          localStorage.removeItem('ala_last_project_id')
+        }
+      })
       .catch(() => {
         /* backend may not be running */
       })
@@ -203,6 +219,11 @@ const AppContent: React.FC<{
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
+
+  // Clear stale localFilePath when data source changes
+  useEffect(() => {
+    setLocalFilePath(null)
+  }, [traceResult, selectedProjectId])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -320,8 +341,15 @@ const AppContent: React.FC<{
 
   const handleProjectChange = useCallback(
     (projectId: string | null) => {
+      // Persist last selected project
+      if (projectId) {
+        localStorage.setItem('ala_last_project_id', projectId)
+      } else {
+        localStorage.removeItem('ala_last_project_id')
+      }
       // Abort any in-flight log parse before clearing state
       abortParse()
+      setLocalFilePath(null)
       // Reset all file / log / trace state so the new project starts clean
       resetLogs()
       setTraceResult(null)
@@ -334,6 +362,7 @@ const AppContent: React.FC<{
 
   const handleLogFiles = useCallback(
     async (files: File[]) => {
+      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
@@ -366,31 +395,6 @@ const AppContent: React.FC<{
     [t, message],
   )
 
-  const handleDirectoryPath = useCallback(
-    async (dirPath: string) => {
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
-
-      const ok = await loadFromStream((signal) => parseDirectoryStream(dirPath, signal), [dirPath])
-      if (ok) void message.success(t('fileUploaded'))
-    },
-    [loadFromStream, t, message],
-  )
-
-  const handleSelectedFiles = useCallback(
-    async (dirPath: string, selectedFiles: string[]) => {
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
-
-      const ok = await loadFromStream(
-        (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
-        selectedFiles.map((f) => f),
-      )
-      if (ok) void message.success(t('fileUploaded'))
-    },
-    [loadFromStream, t, message],
-  )
-
   const showFileUpload = allLogs.length === 0 && !traceResult
 
   const isLoading = loadingFile || traceLoading
@@ -409,10 +413,14 @@ const AppContent: React.FC<{
           void handleTraceFile(f)
           setUploadPopoverOpen(false)
         }}
+        onLocalFilePath={(_path, ref) => {
+          setLocalFilePath(ref.session_file)
+          setUploadPopoverOpen(false)
+          void message.success(t('fileUploaded'))
+        }}
         loading={isLoading}
         error={errorMessage}
         fileNames={fileNames}
-        compact
       />
     </div>
   )
@@ -447,11 +455,9 @@ const AppContent: React.FC<{
           onTraceFile={(f) => {
             void handleTraceFile(f)
           }}
-          onDirectoryPath={(p) => {
-            void handleDirectoryPath(p)
-          }}
-          onSelectedFiles={(dirPath, files) => {
-            void handleSelectedFiles(dirPath, files)
+          onLocalFilePath={(_path, ref) => {
+            setLocalFilePath(ref.session_file)
+            void message.success(t('fileUploaded'))
           }}
           loading={isLoading}
           error={errorMessage}
@@ -644,6 +650,7 @@ const AppContent: React.FC<{
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
+                              localFilePath={localFilePath}
                               aiConfig={aiConfig ?? undefined}
                             />
                           </div>
