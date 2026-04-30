@@ -1,6 +1,6 @@
 # ALA — Android Log Analyzer
 
-A full-stack tool for analyzing **Android logcat** files and **Perfetto trace** files, powered by AI.
+A full-stack tool for analyzing **Android logcat** files and **Perfetto trace** files, powered by AI. Supports both upload-based analysis and **lazy local log analysis** — point ALA at a local file or directory path, and the AI agent explores your logs on-demand with streaming tools.
 
 ## Architecture
 
@@ -39,6 +39,12 @@ ala/
   - Analysis presets: General, Crash, Performance, Security
   - Attach log/trace data as conversation context
   - **Agentic analysis**: AI uses tools (`query_log_overview`, `search_logs`, `list_log_files`, `query_trace_overview`, `list_trace_processes`, `query_trace_slices`) to iteratively explore loaded data
+  - **Lazy local log analysis**: AI agent analyzes local files on-demand via streaming tools — no upload, no size cap
+    - `overview_local_log` — single-pass stats (line count, levels, tags, time range)
+    - `search_local_log` — regex search with pagination
+    - `read_log_range` — precise line-range reads
+    - `tail_local_log` — last N lines via ring buffer
+    - **Directory support**: point ALA at a directory of logs for multi-file AI-driven analysis
   - **Extended thinking**: optional "think mode" for deeper reasoning
   - Session management (create, rename, delete)
   - OpenAI-compatible API (works with OpenAI, Ollama, Azure, etc.)
@@ -270,6 +276,7 @@ Git hooks (via Husky):
 | `GET/PUT` | `/api/config`                        | AI configuration                                        |
 | `POST`    | `/api/logs/parse`                    | Parse log files (multipart, multiple files, .gz / .zip) |
 | `POST`    | `/api/logs/parse/stream`             | Stream-parse log files as NDJSON                        |
+| `POST`    | `/api/logs/parse-local`              | Validate and scan a server-local log file path          |
 | `POST`    | `/api/logs/filter`                   | Filter log entries                                      |
 | `POST`    | `/api/logs/statistics`               | Get log statistics                                      |
 | `POST`    | `/api/trace/parse`                   | Parse Perfetto trace (multipart)                        |
@@ -279,6 +286,8 @@ Git hooks (via Husky):
 | `GET`     | `/api/chat/sessions/:id`             | Get session with messages                               |
 | `DELETE`  | `/api/chat/sessions/:id`             | Delete session                                          |
 | `POST`    | `/api/chat/sessions/:id/messages`    | Send message (SSE stream)                               |
+| `PUT`     | `/api/chat/sessions/:id/file-path`   | Bind a local file path to a chat session                |
+| `PUT`     | `/api/chat/sessions/:id/directory-path` | Bind a local directory path to a chat session        |
 | `POST`    | `/api/projects`                      | Create project                                          |
 | `GET`     | `/api/projects`                      | List projects                                           |
 | `GET`     | `/api/projects/:id`                  | Get project                                             |
