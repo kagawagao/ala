@@ -270,32 +270,32 @@ Git hooks (via Husky):
 
 ## API Reference
 
-| Method    | Path                                 | Description                                             |
-| --------- | ------------------------------------ | ------------------------------------------------------- |
-| `GET`     | `/health`                            | Health check                                            |
-| `GET/PUT` | `/api/config`                        | AI configuration                                        |
-| `POST`    | `/api/logs/parse`                    | Parse log files (multipart, multiple files, .gz / .zip) |
-| `POST`    | `/api/logs/parse/stream`             | Stream-parse log files as NDJSON                        |
-| `POST`    | `/api/logs/parse-local`              | Validate and scan a server-local log file path          |
-| `POST`    | `/api/logs/filter`                   | Filter log entries                                      |
-| `POST`    | `/api/logs/statistics`               | Get log statistics                                      |
-| `POST`    | `/api/trace/parse`                   | Parse Perfetto trace (multipart)                        |
-| `POST`    | `/api/trace/filter`                  | Filter trace by process PID(s) / name regex             |
-| `POST`    | `/api/chat/sessions`                 | Create chat session                                     |
-| `GET`     | `/api/chat/sessions`                 | List chat sessions                                      |
-| `GET`     | `/api/chat/sessions/:id`             | Get session with messages                               |
-| `DELETE`  | `/api/chat/sessions/:id`             | Delete session                                          |
-| `POST`    | `/api/chat/sessions/:id/messages`    | Send message (SSE stream)                               |
-| `PUT`     | `/api/chat/sessions/:id/file-path`   | Bind a local file path to a chat session                |
-| `PUT`     | `/api/chat/sessions/:id/directory-path` | Bind a local directory path to a chat session        |
-| `POST`    | `/api/projects`                      | Create project                                          |
-| `GET`     | `/api/projects`                      | List projects                                           |
-| `GET`     | `/api/projects/:id`                  | Get project                                             |
-| `PUT`     | `/api/projects/:id`                  | Update project                                          |
-| `DELETE`  | `/api/projects/:id`                  | Delete project                                          |
-| `GET`     | `/api/projects/:id/files`            | List project source files                               |
-| `GET`     | `/api/projects/:id/context-docs`     | List AI context documents in project                    |
-| `POST`    | `/api/projects/:id/generate-filters` | AI-generate log filter presets (SSE stream)             |
+| Method    | Path                                    | Description                                             |
+| --------- | --------------------------------------- | ------------------------------------------------------- |
+| `GET`     | `/health`                               | Health check                                            |
+| `GET/PUT` | `/api/config`                           | AI configuration                                        |
+| `POST`    | `/api/logs/parse`                       | Parse log files (multipart, multiple files, .gz / .zip) |
+| `POST`    | `/api/logs/parse/stream`                | Stream-parse log files as NDJSON                        |
+| `POST`    | `/api/logs/parse-local`                 | Validate and scan a server-local log file path          |
+| `POST`    | `/api/logs/filter`                      | Filter log entries                                      |
+| `POST`    | `/api/logs/statistics`                  | Get log statistics                                      |
+| `POST`    | `/api/trace/parse`                      | Parse Perfetto trace (multipart)                        |
+| `POST`    | `/api/trace/filter`                     | Filter trace by process PID(s) / name regex             |
+| `POST`    | `/api/chat/sessions`                    | Create chat session                                     |
+| `GET`     | `/api/chat/sessions`                    | List chat sessions                                      |
+| `GET`     | `/api/chat/sessions/:id`                | Get session with messages                               |
+| `DELETE`  | `/api/chat/sessions/:id`                | Delete session                                          |
+| `POST`    | `/api/chat/sessions/:id/messages`       | Send message (SSE stream)                               |
+| `PUT`     | `/api/chat/sessions/:id/file-path`      | Bind a local file path to a chat session                |
+| `PUT`     | `/api/chat/sessions/:id/directory-path` | Bind a local directory path to a chat session           |
+| `POST`    | `/api/projects`                         | Create project                                          |
+| `GET`     | `/api/projects`                         | List projects                                           |
+| `GET`     | `/api/projects/:id`                     | Get project                                             |
+| `PUT`     | `/api/projects/:id`                     | Update project                                          |
+| `DELETE`  | `/api/projects/:id`                     | Delete project                                          |
+| `GET`     | `/api/projects/:id/files`               | List project source files                               |
+| `GET`     | `/api/projects/:id/context-docs`        | List AI context documents in project                    |
+| `POST`    | `/api/projects/:id/generate-filters`    | AI-generate log filter presets (SSE stream)             |
 
 ## License
 
