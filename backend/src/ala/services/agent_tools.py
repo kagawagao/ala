@@ -103,8 +103,14 @@ class ToolResultCache:
         return f"{tool_name}:{resolved_path}:{canonical}:{mtime}"
 
     def __contains__(self, key: str) -> bool:
-        """Check membership for testing convenience."""
-        return key in self._store
+        """Check membership for testing convenience (respects TTL)."""
+        entry = self._store.get(key)
+        if entry is None:
+            return False
+        if time.monotonic() - entry.cached_at > self.ttl_seconds:
+            del self._store[key]
+            return False
+        return True
 
 
 # Module-level cache instance
@@ -897,7 +903,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             "total_matched": total_matched,
             "offset": offset,
             "returned": len(matches),
-            "has_more": total_matched > offset + len(matches),
+            "has_more": len(matches) >= limit or total_matched > offset + len(matches),
             "entries": matches,
         }
         result_json = json.dumps(result)

@@ -8,12 +8,10 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ### Features
 
-- **export:** add CSV/JSON log export buttons in LogViewer toolbar with BOM, RFC 4180 escaping, and i18n support ([#XX](https://github.com/kagawagao/ala/pull/XX))
+- **export:** add CSV/JSON log export buttons in LogViewer toolbar with BOM, RFC 4180 escaping, and i18n support ([#58](https://github.com/kagawagao/ala/pull/58))
 - **lazy-log display:** AI tool results from `search_local_log` / `read_log_range` render directly in LogViewer
 - **lazy-log cache:** LRU cache (128 entries, 60s TTL) for lazy-log tool results to avoid redundant I/O
 - **scan optimization:** `scan_file_meta` early exit with `max_scan_lines` param for large file performance
-- **e2e:** Playwright E2E smoke test infrastructure with upload and chat flow specs
-
 ### Tests
 
 - **frontend:** establish Vitest + Testing Library test infrastructure with jsdom environment
@@ -25,8 +23,7 @@ All notable changes to this project will be documented in this file. See [Conven
 ### Chores
 
 - **deps:** add vitest, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, jsdom
-- **deps:** add @playwright/test for E2E testing
-- **i18n:** add `noDataToExport` key for English and Chinese locales
+- **i18n:** add `noDataToExport`, `exportCsv`, `exportJson` keys for English and Chinese locales
 
 ---
 

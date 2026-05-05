@@ -169,6 +169,8 @@ describe('generateJSON', () => {
 // ── downloadBlob ───────────────────────────────────────────────────────────
 
 describe('downloadBlob', () => {
+  const _origURL = { ...URL }
+
   beforeEach(() => {
     vi.restoreAllMocks()
     // jsdom may not have URL.createObjectURL; stub it
@@ -177,6 +179,10 @@ describe('downloadBlob', () => {
       createObjectURL: vi.fn(() => 'blob:test'),
       revokeObjectURL: vi.fn(),
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('creates Blob, URL, anchor, triggers click, and cleans up', () => {

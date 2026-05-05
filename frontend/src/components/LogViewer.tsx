@@ -276,30 +276,34 @@ const LogViewer: React.FC<LogViewerProps> = ({
         )}
         <div style={{ flex: 1 }} />
         <Tooltip title={logs.length === 0 ? t('noDataToExport') : undefined}>
-          <Button
-            size="small"
-            icon={<DownloadOutlined />}
-            disabled={logs.length === 0}
-            onClick={() => {
-              const csv = generateCSV(logs)
-              downloadBlob(csv, generateExportFilename('csv'), 'text/csv;charset=utf-8')
-            }}
-          >
-            CSV
-          </Button>
+          <span>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              disabled={logs.length === 0}
+              onClick={() => {
+                const csv = generateCSV(logs)
+                downloadBlob(csv, generateExportFilename('csv'), 'text/csv;charset=utf-8')
+              }}
+            >
+              {t('exportCsv')}
+            </Button>
+          </span>
         </Tooltip>
         <Tooltip title={logs.length === 0 ? t('noDataToExport') : undefined}>
-          <Button
-            size="small"
-            icon={<DownloadOutlined />}
-            disabled={logs.length === 0}
-            onClick={() => {
-              const json = generateJSON(logs)
-              downloadBlob(json, generateExportFilename('json'), 'application/json;charset=utf-8')
-            }}
-          >
-            JSON
-          </Button>
+          <span>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              disabled={logs.length === 0}
+              onClick={() => {
+                const json = generateJSON(logs)
+                downloadBlob(json, generateExportFilename('json'), 'application/json;charset=utf-8')
+              }}
+            >
+              {t('exportJson')}
+            </Button>
+          </span>
         </Tooltip>
       </div>
 

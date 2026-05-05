@@ -111,7 +111,7 @@ This is referenced in `vitest.config.ts` via `setupFiles: ['./vitest.setup.ts']`
 
 ### 3.3 Test File Structure
 
-```
+```text
 frontend/src/
 ├── __tests__/
 │   └── App.test.ts                        # US-FT4: applyFiltersClient, computeStatistics, hasFilterConditions
@@ -418,7 +418,7 @@ export default defineConfig({
 
 #### 4.1.1 Data Flow
 
-```
+```text
 Backend SSE stream
     │
     ▼
@@ -515,7 +515,7 @@ interface LogViewerProps {
 
 Rendering logic (pseudocode):
 
-```
+```text
 if (localFilePath && lazyToolEntries?.length) {
   → render lazyToolEntries in table (same columns as upload mode)
   → toolbar shows "AI Tool Results: {count} entries" instead of "filteredCount"

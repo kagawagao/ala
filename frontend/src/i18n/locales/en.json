@@ -232,6 +232,8 @@
   "continueAnalysis": "Continue Analysis",
   "copyFailed": "Copy failed",
   "noDataToExport": "No data to export",
+  "exportCsv": "CSV",
+  "exportJson": "JSON",
   "orEnterLocalFilePath": "Or enter a local path",
   "switchLanguage": "Switch language",
   "langCode": "EN"

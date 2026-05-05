@@ -19,12 +19,7 @@ const CSV_COLUMNS: (keyof LogEntry)[] = [
  */
 function csvEscape(value: unknown): string {
   const s = value == null ? '' : String(value)
-  if (
-    s.indexOf(',') !== -1 ||
-    s.indexOf('"') !== -1 ||
-    s.indexOf('\n') !== -1 ||
-    s.indexOf('\r') !== -1
-  ) {
+  if (/[,"\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`
   }
   return s
