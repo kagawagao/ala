@@ -5,7 +5,7 @@ import { detectFileTypeByHeader } from '../FileUpload'
  * Helper: create a mock File with controlled content (as ArrayBuffer) and name.
  */
 function mockFile(name: string, bytes: Uint8Array): File {
-  const blob = new Blob([bytes])
+  const blob = new Blob([bytes.buffer as ArrayBuffer])
   const file = new File([blob], name, { type: 'application/octet-stream' })
 
   // Mock slice() to return a Blob with the correct arrayBuffer()
@@ -13,7 +13,7 @@ function mockFile(name: string, bytes: Uint8Array): File {
     const s = start ?? 0
     const e = end ?? bytes.byteLength
     const sliced = bytes.slice(s, e)
-    const slicedBlob = new Blob([sliced])
+    const slicedBlob = new Blob([sliced.buffer as ArrayBuffer])
     // Ensure arrayBuffer works on the sliced blob
     vi.spyOn(slicedBlob, 'arrayBuffer').mockResolvedValue(sliced.buffer.slice(0))
     return slicedBlob
