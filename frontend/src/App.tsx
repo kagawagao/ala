@@ -100,21 +100,27 @@ export function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEn
       }
     }
 
-    result = result.filter((l) => {
-      const matchesKeyword = keywordRe
-        ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
-        : false
-      const matchesTag = tagRe ? tagRe.test(l.tag) : false
+    // Silently fall back when regex is invalid — treat as if no filter on that dimension
+    const effectiveHasKeyword = hasKeyword && keywordRe !== null
+    const effectiveHasTag = hasTag && tagRe !== null
 
-      if (hasKeyword && hasTag) {
-        return filters.tag_keyword_relation === 'AND'
-          ? matchesKeyword && matchesTag
-          : matchesKeyword || matchesTag
-      }
-      if (hasKeyword) return matchesKeyword
-      if (hasTag) return matchesTag
-      return true
-    })
+    if (effectiveHasKeyword || effectiveHasTag) {
+      result = result.filter((l) => {
+        const matchesKeyword = keywordRe
+          ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
+          : false
+        const matchesTag = tagRe ? tagRe.test(l.tag) : false
+
+        if (effectiveHasKeyword && effectiveHasTag) {
+          return filters.tag_keyword_relation === 'AND'
+            ? matchesKeyword && matchesTag
+            : matchesKeyword || matchesTag
+        }
+        if (effectiveHasKeyword) return matchesKeyword
+        if (effectiveHasTag) return matchesTag
+        return true
+      })
+    }
   }
 
   return result

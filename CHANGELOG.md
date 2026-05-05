@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ---
 
+## [2.1.0](https://github.com/kagawagao/ala/compare/v2.0.1...v2.1.0) (2026-05-05)
+
+### Features
+
+- **export:** add CSV/JSON log export buttons in LogViewer toolbar with BOM, RFC 4180 escaping, and i18n support ([#XX](https://github.com/kagawagao/ala/pull/XX))
+- **lazy-log display:** AI tool results from `search_local_log` / `read_log_range` render directly in LogViewer
+- **lazy-log cache:** LRU cache (128 entries, 60s TTL) for lazy-log tool results to avoid redundant I/O
+- **scan optimization:** `scan_file_meta` early exit with `max_scan_lines` param for large file performance
+- **e2e:** Playwright E2E smoke test infrastructure with upload and chat flow specs
+
+### Tests
+
+- **frontend:** establish Vitest + Testing Library test infrastructure with jsdom environment
+- **frontend:** 25+ unit tests for `detectFileTypeByHeader` (US-FT2)
+- **frontend:** 16 unit tests for `processSSEChunk` and `extractToolLogEntries` (US-FT3)
+- **frontend:** 27 unit tests for `applyFiltersClient`, `computeStatistics`, and `hasFilterConditions` (US-FT4)
+- **frontend:** 11 unit tests for `generateCSV`, `generateJSON`, `downloadBlob`, and `generateExportFilename` (US-FE4)
+
+### Chores
+
+- **deps:** add vitest, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, jsdom
+- **deps:** add @playwright/test for E2E testing
+- **i18n:** add `noDataToExport` key for English and Chinese locales
+
+---
+
 ## [2.0.2](https://github.com/kagawagao/ala/compare/v2.0.1...v2.0.2) (2026-05-05)
 
 ### Features

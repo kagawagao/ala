@@ -231,6 +231,7 @@
   "compatibilityOpenAI": "OpenAI-compatible",
   "continueAnalysis": "Continue Analysis",
   "copyFailed": "Copy failed",
+  "noDataToExport": "No data to export",
   "orEnterLocalFilePath": "Or enter a local path",
   "switchLanguage": "Switch language",
   "langCode": "EN"
