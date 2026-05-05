@@ -255,7 +255,12 @@ def overview_local_log(file_path: str, max_lines: int | None = None) -> dict:
     max_ts: str | None = None
     line_count = 0
     parsed_entries = 0
-    format_detected = "unknown"
+    # Detect format from file metadata (same approach as agent_tools / scan_file_meta)
+    try:
+        meta = _log_analyzer.scan_file_meta(validated)
+        format_detected = meta.format_detected
+    except Exception:
+        format_detected = "android"
 
     for entry in _log_analyzer.stream_file(validated):
         line_count += 1

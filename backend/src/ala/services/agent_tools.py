@@ -639,7 +639,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     # ── list_directory_logs (directory only) ────────────────────────────────
     if tool_name == "list_directory_logs":
         files = _list_directory(file_path)
-        logger.info("tool=list_directory_logs file_count=%d", len(files))
+        logger.debug("tool=list_directory_logs file_count=%d", len(files))
         if not files:
             return json.dumps({"error": "No log files found in directory", "files": []})
         return json.dumps({"total_files": len(files), "files": files})

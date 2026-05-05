@@ -25,8 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci
       - run: cd frontend && npx eslint src/
+      - run: cd frontend && npx prettier --check "src/**/*.{ts,tsx}"
 
   test-pytest:
     runs-on: ubuntu-latest
@@ -35,7 +38,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install fastmcp
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastmcp
       - run: cd backend && PYTHONPATH=src python -m pytest tests/ -v
 
   build-check:
@@ -45,4 +51,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci && npm run build
