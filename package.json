@@ -1,6 +1,6 @@
 {
   "name": "ala-workspace",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "ALA - Android Log Analyzer workspace",
   "private": true,
   "scripts": {
