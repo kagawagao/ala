@@ -83,7 +83,7 @@ jobs:
             backend/pyproject.toml \
             backend/src/ala/main.py \
             backend/src/ala/api/health.py
-          git commit -m "chore(release): ${{ steps.bump.outputs.new_version }}"
+          HUSKY=0 git commit -m "chore(release): ${{ steps.bump.outputs.new_version }}"
           git tag ${{ steps.bump.outputs.new_version }}
 
       - name: Push changes and tag
