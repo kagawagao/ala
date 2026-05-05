@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ---
 
+## [2.0.2](https://github.com/kagawagao/ala/compare/v2.0.1...v2.0.2) (2026-05-05)
+
+### Features
+
+- **lazy local log analysis:** stream-based AI tools, directory support, and model picker consolidation ([#54](https://github.com/kagawagao/ala/pull/54))
+- **quality consolidation:** CI/CD, MCP lazy-log tools, spec fixes, observability ([#55](https://github.com/kagawagao/ala/pull/55))
+
+### Bug Fixes
+
+- **ci:** skip Husky pre-commit hook in bump-version workflow ([#57](https://github.com/kagawagao/ala/pull/57))
+- **security:** bump minimum versions to patched releases ([#56](https://github.com/kagawagao/ala/pull/56))
+
+### Chores
+
+- dependency updates (vite, python-multipart, pytest, authlib, fastmcp, cryptography, dompurify, postcss, lodash-es, langium)
+
+---
+
 ## [2.0.1](https://github.com/kagawagao/ala/compare/v2.0.0...v2.0.1) (2026-04-23)
 
 ### Features
