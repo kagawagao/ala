@@ -1,4 +1,5 @@
 """Tests for the log analyzer service."""
+
 import gzip
 import io
 import zipfile

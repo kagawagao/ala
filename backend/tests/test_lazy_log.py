@@ -2,6 +2,7 @@
 
 TDD: these tests are written BEFORE the implementation.
 """
+
 import gzip
 import os
 import tempfile
@@ -18,6 +19,7 @@ from ala.services.log_analyzer import (
 )
 
 # ── fixtures ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def analyzer():
@@ -172,9 +174,7 @@ class TestScanFileMeta:
             assert isinstance(ref, FileRef)
             assert ref.line_count == 5
             assert ref.size_bytes > 0
-            assert ref.format_detected in (
-                "android_logcat", "generic_timestamped", "unknown"
-            )
+            assert ref.format_detected in ("android_logcat", "generic_timestamped", "unknown")
             assert ref.is_gzip is False
             assert ref.is_zip is False
         finally:
@@ -251,10 +251,12 @@ class TestStreamFile:
             os.unlink(path)
 
     def test_yields_from_zip_multiple_members(self, analyzer):
-        path = _write_temp_zip({
-            "a.log": SAMPLE_LOGCAT,
-            "b.log": SAMPLE_LOGCAT,
-        })
+        path = _write_temp_zip(
+            {
+                "a.log": SAMPLE_LOGCAT,
+                "b.log": SAMPLE_LOGCAT,
+            }
+        )
         try:
             entries = list(analyzer.stream_file(path))
             assert len(entries) == 10
@@ -370,9 +372,7 @@ class TestOverviewMaxLines:
         content = "\n".join(lines) + "\n"
         path = _write_temp_file(content)
         try:
-            result_raw = _execute_lazy_log_tool(
-                "overview_local_log", {"max_lines": 50}, path
-            )
+            result_raw = _execute_lazy_log_tool("overview_local_log", {"max_lines": 50}, path)
             import json
 
             result = json.loads(result_raw)
@@ -429,9 +429,7 @@ class TestLazyToolSchemas:
                 )
             elif name == "list_directory_logs":
                 # list_directory_logs should NOT have file_path
-                assert "file_path" not in props, (
-                    "list_directory_logs should not have file_path"
-                )
+                assert "file_path" not in props, "list_directory_logs should not have file_path"
 
 
 # ── US-A5: read_log_range error handling tests ───────────────────────────
@@ -499,9 +497,8 @@ class TestAgentToolsLogging:
                 for r in caplog.records
             ), "Expected DEBUG entry log with tool name and args"
             # Check completion log
-            assert any(
-                "tool=overview_local_log completed" in r.message
-                for r in caplog.records
-            ), "Expected DEBUG completion log"
+            assert any("tool=overview_local_log completed" in r.message for r in caplog.records), (
+                "Expected DEBUG completion log"
+            )
         finally:
             os.unlink(path)

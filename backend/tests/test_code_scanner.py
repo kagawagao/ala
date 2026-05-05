@@ -1,4 +1,5 @@
 """Tests for the code scanner context doc discovery."""
+
 import os
 import tempfile
 
