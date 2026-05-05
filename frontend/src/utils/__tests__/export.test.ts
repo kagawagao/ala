@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { generateCSV, generateJSON, downloadBlob, generateExportFilename } from '../export'
 import type { LogEntry } from '../../types'
 
@@ -169,8 +169,6 @@ describe('generateJSON', () => {
 // ── downloadBlob ───────────────────────────────────────────────────────────
 
 describe('downloadBlob', () => {
-  const _origURL = { ...URL }
-
   beforeEach(() => {
     vi.restoreAllMocks()
     // jsdom may not have URL.createObjectURL; stub it

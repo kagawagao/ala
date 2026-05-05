@@ -125,8 +125,8 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
     }
 
     // ── OpenAI-compatible delta extraction ────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const delta =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data as any).choices?.[0]?.delta?.content ??
       (data as Record<string, unknown>).content
 
