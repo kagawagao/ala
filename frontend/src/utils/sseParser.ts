@@ -1,4 +1,11 @@
-import type { AgentEvent, LogEntry, ToolCallEvent, ToolResultEvent, ThinkingEvent, MaxRoundsReachedEvent } from '../types'
+import type {
+  AgentEvent,
+  LogEntry,
+  ToolCallEvent,
+  ToolResultEvent,
+  ThinkingEvent,
+  MaxRoundsReachedEvent,
+} from '../types'
 
 // ── Types ────────────────────────────────────────────────────────────────
 

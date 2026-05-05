@@ -3,7 +3,6 @@ import {
   processSSEChunk,
   createSSEState,
   extractToolLogEntries,
-  type SSEParseState,
   type MessagePart,
   type ToolCallInfo,
 } from '../../utils/sseParser'
@@ -41,11 +40,10 @@ describe('processSSEChunk', () => {
   // AC4: tool_call event → tool block (no result)
   it('adds tool block for tool_call event', () => {
     const initial = createSSEState()
-    const chunk = '{"type":"tool_call","name":"search_local_log","arguments":"{\\"query\\":\\"error\\"}"}'
+    const chunk =
+      '{"type":"tool_call","name":"search_local_log","arguments":"{\\"query\\":\\"error\\"}"}'
     const result = processSSEChunk(chunk, initial)
-    expect(result.parts).toEqual([
-      toolPart('search_local_log', '{"query":"error"}'),
-    ])
+    expect(result.parts).toEqual([toolPart('search_local_log', '{"query":"error"}')])
     expect(result.parts[0].type).toBe('tool')
     expect((result.parts[0] as { type: 'tool'; call: ToolCallInfo }).call.result).toBeUndefined()
   })
@@ -74,8 +72,7 @@ describe('processSSEChunk', () => {
   // AC6: max_rounds_reached → continueMessage set
   it('sets continueMessage for max_rounds_reached event', () => {
     const initial = createSSEState()
-    const chunk =
-      '{"type":"max_rounds_reached","message":"Maximum rounds reached. Continue?"}'
+    const chunk = '{"type":"max_rounds_reached","message":"Maximum rounds reached. Continue?"}'
     const result = processSSEChunk(chunk, initial)
     expect(result.continueMessage).toBe('Maximum rounds reached. Continue?')
   })
@@ -127,10 +124,7 @@ describe('processSSEChunk', () => {
       state,
     )
     // Tool B
-    state = processSSEChunk(
-      '{"type":"tool_call","name":"read_log_range","arguments":"{}"}',
-      state,
-    )
+    state = processSSEChunk('{"type":"tool_call","name":"read_log_range","arguments":"{}"}', state)
     // Result for Tool B (should match most recent unresolved)
     state = processSSEChunk(
       '{"type":"tool_result","name":"read_log_range","content":"B result"}',
@@ -215,7 +209,17 @@ describe('extractToolLogEntries', () => {
   it('extracts entries from search_local_log result', () => {
     const content = JSON.stringify({
       entries: [
-        { line_number: 1, timestamp: '12:00:00', level: 'I', tag: 'Test', pid: '100', tid: '200', message: 'hello', raw_line: 'hello', source_file: null },
+        {
+          line_number: 1,
+          timestamp: '12:00:00',
+          level: 'I',
+          tag: 'Test',
+          pid: '100',
+          tid: '200',
+          message: 'hello',
+          raw_line: 'hello',
+          source_file: null,
+        },
       ],
       total_matches: 1,
     })
@@ -228,7 +232,17 @@ describe('extractToolLogEntries', () => {
   it('extracts entries from read_log_range result', () => {
     const content = JSON.stringify({
       entries: [
-        { line_number: 10, timestamp: null, level: 'E', tag: 'Crash', pid: '1', tid: '1', message: 'error', raw_line: 'error', source_file: null },
+        {
+          line_number: 10,
+          timestamp: null,
+          level: 'E',
+          tag: 'Crash',
+          pid: '1',
+          tid: '1',
+          message: 'error',
+          raw_line: 'error',
+          source_file: null,
+        },
       ],
     })
     const result = extractToolLogEntries('read_log_range', content)

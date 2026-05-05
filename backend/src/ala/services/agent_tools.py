@@ -761,13 +761,14 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
     # ── Cache lookup (skip for list_directory_logs, and overview with max_lines) ──
     cacheable = tool_name in (
-        "overview_local_log", "search_local_log", "read_log_range", "tail_local_log"
+        "overview_local_log",
+        "search_local_log",
+        "read_log_range",
+        "tail_local_log",
     )
     cache_key: str | None = None
     # overview_local_log with explicit max_lines: don't cache (non-deterministic sampling)
-    if cacheable and not (
-        tool_name == "overview_local_log" and args.get("max_lines") is not None
-    ):
+    if cacheable and not (tool_name == "overview_local_log" and args.get("max_lines") is not None):
         cache_key = ToolResultCache.build_key(tool_name, resolved, args)
         cached = _lazy_tool_cache.get(cache_key)
         if cached is not None:

@@ -47,12 +47,11 @@ import type {
   LogFilters,
   TraceParseResult,
   Project,
-  AgentEvent,
   ContextDoc,
   AIConfig,
   ModelPreset,
 } from '../types'
-import { processSSEChunk, createSSEState, extractToolLogEntries } from '../utils/sseParser'
+import { processSSEChunk, createSSEState } from '../utils/sseParser'
 import type { TextAreaRef } from 'antd/lib/input/TextArea'
 
 const { Text } = Typography

@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import {
-  generateCSV,
-  generateJSON,
-  downloadBlob,
-  generateExportFilename,
-} from '../export'
+import { generateCSV, generateJSON, downloadBlob, generateExportFilename } from '../export'
 import type { LogEntry } from '../../types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -185,7 +180,6 @@ describe('downloadBlob', () => {
   })
 
   it('creates Blob, URL, anchor, triggers click, and cleans up', () => {
-    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL')
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL')
 
     let clickFired = false

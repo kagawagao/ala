@@ -8,9 +8,6 @@ function mockFile(name: string, bytes: Uint8Array): File {
   const blob = new Blob([bytes])
   const file = new File([blob], name, { type: 'application/octet-stream' })
 
-  // Create a Uint8Array view of the content so the test can inspect it
-  const buf = bytes.buffer
-
   // Mock slice() to return a Blob with the correct arrayBuffer()
   vi.spyOn(file, 'slice').mockImplementation((start?: number, end?: number) => {
     const s = start ?? 0

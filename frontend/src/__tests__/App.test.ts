@@ -123,10 +123,7 @@ describe('applyFiltersClient', () => {
 
   // AC4: TID filter — exact match
   it('filters by tid exact match', () => {
-    const logs = [
-      makeLog({ line_number: 1, tid: '300' }),
-      makeLog({ line_number: 2, tid: '400' }),
-    ]
+    const logs = [makeLog({ line_number: 1, tid: '300' }), makeLog({ line_number: 2, tid: '400' })]
     const filters = defaultFilters({ tid: '300' })
     const result = applyFiltersClient(logs, filters)
     expect(result).toHaveLength(1)
@@ -388,7 +385,9 @@ describe('hasFilterConditions', () => {
   it('is not affected by tag_keyword_relation', () => {
     // tag_keyword_relation is a combinator, not a filter condition
     expect(hasFilterConditions(defaultFilters({ tag_keyword_relation: 'OR' }))).toBe(false)
-    expect(hasFilterConditions(defaultFilters({ keywords: 'x', tag_keyword_relation: 'OR' }))).toBe(true)
+    expect(hasFilterConditions(defaultFilters({ keywords: 'x', tag_keyword_relation: 'OR' }))).toBe(
+      true,
+    )
   })
 
   it('returns false for whitespace-only keywords or tag', () => {
