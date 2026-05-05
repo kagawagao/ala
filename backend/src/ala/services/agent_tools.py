@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,6 +13,102 @@ from .code_scanner import CodeScanner
 from .project_manager import Project
 
 logger = logging.getLogger(__name__)
+
+# ── ToolResultCache (US-FE2) ────────────────────────────────────────────────
+
+
+@dataclass
+class _CacheEntry:
+    """A single entry in the tool result cache."""
+
+    result: str  # JSON string (the tool return value)
+    cached_at: float  # time.monotonic() when cached
+
+
+class ToolResultCache:
+    """LRU cache with TTL for lazy-log tool results.
+
+    Design decisions
+    ─────────────────
+    1. **OrderedDict for LRU** — Python's OrderedDict maintains insertion order
+       and supports ``move_to_end()`` for O(1) access-time updates.  ``popitem(last=False)``
+       evicts the least-recently-used entry in O(1).
+
+    2. **TTL via time.monotonic()** — ``time.monotonic()`` is used instead of
+       ``time.time()`` because it is unaffected by system clock changes (NTP,
+       daylight saving).  TTL check happens on read (lazy eviction), not on a
+       background timer — no threading complexity.
+
+    3. **File mtime in cache key** — Even with identical tool parameters, if
+       the file has been modified externally, the cache must miss.  ``os.path.getmtime()``
+       is cheap (metadata-only syscall) and uniquely identifies file versions.
+
+    4. **Cache key composition** — ``{tool_name}:{resolved_path}:{canonical_args}:{mtime}``
+       ensures that different tools, different files, different parameters, or
+       different file versions never collide.
+    """
+
+    def __init__(self, max_size: int = 128, ttl_seconds: float = 60.0):
+        self._store: OrderedDict[str, _CacheEntry] = OrderedDict()
+        self.max_size = max_size
+        self.ttl_seconds = ttl_seconds
+
+    # ── Public API ────────────────────────────────────────────────────────
+
+    def get(self, key: str) -> str | None:
+        """Return cached result or None if missing/expired."""
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        if time.monotonic() - entry.cached_at > self.ttl_seconds:
+            del self._store[key]
+            return None
+        # Touch: move to end (most-recently-used)
+        self._store.move_to_end(key)
+        return entry.result
+
+    def set(self, key: str, result: str) -> None:
+        """Store a result. Evicts LRU if at capacity."""
+        if key in self._store:
+            self._store.move_to_end(key)
+        self._store[key] = _CacheEntry(result=result, cached_at=time.monotonic())
+        if len(self._store) > self.max_size:
+            self._store.popitem(last=False)  # Evict LRU
+
+    def clear(self) -> None:
+        """Remove all entries."""
+        self._store.clear()
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    # ── Cache key builder (static) ────────────────────────────────────────
+
+    @staticmethod
+    def build_key(
+        tool_name: str,
+        resolved_path: str,
+        args: dict,
+    ) -> str:
+        """Build a deterministic cache key for a tool call."""
+        import os
+
+        # Canonicalize args: sort keys, use JSON with sorted keys
+        canonical = json.dumps(args, sort_keys=True, default=str)
+        try:
+            mtime = os.path.getmtime(resolved_path)
+        except OSError:
+            mtime = 0.0
+
+        return f"{tool_name}:{resolved_path}:{canonical}:{mtime}"
+
+    def __contains__(self, key: str) -> bool:
+        """Check membership for testing convenience."""
+        return key in self._store
+
+
+# Module-level cache instance
+_lazy_tool_cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
 
 
 @dataclass
@@ -662,6 +759,21 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             }
         )
 
+    # ── Cache lookup (skip for list_directory_logs, and overview with max_lines) ──
+    cacheable = tool_name in (
+        "overview_local_log", "search_local_log", "read_log_range", "tail_local_log"
+    )
+    cache_key: str | None = None
+    # overview_local_log with explicit max_lines: don't cache (non-deterministic sampling)
+    if cacheable and not (
+        tool_name == "overview_local_log" and args.get("max_lines") is not None
+    ):
+        cache_key = ToolResultCache.build_key(tool_name, resolved, args)
+        cached = _lazy_tool_cache.get(cache_key)
+        if cached is not None:
+            logger.debug("tool=%s cache hit key=%s", tool_name, cache_key[:80])
+            return cached
+
     # ── overview_local_log ──────────────────────────────────────────────────
     if tool_name == "overview_local_log":
         max_lines_arg = args.get("max_lines")
@@ -711,7 +823,10 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         logger.debug(
             "tool=overview_local_log completed in %dms, lines=%d", int(elapsed), line_count
         )
-        return json.dumps(result)
+        result_json = json.dumps(result)
+        if cache_key is not None:
+            _lazy_tool_cache.set(cache_key, result_json)
+        return result_json
 
     # ── search_local_log ────────────────────────────────────────────────────
     if tool_name == "search_local_log":
@@ -776,16 +891,18 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             total_matched,
             len(matches),
         )
-        return json.dumps(
-            {
-                "file": resolved,
-                "total_matched": total_matched,
-                "offset": offset,
-                "returned": len(matches),
-                "has_more": total_matched > offset + len(matches),
-                "entries": matches,
-            }
-        )
+        result = {
+            "file": resolved,
+            "total_matched": total_matched,
+            "offset": offset,
+            "returned": len(matches),
+            "has_more": total_matched > offset + len(matches),
+            "entries": matches,
+        }
+        result_json = json.dumps(result)
+        if cache_key is not None:
+            _lazy_tool_cache.set(cache_key, result_json)
+        return result_json
 
     # ── read_log_range ──────────────────────────────────────────────────────
     if tool_name == "read_log_range":
@@ -844,15 +961,17 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             int(elapsed),
             len(entries),
         )
-        return json.dumps(
-            {
-                "file": resolved,
-                "range": range_str,
-                "total_lines_in_file": total_lines,
-                "entries": entries,
-                "count": len(entries),
-            }
-        )
+        result = {
+            "file": resolved,
+            "range": range_str,
+            "total_lines_in_file": total_lines,
+            "entries": entries,
+            "count": len(entries),
+        }
+        result_json = json.dumps(result)
+        if cache_key is not None:
+            _lazy_tool_cache.set(cache_key, result_json)
+        return result_json
 
     # ── tail_local_log ──────────────────────────────────────────────────────
     if tool_name == "tail_local_log":
@@ -876,13 +995,15 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             )
         elapsed = (time.monotonic() - t_start) * 1000
         logger.debug("tool=tail_local_log completed in %dms, lines=%d", int(elapsed), len(ring))
-        return json.dumps(
-            {
-                "file": resolved,
-                "total_lines": total_lines,
-                "entries": list(ring),
-            }
-        )
+        result = {
+            "file": resolved,
+            "total_lines": total_lines,
+            "entries": list(ring),
+        }
+        result_json = json.dumps(result)
+        if cache_key is not None:
+            _lazy_tool_cache.set(cache_key, result_json)
+        return result_json
 
     logger.error("Unknown lazy tool: %s", tool_name)
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})

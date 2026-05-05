@@ -52,6 +52,7 @@ import type {
   AIConfig,
   ModelPreset,
 } from '../types'
+import { processSSEChunk, createSSEState, extractToolLogEntries } from '../utils/sseParser'
 import type { TextAreaRef } from 'antd/lib/input/TextArea'
 
 const { Text } = Typography
@@ -446,21 +447,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
     abortRef.current = new AbortController()
 
-    // Helper: push or extend the last text part in the parts array
-    const appendText = (parts: MessagePart[], delta: string): MessagePart[] => {
-      const last = parts[parts.length - 1]
-      if (last?.type === 'text') {
-        return [...parts.slice(0, -1), { type: 'text', content: last.content + delta }]
-      }
-      return [...parts, { type: 'text', content: delta }]
-    }
-
     try {
       const context = buildContext()
-      let parts: MessagePart[] = []
-      let accumulated = '' // plain text for session storage
+      let state = createSSEState()
 
-      const updateMsg = (p: MessagePart[]) => {
+      const updateMsg = (p: typeof state.parts) => {
         setMessages((prev) => {
           const updated = [...prev]
           const textContent = p
@@ -489,88 +480,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
       )) {
         if (chunk === '[DONE]') break
 
-        // Fast path: plain text chunks (95%+ of events) skip JSON.parse entirely
-        if (!chunk.startsWith('{')) {
-          accumulated += chunk
-          parts = appendText(parts, chunk)
-          updateMsg(parts)
-          continue
-        }
+        state = processSSEChunk(chunk, state)
+        updateMsg(state.parts)
 
-        try {
-          const data = JSON.parse(chunk) as AgentEvent | Record<string, unknown>
-
-          if ('type' in data && data.type === 'thinking') {
-            const event = data as { type: 'thinking'; content: string }
-            parts = [...parts, { type: 'thinking', content: event.content }]
-            updateMsg(parts)
-            continue
-          }
-
-          if ('type' in data && data.type === 'tool_call') {
-            const event = data as AgentEvent
-            if (event.type === 'tool_call') {
-              parts = [
-                ...parts,
-                { type: 'tool', call: { name: event.name, arguments: event.arguments } },
-              ]
-              updateMsg(parts)
-            }
-            continue
-          }
-
-          if ('type' in data && data.type === 'tool_result') {
-            const event = data as AgentEvent
-            if (event.type === 'tool_result') {
-              // Find the most recent unresolved tool part with this name and attach result
-              const idx = [...parts]
-                .reverse()
-                .findIndex((p) => p.type === 'tool' && p.call.name === event.name && !p.call.result)
-              if (idx !== -1) {
-                const realIdx = parts.length - 1 - idx
-                const updated = [...parts]
-                updated[realIdx] = {
-                  type: 'tool',
-                  call: {
-                    ...(parts[realIdx] as { type: 'tool'; call: ToolCallInfo }).call,
-                    result: event.content,
-                  },
-                }
-                parts = updated
-                updateMsg(parts)
-              }
-            }
-            continue
-          }
-
-          if ('type' in data && data.type === 'max_rounds_reached') {
-            const event = data as AgentEvent
-            if (event.type === 'max_rounds_reached') {
-              setContinueMessage(event.message)
-            }
-            continue
-          }
-
-          // Internal metadata events — discard silently
-          if ('type' in data && data.type === 'agent_meta') {
-            continue
-          }
-
-          const delta =
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (data as any).choices?.[0]?.delta?.content ||
-            (data as Record<string, unknown>).content ||
-            chunk
-          if (typeof delta === 'string' && delta) {
-            accumulated += delta
-            parts = appendText(parts, delta)
-            updateMsg(parts)
-          }
-        } catch {
-          // Plain text chunk
-          accumulated += chunk
-          parts = appendText(parts, chunk)
-          updateMsg(parts)
+        if (state.continueMessage) {
+          setContinueMessage(state.continueMessage)
         }
       }
 
@@ -582,7 +496,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 messages: [
                   ...s.messages,
                   { role: 'user' as const, content: sentInput },
-                  { role: 'assistant' as const, content: accumulated },
+                  { role: 'assistant' as const, content: state.accumulated },
                 ],
               }
             : s,

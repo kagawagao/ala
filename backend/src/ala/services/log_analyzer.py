@@ -67,6 +67,7 @@ class FileRef:
     format_detected: str  # LogFormat value
     is_gzip: bool = False
     is_zip: bool = False
+    truncated: bool = False  # True when scan stopped early due to max_scan_lines
 
 
 class PathTraversalError(ValueError):
@@ -457,10 +458,15 @@ class LogAnalyzer:
 
         return real
 
-    def scan_file_meta(self, file_path: str) -> FileRef:
+    def scan_file_meta(self, file_path: str, max_scan_lines: int | None = None) -> FileRef:
         """Scan a local log file and return metadata without parsing entries.
 
         Counts lines, detects format, and identifies compression type.
+
+        Args:
+            file_path: Path to the log file.
+            max_scan_lines: If set, stop counting after this many lines.
+                            Format detection still uses the first 10 lines.
         """
         validated = self._validate_path(file_path)
         file_stat = os.stat(validated)
@@ -472,6 +478,7 @@ class LogAnalyzer:
         line_count = 0
         format_detected = LogFormat.UNKNOWN.value
         sample_lines = []
+        truncated = False
 
         if is_zip:
             # For ZIP archives, iterate all text members to count lines and collect samples
@@ -490,6 +497,12 @@ class LogAnalyzer:
                             stripped = raw_line.strip()
                             if stripped and len(sample_lines) < 10:
                                 sample_lines.append(stripped)
+                            # Early exit: stop counting after max_scan_lines
+                            if max_scan_lines is not None and line_count >= max_scan_lines:
+                                truncated = True
+                                break
+                    if truncated:
+                        break
             finally:
                 zf.close()
         else:
@@ -500,6 +513,10 @@ class LogAnalyzer:
                     stripped = raw_line.strip()
                     if stripped and len(sample_lines) < 10:
                         sample_lines.append(stripped)
+                    # Early exit: stop counting after max_scan_lines
+                    if max_scan_lines is not None and line_count >= max_scan_lines:
+                        truncated = True
+                        break
             finally:
                 if hasattr(fh, "close"):
                     fh.close()
@@ -515,6 +532,7 @@ class LogAnalyzer:
             format_detected=format_detected,
             is_gzip=is_gzip,
             is_zip=is_zip,
+            truncated=truncated,
         )
 
     def stream_file(self, file_path: str, sandbox_root: str | None = None) -> Iterator[LogEntry]:

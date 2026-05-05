@@ -59,7 +59,7 @@ const DEFAULT_FILTERS: LogFilters = {
   tag_keyword_relation: 'AND',
 }
 
-function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
+export function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
   let result = logs
 
   if (filters.start_time) {
@@ -120,7 +120,7 @@ function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
   return result
 }
 
-function computeStatistics(logs: LogEntry[]): LogStatistics {
+export function computeStatistics(logs: LogEntry[]): LogStatistics {
   const by_level: Record<string, number> = {}
   const tags: Record<string, number> = {}
   const pids: Record<string, number> = {}
