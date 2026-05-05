@@ -1,13 +1,17 @@
 """Tool definitions and executor for the AI agent."""
 
 import json
+import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
 from .code_scanner import CodeScanner
 from .project_manager import Project
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -103,6 +107,15 @@ LAZY_LOG_TOOLS: list[dict] = [
                     "description": (
                         "Optional: specific log file name or path within the log source. "
                         "Required when the log source is a directory."
+                    ),
+                },
+                "max_lines": {
+                    "type": "integer",
+                    "description": (
+                        "Maximum number of lines to scan for overview. "
+                        "Useful for sampling large files. "
+                        "When specified, scanning stops after max_lines; "
+                        "the response includes max_lines_reached: true."
                     ),
                 },
             },
@@ -458,6 +471,7 @@ def execute_tool(
         try:
             return _execute_lazy_log_tool(tool_name, args, file_path)
         except Exception as e:
+            logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
 
     # Log tools (work standalone or alongside project tools)
@@ -619,10 +633,13 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     - Tools require an explicit ``file_path`` in args (except list_directory_logs).
     - Path resolution: args.file_path joined with session directory path.
     """
+    t_start = time.monotonic()
+    logger.debug("tool=%s file=%s args=%s", tool_name, file_path, args)
 
     # ── list_directory_logs (directory only) ────────────────────────────────
     if tool_name == "list_directory_logs":
         files = _list_directory(file_path)
+        logger.info("tool=list_directory_logs file_count=%d", len(files))
         if not files:
             return json.dumps({"error": "No log files found in directory", "files": []})
         return json.dumps({"total_files": len(files), "files": files})
@@ -630,6 +647,12 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     # ── Resolve target file path ────────────────────────────────────────────
     resolved = _resolve_log_path(file_path, args)
     if not resolved:
+        logger.warning(
+            "tool=%s path resolution failed: session_path=%s args.file_path=%s",
+            tool_name,
+            file_path,
+            args.get("file_path", ""),
+        )
         return json.dumps(
             {
                 "error": (
@@ -641,6 +664,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
     # ── overview_local_log ──────────────────────────────────────────────────
     if tool_name == "overview_local_log":
+        max_lines_arg = args.get("max_lines")
+        max_lines = int(max_lines_arg) if max_lines_arg is not None else None
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
         pids: set[str] = set()
@@ -648,8 +673,12 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
         max_timestamp: str | None = None
         line_count = 0
         format_detected = "android"
+        max_lines_reached = False
         for entry in _analyzer.stream_file(resolved):
             line_count += 1
+            if max_lines is not None and line_count > max_lines:
+                max_lines_reached = True
+                break
             lvl = entry.level or "?"
             level_counts[lvl] = level_counts.get(lvl, 0) + 1
             if entry.tag:
@@ -661,23 +690,28 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     min_timestamp = entry.timestamp
                 if max_timestamp is None or entry.timestamp > max_timestamp:
                     max_timestamp = entry.timestamp
-        return json.dumps(
-            {
-                "file": resolved,
-                "total_lines": line_count,
-                "parsed_entries": line_count,
-                "format_detected": format_detected,
-                "level_distribution": level_counts,
-                "unique_tags": len(tags),
-                "unique_pids": len(pids),
-                "time_range": {
-                    "start": min_timestamp,
-                    "end": max_timestamp,
-                },
-                "sample_tags": sorted(tags)[:30],
-                "sample_pids": sorted(pids)[:30],
-            }
+        result = {
+            "file": resolved,
+            "total_lines": line_count,
+            "parsed_entries": line_count,
+            "format_detected": format_detected,
+            "level_distribution": level_counts,
+            "unique_tags": len(tags),
+            "unique_pids": len(pids),
+            "time_range": {
+                "start": min_timestamp,
+                "end": max_timestamp,
+            },
+            "sample_tags": sorted(tags)[:30],
+            "sample_pids": sorted(pids)[:30],
+        }
+        if max_lines_reached:
+            result["max_lines_reached"] = True
+        elapsed = (time.monotonic() - t_start) * 1000
+        logger.debug(
+            "tool=overview_local_log completed in %dms, lines=%d", int(elapsed), line_count
         )
+        return json.dumps(result)
 
     # ── search_local_log ────────────────────────────────────────────────────
     if tool_name == "search_local_log":
@@ -735,6 +769,13 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if len(matches) >= limit:
                 break
 
+        elapsed = (time.monotonic() - t_start) * 1000
+        logger.debug(
+            "tool=search_local_log completed in %dms, matched=%d returned=%d",
+            int(elapsed),
+            total_matched,
+            len(matches),
+        )
         return json.dumps(
             {
                 "file": resolved,
@@ -750,6 +791,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     if tool_name == "read_log_range":
         start_line = max(int(args.get("start_line", 1)), 1)
         end_line = max(int(args.get("end_line", start_line)), start_line)
+        original_end_line = end_line
         if end_line - start_line + 1 > 10_000:
             end_line = start_line + 10_000 - 1
         entries = []
@@ -771,10 +813,41 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     "message": entry.message,
                 }
             )
+
+        # US-A5: error if start_line exceeds total_lines
+        if start_line > total_lines:
+            elapsed = (time.monotonic() - t_start) * 1000
+            logger.debug(
+                "tool=read_log_range failed: start_line=%d exceeds total_lines=%d (completed in %dms)",
+                start_line,
+                total_lines,
+                int(elapsed),
+            )
+            return json.dumps(
+                {
+                    "error": f"start_line {start_line} exceeds total lines {total_lines}",
+                    "total_lines_in_file": total_lines,
+                }
+            )
+
+        # Clamp end_line and note in range string
+        range_str = f"{start_line}-{end_line}"
+        if end_line > total_lines:
+            end_line = total_lines
+            range_str = f"{start_line}-{end_line} (clamped from {start_line}-{original_end_line})"
+        elif original_end_line > end_line:
+            range_str = f"{start_line}-{end_line} (clamped from {start_line}-{original_end_line})"
+
+        elapsed = (time.monotonic() - t_start) * 1000
+        logger.debug(
+            "tool=read_log_range completed in %dms, lines=%d",
+            int(elapsed),
+            len(entries),
+        )
         return json.dumps(
             {
                 "file": resolved,
-                "range": f"{start_line}-{end_line}",
+                "range": range_str,
                 "total_lines_in_file": total_lines,
                 "entries": entries,
                 "count": len(entries),
@@ -801,6 +874,8 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
                     "message": entry.message,
                 }
             )
+        elapsed = (time.monotonic() - t_start) * 1000
+        logger.debug("tool=tail_local_log completed in %dms, lines=%d", int(elapsed), len(ring))
         return json.dumps(
             {
                 "file": resolved,
@@ -809,6 +884,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             }
         )
 
+    logger.error("Unknown lazy tool: %s", tool_name)
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
 
 
