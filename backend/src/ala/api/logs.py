@@ -131,26 +131,26 @@ async def parse_local_path(req: LocalPathRequest):
         validated = LogAnalyzer._validate_path(req.path)
     except PathTraversalError as e:
         raise HTTPException(
-            status_code=403,
+            status_code=400,
             detail=f"Path traversal rejected: {e}",
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
     try:
         ref = _analyzer.scan_file_meta(validated)
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except PathTraversalError as e:
-        raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
     except (ValueError, OSError) as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     return LocalPathResponse(
         session_file=ref.path,
         line_count=ref.line_count,
@@ -177,24 +177,24 @@ async def auto_path(req: LocalPathRequest):
         try:
             validated = LogAnalyzer._validate_path(path)
         except PathTraversalError as e:
-            raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+            raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
         except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
 
         try:
             ref = _analyzer.scan_file_meta(validated)
         except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
         except PathTraversalError as e:
-            raise HTTPException(status_code=403, detail=f"Path traversal rejected: {e}")
+            raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
         except (ValueError, OSError) as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
 
         return AutoPathResponse(
             type="file",
