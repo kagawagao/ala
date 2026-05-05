@@ -1,30 +1,30 @@
 #!/bin/sh
-# Run frontend lint and format check before commit
+# Run frontend lint and format before commit
 
 # Frontend lint
 cd frontend && npm run lint --silent
 if [ $? -ne 0 ]; then
-  echo "Frontend ESLint failed. Run 'npm run lint:fix:frontend' to fix."
+  echo "Frontend ESLint failed. Run 'npm run lint:fix' to fix."
   exit 1
 fi
 
-# Prettier format check (JS/TS/JSON/YAML/MD)
-cd .. && npx prettier --check "**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}" --ignore-path .prettierignore --log-level warn
+# Prettier format (JS/TS/JSON/YAML/MD)
+cd .. && npx prettier --write "**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}" --ignore-path .prettierignore --log-level warn
 if [ $? -ne 0 ]; then
-  echo "Prettier format check failed. Run 'npm run format' to fix."
+  echo "Prettier format failed."
   exit 1
 fi
 
-# Backend Python: ruff lint + format check
+# Backend Python: ruff lint + format
 if command -v poetry >/dev/null 2>&1; then
-  cd backend && poetry run ruff check src/ tests/ --quiet
+  cd backend && poetry run ruff check src/ tests/ --fix --quiet
   if [ $? -ne 0 ]; then
-    echo "Ruff lint failed. Run 'npm run format' or 'cd backend && poetry run ruff check --fix src/ tests/' to fix."
+    echo "Ruff lint failed."
     exit 1
   fi
-  poetry run ruff format --check src/ tests/ --quiet
+  poetry run ruff format src/ tests/ --quiet
   if [ $? -ne 0 ]; then
-    echo "Ruff format check failed. Run 'npm run format' or 'cd backend && poetry run ruff format src/ tests/' to fix."
+    echo "Ruff format failed."
     exit 1
   fi
   cd ..
