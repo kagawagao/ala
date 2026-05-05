@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
+import { listModels } from './api/models'
 import { parseLogStream } from './api/logs'
 import {
   getProjectPresets,
@@ -42,6 +43,7 @@ import type {
   LogEntry,
   LogFilters,
   LogStatistics,
+  ModelPreset,
   Project,
   TraceParseResult,
 } from './types'
@@ -157,6 +159,7 @@ const AppContent: React.FC<{
   const [backendConnected, setBackendConnected] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
+  const [allModels, setAllModels] = useState<ModelPreset[]>([])
   const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
 
   // Project state (lifted here so Header and AiPanel share it)
@@ -299,11 +302,19 @@ const AppContent: React.FC<{
     return () => clearInterval(interval)
   }, [])
 
-  // Derive AI config from the active model's per-model config.
-  // Runs on startup (with or without backend) and whenever backendConnected changes.
+  // Fetch model presets from backend whenever connection is established
   useEffect(() => {
-    migrateFromLegacyConfig()
-    const active = getActiveAIConfig()
+    if (!backendConnected) return
+    void listModels()
+      .then(setAllModels)
+      .catch(() => {})
+  }, [backendConnected])
+
+  // Derive AI config from the active model's per-model config.
+  // Runs whenever backendConnected or allModels changes.
+  useEffect(() => {
+    migrateFromLegacyConfig(allModels)
+    const active = getActiveAIConfig(allModels)
     if (active?.config.api_key) {
       setAiConfigured(true)
       setAiConfig(active.config)
@@ -314,13 +325,13 @@ const AppContent: React.FC<{
       setAiConfigured(false)
       setAiConfig(null)
     }
-  }, [backendConnected])
+  }, [backendConnected, allModels])
 
   // Re-derive AI config when navigating away from the models page
   // (user may have configured / changed the active model there).
   useEffect(() => {
     if (!isFullPage) {
-      const active = getActiveAIConfig()
+      const active = getActiveAIConfig(allModels)
       setAiConfigured(!!active?.config.api_key)
       setAiConfig(active?.config ?? null)
       if (active?.config.api_key && backendConnected) {
@@ -328,7 +339,7 @@ const AppContent: React.FC<{
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFullPage])
+  }, [isFullPage, allModels])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
