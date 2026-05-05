@@ -4,51 +4,61 @@
     "antd": {
       "source": "ant-design/ant-design-cli",
       "sourceType": "github",
+      "skillPath": "skills/antd/SKILL.md",
       "computedHash": "1dada885374552fc0afb6221c4ef6311f614da7ac3c891b7e7fff33d52230166"
     },
     "browser-preview": {
       "source": "starchild-ai-agent/official-skills",
       "sourceType": "github",
+      "skillPath": "browser-preview/SKILL.md",
       "computedHash": "8260eb98b77e3899394b0c5da99b24440300cb149f2a81f08e43779201b72914"
     },
     "fastapi": {
       "source": "fastapi/fastapi",
       "sourceType": "github",
+      "skillPath": "fastapi/.agents/skills/fastapi/SKILL.md",
       "computedHash": "ee23d5285caf055cf164ff45dd34888d381143564666baacab8aa786f22e413a"
     },
     "fastapi-python": {
       "source": "mindrally/skills",
       "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
       "computedHash": "1d7346210a6690d2faeb089f074c0dc20a7056c2c83ac1062a11c1b73158be72"
     },
     "playwright-cli": {
       "source": "microsoft/playwright-cli",
       "sourceType": "github",
-      "computedHash": "17b68556620db6799a69ce72946b42eea69547856486847d42d004237f07256d"
+      "skillPath": "skills/playwright-cli/SKILL.md",
+      "computedHash": "d2ea99c86b1c7c4a2800f7f1594c20b46da237a9f4fe199f6dd93d89b27faaf0"
     },
     "playwright-explore-website": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
+      "skillPath": "skills/playwright-explore-website/SKILL.md",
       "computedHash": "ac361696198c2db22a0f9d3aa456d2f83c9f0110bf00d6ca529f735395fe3a5c"
     },
     "playwright-generate-test": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
+      "skillPath": "skills/playwright-generate-test/SKILL.md",
       "computedHash": "8f963da3e25f705ff39755b8b990f20da0c0320cb86ac83fcc4d2d4eca91f6e4"
     },
     "typescript-advanced-types": {
       "source": "wshobson/agents",
       "sourceType": "github",
+      "skillPath": "plugins/javascript-typescript/skills/typescript-advanced-types/SKILL.md",
       "computedHash": "3a3be8c925f96ac4e1280db28a01677e7ca5197f3792de2bbf35ab3bb324b6dd"
     },
     "typescript-mcp-server-generator": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
+      "skillPath": "skills/typescript-mcp-server-generator/SKILL.md",
       "computedHash": "d7add3c0bf0b16006283fcb77748eb7025d574c5e2d15306d767fb901d47ad37"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
       "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
     }
   }
