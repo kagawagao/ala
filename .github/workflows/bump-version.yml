@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -88,3 +89,8 @@ jobs:
 
       - name: Push changes and tag
         run: git push origin HEAD ${{ steps.bump.outputs.new_version }}
+
+      - name: Trigger release workflow
+        run: gh workflow run release.yml --ref ${{ steps.bump.outputs.new_version }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
