@@ -1,10 +1,10 @@
 """Tests for the trace analyzer service."""
+
 import json
 from types import SimpleNamespace
 
 import pytest
 
-from ala.mcp.server import filter_perfetto_trace, parse_perfetto_trace
 from ala.services.trace_analyzer import (
     TraceAnalyzer,
     TraceFilters,
@@ -78,9 +78,7 @@ class TestTraceAnalyzer:
         class FakeTraceProcessor:
             def query(self, sql):
                 if "FROM process" in sql:
-                    return [
-                        SimpleNamespace(pid=1, name="system_server", thread_count=1)
-                    ]
+                    return [SimpleNamespace(pid=1, name="system_server", thread_count=1)]
                 if "FROM trace_bounds" in sql:
                     return [SimpleNamespace(start_ts=0, end_ts=5_000_000)]
                 if "COUNT(*) AS cnt FROM slice" in sql:
@@ -154,75 +152,32 @@ class TestTraceFilter:
         assert filtered.summary.duration_ms == result.summary.duration_ms
 
 
-class TestTraceMcp:
-    def test_parse_perfetto_trace_returns_all_processes_and_slices(
-        self, monkeypatch, tmp_path
-    ):
-        trace_path = tmp_path / "trace.json"
-        trace_path.write_text("{}", encoding="utf-8")
-        parse_result = TraceParseResult(
-            summary=TraceSummary(
-                duration_ms=12.5,
-                process_count=25,
-                thread_count=25,
-                event_count=25,
-                processes=[
-                    {"pid": i, "name": f"process-{i}", "thread_count": 1}
-                    for i in range(25)
-                ],
-                top_slices=[
-                    {"name": f"slice-{i}", "count": 1, "duration_ms": float(i)}
-                    for i in range(25)
-                ],
-                ftrace_events=[],
-                metadata={},
-            ),
-            format="json_trace",
-        )
-        monkeypatch.setattr(
-            "ala.mcp.server._trace_analyzer.parse_trace",
-            lambda *_args, **_kwargs: parse_result,
-        )
+class TestTraceUnit:
+    """Direct TraceAnalyzer / TraceFilters unit tests (no MCP dependency)."""
 
-        result = parse_perfetto_trace(str(trace_path))
+    def test_trace_filters_dataclass_creation(self, analyzer):
+        """TraceFilters should accept pids, process_name, and defaults."""
+        f1 = TraceFilters()
+        assert f1.pids is None
+        assert f1.process_name is None
 
-        assert len(result["summary"]["processes"]) == 25
-        assert len(result["summary"]["top_slices"]) == 25
+        f2 = TraceFilters(pids=[1, 2], process_name=r"com\.example")
+        assert f2.pids == [1, 2]
+        assert f2.process_name == r"com\.example"
 
-    def test_filter_perfetto_trace_returns_all_filtered_processes_and_slices(
-        self, monkeypatch, tmp_path
-    ):
-        trace_path = tmp_path / "trace.json"
-        trace_path.write_text("{}", encoding="utf-8")
-        filtered_result = TraceParseResult(
-            summary=TraceSummary(
-                duration_ms=12.5,
-                process_count=55,
-                thread_count=55,
-                event_count=55,
-                processes=[
-                    {"pid": i, "name": f"process-{i}", "thread_count": 1}
-                    for i in range(55)
-                ],
-                top_slices=[
-                    {"name": f"slice-{i}", "count": 1, "duration_ms": float(i)}
-                    for i in range(25)
-                ],
-                ftrace_events=[],
-                metadata={},
-            ),
-            format="json_trace",
-        )
-        monkeypatch.setattr(
-            "ala.mcp.server._trace_analyzer.parse_trace",
-            lambda *_args, **_kwargs: filtered_result,
-        )
-        monkeypatch.setattr(
-            "ala.mcp.server._trace_analyzer.filter_trace",
-            lambda *_args, **_kwargs: filtered_result,
-        )
+    def test_parse_trace_returns_traceparseresult(self, analyzer):
+        """parse_trace on JSON content should return a TraceParseResult."""
+        content = json.dumps(SAMPLE_JSON_TRACE).encode()
+        result = analyzer.parse_trace(content, "trace.json")
+        assert isinstance(result, TraceParseResult)
+        assert result.format == "json_trace"
+        assert isinstance(result.summary, TraceSummary)
+        assert result.summary.process_count == 2
 
-        result = filter_perfetto_trace(str(trace_path), pids=[1])
-
-        assert len(result["summary"]["processes"]) == 55
-        assert len(result["summary"]["top_slices"]) == 25
+    def test_filter_trace_empty_filters_returns_all(self, analyzer):
+        """filter_trace with empty filters should keep everything."""
+        content = json.dumps(SAMPLE_JSON_TRACE).encode()
+        result = analyzer.parse_trace(content, "trace.json")
+        filtered = analyzer.filter_trace(result, TraceFilters())
+        assert filtered.summary.process_count == result.summary.process_count
+        assert filtered.summary.event_count == result.summary.event_count

@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ALA Backend",
     description="Android Log Analyzer backend API",
-    version="1.1.0",
+    version="2.0.1",
     lifespan=lifespan,
 )
 

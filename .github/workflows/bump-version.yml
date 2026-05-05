@@ -23,7 +23,7 @@ on:
 
 jobs:
   bump-version:
-    name: Bump Version & Generate Changelog
+    name: Bump Version Across All Files
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,16 +59,30 @@ jobs:
           fi
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Sync version to frontend/package.json
+          # Strip leading 'v' for bare version number
           VERSION_NUM="${NEW_VERSION#v}"
+
+          # 1. Root package.json (already done by npm version above)
+          # 2. Frontend package.json
           cd frontend && npm version "$VERSION_NUM" --no-git-tag-version && cd ..
 
-          # Sync version to backend/pyproject.toml
+          # 3. Backend pyproject.toml (Poetry)
           sed -i "s/^version = \".*\"/version = \"$VERSION_NUM\"/" backend/pyproject.toml
+
+          # 4. Backend FastAPI app (main.py) — version string
+          sed -i "s/version=\"[^\"]*\"/version=\"$VERSION_NUM\"/" backend/src/ala/main.py
+
+          # 5. Backend health endpoint (health.py) — version string
+          sed -i "s/version=\"[^\"]*\"/version=\"$VERSION_NUM\"/" backend/src/ala/api/health.py
 
       - name: Commit and tag
         run: |
-          git add package.json package-lock.json CHANGELOG.md frontend/package.json frontend/package-lock.json backend/pyproject.toml
+          git add \
+            package.json package-lock.json \
+            frontend/package.json frontend/package-lock.json \
+            backend/pyproject.toml \
+            backend/src/ala/main.py \
+            backend/src/ala/api/health.py
           git commit -m "chore(release): ${{ steps.bump.outputs.new_version }}"
           git tag ${{ steps.bump.outputs.new_version }}
 

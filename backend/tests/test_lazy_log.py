@@ -3,7 +3,6 @@
 TDD: these tests are written BEFORE the implementation.
 """
 import gzip
-import io
 import os
 import tempfile
 import zipfile
@@ -17,7 +16,6 @@ from ala.services.log_analyzer import (
     LogFormat,
     PathTraversalError,
 )
-
 
 # ── fixtures ──────────────────────────────────────────────────────────────
 
@@ -209,7 +207,7 @@ class TestScanFileMeta:
             os.unlink(path)
 
     def test_large_file_line_count(self, analyzer):
-        lines = ["line %d" % i for i in range(5000)]
+        lines = [f"line {i}" for i in range(5000)]
         content = "\n".join(lines) + "\n"
         path = _write_temp_file(content)
         try:
@@ -356,3 +354,154 @@ class TestParseSingleLine:
         assert entry.level == "U"
         assert entry.tag == "Unknown"
         assert entry.message == line
+
+
+# ── US-A1: overview_local_log max_lines tests ────────────────────────────
+
+
+class TestOverviewMaxLines:
+    """Tests for max_lines parameter in overview_local_log (US-A1)."""
+
+    def test_max_lines_limits_scan(self, analyzer):
+        """When max_lines is set, scanning stops after that many lines."""
+        from ala.services.agent_tools import _execute_lazy_log_tool
+
+        lines = [f"01-15 10:30:45.123  1234  5678 I Test: line {i}" for i in range(200)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            result_raw = _execute_lazy_log_tool(
+                "overview_local_log", {"max_lines": 50}, path
+            )
+            import json
+
+            result = json.loads(result_raw)
+            assert result["max_lines_reached"] is True
+            assert result["parsed_entries"] <= 51  # may be 50 or 51 depending on break timing
+            assert result["total_lines"] <= 51
+        finally:
+            os.unlink(path)
+
+    def test_no_max_lines_scans_all(self, analyzer):
+        """Without max_lines, all lines are scanned."""
+        from ala.services.agent_tools import _execute_lazy_log_tool
+
+        lines = [f"01-15 10:30:45.123  1234  5678 I Test: line {i}" for i in range(100)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            result_raw = _execute_lazy_log_tool("overview_local_log", {}, path)
+            import json
+
+            result = json.loads(result_raw)
+            assert "max_lines_reached" not in result
+            assert result["total_lines"] == 100
+            assert result["parsed_entries"] == 100
+        finally:
+            os.unlink(path)
+
+
+# ── US-A2: file_path schema verification test ────────────────────────────
+
+
+class TestLazyToolSchemas:
+    """Meta-tests verifying LAZY_LOG_TOOLS schema completeness (US-A2)."""
+
+    def test_file_path_param_in_schema(self):
+        """All 4 file-oriented tools have file_path in input_schema.properties."""
+        from ala.services.agent_tools import LAZY_LOG_TOOLS
+
+        tools_with_file_path = {
+            "overview_local_log",
+            "search_local_log",
+            "read_log_range",
+            "tail_local_log",
+        }
+        for tool in LAZY_LOG_TOOLS:
+            name = tool["name"]
+            props = tool["input_schema"].get("properties", {})
+            if name in tools_with_file_path:
+                assert "file_path" in props, (
+                    f"Tool '{name}' missing file_path in input_schema.properties"
+                )
+                assert props["file_path"]["type"] == "string", (
+                    f"Tool '{name}' file_path should be type string"
+                )
+            elif name == "list_directory_logs":
+                # list_directory_logs should NOT have file_path
+                assert "file_path" not in props, (
+                    "list_directory_logs should not have file_path"
+                )
+
+
+# ── US-A5: read_log_range error handling tests ───────────────────────────
+
+
+class TestReadLogRangeErrors:
+    """Tests for read_log_range error handling (US-A5)."""
+
+    def test_read_log_range_start_beyond_file(self, analyzer):
+        """start_line > total_lines returns explicit error."""
+        from ala.services.agent_tools import _execute_lazy_log_tool
+
+        path = _write_temp_file(SAMPLE_LOGCAT)  # 5 lines
+        try:
+            result_raw = _execute_lazy_log_tool(
+                "read_log_range", {"start_line": 99999, "end_line": 100000}, path
+            )
+            import json
+
+            result = json.loads(result_raw)
+            assert "error" in result
+            assert "start_line 99999 exceeds total lines 5" in result["error"]
+            assert result["total_lines_in_file"] == 5
+        finally:
+            os.unlink(path)
+
+    def test_read_log_range_end_clamped(self, analyzer):
+        """end_line beyond total_lines is clamped and noted in range string."""
+        from ala.services.agent_tools import _execute_lazy_log_tool
+
+        path = _write_temp_file(SAMPLE_LOGCAT)  # 5 lines
+        try:
+            result_raw = _execute_lazy_log_tool(
+                "read_log_range", {"start_line": 3, "end_line": 1000}, path
+            )
+            import json
+
+            result = json.loads(result_raw)
+            assert "clamped" in result["range"]
+            assert result["count"] == 3  # lines 3, 4, 5
+            assert result["total_lines_in_file"] == 5
+        finally:
+            os.unlink(path)
+
+
+# ── US-A3 / US-D1: Observability logging test ────────────────────────────
+
+
+class TestAgentToolsLogging:
+    """Tests for structured logging in _execute_lazy_log_tool (US-A3/US-D1)."""
+
+    def test_agent_tools_logging(self, caplog):
+        """Verify DEBUG log emitted at entry and completion of lazy tools."""
+        import logging
+
+        from ala.services.agent_tools import _execute_lazy_log_tool
+
+        path = _write_temp_file(SAMPLE_LOGCAT)
+        try:
+            caplog.set_level(logging.DEBUG, logger="ala.services.agent_tools")
+            _execute_lazy_log_tool("overview_local_log", {"max_lines": 10}, path)
+            # Check entry log
+            assert any(
+                "tool=overview_local_log" in r.message and "args=" in r.message
+                for r in caplog.records
+            ), "Expected DEBUG entry log with tool name and args"
+            # Check completion log
+            assert any(
+                "tool=overview_local_log completed" in r.message
+                for r in caplog.records
+            ), "Expected DEBUG completion log"
+        finally:
+            os.unlink(path)
