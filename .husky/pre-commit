@@ -14,6 +14,7 @@ if [ $? -ne 0 ]; then
   echo "Prettier format failed."
   exit 1
 fi
+git add -u
 
 # Backend Python: ruff lint + format
 if command -v poetry >/dev/null 2>&1; then
@@ -28,6 +29,7 @@ if command -v poetry >/dev/null 2>&1; then
     exit 1
   fi
   cd ..
+  git add -u
 fi
 
 echo "Pre-commit checks passed"
