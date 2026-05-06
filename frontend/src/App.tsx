@@ -48,7 +48,11 @@ import type {
   TraceParseResult,
 } from './types'
 import { hasFilterConditions } from './utils/filters'
-import { getActiveAIConfig, migrateFromLegacyConfig, migrateLocalModelsToBackend } from './utils/models'
+import {
+  getActiveAIConfig,
+  migrateFromLegacyConfig,
+  migrateLocalModelsToBackend,
+} from './utils/models'
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',

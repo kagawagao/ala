@@ -175,7 +175,9 @@ export function loadCustomModels(): ModelPreset[] {
  * Returns the array of model presets that were successfully created on the backend.
  * Models whose creation failed are restored to localStorage for retry on next load.
  */
-export async function migrateLocalModelsToBackend(existingModels: ModelPreset[]): Promise<ModelPreset[]> {
+export async function migrateLocalModelsToBackend(
+  existingModels: ModelPreset[],
+): Promise<ModelPreset[]> {
   const LEGACY_KEY = 'ala_models'
   let old: ModelPreset[]
   try {
