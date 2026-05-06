@@ -12,7 +12,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
@@ -27,12 +27,14 @@ import {
 import { parseTrace } from './api/trace'
 import AiPanel from './components/AiPanel'
 import AppSider from './components/AppSider'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
-import ModelManager from './components/ModelManager'
-import ProjectManager from './components/ProjectManager'
 import TraceViewer from './components/TraceViewer'
+
+const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
+const ModelManager = React.lazy(() => import('./components/ModelManager'))
 import { useLogStream } from './hooks/useLogStream'
 import i18next from './i18n/config'
 import type {
@@ -570,8 +572,8 @@ const AppContent: React.FC<{
         }}
       >
         <Routes>
-          <Route path="/projects" element={<ProjectManager />} />
-          <Route path="/models" element={<ModelManager onModelsChange={setAllModels} />} />
+          <Route path="/projects" element={<Suspense fallback={null}><ProjectManager /></Suspense>} />
+          <Route path="/models" element={<Suspense fallback={null}><ModelManager onModelsChange={setAllModels} /></Suspense>} />
           <Route
             path="*"
             element={
@@ -744,7 +746,9 @@ const App: React.FC = () => {
       }}
     >
       <AntApp style={{ height: '100%' }}>
-        <AppContent isDark={isDark} onToggleTheme={handleToggleTheme} />
+        <ErrorBoundary>
+          <AppContent isDark={isDark} onToggleTheme={handleToggleTheme} />
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   )
