@@ -38,15 +38,14 @@ export class ErrorBoundary extends React.Component<
           <Result
             status="error"
             title="Something went wrong"
-            subTitle={this.state.error?.message || 'An unexpected error occurred. Please try again.'}
+            subTitle={
+              this.state.error?.message || 'An unexpected error occurred. Please try again.'
+            }
             extra={[
               <Button key="retry" type="primary" onClick={this.handleRetry}>
                 Retry
               </Button>,
-              <Button
-                key="reload"
-                onClick={() => window.location.reload()}
-              >
+              <Button key="reload" onClick={() => window.location.reload()}>
                 Reload Page
               </Button>,
             ]}

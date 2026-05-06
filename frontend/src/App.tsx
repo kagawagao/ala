@@ -227,6 +227,7 @@ const AppContent: React.FC<{
     error: fileError,
     fileNames,
     formatDetected,
+    parseProgress,
     loadFromStream,
     abort: abortParse,
     reset: resetLogs,
@@ -360,6 +361,46 @@ const AppContent: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullPage, allModels])
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K → toggle sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSiderCollapsed((v) => !v)
+        return
+      }
+      // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        document.getElementById('ala-keywords-input')?.focus()
+        return
+      }
+      // Ctrl+D / Cmd+D → toggle dark/light theme
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault()
+        onToggleTheme()
+        return
+      }
+      // Esc → close upload popover, then collapse sider, then collapse aiPanel
+      if (e.key === 'Escape') {
+        if (uploadPopoverOpen) {
+          setUploadPopoverOpen(false)
+          return
+        }
+        if (!siderCollapsed) {
+          setSiderCollapsed(true)
+          return
+        }
+        if (!aiPanelCollapsed) {
+          setAiPanelCollapsed(true)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -518,6 +559,7 @@ const AppContent: React.FC<{
           highlights={highlights}
           wordWrap={wordWrap}
           formatDetected={formatDetected}
+          parseProgress={parseProgress}
         />
       ),
     },
