@@ -411,24 +411,35 @@ class LogAnalyzer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_path(file_path: str, sandbox_root: str | None = None) -> str:
-        """Validate and resolve a file path for security.
+    def _validate_path(
+        file_path: str,
+        sandbox_root: str | None = None,
+        *,
+        allow_directory: bool = False,
+    ) -> str:
+        """Validate and resolve a local path for security.
 
         Raises:
             PathTraversalError: If path contains traversal patterns.
-            FileNotFoundError: If file does not exist.
-            ValueError: If path points to a directory.
-            PermissionError: If sandbox restricts access or file is unreadable.
+            FileNotFoundError: If path does not exist.
+            ValueError: If path points to a directory and allow_directory is False.
+            PermissionError: If sandbox restricts access or path is unreadable.
         """
         # Resolve sandbox root from env var if not explicitly passed
         if sandbox_root is None:
             sandbox_root = os.environ.get("ALA_SANDBOX_ROOT")
 
+        # Normalize alternate separators first (e.g. '/' on Windows), then
+        # reject traversal tokens before normpath resolves them away.
+        path_for_check = file_path
+        if os.altsep:
+            path_for_check = path_for_check.replace(os.altsep, os.sep)
+
         # Reject path traversal patterns — check original string first
         # (normpath would resolve ../ before we can detect it)
-        if ".." in file_path.split(os.sep) or file_path.startswith(".."):
+        if ".." in path_for_check.split(os.sep) or path_for_check.startswith(".."):
             raise PathTraversalError(f"Path traversal detected: {file_path}")
-        normalized = os.path.normpath(file_path)
+        normalized = os.path.normpath(path_for_check)
         # Double-check the normalized path too
         if ".." in normalized.split(os.sep):
             raise PathTraversalError(f"Path traversal detected (after normalization): {normalized}")
@@ -445,12 +456,15 @@ class LogAnalyzer:
                     f"Path {file_path} is outside allowed sandbox root {sandbox_root}"
                 )
 
-        # Must exist and be a file
+        # Must exist
         if not os.path.exists(real):
             raise FileNotFoundError(f"File not found: {file_path}")
 
         if os.path.isdir(real):
-            raise ValueError(f"Path is a directory, not a file: {file_path}")
+            if not allow_directory:
+                raise ValueError(f"Path is a directory, not a file: {file_path}")
+        elif not os.path.isfile(real):
+            raise ValueError(f"Path is not a regular file: {file_path}")
 
         # Must be readable
         if not os.access(real, os.R_OK):

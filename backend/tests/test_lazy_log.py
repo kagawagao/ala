@@ -79,9 +79,17 @@ class TestValidatePath:
         finally:
             os.unlink(path)
 
+    def test_accepts_directory_when_explicitly_allowed(self, analyzer):
+        path = tempfile.mkdtemp()
+        try:
+            result = analyzer._validate_path(path, allow_directory=True)
+            assert os.path.isdir(result)
+        finally:
+            os.rmdir(path)
+
     def test_rejects_path_traversal_dotdot(self, analyzer):
         with pytest.raises(PathTraversalError, match="Path traversal"):
-            analyzer._validate_path("/tmp/../etc/passwd")
+            analyzer._validate_path(f"..{os.sep}outside.log")
 
     def test_rejects_path_traversal_encoded(self, analyzer):
         # os.sep ensures we catch .. regardless of platform
@@ -93,15 +101,22 @@ class TestValidatePath:
             analyzer._validate_path("/tmp/nonexistent_ala_test_file_xyz.log")
 
     def test_rejects_directory(self, analyzer):
-        with pytest.raises(ValueError, match="Path is a directory"):
-            analyzer._validate_path("/tmp")
+        path = tempfile.mkdtemp()
+        try:
+            with pytest.raises(ValueError, match="Path is a directory"):
+                analyzer._validate_path(path)
+        finally:
+            os.rmdir(path)
 
     def test_resolves_and_returns_real_path(self, analyzer):
         path = _write_temp_file(SAMPLE_LOGCAT)
         try:
             # Create symlink
             link = path + ".link"
-            os.symlink(path, link)
+            try:
+                os.symlink(path, link)
+            except (OSError, NotImplementedError):
+                pytest.skip("Symlink creation not available on this platform/user")
             try:
                 result = analyzer._validate_path(link)
                 assert os.path.realpath(result) == os.path.realpath(path)
@@ -138,6 +153,8 @@ class TestValidatePath:
             os.rmdir(sandbox)
 
     def test_rejects_unreadable_file(self, analyzer):
+        if os.name == "nt":
+            pytest.skip("chmod-based unreadable-file checks are not reliable on Windows")
         path = _write_temp_file(SAMPLE_LOGCAT)
         try:
             os.chmod(path, 0o000)
@@ -161,6 +178,51 @@ class TestValidatePath:
                 os.unlink(inside_path)
         finally:
             os.rmdir(sandbox)
+
+
+class TestChatSessionFilePath:
+    async def test_set_session_file_path_accepts_directory(self):
+        from ala.api.chat import SetFilePathRequest, _session_manager, set_session_file_path
+
+        path = tempfile.mkdtemp()
+        session = _session_manager.create_session("test", "general")
+        try:
+            result = await set_session_file_path(session.id, SetFilePathRequest(file_path=path))
+            assert result == {"success": True, "file_path": os.path.realpath(path)}
+            assert _session_manager.get_file_path(session.id) == os.path.realpath(path)
+        finally:
+            _session_manager.delete_session(session.id)
+            os.rmdir(path)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-only path separator behavior")
+class TestValidatePathWindowsCompat:
+    def test_rejects_backslash_path_traversal(self, analyzer):
+        with pytest.raises(PathTraversalError, match="Path traversal"):
+            analyzer._validate_path(r"logs\..\secret.log")
+
+    def test_rejects_mixed_separator_path_traversal(self, analyzer):
+        with pytest.raises(PathTraversalError, match="Path traversal"):
+            analyzer._validate_path("logs/../secret.log")
+
+    def test_accepts_windows_absolute_file_path(self, analyzer):
+        path = _write_temp_file(SAMPLE_LOGCAT)
+        try:
+            windows_style = os.path.normpath(path)
+            result = analyzer._validate_path(windows_style)
+            assert os.path.normcase(result) == os.path.normcase(os.path.realpath(path))
+        finally:
+            os.unlink(path)
+
+    def test_accepts_windows_directory_when_allowed(self, analyzer):
+        path = tempfile.mkdtemp()
+        try:
+            windows_style = os.path.normpath(path)
+            result = analyzer._validate_path(windows_style, allow_directory=True)
+            assert os.path.normcase(result) == os.path.normcase(os.path.realpath(path))
+            assert os.path.isdir(result)
+        finally:
+            os.rmdir(path)
 
 
 # ── scan_file_meta() tests ────────────────────────────────────────────────
@@ -536,6 +598,7 @@ class TestToolResultCache:
     def test_cache_expiry(self, monkeypatch):
         """Store entry, advance time past TTL → get() returns None."""
         import time
+
         from ala.services.agent_tools import ToolResultCache
 
         cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
@@ -631,8 +694,8 @@ class TestToolResultCache:
         # Clear cache before test
         _lazy_tool_cache.clear()
 
-        SAMPLE = "01-15 10:30:45.123  1234  5678 I TestTag: message line"
-        path = _write_temp_file(SAMPLE)
+        log_sample = "01-15 10:30:45.123  1234  5678 I TestTag: message line"
+        path = _write_temp_file(log_sample)
         try:
             # First call: should miss cache
             result1 = _execute_lazy_log_tool("tail_local_log", {"lines": 1}, path)
@@ -653,6 +716,7 @@ class TestToolResultCache:
     def test_cache_skipped_for_list_directory_logs(self):
         """list_directory_logs should not be cached."""
         import tempfile
+
         from ala.services.agent_tools import (
             _execute_lazy_log_tool,
             _lazy_tool_cache,
@@ -661,9 +725,9 @@ class TestToolResultCache:
         _lazy_tool_cache.clear()
         with tempfile.TemporaryDirectory() as tmpdir:
             # First call
-            result1 = _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
+            _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
             # Second call should not be cached — result is always fresh
-            result2 = _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
+            _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
             # Both should return valid JSON (directory may be empty — that's fine)
         _lazy_tool_cache.clear()
 
@@ -681,13 +745,9 @@ class TestToolResultCache:
         path = _write_temp_file(content)
         try:
             # First call with max_lines=10
-            result1 = _execute_lazy_log_tool(
-                "overview_local_log", {"max_lines": 10}, path
-            )
+            result1 = _execute_lazy_log_tool("overview_local_log", {"max_lines": 10}, path)
             # Second call with max_lines=5 (different result expected, must NOT be cached)
-            result2 = _execute_lazy_log_tool(
-                "overview_local_log", {"max_lines": 5}, path
-            )
+            result2 = _execute_lazy_log_tool("overview_local_log", {"max_lines": 5}, path)
             import json
 
             r1 = json.loads(result1)

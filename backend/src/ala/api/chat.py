@@ -139,7 +139,7 @@ async def set_session_file_path(session_id: str, req: SetFilePathRequest):
 
     # Validate path and use canonical (normalized) path
     try:
-        canonical = LogAnalyzer._validate_path(raw_path)
+        canonical = LogAnalyzer._validate_path(raw_path, allow_directory=True)
     except PathTraversalError as e:
         raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
     except FileNotFoundError as e:

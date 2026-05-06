@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file. See [Conven
 - **lazy-log display:** AI tool results from `search_local_log` / `read_log_range` render directly in LogViewer
 - **lazy-log cache:** LRU cache (128 entries, 60s TTL) for lazy-log tool results to avoid redundant I/O
 - **scan optimization:** `scan_file_meta` early exit with `max_scan_lines` param for large file performance
+
 ### Tests
 
 - **frontend:** establish Vitest + Testing Library test infrastructure with jsdom environment
