@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
-import { Table, Tag, Typography, Tooltip, Empty, App } from 'antd'
-import { CopyOutlined } from '@ant-design/icons'
+import { Table, Tag, Typography, Tooltip, Empty, App, Button } from 'antd'
+import { CopyOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { LogEntry, HighlightItem } from '../types'
+import { generateCSV, generateJSON, downloadBlob, generateExportFilename } from '../utils/export'
 
 const { Text } = Typography
 
@@ -273,6 +274,37 @@ const LogViewer: React.FC<LogViewerProps> = ({
             {t('formatDetected', { format: formatDetected })}
           </Text>
         )}
+        <div style={{ flex: 1 }} />
+        <Tooltip title={logs.length === 0 ? t('noDataToExport') : undefined}>
+          <span>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              disabled={logs.length === 0}
+              onClick={() => {
+                const csv = generateCSV(logs)
+                downloadBlob(csv, generateExportFilename('csv'), 'text/csv;charset=utf-8')
+              }}
+            >
+              {t('exportCsv')}
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title={logs.length === 0 ? t('noDataToExport') : undefined}>
+          <span>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              disabled={logs.length === 0}
+              onClick={() => {
+                const json = generateJSON(logs)
+                downloadBlob(json, generateExportFilename('json'), 'application/json;charset=utf-8')
+              }}
+            >
+              {t('exportJson')}
+            </Button>
+          </span>
+        </Tooltip>
       </div>
 
       {logs.length === 0 ? (

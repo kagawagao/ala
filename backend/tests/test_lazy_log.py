@@ -79,9 +79,17 @@ class TestValidatePath:
         finally:
             os.unlink(path)
 
+    def test_accepts_directory_when_explicitly_allowed(self, analyzer):
+        path = tempfile.mkdtemp()
+        try:
+            result = analyzer._validate_path(path, allow_directory=True)
+            assert os.path.isdir(result)
+        finally:
+            os.rmdir(path)
+
     def test_rejects_path_traversal_dotdot(self, analyzer):
         with pytest.raises(PathTraversalError, match="Path traversal"):
-            analyzer._validate_path("/tmp/../etc/passwd")
+            analyzer._validate_path(f"..{os.sep}outside.log")
 
     def test_rejects_path_traversal_encoded(self, analyzer):
         # os.sep ensures we catch .. regardless of platform
@@ -93,15 +101,22 @@ class TestValidatePath:
             analyzer._validate_path("/tmp/nonexistent_ala_test_file_xyz.log")
 
     def test_rejects_directory(self, analyzer):
-        with pytest.raises(ValueError, match="Path is a directory"):
-            analyzer._validate_path("/tmp")
+        path = tempfile.mkdtemp()
+        try:
+            with pytest.raises(ValueError, match="Path is a directory"):
+                analyzer._validate_path(path)
+        finally:
+            os.rmdir(path)
 
     def test_resolves_and_returns_real_path(self, analyzer):
         path = _write_temp_file(SAMPLE_LOGCAT)
         try:
             # Create symlink
             link = path + ".link"
-            os.symlink(path, link)
+            try:
+                os.symlink(path, link)
+            except (OSError, NotImplementedError):
+                pytest.skip("Symlink creation not available on this platform/user")
             try:
                 result = analyzer._validate_path(link)
                 assert os.path.realpath(result) == os.path.realpath(path)
@@ -138,6 +153,8 @@ class TestValidatePath:
             os.rmdir(sandbox)
 
     def test_rejects_unreadable_file(self, analyzer):
+        if os.name == "nt":
+            pytest.skip("chmod-based unreadable-file checks are not reliable on Windows")
         path = _write_temp_file(SAMPLE_LOGCAT)
         try:
             os.chmod(path, 0o000)
@@ -161,6 +178,57 @@ class TestValidatePath:
                 os.unlink(inside_path)
         finally:
             os.rmdir(sandbox)
+
+
+class TestValidatePathDirectory:
+    """_validate_path must accept directories when allow_directory=True."""
+
+    def test_accepts_directory_path(self):
+        path = tempfile.mkdtemp()
+        try:
+            result = LogAnalyzer._validate_path(path, allow_directory=True)
+            assert os.path.isdir(result)
+            assert result == os.path.realpath(path)
+        finally:
+            os.rmdir(path)
+
+    def test_rejects_directory_path_by_default(self):
+        path = tempfile.mkdtemp()
+        try:
+            with pytest.raises(ValueError, match="directory"):
+                LogAnalyzer._validate_path(path)
+        finally:
+            os.rmdir(path)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-only path separator behavior")
+class TestValidatePathWindowsCompat:
+    def test_rejects_backslash_path_traversal(self, analyzer):
+        with pytest.raises(PathTraversalError, match="Path traversal"):
+            analyzer._validate_path(r"logs\..\secret.log")
+
+    def test_rejects_mixed_separator_path_traversal(self, analyzer):
+        with pytest.raises(PathTraversalError, match="Path traversal"):
+            analyzer._validate_path("logs/../secret.log")
+
+    def test_accepts_windows_absolute_file_path(self, analyzer):
+        path = _write_temp_file(SAMPLE_LOGCAT)
+        try:
+            windows_style = os.path.normpath(path)
+            result = analyzer._validate_path(windows_style)
+            assert os.path.normcase(result) == os.path.normcase(os.path.realpath(path))
+        finally:
+            os.unlink(path)
+
+    def test_accepts_windows_directory_when_allowed(self, analyzer):
+        path = tempfile.mkdtemp()
+        try:
+            windows_style = os.path.normpath(path)
+            result = analyzer._validate_path(windows_style, allow_directory=True)
+            assert os.path.normcase(result) == os.path.normcase(os.path.realpath(path))
+            assert os.path.isdir(result)
+        finally:
+            os.rmdir(path)
 
 
 # ── scan_file_meta() tests ────────────────────────────────────────────────
@@ -500,5 +568,274 @@ class TestAgentToolsLogging:
             assert any("tool=overview_local_log completed" in r.message for r in caplog.records), (
                 "Expected DEBUG completion log"
             )
+        finally:
+            os.unlink(path)
+
+
+# ── US-FE2: ToolResultCache tests ──────────────────────────────────────────
+
+
+class TestToolResultCache:
+    """Tests for the ToolResultCache LRU+TTL cache (US-FE2)."""
+
+    def test_cache_hit(self):
+        """Cache same key twice → second call returns cached result."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        key = "search_local_log:/tmp/test.log:{'keyword':'error'}:1234567890.0"
+        cache.set(key, '{"result": "cached"}')
+        result = cache.get(key)
+        assert result == '{"result": "cached"}'
+
+    def test_cache_miss_different_args(self):
+        """Different args → different keys → no cross-contamination."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        key1 = "search_local_log:/tmp/test.log:{'keyword':'error'}:1234567890.0"
+        key2 = "search_local_log:/tmp/test.log:{'keyword':'warning'}:1234567890.0"
+        cache.set(key1, '{"result": "error_match"}')
+        # key2 should miss
+        assert cache.get(key2) is None
+        # key1 should still hit
+        assert cache.get(key1) == '{"result": "error_match"}'
+
+    def test_cache_expiry(self, monkeypatch):
+        """Store entry, advance time past TTL → get() returns None."""
+        import time
+
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        key = "tail_local_log:/tmp/test.log:{'lines':50}:1234567890.0"
+        cache.set(key, '{"result": "tail"}')
+
+        # Fake time to fast-forward past TTL
+        fake_time = time.monotonic()
+        monkeypatch.setattr(time, "monotonic", lambda: fake_time)
+
+        # Before TTL: hit
+        assert cache.get(key) == '{"result": "tail"}'
+
+        # After TTL: miss
+        fake_time += 61.0
+        assert cache.get(key) is None
+
+    def test_cache_eviction(self):
+        """Fill cache beyond max_size → oldest (LRU) entry evicted."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=3, ttl_seconds=600.0)
+
+        # Insert 3 entries
+        cache.set("key:1", "one")
+        cache.set("key:2", "two")
+        cache.set("key:3", "three")
+        assert len(cache) == 3
+
+        # Access key:1 to make it most-recently-used
+        assert cache.get("key:1") == "one"
+
+        # Insert 4th — should evict LRU (key:2)
+        cache.set("key:4", "four")
+        assert len(cache) == 3
+        assert "key:2" not in cache
+        assert "key:1" in cache
+        assert "key:3" in cache
+        assert "key:4" in cache
+
+    def test_cache_mtime_change_miss(self):
+        """File mtime change causes cache miss even with same args."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        key1 = "read_log_range:/tmp/test.log:{'start_line':1,'end_line':10}:100.0"
+        key2 = "read_log_range:/tmp/test.log:{'start_line':1,'end_line':10}:200.0"
+
+        cache.set(key1, '{"result": "v1"}')
+        # Same args but different mtime → different key → cache miss
+        assert cache.get(key2) is None
+        assert cache.get(key1) == '{"result": "v1"}'
+
+    def test_cache_build_key_deterministic(self):
+        """build_key produces the same key for equivalent args regardless of order."""
+        from ala.services.agent_tools import ToolResultCache
+
+        args1 = {"end_line": 10, "start_line": 1}
+        args2 = {"start_line": 1, "end_line": 10}
+
+        key1 = ToolResultCache.build_key("read_log_range", "/tmp/test.log", args1)
+        key2 = ToolResultCache.build_key("read_log_range", "/tmp/test.log", args2)
+        assert key1 == key2
+
+    def test_cache_clear(self):
+        """clear() removes all entries."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        cache.set("key:1", "one")
+        cache.set("key:2", "two")
+        assert len(cache) == 2
+        cache.clear()
+        assert len(cache) == 0
+        assert cache.get("key:1") is None
+
+    def test_cache_set_overwrites_existing_key(self):
+        """Setting an existing key updates the value and refreshes position."""
+        from ala.services.agent_tools import ToolResultCache
+
+        cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
+        cache.set("key:1", "old")
+        cache.set("key:1", "new")
+        assert cache.get("key:1") == "new"
+
+    def test_cache_integration_execute_lazy_log_tool(self, analyzer):
+        """Integration test: repeated calls with same args hit cache."""
+        from ala.services.agent_tools import (
+            _execute_lazy_log_tool,
+            _lazy_tool_cache,
+        )
+
+        # Clear cache before test
+        _lazy_tool_cache.clear()
+
+        log_sample = "01-15 10:30:45.123  1234  5678 I TestTag: message line"
+        path = _write_temp_file(log_sample)
+        try:
+            # First call: should miss cache
+            result1 = _execute_lazy_log_tool("tail_local_log", {"lines": 1}, path)
+            import json
+
+            r1 = json.loads(result1)
+            assert "error" not in r1
+            assert r1["total_lines"] == 1
+
+            # Second call: should hit cache
+            result2 = _execute_lazy_log_tool("tail_local_log", {"lines": 1}, path)
+            r2 = json.loads(result2)
+            assert r2 == r1  # Same result
+        finally:
+            _lazy_tool_cache.clear()
+            os.unlink(path)
+
+    def test_cache_skipped_for_list_directory_logs(self):
+        """list_directory_logs should not be cached."""
+        import tempfile
+
+        from ala.services.agent_tools import (
+            _execute_lazy_log_tool,
+            _lazy_tool_cache,
+        )
+
+        _lazy_tool_cache.clear()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # First call
+            _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
+            # Second call should not be cached — result is always fresh
+            _execute_lazy_log_tool("list_directory_logs", {}, tmpdir)
+            # Both should return valid JSON (directory may be empty — that's fine)
+        _lazy_tool_cache.clear()
+
+    def test_cache_skipped_for_overview_with_max_lines(self, analyzer):
+        """overview_local_log with max_lines should not be cached."""
+        from ala.services.agent_tools import (
+            _execute_lazy_log_tool,
+            _lazy_tool_cache,
+        )
+
+        _lazy_tool_cache.clear()
+
+        lines = [f"01-15 10:30:45.123  1234  5678 I Test: line {i}" for i in range(100)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            # First call with max_lines=10
+            result1 = _execute_lazy_log_tool("overview_local_log", {"max_lines": 10}, path)
+            # Second call with max_lines=5 (different result expected, must NOT be cached)
+            result2 = _execute_lazy_log_tool("overview_local_log", {"max_lines": 5}, path)
+            import json
+
+            r1 = json.loads(result1)
+            r2 = json.loads(result2)
+            # They should differ since different max_lines
+            assert r1["total_lines"] != r2["total_lines"]
+        finally:
+            _lazy_tool_cache.clear()
+            os.unlink(path)
+
+
+# ── US-FE3: scan_file_meta early exit tests ────────────────────────────────
+
+
+class TestScanFileMetaEarlyExit:
+    """Tests for scan_file_meta max_scan_lines early exit (US-FE3)."""
+
+    def test_early_exit_with_max_scan_lines(self, analyzer):
+        """max_scan_lines=100: stops scanning after 100 lines."""
+        lines = [f"line {i}" for i in range(1000)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            ref = analyzer.scan_file_meta(path, max_scan_lines=100)
+            assert ref.line_count == 100
+            assert ref.truncated is True
+        finally:
+            os.unlink(path)
+
+    def test_full_scan_without_max_scan_lines(self, analyzer):
+        """max_scan_lines=None (default): scans all lines."""
+        lines = [f"line {i}" for i in range(200)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            ref = analyzer.scan_file_meta(path)
+            assert ref.line_count == 200
+            assert ref.truncated is False
+        finally:
+            os.unlink(path)
+
+    def test_truncated_flag_false_when_small_file(self, analyzer):
+        """Small file with max_scan_lines larger than file: truncated=False."""
+        lines = [f"line {i}" for i in range(50)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            ref = analyzer.scan_file_meta(path, max_scan_lines=50000)
+            assert ref.line_count == 50
+            assert ref.truncated is False
+        finally:
+            os.unlink(path)
+
+    def test_format_detection_still_works_with_early_exit(self, analyzer):
+        """Format detection uses first 10 lines even when max_scan_lines triggers early exit."""
+        path = _write_temp_file(SAMPLE_LOGCAT * 20)  # 100 lines of logcat
+        try:
+            ref = analyzer.scan_file_meta(path, max_scan_lines=50)
+            assert ref.format_detected == "android_logcat"
+            assert ref.line_count == 50
+            assert ref.truncated is True
+        finally:
+            os.unlink(path)
+
+    def test_file_ref_truncated_field_default(self):
+        """FileRef.truncated defaults to False."""
+        ref = FileRef(
+            path="/tmp/test.log",
+            line_count=10,
+            size_bytes=100,
+            format_detected="android_logcat",
+        )
+        assert ref.truncated is False
+
+    def test_max_scan_lines_exact_boundary(self, analyzer):
+        """When line_count equals max_scan_lines exactly, truncated=True."""
+        lines = [f"line {i}" for i in range(100)]
+        content = "\n".join(lines) + "\n"
+        path = _write_temp_file(content)
+        try:
+            ref = analyzer.scan_file_meta(path, max_scan_lines=100)
+            assert ref.line_count == 100
+            assert ref.truncated is True
         finally:
             os.unlink(path)

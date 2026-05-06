@@ -67,6 +67,7 @@ class FileRef:
     format_detected: str  # LogFormat value
     is_gzip: bool = False
     is_zip: bool = False
+    truncated: bool = False  # True when scan stopped early due to max_scan_lines
 
 
 class PathTraversalError(ValueError):
@@ -410,24 +411,35 @@ class LogAnalyzer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_path(file_path: str, sandbox_root: str | None = None) -> str:
-        """Validate and resolve a file path for security.
+    def _validate_path(
+        file_path: str,
+        sandbox_root: str | None = None,
+        *,
+        allow_directory: bool = False,
+    ) -> str:
+        """Validate and resolve a local path for security.
 
         Raises:
             PathTraversalError: If path contains traversal patterns.
-            FileNotFoundError: If file does not exist.
-            ValueError: If path points to a directory.
-            PermissionError: If sandbox restricts access or file is unreadable.
+            FileNotFoundError: If path does not exist.
+            ValueError: If path points to a directory and allow_directory is False.
+            PermissionError: If sandbox restricts access or path is unreadable.
         """
         # Resolve sandbox root from env var if not explicitly passed
         if sandbox_root is None:
             sandbox_root = os.environ.get("ALA_SANDBOX_ROOT")
 
+        # Normalize alternate separators first (e.g. '/' on Windows), then
+        # reject traversal tokens before normpath resolves them away.
+        path_for_check = file_path
+        if os.altsep:
+            path_for_check = path_for_check.replace(os.altsep, os.sep)
+
         # Reject path traversal patterns — check original string first
         # (normpath would resolve ../ before we can detect it)
-        if ".." in file_path.split(os.sep) or file_path.startswith(".."):
+        if ".." in path_for_check.split(os.sep) or path_for_check.startswith(".."):
             raise PathTraversalError(f"Path traversal detected: {file_path}")
-        normalized = os.path.normpath(file_path)
+        normalized = os.path.normpath(path_for_check)
         # Double-check the normalized path too
         if ".." in normalized.split(os.sep):
             raise PathTraversalError(f"Path traversal detected (after normalization): {normalized}")
@@ -444,12 +456,15 @@ class LogAnalyzer:
                     f"Path {file_path} is outside allowed sandbox root {sandbox_root}"
                 )
 
-        # Must exist and be a file
+        # Must exist
         if not os.path.exists(real):
             raise FileNotFoundError(f"File not found: {file_path}")
 
         if os.path.isdir(real):
-            raise ValueError(f"Path is a directory, not a file: {file_path}")
+            if not allow_directory:
+                raise ValueError(f"Path is a directory, not a file: {file_path}")
+        elif not os.path.isfile(real):
+            raise ValueError(f"Path is not a regular file: {file_path}")
 
         # Must be readable
         if not os.access(real, os.R_OK):
@@ -457,10 +472,15 @@ class LogAnalyzer:
 
         return real
 
-    def scan_file_meta(self, file_path: str) -> FileRef:
+    def scan_file_meta(self, file_path: str, max_scan_lines: int | None = None) -> FileRef:
         """Scan a local log file and return metadata without parsing entries.
 
         Counts lines, detects format, and identifies compression type.
+
+        Args:
+            file_path: Path to the log file.
+            max_scan_lines: If set, stop counting after this many lines.
+                            Format detection still uses the first 10 lines.
         """
         validated = self._validate_path(file_path)
         file_stat = os.stat(validated)
@@ -472,6 +492,7 @@ class LogAnalyzer:
         line_count = 0
         format_detected = LogFormat.UNKNOWN.value
         sample_lines = []
+        truncated = False
 
         if is_zip:
             # For ZIP archives, iterate all text members to count lines and collect samples
@@ -490,6 +511,12 @@ class LogAnalyzer:
                             stripped = raw_line.strip()
                             if stripped and len(sample_lines) < 10:
                                 sample_lines.append(stripped)
+                            # Early exit: stop counting after max_scan_lines
+                            if max_scan_lines is not None and line_count >= max_scan_lines:
+                                truncated = True
+                                break
+                    if truncated:
+                        break
             finally:
                 zf.close()
         else:
@@ -500,6 +527,10 @@ class LogAnalyzer:
                     stripped = raw_line.strip()
                     if stripped and len(sample_lines) < 10:
                         sample_lines.append(stripped)
+                    # Early exit: stop counting after max_scan_lines
+                    if max_scan_lines is not None and line_count >= max_scan_lines:
+                        truncated = True
+                        break
             finally:
                 if hasattr(fh, "close"):
                     fh.close()
@@ -515,6 +546,7 @@ class LogAnalyzer:
             format_detected=format_detected,
             is_gzip=is_gzip,
             is_zip=is_zip,
+            truncated=truncated,
         )
 
     def stream_file(self, file_path: str, sandbox_root: str | None = None) -> Iterator[LogEntry]:

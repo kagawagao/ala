@@ -60,6 +60,7 @@ class LocalPathResponse(BaseModel):
     format_detected: str
     is_gzip: bool
     is_zip: bool
+    truncated: bool = False
 
 
 class AutoPathResponse(BaseModel):
@@ -73,6 +74,7 @@ class AutoPathResponse(BaseModel):
     format_detected: str | None = None
     is_gzip: bool | None = None
     is_zip: bool | None = None
+    truncated: bool | None = None  # True when scan stopped early (file only)
     # Directory-specific fields (when type="directory")
     files: list["DirectoryFileInfo"] | None = None
     has_subdirectories: bool | None = None
@@ -158,6 +160,7 @@ async def parse_local_path(req: LocalPathRequest):
         format_detected=ref.format_detected,
         is_gzip=ref.is_gzip,
         is_zip=ref.is_zip,
+        truncated=ref.truncated,
     )
 
 
@@ -186,7 +189,7 @@ async def auto_path(req: LocalPathRequest):
             raise HTTPException(status_code=400, detail=str(e))
 
         try:
-            ref = _analyzer.scan_file_meta(validated)
+            ref = _analyzer.scan_file_meta(validated, max_scan_lines=50000)
         except FileNotFoundError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except PermissionError as e:
@@ -204,6 +207,7 @@ async def auto_path(req: LocalPathRequest):
             format_detected=ref.format_detected,
             is_gzip=ref.is_gzip,
             is_zip=ref.is_zip,
+            truncated=ref.truncated,
         )
 
     # ── Directory path ────────────────────────────────────────────────────

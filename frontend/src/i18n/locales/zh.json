@@ -231,6 +231,9 @@
   "compatibilityOpenAI": "OpenAI 兼容",
   "continueAnalysis": "继续分析",
   "copyFailed": "复制失败",
+  "noDataToExport": "无数据可导出",
+  "exportCsv": "CSV",
+  "exportJson": "JSON",
   "orEnterLocalFilePath": "或输入本地路径",
   "switchLanguage": "切换语言",
   "langCode": "中文"

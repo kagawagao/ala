@@ -42,7 +42,7 @@ interface FileUploadProps {
  * 4. If content analysis is inconclusive, the file extension is used as a
  *    tiebreaker, preserving the original backward-compatible behaviour.
  */
-async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
+export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
   const name = file.name.toLowerCase()
   const lastDot = name.lastIndexOf('.')
   const ext = lastDot !== -1 ? name.slice(lastDot) : ''
