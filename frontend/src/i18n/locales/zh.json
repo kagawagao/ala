@@ -202,6 +202,8 @@
   "modelProvider": "提供商",
   "customModelAdded": "自定义模型已添加",
   "customModelDeleted": "自定义模型已删除",
+  "modelCopied": "模型已复制",
+  "copyModel": "复制模型",
   "applyModel": "应用",
   "modelLibraryHint": "点击模型可自动填写上方字段",
   "noFilterApplied": "未设置过滤条件",
@@ -236,5 +238,11 @@
   "exportJson": "JSON",
   "orEnterLocalFilePath": "或输入本地路径",
   "switchLanguage": "切换语言",
-  "langCode": "中文"
+  "langCode": "中文",
+  "failedToLoadModels": "加载模型失败",
+  "failedToSaveModel": "保存模型失败",
+  "failedToDeleteModel": "删除模型失败",
+  "apiKeyStoredLocally": "API Key 仅存储在您的浏览器本地，不会发送至服务器",
+  "refresh": "刷新",
+  "migratedModels": "已将 {{count}} 个自定义模型从本地迁移至后端"
 }

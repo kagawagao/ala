@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Button,
   Card,
@@ -19,6 +19,7 @@ import {
   Slider,
   Select,
   InputNumber,
+  Spin,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -28,20 +29,21 @@ import {
   CopyOutlined,
   CheckOutlined,
   KeyOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { updateConfig } from '../api/config'
+import { listModels, createModel, updateModel, deleteModel } from '../api/models'
 import {
-  BUILTIN_MODELS,
   groupByProvider,
-  loadCustomModels,
-  saveCustomModels,
   loadModelConfigs,
   saveModelConfig,
+  deleteModelConfig,
   getActiveModelIds,
   toggleActiveModel,
   buildAIConfig,
+  migrateFromLegacyConfig,
 } from '../utils/models'
 import type { ModelPreset, ModelConfig } from '../types'
 
@@ -108,20 +110,18 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   )
 }
 
-const ModelManager: React.FC = () => {
+const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void }> = ({
+  onModelsChange,
+}) => {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const navigate = useNavigate()
 
-  const [customModels, setCustomModels] = useState<ModelPreset[]>(loadCustomModels)
+  const [models, setModels] = useState<ModelPreset[]>([])
+  const [loading, setLoading] = useState(true)
   const [modelConfigs, setModelConfigs] =
     useState<Record<string, Partial<ModelConfig>>>(loadModelConfigs)
   const [activeModelIds, setActiveModelIds] = useState<string[]>(getActiveModelIds)
-
-  useEffect(() => {
-    setModelConfigs(loadModelConfigs())
-    setActiveModelIds(getActiveModelIds())
-  }, [])
 
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ModelPreset | null>(null)
@@ -129,6 +129,33 @@ const ModelManager: React.FC = () => {
   const [addForm] = Form.useForm<CustomModelForm>()
   const [editForm] = Form.useForm<CustomModelForm>()
   const [configForm] = Form.useForm<ConfigForm>()
+
+  const fetchModels = useCallback(async () => {
+    try {
+      setLoading(true)
+      const fetched = await listModels()
+      setModels(fetched)
+      // Migrate legacy global aiConfig → per-model configs
+      migrateFromLegacyConfig(fetched)
+      // Refresh modelConfigs state so the UI reflects any migrated API keys
+      setModelConfigs(loadModelConfigs())
+      setActiveModelIds(getActiveModelIds())
+    } catch {
+      void message.error(t('failedToLoadModels'))
+    } finally {
+      setLoading(false)
+    }
+  }, [message, t])
+
+  useEffect(() => {
+    void fetchModels()
+  }, [fetchModels])
+
+  // Propagate model list changes (add, edit, delete, copy) to the parent component
+  // so App.tsx keeps its allModels state in sync without requiring navigation.
+  useEffect(() => {
+    onModelsChange?.(models)
+  }, [models, onModelsChange])
 
   const handleToggleActive = (preset: ModelPreset) => {
     const updated = toggleActiveModel(preset.id)
@@ -189,21 +216,22 @@ const ModelManager: React.FC = () => {
   const handleAdd = () => {
     addForm
       .validateFields()
-      .then((values) => {
-        const preset: ModelPreset = {
-          id: `custom-${Date.now()}`,
-          name: values.name.trim(),
-          provider: values.provider?.trim() || 'Custom',
-          model_id: values.model_id.trim(),
-          api_endpoint: values.api_endpoint.trim(),
-          anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
+      .then(async (values) => {
+        try {
+          const preset = await createModel({
+            name: values.name.trim(),
+            provider: values.provider?.trim() || 'Custom',
+            model_id: values.model_id.trim(),
+            api_endpoint: values.api_endpoint.trim(),
+            anthropic_compatible: formCompatToPreset(values.anthropic_compatible) ?? null,
+          })
+          setModels((prev) => [...prev, preset])
+          addForm.resetFields()
+          setAddOpen(false)
+          void message.success(t('customModelAdded'))
+        } catch {
+          void message.error(t('failedToSaveModel'))
         }
-        const updated = [...customModels, preset]
-        setCustomModels(updated)
-        saveCustomModels(updated)
-        addForm.resetFields()
-        setAddOpen(false)
-        void message.success(t('customModelAdded'))
       })
       .catch(() => {
         /* validation error */
@@ -214,38 +242,64 @@ const ModelManager: React.FC = () => {
     if (!editTarget) return
     editForm
       .validateFields()
-      .then((values) => {
-        const updated = customModels.map((m) =>
-          m.id === editTarget.id
-            ? {
-                ...m,
-                name: values.name.trim(),
-                provider: values.provider?.trim() || 'Custom',
-                model_id: values.model_id.trim(),
-                api_endpoint: values.api_endpoint.trim(),
-                anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
-              }
-            : m,
-        )
-        setCustomModels(updated)
-        saveCustomModels(updated)
-        setEditTarget(null)
-        void message.success(t('modelUpdated'))
+      .then(async (values) => {
+        try {
+          const updated = await updateModel(editTarget.id, {
+            name: values.name.trim(),
+            provider: values.provider?.trim() || 'Custom',
+            model_id: values.model_id.trim(),
+            api_endpoint: values.api_endpoint.trim(),
+            anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
+          })
+          setModels((prev) => prev.map((m) => (m.id === editTarget.id ? updated : m)))
+          setEditTarget(null)
+          void message.success(t('modelUpdated'))
+        } catch {
+          void message.error(t('failedToSaveModel'))
+        }
       })
       .catch(() => {
         /* validation error */
       })
   }
 
-  const handleDelete = (id: string) => {
-    const updated = customModels.filter((m) => m.id !== id)
-    setCustomModels(updated)
-    saveCustomModels(updated)
-    if (activeModelIds.includes(id)) {
-      const ids = toggleActiveModel(id)
-      setActiveModelIds(ids)
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteModel(id)
+      setModels((prev) => prev.filter((m) => m.id !== id))
+      deleteModelConfig(id)
+      setModelConfigs(loadModelConfigs())
+      if (activeModelIds.includes(id)) {
+        const ids = toggleActiveModel(id)
+        setActiveModelIds(ids)
+      }
+      void message.success(t('customModelDeleted'))
+    } catch {
+      void message.error(t('failedToDeleteModel'))
     }
-    void message.success(t('customModelDeleted'))
+  }
+
+  const handleCopy = async (model: ModelPreset) => {
+    const sourceConfig = modelConfigs[model.id] ?? {}
+    try {
+      const newPreset = await createModel({
+        name: `${model.name} (Copy)`,
+        provider: model.provider,
+        model_id: model.model_id,
+        api_endpoint: model.api_endpoint,
+        description: model.description,
+        anthropic_compatible: model.anthropic_compatible ?? null,
+        supports_thinking: model.supports_thinking,
+      })
+      setModels((prev) => [...prev, newPreset])
+      if (sourceConfig.api_key) {
+        saveModelConfig(newPreset.id, sourceConfig)
+        setModelConfigs(loadModelConfigs())
+      }
+      void message.success(t('modelCopied'))
+    } catch {
+      void message.error(t('failedToSaveModel'))
+    }
   }
 
   const openEdit = (model: ModelPreset) => {
@@ -261,6 +315,9 @@ const ModelManager: React.FC = () => {
 
   const watchThinkingMode = Form.useWatch('thinking_mode', configForm)
   const showBudget = watchThinkingMode && watchThinkingMode !== 'off'
+
+  const builtinModels = models.filter((m) => m.builtin)
+  const customModels = models.filter((m) => !m.builtin)
 
   const renderCard = (m: ModelPreset, isCustom: boolean) => {
     const cfg = modelConfigs[m.id] ?? {}
@@ -292,6 +349,14 @@ const ModelManager: React.FC = () => {
                   onClick={() => openConfigure(m)}
                 />
               </Tooltip>
+              <Tooltip title={t('copyModel')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={() => void handleCopy(m)}
+                />
+              </Tooltip>
               {isCustom && (
                 <>
                   <Tooltip title={t('editCustomModel')}>
@@ -304,7 +369,7 @@ const ModelManager: React.FC = () => {
                   </Tooltip>
                   <Popconfirm
                     title={t('deleteConfirm')}
-                    onConfirm={() => handleDelete(m.id)}
+                    onConfirm={() => void handleDelete(m.id)}
                     okType="danger"
                   >
                     <Button type="text" size="small" danger icon={<DeleteOutlined />} />
@@ -385,6 +450,14 @@ const ModelManager: React.FC = () => {
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
           {t('backToAnalysis')}
         </Button>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => void fetchModels()}
+          loading={loading}
+          size="small"
+        >
+          {t('refresh')}
+        </Button>
       </Space>
 
       <Title level={4} style={{ marginBottom: 4 }}>
@@ -394,62 +467,64 @@ const ModelManager: React.FC = () => {
         {t('modelManagementDescription')}
       </Text>
 
-      {/* ── Built-in models ─────────────────────────────────────── */}
-      <Divider
-        titlePlacement="left"
-        orientationMargin={0}
-        style={{ fontSize: 14, marginBottom: 16 }}
-      >
-        {t('builtinModels')}
-      </Divider>
-
-      {groupByProvider(BUILTIN_MODELS).map(([provider, models]) => (
-        <div key={provider} style={{ marginBottom: 20 }}>
-          <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
-            {provider}
-          </Text>
-          <Row gutter={[12, 12]}>{models.map((m) => renderCard(m, false))}</Row>
-        </div>
-      ))}
-
-      {/* ── Custom models ────────────────────────────────────────── */}
-      <Divider
-        titlePlacement="left"
-        orientationMargin={0}
-        style={{ fontSize: 14, margin: '24px 0 16px' }}
-      >
-        <Space>
-          {t('customModels')}
-          <Button
-            size="small"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setAddOpen(true)}
-          >
-            {t('addCustomModel')}
-          </Button>
-        </Space>
-      </Divider>
-
-      {customModels.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {t('noCustomModels')}
-            </Text>
-          }
-          style={{ margin: '16px 0' }}
+      <Spin spinning={loading}>
+        {/* ── Built-in models ─────────────────────────────────────── */}
+        <Divider
+          titlePlacement="left"
+          orientationMargin={0}
+          style={{ fontSize: 14, marginBottom: 16 }}
         >
-          <Button icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-            {t('addCustomModel')}
-          </Button>
-        </Empty>
-      ) : (
-        <Row gutter={[12, 12]}>{customModels.map((m) => renderCard(m, true))}</Row>
-      )}
+          {t('builtinModels')}
+        </Divider>
 
-      {/* ── Configure model modal ────────────────────────────────── */}
+        {groupByProvider(builtinModels).map(([provider, providerModels]) => (
+          <div key={provider} style={{ marginBottom: 20 }}>
+            <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
+              {provider}
+            </Text>
+            <Row gutter={[12, 12]}>{providerModels.map((m) => renderCard(m, false))}</Row>
+          </div>
+        ))}
+
+        {/* ── Custom models ────────────────────────────────────────── */}
+        <Divider
+          titlePlacement="left"
+          orientationMargin={0}
+          style={{ fontSize: 14, margin: '24px 0 16px' }}
+        >
+          <Space>
+            {t('customModels')}
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setAddOpen(true)}
+            >
+              {t('addCustomModel')}
+            </Button>
+          </Space>
+        </Divider>
+
+        {customModels.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                {t('noCustomModels')}
+              </Text>
+            }
+            style={{ margin: '16px 0' }}
+          >
+            <Button icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+              {t('addCustomModel')}
+            </Button>
+          </Empty>
+        ) : (
+          <Row gutter={[12, 12]}>{customModels.map((m) => renderCard(m, true))}</Row>
+        )}
+      </Spin>
+
+      {/* ── Configure model modal (API key stored in localStorage) ── */}
       <Modal
         title={
           <Space>
@@ -473,6 +548,11 @@ const ModelManager: React.FC = () => {
             label={t('apiKey')}
             name="api_key"
             rules={[{ required: true, message: t('apiKeyRequired') }]}
+            extra={
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t('apiKeyStoredLocally')}
+              </Text>
+            }
           >
             <Input.Password placeholder="sk-ant-... / sk-... / your-api-key" />
           </Form.Item>
@@ -512,7 +592,7 @@ const ModelManager: React.FC = () => {
           addForm.resetFields()
           setAddOpen(false)
         }}
-        onOk={handleAdd}
+        onOk={() => void handleAdd()}
         okText={t('save')}
         cancelText={t('cancel')}
         width={440}
@@ -563,7 +643,7 @@ const ModelManager: React.FC = () => {
           editForm.resetFields()
           setEditTarget(null)
         }}
-        onOk={handleEdit}
+        onOk={() => void handleEdit()}
         okText={t('save')}
         cancelText={t('cancel')}
         width={440}

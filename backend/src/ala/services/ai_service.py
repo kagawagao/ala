@@ -43,6 +43,54 @@ def _safe_repr(obj: Any, max_len: int = 2000) -> str:
     return s
 
 
+_KNOWN_PROVIDER_HOSTS: dict[str, str] = {
+    "api.anthropic.com": "anthropic",
+    "api.openai.com": "openai",
+    "api.groq.com": "groq",
+    "api.together.xyz": "together",
+    "api.mistral.ai": "mistral",
+    "api.cohere.com": "cohere",
+    "generativelanguage.googleapis.com": "gemini",
+    "api.deepseek.com": "deepseek",
+    "openrouter.ai": "openrouter",
+    "api.x.ai": "xai",
+    "api.moonshot.cn": "kimi",
+    "api.minimax.io": "minimax",
+    "dashscope.aliyuncs.com": "qwen",
+}
+
+
+def _detect_provider_name(endpoint: str) -> str:
+    """Derive a human-readable provider name from the API endpoint hostname.
+
+    Examples::
+
+        https://api.anthropic.com       → "anthropic"
+        https://api.openai.com/v1       → "openai"
+        https://api.groq.com/openai/v1  → "groq"
+        http://localhost:11434          → "local"
+        http://192.168.1.10:1234/v1    → "local"
+    """
+    try:
+        parsed = urlparse(endpoint)
+        hostname = (parsed.hostname or "").lower()
+    except ValueError:
+        return "unknown"
+    if not hostname:
+        return "unknown"
+    if hostname in _KNOWN_PROVIDER_HOSTS:
+        return _KNOWN_PROVIDER_HOSTS[hostname]
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1") or hostname.startswith(
+        ("192.168.", "10.", "172.")
+    ):
+        return "local"
+    # Strip leading "api." and return the first domain label as the provider name.
+    parts = hostname.split(".")
+    if parts[0] == "api" and len(parts) > 1:
+        return parts[1]
+    return parts[0]
+
+
 def _is_anthropic_endpoint(endpoint: str) -> bool:
     """Return True when the endpoint's hostname belongs to Anthropic's API.
 
@@ -158,10 +206,13 @@ class AIService:
                 pass
             self._openai_client = openai.AsyncOpenAI(api_key=api_key, base_url=api_endpoint)
 
-        provider = "anthropic" if self._use_anthropic else "openai-compat"
-        logger.debug(
-            "AIService initialised — provider=%s endpoint=%s model=%s temperature=%s thinking=%s",
-            provider,
+        self._api_spec = "anthropic" if self._use_anthropic else "openai"
+        self._provider = _detect_provider_name(api_endpoint)
+        logger.info(
+            "AIService initialised — provider=%s api_spec=%s endpoint=%s model=%s"
+            " temperature=%s thinking=%s",
+            self._provider,
+            self._api_spec,
             api_endpoint,
             model,
             temperature,

@@ -202,6 +202,8 @@
   "modelProvider": "Provider",
   "customModelAdded": "Custom model added",
   "customModelDeleted": "Custom model deleted",
+  "modelCopied": "Model copied",
+  "copyModel": "Copy model",
   "applyModel": "Apply",
   "modelLibraryHint": "Click a model to populate the fields above",
   "noFilterApplied": "No filter conditions applied",
@@ -236,5 +238,11 @@
   "exportJson": "JSON",
   "orEnterLocalFilePath": "Or enter a local path",
   "switchLanguage": "Switch language",
-  "langCode": "EN"
+  "langCode": "EN",
+  "failedToLoadModels": "Failed to load models",
+  "failedToSaveModel": "Failed to save model",
+  "failedToDeleteModel": "Failed to delete model",
+  "apiKeyStoredLocally": "API keys are stored locally in your browser and never sent to the server",
+  "refresh": "Refresh",
+  "migratedModels": "Migrated {{count}} custom model(s) from local storage to backend"
 }
