@@ -172,35 +172,36 @@ export function loadCustomModels(): ModelPreset[] {
 /**
  * One-time migration: move custom models saved in the old `ala_models` localStorage key
  * to the backend. Skips models already present (matched by model_id + api_endpoint).
- * Returns the number of models actually created on the backend.
- * Restores any models whose backend creation failed so they can be retried on next load.
+ * Returns the array of model presets that were successfully created on the backend.
+ * Models whose creation failed are restored to localStorage for retry on next load.
  */
-export async function migrateLocalModelsToBackend(existingModels: ModelPreset[]): Promise<number> {
+export async function migrateLocalModelsToBackend(existingModels: ModelPreset[]): Promise<ModelPreset[]> {
   const LEGACY_KEY = 'ala_models'
   let old: ModelPreset[]
   try {
     const saved = localStorage.getItem(LEGACY_KEY)
-    if (!saved) return 0
+    if (!saved) return []
     old = JSON.parse(saved) as ModelPreset[]
     if (!Array.isArray(old) || old.length === 0) {
       localStorage.removeItem(LEGACY_KEY)
-      return 0
+      return []
     }
     // Claim the migration synchronously BEFORE any await so that a concurrent
     // second call (e.g. React StrictMode double-invoke) finds the key gone and
     // bails out, preventing duplicate model creation.
     localStorage.removeItem(LEGACY_KEY)
   } catch {
-    return 0
+    return []
   }
 
   const existingKeys = new Set(existingModels.map((m) => `${m.model_id}|${m.api_endpoint}`))
   const toMigrate = old.filter((m) => !existingKeys.has(`${m.model_id}|${m.api_endpoint}`))
 
+  const created: ModelPreset[] = []
   const failed: ModelPreset[] = []
   for (const m of toMigrate) {
     try {
-      await createModel({
+      const preset = await createModel({
         name: m.name,
         provider: m.provider ?? 'Custom',
         model_id: m.model_id,
@@ -209,6 +210,7 @@ export async function migrateLocalModelsToBackend(existingModels: ModelPreset[])
         anthropic_compatible: m.anthropic_compatible ?? null,
         supports_thinking: m.supports_thinking ?? false,
       })
+      created.push(preset)
     } catch {
       failed.push(m)
     }
@@ -219,5 +221,5 @@ export async function migrateLocalModelsToBackend(existingModels: ModelPreset[])
     localStorage.setItem(LEGACY_KEY, JSON.stringify(failed))
   }
 
-  return toMigrate.length - failed.length
+  return created
 }

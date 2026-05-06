@@ -154,9 +154,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
   // Propagate model list changes (add, edit, delete, copy) to the parent component
   // so App.tsx keeps its allModels state in sync without requiring navigation.
   useEffect(() => {
-    if (models.length > 0) {
-      onModelsChange?.(models)
-    }
+    onModelsChange?.(models)
   }, [models, onModelsChange])
 
   const handleToggleActive = (preset: ModelPreset) => {

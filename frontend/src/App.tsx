@@ -308,9 +308,9 @@ const AppContent: React.FC<{
     if (!backendConnected) return
     void listModels()
       .then(async (fetched) => {
-        const migratedCount = await migrateLocalModelsToBackend(fetched)
-        const finalModels = migratedCount > 0 ? await listModels() : fetched
-        setAllModels(finalModels)
+        const migrated = await migrateLocalModelsToBackend(fetched)
+        // Merge newly migrated presets directly to avoid a redundant second API call
+        setAllModels(migrated.length > 0 ? [...fetched, ...migrated] : fetched)
       })
       .catch(() => {})
   }, [backendConnected])
