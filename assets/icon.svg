@@ -37,78 +37,78 @@
 
   <!-- Decorative circuit lines (subtle tech pattern) -->
   <g opacity="0.08" stroke="#58a6ff" stroke-width="1.5" fill="none">
-    <path d="M80 120 H160 V200"/>
-    <path d="M432 120 H352 V200"/>
-    <path d="M80 392 H160 V312"/>
-    <path d="M432 392 H352 V312"/>
-    <circle cx="160" cy="120" r="3" fill="#58a6ff"/>
-    <circle cx="352" cy="120" r="3" fill="#58a6ff"/>
-    <circle cx="160" cy="392" r="3" fill="#58a6ff"/>
-    <circle cx="352" cy="392" r="3" fill="#58a6ff"/>
+    <path d="M80 100 H126 V156"/>
+    <path d="M432 100 H386 V156"/>
+    <path d="M80 412 H126 V356"/>
+    <path d="M432 412 H386 V356"/>
+    <circle cx="126" cy="100" r="3" fill="#58a6ff"/>
+    <circle cx="386" cy="100" r="3" fill="#58a6ff"/>
+    <circle cx="126" cy="412" r="3" fill="#58a6ff"/>
+    <circle cx="386" cy="412" r="3" fill="#58a6ff"/>
   </g>
 
   <!-- Central terminal/document shape -->
   <g filter="url(#shadow)">
-    <rect x="120" y="100" width="272" height="280" rx="16" fill="#21262d" stroke="#30363d" stroke-width="2"/>
+    <rect x="72" y="72" width="368" height="368" rx="22" fill="#21262d" stroke="#30363d" stroke-width="2"/>
 
     <!-- Terminal title bar -->
-    <rect x="120" y="100" width="272" height="36" rx="16" fill="#282e36"/>
-    <rect x="120" y="120" width="272" height="16" fill="#282e36"/>
+    <rect x="72" y="72" width="368" height="48" rx="22" fill="#282e36"/>
+    <rect x="72" y="96" width="368" height="24" fill="#282e36"/>
     <!-- Window dots -->
-    <circle cx="146" cy="118" r="6" fill="#f85149"/>
-    <circle cx="168" cy="118" r="6" fill="#d29922"/>
-    <circle cx="190" cy="118" r="6" fill="#3fb950"/>
+    <circle cx="107" cy="96" r="8" fill="#f85149"/>
+    <circle cx="137" cy="96" r="8" fill="#d29922"/>
+    <circle cx="167" cy="96" r="8" fill="#3fb950"/>
 
     <!-- Log lines with colored level indicators -->
     <!-- Line 1 - Info (blue) -->
-    <rect x="144" y="156" width="6" height="6" rx="1" fill="#58a6ff"/>
-    <rect x="158" y="156" width="60" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="156" width="130" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="146" width="8" height="8" rx="1" fill="#58a6ff"/>
+    <rect x="124" y="146" width="80" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="146" width="176" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 2 - Warning (yellow) -->
-    <rect x="144" y="180" width="6" height="6" rx="1" fill="#d29922"/>
-    <rect x="158" y="180" width="48" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="180" width="120" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="176" width="8" height="8" rx="1" fill="#d29922"/>
+    <rect x="124" y="176" width="64" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="176" width="164" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 3 - Error (red) - highlighted -->
-    <rect x="138" y="198" width="242" height="22" rx="4" fill="#f8514920"/>
-    <rect x="144" y="204" width="6" height="6" rx="1" fill="#f85149"/>
-    <rect x="158" y="204" width="72" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="204" width="100" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="88" y="196" width="336" height="28" rx="5" fill="#f8514920"/>
+    <rect x="104" y="206" width="8" height="8" rx="1" fill="#f85149"/>
+    <rect x="124" y="206" width="96" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="206" width="136" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 4 - Debug (green) -->
-    <rect x="144" y="228" width="6" height="6" rx="1" fill="#3fb950"/>
-    <rect x="158" y="228" width="52" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="228" width="90" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="236" width="8" height="8" rx="1" fill="#3fb950"/>
+    <rect x="124" y="236" width="72" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="236" width="120" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 5 - Info (blue) -->
-    <rect x="144" y="252" width="6" height="6" rx="1" fill="#58a6ff"/>
-    <rect x="158" y="252" width="44" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="252" width="120" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="266" width="8" height="8" rx="1" fill="#58a6ff"/>
+    <rect x="124" y="266" width="60" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="266" width="164" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 6 - Verbose (gray) -->
-    <rect x="144" y="276" width="6" height="6" rx="1" fill="#8b949e"/>
-    <rect x="158" y="276" width="56" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="276" width="106" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="296" width="8" height="8" rx="1" fill="#8b949e"/>
+    <rect x="124" y="296" width="76" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="296" width="144" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 7 - Warning -->
-    <rect x="144" y="300" width="6" height="6" rx="1" fill="#d29922"/>
-    <rect x="158" y="300" width="64" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="300" width="76" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="326" width="8" height="8" rx="1" fill="#d29922"/>
+    <rect x="124" y="326" width="88" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="326" width="104" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 8 - Info (blue) -->
-    <rect x="144" y="324" width="6" height="6" rx="1" fill="#58a6ff"/>
-    <rect x="158" y="324" width="38" height="6" rx="2" fill="#484f58"/>
-    <rect x="236" y="324" width="96" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="104" y="356" width="8" height="8" rx="1" fill="#58a6ff"/>
+    <rect x="124" y="356" width="52" height="8" rx="2" fill="#484f58"/>
+    <rect x="228" y="356" width="132" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 9 - partial/faded -->
-    <rect x="144" y="348" width="6" height="6" rx="1" fill="#8b949e" opacity="0.4"/>
-    <rect x="158" y="348" width="50" height="6" rx="2" fill="#484f58" opacity="0.4"/>
-    <rect x="236" y="348" width="70" height="6" rx="2" fill="#8b949e" opacity="0.2"/>
+    <rect x="104" y="386" width="8" height="8" rx="1" fill="#8b949e" opacity="0.4"/>
+    <rect x="124" y="386" width="68" height="8" rx="2" fill="#484f58" opacity="0.4"/>
+    <rect x="228" y="386" width="94" height="8" rx="2" fill="#8b949e" opacity="0.2"/>
   </g>
 
   <!-- AI sparkle/analysis overlay (bottom-right) -->
-  <g transform="translate(340, 310)">
+  <g transform="translate(388, 370)">
     <circle cx="40" cy="40" r="44" fill="url(#accent)" opacity="0.9" filter="url(#innerGlow)"/>
     <!-- Magnifying glass / analysis icon -->
     <circle cx="34" cy="34" r="16" fill="none" stroke="#fff" stroke-width="3.5"/>
