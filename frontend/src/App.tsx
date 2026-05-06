@@ -311,9 +311,12 @@ const AppContent: React.FC<{
         const migrated = await migrateLocalModelsToBackend(fetched)
         // Merge newly migrated presets directly to avoid a redundant second API call
         setAllModels(migrated.length > 0 ? [...fetched, ...migrated] : fetched)
+        if (migrated.length > 0) {
+          void message.success(t('migratedModels', { count: migrated.length }))
+        }
       })
       .catch(() => {})
-  }, [backendConnected])
+  }, [backendConnected, message, t])
 
   // Derive AI config from the active model's per-model config.
   // Runs whenever backendConnected or allModels changes.

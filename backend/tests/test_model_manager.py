@@ -186,7 +186,7 @@ class TestCorruptJson:
 
 
 class TestReadOnlyStorage:
-    @pytest.mark.skipif(os.name == "nt", reason="chmod not reliable on Windows")
+    @pytest.mark.skipif(os.name == "nt", reason="Windows uses ACL-based permissions instead of POSIX chmod")
     def test_readonly_dir_does_not_crash_startup(self, tmp_path):
         ro_dir = tmp_path / "readonly"
         ro_dir.mkdir()
