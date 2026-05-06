@@ -1,6 +1,7 @@
 """API endpoints for AI model preset management."""
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -59,7 +60,7 @@ class UpdateModelRequest(BaseModel):
     model_id: str | None = None
     api_endpoint: str | None = None
     description: str | None = None
-    anthropic_compatible: bool | None | str = "unset"  # "unset" = leave unchanged
+    anthropic_compatible: bool | None | Literal["unset"] = "unset"  # "unset" = leave unchanged
     supports_thinking: bool | None = None
 
 

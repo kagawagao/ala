@@ -341,6 +341,7 @@ class ModelManager:
         builtin_map = {m.id: m for m in _make_builtin_presets()}
 
         custom_models: list[ModelPreset] = []
+        needs_save = False
         if self._storage_path.exists():
             try:
                 data: list[dict] = json.loads(self._storage_path.read_text(encoding="utf-8"))
@@ -358,6 +359,10 @@ class ModelManager:
                             logger.warning("Skipping malformed model entry: %s", item.get("id"))
             except (json.JSONDecodeError, TypeError):
                 logger.warning("models.json is corrupt – using defaults")
+                needs_save = True
+        else:
+            # File does not exist yet – write defaults on first startup
+            needs_save = True
 
         self._models = {}
         for m in builtin_map.values():
@@ -365,7 +370,8 @@ class ModelManager:
         for m in custom_models:
             self._models[m.id] = m
 
-        self._save()
+        if needs_save:
+            self._save()
         logger.info(
             "Loaded %d models (%d builtin, %d custom)",
             len(self._models),
@@ -374,12 +380,23 @@ class ModelManager:
         )
 
     def _save(self) -> None:
-        """Persist models to disk (builtin + custom)."""
-        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-        data = [asdict(m) for m in self._models.values()]
-        self._storage_path.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        """Persist models to disk (builtin + custom).
+
+        Logs a warning and continues with in-memory state if the file cannot
+        be written (e.g. read-only filesystem, missing $HOME in containers).
+        """
+        try:
+            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+            data = [asdict(m) for m in self._models.values()]
+            self._storage_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+        except OSError as exc:
+            logger.warning(
+                "Could not write models to %s: %s – running with in-memory state only",
+                self._storage_path,
+                exc,
+            )
 
     def reload(self) -> None:
         """Re-read the JSON file and refresh in-memory state."""

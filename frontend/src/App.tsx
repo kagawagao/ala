@@ -48,7 +48,7 @@ import type {
   TraceParseResult,
 } from './types'
 import { hasFilterConditions } from './utils/filters'
-import { getActiveAIConfig, migrateFromLegacyConfig } from './utils/models'
+import { getActiveAIConfig, migrateFromLegacyConfig, migrateLocalModelsToBackend } from './utils/models'
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -302,11 +302,16 @@ const AppContent: React.FC<{
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch model presets from backend whenever connection is established
+  // Fetch model presets from backend whenever connection is established.
+  // Also runs the one-time migration of legacy localStorage custom models.
   useEffect(() => {
     if (!backendConnected) return
     void listModels()
-      .then(setAllModels)
+      .then(async (fetched) => {
+        const migratedCount = await migrateLocalModelsToBackend(fetched)
+        const finalModels = migratedCount > 0 ? await listModels() : fetched
+        setAllModels(finalModels)
+      })
       .catch(() => {})
   }, [backendConnected])
 
@@ -553,7 +558,7 @@ const AppContent: React.FC<{
       >
         <Routes>
           <Route path="/projects" element={<ProjectManager />} />
-          <Route path="/models" element={<ModelManager />} />
+          <Route path="/models" element={<ModelManager onModelsChange={setAllModels} />} />
           <Route
             path="*"
             element={

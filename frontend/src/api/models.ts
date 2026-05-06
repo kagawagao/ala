@@ -23,7 +23,14 @@ export interface UpdateModelPayload {
 }
 
 export async function listModels(): Promise<ModelPreset[]> {
-  return apiFetch<ModelPreset[]>('/models')
+  const presets = await apiFetch<ModelPreset[]>('/models')
+  // Normalize null → undefined for consistent frontend handling
+  // (the backend uses None/null to represent "auto-detect", but the
+  // TypeScript type uses optional boolean)
+  return presets.map((p) => ({
+    ...p,
+    anthropic_compatible: p.anthropic_compatible ?? undefined,
+  }))
 }
 
 export async function createModel(payload: CreateModelPayload): Promise<ModelPreset> {

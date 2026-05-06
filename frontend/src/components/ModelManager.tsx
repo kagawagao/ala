@@ -49,48 +49,6 @@ import type { ModelPreset, ModelConfig } from '../types'
 
 const { Title, Text } = Typography
 
-/**
- * One-time migration: move custom models saved in the old `ala_models` localStorage key
- * to the backend. Skips models already present (matched by model_id + api_endpoint).
- * Returns the number of models actually created on the backend.
- */
-async function migrateLocalModelsToBackend(existingModels: ModelPreset[]): Promise<number> {
-  const LEGACY_KEY = 'ala_models'
-  let old: ModelPreset[]
-  try {
-    const saved = localStorage.getItem(LEGACY_KEY)
-    if (!saved) return 0
-    old = JSON.parse(saved) as ModelPreset[]
-    if (!Array.isArray(old) || old.length === 0) {
-      localStorage.removeItem(LEGACY_KEY)
-      return 0
-    }
-    // Claim the migration synchronously BEFORE any await so that a concurrent
-    // second call (e.g. React StrictMode double-invoke) finds the key gone and
-    // bails out, preventing duplicate model creation.
-    localStorage.removeItem(LEGACY_KEY)
-  } catch {
-    return 0
-  }
-
-  const existingKeys = new Set(existingModels.map((m) => `${m.model_id}|${m.api_endpoint}`))
-  const toMigrate = old.filter((m) => !existingKeys.has(`${m.model_id}|${m.api_endpoint}`))
-
-  for (const m of toMigrate) {
-    await createModel({
-      name: m.name,
-      provider: m.provider ?? 'Custom',
-      model_id: m.model_id,
-      api_endpoint: m.api_endpoint,
-      description: m.description,
-      anthropic_compatible: m.anthropic_compatible ?? null,
-      supports_thinking: m.supports_thinking ?? false,
-    })
-  }
-
-  return toMigrate.length
-}
-
 interface CustomModelForm {
   name: string
   provider: string
@@ -152,7 +110,9 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   )
 }
 
-const ModelManager: React.FC = () => {
+const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void }> = ({
+  onModelsChange,
+}) => {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const navigate = useNavigate()
@@ -174,16 +134,11 @@ const ModelManager: React.FC = () => {
     try {
       setLoading(true)
       const fetched = await listModels()
-      // Migrate old localStorage custom models to backend (one-time, on first load)
-      const migratedCount = await migrateLocalModelsToBackend(fetched)
-      const finalModels = migratedCount > 0 ? await listModels() : fetched
-      if (migratedCount > 0) {
-        void message.success(t('migratedModels', { count: migratedCount }))
-      }
-      setModels(finalModels)
-      // Migrate legacy global aiConfig → per-model configs, using the final model list
-      // so migrated custom models are also matched by model_id + api_endpoint
-      migrateFromLegacyConfig(finalModels)
+      setModels(fetched)
+      // Migrate legacy global aiConfig → per-model configs
+      migrateFromLegacyConfig(fetched)
+      // Refresh modelConfigs state so the UI reflects any migrated API keys
+      setModelConfigs(loadModelConfigs())
       setActiveModelIds(getActiveModelIds())
     } catch {
       void message.error(t('failedToLoadModels'))
@@ -195,6 +150,14 @@ const ModelManager: React.FC = () => {
   useEffect(() => {
     void fetchModels()
   }, [fetchModels])
+
+  // Propagate model list changes (add, edit, delete, copy) to the parent component
+  // so App.tsx keeps its allModels state in sync without requiring navigation.
+  useEffect(() => {
+    if (models.length > 0) {
+      onModelsChange?.(models)
+    }
+  }, [models, onModelsChange])
 
   const handleToggleActive = (preset: ModelPreset) => {
     const updated = toggleActiveModel(preset.id)
