@@ -482,3 +482,48 @@ class TraceAnalyzer:
             if shift >= 64:
                 return 0, 0
         return 0, 0
+
+    def query_sql(self, trace_file_path: str, sql: str | None = None) -> dict:
+        """Open a Perfetto trace file and run arbitrary SQL queries against it.
+
+        Uses the Perfetto TraceProcessor to load the trace and execute SQL.
+        Returns a dict with column names and row data as lists of dicts.
+
+        If no SQL is provided, returns a list of available table names.
+
+        Args:
+            trace_file_path: Path to the Perfetto trace file (.pb or .json).
+            sql: SQL query to execute. If None, returns available tables.
+
+        Returns:
+            dict with keys: columns (list[str]), rows (list[dict]), row_count (int),
+            or if sql is None: tables (list[str]).
+        """
+        from perfetto.trace_processor import TraceProcessor
+
+        with open(trace_file_path, "rb") as f:
+            content = f.read()
+
+        with TraceProcessor(trace=io.BytesIO(content)) as tp:
+            if sql is None:
+                tables = []
+                for row in self._query_with_timeout(
+                    tp, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                ):
+                    tables.append(row.name)
+                return {"tables": tables}
+
+            rows = self._query_with_timeout(tp, sql)
+            if not rows:
+                return {"columns": [], "rows": [], "row_count": 0}
+
+            columns = list(rows[0].__dict__.keys()) if hasattr(rows[0], "__dict__") else []
+            result_rows = []
+            for row in rows:
+                result_rows.append({col: getattr(row, col) for col in columns})
+
+            return {
+                "columns": columns,
+                "rows": result_rows,
+                "row_count": len(result_rows),
+            }

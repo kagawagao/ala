@@ -536,3 +536,24 @@ def list_directory_logs(directory_path: str) -> dict:
         "total_files": len(files),
         "files": files,
     }
+
+
+@mcp.tool()
+def query_perfetto_trace_sql(trace_file_path: str, sql: str | None = None) -> dict:
+    """Run SQL queries against a Perfetto trace file.
+
+    Loads the trace file via Perfetto TraceProcessor and executes arbitrary
+    SQL against it.  Pass sql=None to discover available table names.
+
+    Common tables: slice, process, thread, sched, counter, raw, ftrace_event,
+    android_log, metadata.
+
+    Args:
+        trace_file_path: Path to the Perfetto trace file (.pb or .json).
+        sql: SQL query to execute. If None, returns available table names.
+
+    Returns:
+        If sql is None: {"tables": [...]}.
+        Otherwise: {"columns": [...], "rows": [{...}], "row_count": N}.
+    """
+    return _trace_analyzer.query_sql(trace_file_path, sql)

@@ -469,6 +469,35 @@ TRACE_TOOLS: list[dict[str, Any]] = [
             "required": [],
         },
     },
+    {
+        "name": "query_trace_sql",
+        "description": (
+            "Run arbitrary SQL queries directly against a Perfetto trace file on disk. "
+            "Use this for deep performance analysis: CPU scheduling, memory allocations, "
+            "Binder calls, frame timelines, custom counters. "
+            "Pass sql=null to discover available tables first. "
+            "Common tables: slice, process, thread, sched, counter, raw, ftrace_event, "
+            "android_log. Limit results to 200 rows unless aggregating."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trace_file_path": {
+                    "type": "string",
+                    "description": "Path to the Perfetto trace file (.pb or .json).",
+                },
+                "sql": {
+                    "type": "string",
+                    "description": (
+                        "SQL query. Pass null/omit to list available tables. "
+                        "Example: SELECT name, dur/1e6 AS ms FROM slice "
+                        "WHERE dur > 1e6 ORDER BY dur DESC LIMIT 20"
+                    ),
+                },
+            },
+            "required": ["trace_file_path"],
+        },
+    },
 ]
 
 # Anthropic tool schemas – log-specific tools
