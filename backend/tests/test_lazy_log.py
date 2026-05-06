@@ -180,18 +180,24 @@ class TestValidatePath:
             os.rmdir(sandbox)
 
 
-class TestChatSessionFilePath:
-    async def test_set_session_file_path_accepts_directory(self):
-        from ala.api.chat import SetFilePathRequest, _session_manager, set_session_file_path
+class TestValidatePathDirectory:
+    """_validate_path must accept directories when allow_directory=True."""
 
+    def test_accepts_directory_path(self):
         path = tempfile.mkdtemp()
-        session = _session_manager.create_session("test", "general")
         try:
-            result = await set_session_file_path(session.id, SetFilePathRequest(file_path=path))
-            assert result == {"success": True, "file_path": os.path.realpath(path)}
-            assert _session_manager.get_file_path(session.id) == os.path.realpath(path)
+            result = LogAnalyzer._validate_path(path, allow_directory=True)
+            assert os.path.isdir(result)
+            assert result == os.path.realpath(path)
         finally:
-            _session_manager.delete_session(session.id)
+            os.rmdir(path)
+
+    def test_rejects_directory_path_by_default(self):
+        path = tempfile.mkdtemp()
+        try:
+            with pytest.raises(ValueError, match="directory"):
+                LogAnalyzer._validate_path(path)
+        finally:
             os.rmdir(path)
 
 
