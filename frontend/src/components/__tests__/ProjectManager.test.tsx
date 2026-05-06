@@ -18,33 +18,11 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 vi.mock('../../api/projects', () => ({
   listProjects: vi.fn().mockResolvedValue([
-    {
-      id: '1',
-      name: 'TestApp',
-      paths: ['/path/to/app'],
-      include_patterns: [],
-      exclude_patterns: [],
-      filter_presets: [],
-      created_at: '2025-01-01',
-    },
-    {
-      id: '2',
-      name: 'AnotherApp',
-      paths: ['/path/to/other'],
-      include_patterns: [],
-      exclude_patterns: [],
-      filter_presets: [],
-      created_at: '2025-02-01',
-    },
+    { id: '1', name: 'TestApp', paths: ['/path/to/app'], include_patterns: [], exclude_patterns: [], filter_presets: [], created_at: '2025-01-01' },
+    { id: '2', name: 'AnotherApp', paths: ['/path/to/other'], include_patterns: [], exclude_patterns: [], filter_presets: [], created_at: '2025-02-01' },
   ]),
   createProject: vi.fn().mockResolvedValue({
-    id: '3',
-    name: 'NewProject',
-    paths: ['/new/path'],
-    include_patterns: [],
-    exclude_patterns: [],
-    filter_presets: [],
-    created_at: '2025-03-01',
+    id: '3', name: 'NewProject', paths: ['/new/path'], include_patterns: [], exclude_patterns: [], filter_presets: [], created_at: '2025-03-01',
   }),
   deleteProject: vi.fn().mockResolvedValue(undefined),
   listContextDocs: vi.fn().mockResolvedValue([

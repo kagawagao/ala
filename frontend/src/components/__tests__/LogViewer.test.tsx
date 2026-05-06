@@ -35,9 +35,7 @@ vi.mock('react-i18next', () => ({
       }
       const value = map[key] ?? key
       if (options) {
-        return value.replace(/\{\{(.+?)\}\}/g, (_, k) =>
-          String((options as Record<string, unknown>)[k] ?? ''),
-        )
+        return value.replace(/\{\{(.+?)\}\}/g, (_, k) => String((options as Record<string, unknown>)[k] ?? ''))
       }
       return value
     },
@@ -152,13 +150,7 @@ describe('LogViewer', () => {
     const logs = [makeLog({ line_number: 1 })]
     render(
       <Wrapper>
-        <LogViewer
-          logs={logs}
-          totalLogs={1}
-          highlights={[]}
-          wordWrap={false}
-          formatDetected="logcat"
-        />
+        <LogViewer logs={logs} totalLogs={1} highlights={[]} wordWrap={false} formatDetected="logcat" />
       </Wrapper>,
     )
     expect(screen.getByText('Format: logcat')).toBeInTheDocument()
@@ -205,11 +197,7 @@ describe('LogViewer', () => {
       </Wrapper>,
     )
     await userEvent.click(screen.getByText('CSV'))
-    expect(downloadBlob).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      'text/csv;charset=utf-8',
-    )
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'text/csv;charset=utf-8')
   })
 
   it('calls downloadBlob when JSON export button is clicked', async () => {
@@ -220,11 +208,7 @@ describe('LogViewer', () => {
       </Wrapper>,
     )
     await userEvent.click(screen.getByText('JSON'))
-    expect(downloadBlob).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      'application/json;charset=utf-8',
-    )
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'application/json;charset=utf-8')
   })
 
   it('renders PID and TID columns', () => {
@@ -278,9 +262,7 @@ describe('LogViewer', () => {
     // Find the copy button by its tooltip aria-label
     const copyBtn = screen.getByRole('button', { name: /copy/i })
     await userEvent.click(copyBtn)
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      '01-15 14:30:00.000 I TestTag: hello',
-    )
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('01-15 14:30:00.000 I TestTag: hello')
   })
 
   it('highlights matched text in messages', () => {
