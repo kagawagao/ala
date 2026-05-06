@@ -63,48 +63,48 @@
     <!-- Line 1 - Info (blue) -->
     <rect x="144" y="156" width="6" height="6" rx="1" fill="#58a6ff"/>
     <rect x="158" y="156" width="60" height="6" rx="2" fill="#484f58"/>
-    <rect x="226" y="156" width="140" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="236" y="156" width="130" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 2 - Warning (yellow) -->
     <rect x="144" y="180" width="6" height="6" rx="1" fill="#d29922"/>
     <rect x="158" y="180" width="48" height="6" rx="2" fill="#484f58"/>
-    <rect x="214" y="180" width="120" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="236" y="180" width="120" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 3 - Error (red) - highlighted -->
     <rect x="138" y="198" width="242" height="22" rx="4" fill="#f8514920"/>
     <rect x="144" y="204" width="6" height="6" rx="1" fill="#f85149"/>
     <rect x="158" y="204" width="72" height="6" rx="2" fill="#484f58"/>
-    <rect x="238" y="204" width="100" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="236" y="204" width="100" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 4 - Debug (green) -->
-    <rect x="144" y="232" width="6" height="6" rx="1" fill="#3fb950"/>
-    <rect x="158" y="232" width="52" height="6" rx="2" fill="#484f58"/>
-    <rect x="218" y="232" width="90" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="144" y="228" width="6" height="6" rx="1" fill="#3fb950"/>
+    <rect x="158" y="228" width="52" height="6" rx="2" fill="#484f58"/>
+    <rect x="236" y="228" width="90" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 5 - Info (blue) -->
-    <rect x="144" y="256" width="6" height="6" rx="1" fill="#58a6ff"/>
-    <rect x="158" y="256" width="44" height="6" rx="2" fill="#484f58"/>
-    <rect x="210" y="256" width="130" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="144" y="252" width="6" height="6" rx="1" fill="#58a6ff"/>
+    <rect x="158" y="252" width="44" height="6" rx="2" fill="#484f58"/>
+    <rect x="236" y="252" width="120" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 6 - Verbose (gray) -->
-    <rect x="144" y="280" width="6" height="6" rx="1" fill="#8b949e"/>
-    <rect x="158" y="280" width="56" height="6" rx="2" fill="#484f58"/>
-    <rect x="222" y="280" width="110" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="144" y="276" width="6" height="6" rx="1" fill="#8b949e"/>
+    <rect x="158" y="276" width="56" height="6" rx="2" fill="#484f58"/>
+    <rect x="236" y="276" width="106" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 7 - Warning -->
-    <rect x="144" y="304" width="6" height="6" rx="1" fill="#d29922"/>
-    <rect x="158" y="304" width="64" height="6" rx="2" fill="#484f58"/>
-    <rect x="230" y="304" width="80" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="144" y="300" width="6" height="6" rx="1" fill="#d29922"/>
+    <rect x="158" y="300" width="64" height="6" rx="2" fill="#484f58"/>
+    <rect x="236" y="300" width="76" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 8 - Info (blue) -->
-    <rect x="144" y="328" width="6" height="6" rx="1" fill="#58a6ff"/>
-    <rect x="158" y="328" width="38" height="6" rx="2" fill="#484f58"/>
-    <rect x="204" y="328" width="100" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
+    <rect x="144" y="324" width="6" height="6" rx="1" fill="#58a6ff"/>
+    <rect x="158" y="324" width="38" height="6" rx="2" fill="#484f58"/>
+    <rect x="236" y="324" width="96" height="6" rx="2" fill="#8b949e" opacity="0.5"/>
 
     <!-- Line 9 - partial/faded -->
-    <rect x="144" y="352" width="6" height="6" rx="1" fill="#8b949e" opacity="0.4"/>
-    <rect x="158" y="352" width="50" height="6" rx="2" fill="#484f58" opacity="0.4"/>
-    <rect x="216" y="352" width="70" height="6" rx="2" fill="#8b949e" opacity="0.2"/>
+    <rect x="144" y="348" width="6" height="6" rx="1" fill="#8b949e" opacity="0.4"/>
+    <rect x="158" y="348" width="50" height="6" rx="2" fill="#484f58" opacity="0.4"/>
+    <rect x="236" y="348" width="70" height="6" rx="2" fill="#8b949e" opacity="0.2"/>
   </g>
 
   <!-- AI sparkle/analysis overlay (bottom-right) -->
