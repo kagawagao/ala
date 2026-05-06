@@ -1,5 +1,9 @@
 # ALA — Android Log Analyzer
 
+<p align="center">
+  <img src="assets/logo.svg" alt="ALA Logo" width="120" />
+</p>
+
 [![CI](https://github.com/kagawagao/ala/actions/workflows/ci.yml/badge.svg)](https://github.com/kagawagao/ala/actions/workflows/ci.yml)
 
 A full-stack tool for analyzing **Android logcat** files and **Perfetto trace** files, powered by AI. Supports both upload-based analysis and **lazy local log analysis** — point ALA at a local file or directory path, and the AI agent explores your logs on-demand with streaming tools.

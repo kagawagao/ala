@@ -119,6 +119,4 @@
     <circle cx="18" cy="54" r="1.5" fill="#fff" opacity="0.6"/>
   </g>
 
-  <!-- ALA text -->
-  <text x="256" y="448" font-family="'SF Pro Display', -apple-system, 'Segoe UI', Arial, sans-serif" font-size="52" font-weight="800" fill="#e6edf3" text-anchor="middle" letter-spacing="8">ALA</text>
 </svg>
