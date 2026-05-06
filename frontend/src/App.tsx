@@ -59,7 +59,7 @@ const DEFAULT_FILTERS: LogFilters = {
   tag_keyword_relation: 'AND',
 }
 
-function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
+export function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
   let result = logs
 
   if (filters.start_time) {
@@ -100,27 +100,33 @@ function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
       }
     }
 
-    result = result.filter((l) => {
-      const matchesKeyword = keywordRe
-        ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
-        : false
-      const matchesTag = tagRe ? tagRe.test(l.tag) : false
+    // Silently fall back when regex is invalid — treat as if no filter on that dimension
+    const effectiveHasKeyword = hasKeyword && keywordRe !== null
+    const effectiveHasTag = hasTag && tagRe !== null
 
-      if (hasKeyword && hasTag) {
-        return filters.tag_keyword_relation === 'AND'
-          ? matchesKeyword && matchesTag
-          : matchesKeyword || matchesTag
-      }
-      if (hasKeyword) return matchesKeyword
-      if (hasTag) return matchesTag
-      return true
-    })
+    if (effectiveHasKeyword || effectiveHasTag) {
+      result = result.filter((l) => {
+        const matchesKeyword = keywordRe
+          ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
+          : false
+        const matchesTag = tagRe ? tagRe.test(l.tag) : false
+
+        if (effectiveHasKeyword && effectiveHasTag) {
+          return filters.tag_keyword_relation === 'AND'
+            ? matchesKeyword && matchesTag
+            : matchesKeyword || matchesTag
+        }
+        if (effectiveHasKeyword) return matchesKeyword
+        if (effectiveHasTag) return matchesTag
+        return true
+      })
+    }
   }
 
   return result
 }
 
-function computeStatistics(logs: LogEntry[]): LogStatistics {
+export function computeStatistics(logs: LogEntry[]): LogStatistics {
   const by_level: Record<string, number> = {}
   const tags: Record<string, number> = {}
   const pids: Record<string, number> = {}
