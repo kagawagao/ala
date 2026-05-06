@@ -40,7 +40,8 @@ import {
   setSessionFilePath,
   setSessionLogs,
 } from '../api/chat'
-import { getConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
+import { filterConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
+import { listModels } from '../api/models'
 import type {
   Session,
   LogEntry,
@@ -293,8 +294,16 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setStreaming(false)
   }, [selectedProjectId])
 
-  // All models with a configured API key (must precede useEffect below)
-  const configuredModels = getConfiguredModels()
+  // Models fetched from backend, filtered to those with a configured API key
+  const [allModels, setAllModels] = useState<ModelPreset[]>([])
+  useEffect(() => {
+    listModels()
+      .then((fetched) => setAllModels(fetched))
+      .catch(() => {
+        /* backend may not be running */
+      })
+  }, [])
+  const configuredModels = filterConfiguredModels(allModels)
 
   // Auto-assign last-used model to newly activated sessions
   useEffect(() => {

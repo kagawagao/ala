@@ -323,14 +323,15 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
             logger.exception(
                 "Error streaming AI response — "
                 "session=%s model=%s endpoint=%s "
-                "provider=%s thinking=%s "
+                "provider=%s api_spec=%s thinking=%s "
                 "exc_type=%s exc_repr=%s "
                 "api_status=%s api_message=%s api_body=%s request_id=%s "
                 "session_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
                 session_id,
                 effective_model,
                 endpoint_host,
-                "anthropic" if ai_service._use_anthropic else "openai",
+                ai_service._provider,
+                ai_service._api_spec,
                 ov.thinking_mode
                 if ov and ov.thinking_mode is not None
                 else ai_config.thinking_mode,

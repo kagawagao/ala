@@ -178,6 +178,9 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
         api_key=ai_config.api_key,
         model=ai_config.model,
         temperature=ai_config.temperature,
+        thinking_mode=ai_config.thinking_mode,
+        thinking_budget_tokens=ai_config.thinking_budget_tokens,
+        use_anthropic=ai_config.anthropic_compatible,
     )
 
     # Gather code context: search for logging patterns
