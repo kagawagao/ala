@@ -6,6 +6,7 @@ import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
@@ -1062,6 +1063,48 @@ def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
 _LEVEL_ORDER = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
 
 
+def _timestamp_to_seconds(value: Any) -> float | None:
+    """Best-effort conversion of diverse timestamp formats to epoch-like seconds."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # Numeric string (seconds or milliseconds if provided by upstream).
+    try:
+        return float(text)
+    except ValueError:
+        pass
+
+    # ISO-like timestamps, including trailing Z.
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        pass
+
+    # Android logcat common formats without year (MM-DD HH:MM:SS(.sss)).
+    m = re.match(
+        r"^(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?$",
+        text,
+    )
+    if m:
+        month = int(m.group(1))
+        day = int(m.group(2))
+        hour = int(m.group(3))
+        minute = int(m.group(4))
+        second = int(m.group(5))
+        frac = (m.group(6) or "0").ljust(6, "0")
+        micro = int(frac)
+        # Pseudo timeline key for bucketing only (relative ordering preserved).
+        return (((month * 31 + day) * 24 + hour) * 60 + minute) * 60 + second + micro / 1_000_000
+
+    return None
+
+
 def _execute_log_tool(
     tool_name: str,
     args: dict,
@@ -1086,7 +1129,8 @@ def _execute_log_tool(
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
         pids: set[str] = set()
-        timestamps = []
+        timestamps: list[str] = []
+        numeric_timestamps: list[float] = []
         for entry in log_entries:
             lvl = entry.get("level", "?")
             level_counts[lvl] = level_counts.get(lvl, 0) + 1
@@ -1095,14 +1139,18 @@ def _execute_log_tool(
             if entry.get("pid"):
                 pids.add(str(entry["pid"]))
             if entry.get("timestamp"):
-                timestamps.append(entry["timestamp"])
+                ts_text = str(entry["timestamp"])
+                timestamps.append(ts_text)
+                ts_num = _timestamp_to_seconds(entry["timestamp"])
+                if ts_num is not None:
+                    numeric_timestamps.append(ts_num)
 
         # Build adaptive time-distribution buckets so the AI can pick
         # sensible start_time / end_time windows for search_logs.
         time_dist: list[dict] = []
-        if timestamps:
-            t_min = min(timestamps)
-            t_max = max(timestamps)
+        if numeric_timestamps:
+            t_min = min(numeric_timestamps)
+            t_max = max(numeric_timestamps)
             # Choose bucket size that yields 20-60 buckets
             span = max(t_max - t_min, 1)
             bucket_s = span / 40
@@ -1111,7 +1159,7 @@ def _execute_log_tool(
                     bucket_s = boundary
                     break
             buckets: dict[int, int] = {}
-            for ts in timestamps:
+            for ts in numeric_timestamps:
                 slot = int((ts - t_min) / bucket_s)
                 buckets[slot] = buckets.get(slot, 0) + 1
             time_dist = [
