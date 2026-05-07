@@ -20,6 +20,7 @@ import {
   Select,
   InputNumber,
   Spin,
+  Switch,
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -55,6 +56,7 @@ interface CustomModelForm {
   model_id: string
   api_endpoint: string
   anthropic_compatible: 'auto' | 'anthropic' | 'openai'
+  supports_thinking: boolean
 }
 
 interface ConfigForm {
@@ -179,7 +181,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
     configForm.setFieldsValue({
       api_key: cfg.api_key ?? '',
       temperature: cfg.temperature ?? 0.7,
-      thinking_mode: cfg.thinking_mode ?? 'off',
+      thinking_mode: cfg.thinking_mode ?? (preset.supports_thinking ? 'auto' : 'off'),
       thinking_budget_tokens: cfg.thinking_budget_tokens ?? 8000,
     })
   }
@@ -224,6 +226,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
             model_id: values.model_id.trim(),
             api_endpoint: values.api_endpoint.trim(),
             anthropic_compatible: formCompatToPreset(values.anthropic_compatible) ?? null,
+            supports_thinking: values.supports_thinking,
           })
           setModels((prev) => [...prev, preset])
           addForm.resetFields()
@@ -250,6 +253,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
             model_id: values.model_id.trim(),
             api_endpoint: values.api_endpoint.trim(),
             anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
+            supports_thinking: values.supports_thinking,
           })
           setModels((prev) => prev.map((m) => (m.id === editTarget.id ? updated : m)))
           setEditTarget(null)
@@ -310,6 +314,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
       model_id: model.model_id,
       api_endpoint: model.api_endpoint,
       anthropic_compatible: presetCompatToForm(model.anthropic_compatible),
+      supports_thinking: model.supports_thinking ?? false,
     })
   }
 
@@ -561,7 +566,11 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
           </Form.Item>
           {(configTarget?.supports_thinking || showBudget) && (
             <>
-              <Form.Item label={t('thinkingMode')} name="thinking_mode" initialValue="off">
+              <Form.Item
+                label={t('thinkingMode')}
+                name="thinking_mode"
+                initialValue={configTarget?.supports_thinking ? 'auto' : 'off'}
+              >
                 <Select
                   options={[
                     { value: 'off', label: t('thinkingOff') },
@@ -632,6 +641,14 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
               ]}
             />
           </Form.Item>
+          <Form.Item
+            label={t('supportsThinking')}
+            name="supports_thinking"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Switch />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -681,6 +698,14 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
                 { value: 'openai', label: t('compatibilityOpenAI') },
               ]}
             />
+          </Form.Item>
+          <Form.Item
+            label={t('supportsThinking')}
+            name="supports_thinking"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Switch />
           </Form.Item>
         </Form>
       </Modal>

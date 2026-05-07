@@ -40,7 +40,12 @@ import {
   setSessionFilePath,
   setSessionLogs,
 } from '../api/chat'
-import { filterConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
+import {
+  filterConfiguredModels,
+  groupByProvider,
+  loadModelConfigs,
+  saveModelConfig,
+} from '../utils/models'
 import { listModels } from '../api/models'
 import type {
   Session,
@@ -1076,6 +1081,46 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 optionLabelProp="label"
                 popupMatchSelectWidth={false}
               />
+            </div>
+          )}
+          {/* Thinking mode toggle — available when model supports thinking */}
+          {activeModelPreset?.supports_thinking && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+                fontSize: 11,
+              }}
+            >
+              <BulbOutlined style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }} />
+              <Text type="secondary" style={{ fontSize: 11, flex: 1 }}>
+                {t('thinkingMode')}
+              </Text>
+              <Button
+                size="small"
+                disabled={streaming}
+                style={{ fontSize: 11, minWidth: 56 }}
+                onClick={() => {
+                  const cfgs = loadModelConfigs()
+                  const current = cfgs[activeModelPreset.id] ?? {}
+                  const mode = current.thinking_mode ?? 'auto'
+                  const next = mode === 'off' ? 'auto' : mode === 'auto' ? 'on' : 'off'
+                  saveModelConfig(activeModelPreset.id, {
+                    ...current,
+                    thinking_mode: next,
+                  })
+                }}
+              >
+                {(() => {
+                  const cfgs = loadModelConfigs()
+                  const mode = cfgs[activeModelPreset.id]?.thinking_mode ?? 'auto'
+                  if (mode === 'off') return t('thinkingOff')
+                  if (mode === 'on') return t('thinkingOn')
+                  return t('thinkingAuto')
+                })()}
+              </Button>
             </div>
           )}
           <div style={{ position: 'relative' }}>
