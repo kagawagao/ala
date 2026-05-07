@@ -513,14 +513,31 @@ class TraceAnalyzer:
                     tables.append(row.name)
                 return {"tables": tables}
 
-            rows = self._query_with_timeout(tp, sql)
+            rows = list(self._query_with_timeout(tp, sql))
             if not rows:
                 return {"columns": [], "rows": [], "row_count": 0}
 
-            columns = list(rows[0].__dict__.keys()) if hasattr(rows[0], "__dict__") else []
+            first_row = rows[0]
+            if hasattr(first_row, "_fields"):
+                columns = list(first_row._fields)
+            elif hasattr(first_row, "keys"):
+                columns = list(first_row.keys())
+            elif hasattr(first_row, "__dict__") and first_row.__dict__:
+                columns = list(first_row.__dict__.keys())
+            else:
+                columns = []
+
             result_rows = []
             for row in rows:
-                result_rows.append({col: getattr(row, col) for col in columns})
+                if hasattr(row, "_asdict"):
+                    row_dict = dict(row._asdict())
+                elif hasattr(row, "keys") and hasattr(row, "__getitem__"):
+                    row_dict = {col: row[col] for col in row.keys()}
+                elif hasattr(row, "__dict__") and row.__dict__:
+                    row_dict = dict(row.__dict__)
+                else:
+                    row_dict = {col: getattr(row, col, None) for col in columns}
+                result_rows.append(row_dict)
 
             return {
                 "columns": columns,
