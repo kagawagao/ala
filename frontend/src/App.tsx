@@ -614,8 +614,22 @@ const AppContent: React.FC<{
         }}
       >
         <Routes>
-          <Route path="/projects" element={<Suspense fallback={null}><ProjectManager /></Suspense>} />
-          <Route path="/models" element={<Suspense fallback={null}><ModelManager onModelsChange={setAllModels} /></Suspense>} />
+          <Route
+            path="/projects"
+            element={
+              <Suspense fallback={null}>
+                <ProjectManager />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/models"
+            element={
+              <Suspense fallback={null}>
+                <ModelManager onModelsChange={setAllModels} />
+              </Suspense>
+            }
+          />
           <Route
             path="*"
             element={

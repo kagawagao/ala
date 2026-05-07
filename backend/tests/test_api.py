@@ -7,9 +7,12 @@ import shutil
 import tempfile
 
 import pytest
-from fastapi.testclient import TestClient
 
-from ala.main import app
+try:
+    from fastapi.testclient import TestClient
+    from ala.main import app
+except ImportError:
+    pytest.skip("fastapi not installed", allow_module_level=True)
 
 # ---------------------------------------------------------------------------
 # Fixtures

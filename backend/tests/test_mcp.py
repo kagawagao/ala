@@ -8,18 +8,21 @@ import tempfile
 
 import pytest
 
-from ala.mcp.server import (
-    filter_android_logs,
-    filter_perfetto_trace,
-    get_log_statistics,
-    list_directory_logs,
-    overview_local_log,
-    parse_android_log,
-    parse_perfetto_trace,
-    read_log_range,
-    search_local_log,
-    tail_local_log,
-)
+try:
+    from ala.mcp.server import (
+        filter_android_logs,
+        filter_perfetto_trace,
+        get_log_statistics,
+        list_directory_logs,
+        overview_local_log,
+        parse_android_log,
+        parse_perfetto_trace,
+        read_log_range,
+        search_local_log,
+        tail_local_log,
+    )
+except ImportError:
+    pytest.skip("fastmcp not installed", allow_module_level=True)
 
 # ---------------------------------------------------------------------------
 # Fixtures

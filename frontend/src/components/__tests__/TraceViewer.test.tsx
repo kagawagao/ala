@@ -68,7 +68,7 @@ function makeTraceResult(overrides: Partial<TraceParseResult> = {}): TraceParseR
         { name: 'measure', count: 50, duration_ms: 200 },
       ],
       ftrace_events: overrides.summary?.ftrace_events ?? ['sched_switch', 'sched_wakeup'],
-      metadata: overrides.summary?.metadata ?? { 'trace_type': 'systrace', 'android_version': '14' },
+      metadata: overrides.summary?.metadata ?? { trace_type: 'systrace', android_version: '14' },
     },
     format: overrides.format ?? 'proto',
     file_size: overrides.file_size ?? 102400,
@@ -280,9 +280,7 @@ describe('TraceViewer', () => {
     await userEvent.type(nameInput, 'system')
     await userEvent.click(screen.getByText('Apply Filter'))
     await waitFor(() => {
-      expect(filterTrace).toHaveBeenCalledWith(
-        expect.objectContaining({ process_name: 'system' }),
-      )
+      expect(filterTrace).toHaveBeenCalledWith(expect.objectContaining({ process_name: 'system' }))
     })
   })
 

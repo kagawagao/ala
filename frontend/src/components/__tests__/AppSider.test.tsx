@@ -249,9 +249,7 @@ describe('AppSider', () => {
     const keywordInput = screen.getByPlaceholderText('Filter by keywords (regex supported)')
     await userEvent.type(keywordInput, 'crash')
     await userEvent.click(screen.getByText('Apply Filters'))
-    expect(onFiltersChange).toHaveBeenCalledWith(
-      expect.objectContaining({ keywords: 'crash' }),
-    )
+    expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({ keywords: 'crash' }))
   })
 
   it('updates pending keyword filter without applying', async () => {
@@ -408,9 +406,7 @@ describe('AppSider', () => {
 
   it('deletes a preset', async () => {
     const onPresetsChange = vi.fn()
-    const presets: FilterPreset[] = [
-      { id: '1', name: 'Error Filter', filters: defaultFilters() },
-    ]
+    const presets: FilterPreset[] = [{ id: '1', name: 'Error Filter', filters: defaultFilters() }]
     render(
       <Wrapper>
         <AppSider

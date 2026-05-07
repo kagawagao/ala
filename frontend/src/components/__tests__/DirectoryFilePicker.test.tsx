@@ -52,7 +52,12 @@ function renderPicker(
   return render(
     <DirectoryFilePicker
       open={overrides.open ?? true}
-      files={overrides.files ?? [makeFile(), makeFile({ name: 'trace.pb', path: '/logs/trace.pb', size: 2048 })]}
+      files={
+        overrides.files ?? [
+          makeFile(),
+          makeFile({ name: 'trace.pb', path: '/logs/trace.pb', size: 2048 }),
+        ]
+      }
       dirPath={overrides.dirPath ?? '/logs'}
       onConfirm={overrides.onConfirm ?? defaultOnConfirm}
       onCancel={overrides.onCancel ?? defaultOnCancel}

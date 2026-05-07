@@ -5,13 +5,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ala.services.ai_service import (
-    AIService,
-    _anthropic_tool_to_openai,
-    _is_anthropic_endpoint,
-    _safe_repr,
-    _truncate_tool_result,
-)
+try:
+    from ala.services.ai_service import (
+        AIService,
+        _anthropic_tool_to_openai,
+        _is_anthropic_endpoint,
+        _safe_repr,
+        _truncate_tool_result,
+    )
+except ImportError:
+    pytest.skip("anthropic not installed", allow_module_level=True)
 
 # Static method extracted for convenience
 _extract_system = AIService._extract_system
