@@ -60,7 +60,9 @@ class SessionManager:
             log_entries=json.loads(row["log_entries"]) if row["log_entries"] else None,
             file_path=row["file_path"],
             log_index=self._log_index_cache.get(sid),
-            raw_api_messages=json.loads(row["raw_api_messages"]) if row["raw_api_messages"] else None,
+            raw_api_messages=json.loads(row["raw_api_messages"])
+            if row["raw_api_messages"]
+            else None,
             raw_api_messages_provider=row["raw_api_messages_provider"],
         )
 
@@ -84,15 +86,19 @@ class SessionManager:
         self._db.execute(
             "INSERT INTO sessions (id, title, context_type, project_id, created_at) "
             "VALUES (?, ?, ?, ?, ?)",
-            (session.id, session.title, session.context_type, session.project_id, session.created_at),
+            (
+                session.id,
+                session.title,
+                session.context_type,
+                session.project_id,
+                session.created_at,
+            ),
         )
         self._db.commit()
         return session
 
     def get_session(self, session_id: str) -> Session | None:
-        row = self._db.execute(
-            "SELECT * FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        row = self._db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if row is None:
             return None
         session = self._row_to_session(row)
@@ -107,9 +113,7 @@ class SessionManager:
         return session
 
     def list_sessions(self) -> list[Session]:
-        rows = self._db.execute(
-            "SELECT * FROM sessions ORDER BY created_at DESC"
-        ).fetchall()
+        rows = self._db.execute("SELECT * FROM sessions ORDER BY created_at DESC").fetchall()
         sessions = []
         for row in rows:
             session = self._row_to_session(row)
@@ -131,9 +135,7 @@ class SessionManager:
 
     def add_message(self, session_id: str, role: str, content: str) -> Message | None:
         # Verify session exists
-        exists = self._db.execute(
-            "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if not exists:
             return None
         msg = Message(role=role, content=content)
@@ -173,18 +175,14 @@ class SessionManager:
 
     def clear_file_path(self, session_id: str) -> bool:
         """Clear the file path from the session. Returns False if session not found."""
-        cur = self._db.execute(
-            "UPDATE sessions SET file_path = NULL WHERE id = ?", (session_id,)
-        )
+        cur = self._db.execute("UPDATE sessions SET file_path = NULL WHERE id = ?", (session_id,))
         self._db.commit()
         return cur.rowcount > 0
 
     def set_log_entries(self, session_id: str, entries: list[dict[str, Any]]) -> bool:
         """Store log entries in the session for agentic tool access."""
         # Verify session exists first
-        exists = self._db.execute(
-            "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if not exists:
             return False
         self._db.execute(

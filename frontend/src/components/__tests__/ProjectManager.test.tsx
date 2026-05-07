@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event'
 import { App } from 'antd'
 import { MemoryRouter } from 'react-router-dom'
 import ProjectManager from '../ProjectManager'
-import type { Project, ContextDoc } from '../../types'
 
 const mockNavigate = vi.fn()
 

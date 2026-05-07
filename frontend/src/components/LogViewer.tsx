@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import type { InputRef } from 'antd'
 import { Table, Tag, Typography, Tooltip, Empty, App, Button, Input, Progress } from 'antd'
 import {
   CopyOutlined,
@@ -118,7 +119,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
-  const searchInputRef = useRef<{ focus: () => void } | null>(null)
+  const searchInputRef = useRef<InputRef>(null)
 
   // Compute matching line indices (filtered logs that contain searchQuery in raw_line or message)
   const matchingIndices = useMemo(() => {

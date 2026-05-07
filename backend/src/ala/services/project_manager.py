@@ -69,8 +69,12 @@ class ProjectManager:
             id=pid,
             name=row["name"],
             paths=paths,
-            include_patterns=include_patterns if include_patterns else Project.__dataclass_fields__["include_patterns"].default_factory(),
-            exclude_patterns=exclude_patterns if exclude_patterns else Project.__dataclass_fields__["exclude_patterns"].default_factory(),
+            include_patterns=include_patterns
+            if include_patterns
+            else Project.__dataclass_fields__["include_patterns"].default_factory(),
+            exclude_patterns=exclude_patterns
+            if exclude_patterns
+            else Project.__dataclass_fields__["exclude_patterns"].default_factory(),
             filter_presets=filter_presets,
             created_at=row["created_at"],
         )
@@ -84,7 +88,9 @@ class ProjectManager:
                 (project_id, p, i),
             )
 
-    def _save_patterns(self, project_id: str, include_patterns: list[str], exclude_patterns: list[str]) -> None:
+    def _save_patterns(
+        self, project_id: str, include_patterns: list[str], exclude_patterns: list[str]
+    ) -> None:
         """Replace all patterns for a project."""
         self._db.execute("DELETE FROM project_patterns WHERE project_id = ?", (project_id,))
         for i, p in enumerate(include_patterns):
@@ -134,17 +140,13 @@ class ProjectManager:
         return project
 
     def get_project(self, project_id: str) -> Project | None:
-        row = self._db.execute(
-            "SELECT * FROM projects WHERE id = ?", (project_id,)
-        ).fetchone()
+        row = self._db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
         if row is None:
             return None
         return self._row_to_project(row)
 
     def list_projects(self) -> list[Project]:
-        rows = self._db.execute(
-            "SELECT * FROM projects ORDER BY created_at DESC"
-        ).fetchall()
+        rows = self._db.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
         return [self._row_to_project(row) for row in rows]
 
     def update_project(
@@ -155,16 +157,12 @@ class ProjectManager:
         include_patterns: list[str] | None = None,
         exclude_patterns: list[str] | None = None,
     ) -> Project | None:
-        row = self._db.execute(
-            "SELECT * FROM projects WHERE id = ?", (project_id,)
-        ).fetchone()
+        row = self._db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
         if row is None:
             return None
 
         if name is not None:
-            self._db.execute(
-                "UPDATE projects SET name = ? WHERE id = ?", (name, project_id)
-            )
+            self._db.execute("UPDATE projects SET name = ? WHERE id = ?", (name, project_id))
         if paths is not None:
             self._save_paths(project_id, paths)
         if include_patterns is not None or exclude_patterns is not None:

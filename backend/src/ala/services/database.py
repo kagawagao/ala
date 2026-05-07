@@ -109,7 +109,9 @@ def _import_projects_json(conn: sqlite3.Connection) -> None:
             pid = item["id"]
             name = item["name"]
             created_at = item.get("created_at", "")
-            filter_presets = json.dumps(item.get("filter_presets", [])) if item.get("filter_presets") else None
+            filter_presets = (
+                json.dumps(item.get("filter_presets", [])) if item.get("filter_presets") else None
+            )
             paths = item.get("paths", [])
             include_patterns = item.get("include_patterns", [])
             exclude_patterns = item.get("exclude_patterns", [])

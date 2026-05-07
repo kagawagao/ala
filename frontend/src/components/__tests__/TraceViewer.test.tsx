@@ -236,7 +236,6 @@ describe('TraceViewer', () => {
   })
 
   it('clears filtered result on reset', async () => {
-    const { filterTrace } = await import('../../api/trace')
     const result = makeTraceResult()
     render(
       <Wrapper>
