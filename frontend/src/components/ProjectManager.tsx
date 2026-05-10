@@ -1,37 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react'
 import {
-  Card,
-  Button,
-  Input,
-  Form,
-  Typography,
-  Space,
-  Popconfirm,
-  App,
-  Tag,
-  Empty,
-  Collapse,
-  Tooltip,
-} from 'antd'
-import {
-  PlusOutlined,
   DeleteOutlined,
+  FileTextOutlined,
   FolderOpenOutlined,
   MinusCircleOutlined,
-  FileTextOutlined,
-  ArrowLeftOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
+import {
+  App,
+  Button,
+  Card,
+  Collapse,
+  Empty,
+  Form,
+  Input,
+  Popconfirm,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
-import { listProjects, createProject, deleteProject, listContextDocs } from '../api/projects'
-import type { Project, ContextDoc } from '../types'
+import { createProject, deleteProject, listContextDocs, listProjects } from '../api/projects'
+import type { ContextDoc, Project } from '../types'
 
 const { Title, Text } = Typography
 
 const ProjectManager: React.FC = () => {
   const { t } = useTranslation()
   const { message } = App.useApp()
-  const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [adding, setAdding] = useState(false)
   const [form] = Form.useForm()
@@ -99,12 +96,6 @@ const ProjectManager: React.FC = () => {
 
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
-          {t('backToAnalysis')}
-        </Button>
-      </Space>
-
       <Title level={3}>{t('projectSettings')}</Title>
       <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
         {t('projectSettingsDescription')}

@@ -310,6 +310,7 @@ class ModelPreset:
     builtin: bool = False
     anthropic_compatible: bool | None = None
     supports_thinking: bool = False
+    enabled: bool = True
 
 
 def _make_builtin_presets() -> list[ModelPreset]:
@@ -354,7 +355,11 @@ class ModelManager:
                             builtin_map[item["id"]] = existing
                     else:
                         try:
-                            custom_models.append(ModelPreset(**item))
+                            # Drop unknown keys for forward-compat and fill missing fields
+                            # type: ignore[attr-defined]
+                            known = {f.name for f in ModelPreset.__dataclass_fields__.values()}
+                            filtered = {k: v for k, v in item.items() if k in known}
+                            custom_models.append(ModelPreset(**filtered))
                         except TypeError:
                             logger.warning("Skipping malformed model entry: %s", item.get("id"))
             except (json.JSONDecodeError, TypeError):
@@ -447,12 +452,33 @@ class ModelManager:
         description: str | None = None,
         anthropic_compatible: object = _UNSET,
         supports_thinking: bool | None = None,
+        enabled: bool | None = None,
     ) -> ModelPreset | None:
         preset = self._models.get(preset_id)
         if not preset:
             return None
+        # enabled may be changed on builtin models too; all other fields are
+        # restricted to custom models only.
+        if enabled is not None:
+            preset.enabled = enabled
         if preset.builtin:
-            raise ValueError("Built-in models cannot be modified")
+            if (
+                any(
+                    v is not None
+                    for v in [
+                        name,
+                        provider,
+                        model_id,
+                        api_endpoint,
+                        description,
+                        supports_thinking,
+                    ]
+                )
+                or anthropic_compatible is not _UNSET
+            ):
+                raise ValueError("Built-in models cannot be modified")
+            self._save()
+            return preset
         if name is not None:
             preset.name = name
         if provider is not None:
@@ -464,7 +490,8 @@ class ModelManager:
         if description is not None:
             preset.description = description
         if anthropic_compatible is not _UNSET:
-            preset.anthropic_compatible = anthropic_compatible  # type: ignore[assignment]
+            # type: ignore[assignment]
+            preset.anthropic_compatible = anthropic_compatible
         if supports_thinking is not None:
             preset.supports_thinking = supports_thinking
         self._save()

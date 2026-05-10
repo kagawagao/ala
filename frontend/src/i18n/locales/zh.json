@@ -244,5 +244,7 @@
   "failedToDeleteModel": "删除模型失败",
   "apiKeyStoredLocally": "API Key 仅存储在您的浏览器本地，不会发送至服务器",
   "refresh": "刷新",
-  "migratedModels": "已将 {{count}} 个自定义模型从本地迁移至后端"
+  "migratedModels": "已将 {{count}} 个自定义模型从本地迁移至后端",
+  "localFileLoaded": "本地文件已就绪，可供 AI 分析",
+  "localFileHint": "AI 助手可直接分析此文件，在右侧聊天面板中提问即可。"
 }

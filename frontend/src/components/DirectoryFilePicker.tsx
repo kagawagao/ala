@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Modal, Checkbox, Typography, Button, Space, Tag, Input, Empty } from 'antd'
 import { FileOutlined, FolderOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Checkbox, Empty, Input, Modal, Space, Tag, Typography } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DirectoryFileInfo } from '../api/logs'
 
@@ -112,7 +112,7 @@ const DirectoryFilePicker: React.FC<DirectoryFilePickerProps> = ({
         {dirPath}
       </Text>
 
-      <Space style={{ width: '100%', marginBottom: 12 }} direction="vertical" size={8}>
+      <Space style={{ width: '100%', marginBottom: 12 }} orientation="vertical" size={8}>
         <Space>
           <Checkbox
             indeterminate={someSelected && !allSelected}

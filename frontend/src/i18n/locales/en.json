@@ -244,5 +244,7 @@
   "failedToDeleteModel": "Failed to delete model",
   "apiKeyStoredLocally": "API keys are stored locally in your browser and never sent to the server",
   "refresh": "Refresh",
-  "migratedModels": "Migrated {{count}} custom model(s) from local storage to backend"
+  "migratedModels": "Migrated {{count}} custom model(s) from local storage to backend",
+  "localFileLoaded": "Local file ready for AI analysis",
+  "localFileHint": "The AI assistant can analyze this file directly. Ask a question in the chat panel on the right."
 }
