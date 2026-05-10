@@ -109,7 +109,7 @@ const ThinkingDisplay: React.FC<{ blocks: string[]; thinkingMode?: string }> = (
     <Collapse
       size="small"
       defaultActiveKey={defaultExpanded}
-      style={{ marginBottom: 6, fontSize: 11 }}
+      style={{ marginTop: 6, marginBottom: 6, fontSize: 11 }}
       items={blocks.map((block, idx) => ({
         key: String(idx),
         label: (
