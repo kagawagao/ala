@@ -1,6 +1,9 @@
 """Tests for the trace analyzer service."""
 
 import json
+import sys
+import types
+from collections import namedtuple
 from types import SimpleNamespace
 
 import pytest
@@ -181,3 +184,53 @@ class TestTraceUnit:
         filtered = analyzer.filter_trace(result, TraceFilters())
         assert filtered.summary.process_count == result.summary.process_count
         assert filtered.summary.event_count == result.summary.event_count
+
+
+class TestTraceSqlQuery:
+    def test_query_sql_handles_iterator_rows_and_namedtuple_columns(self, analyzer, tmp_path):
+        trace_file = tmp_path / "trace.pftrace"
+        trace_file.write_bytes(b"fake-trace")
+
+        QueryRow = namedtuple("QueryRow", ["name", "dur"])
+
+        class FakeTraceProcessor:
+            def __init__(self, trace):
+                self.trace = trace
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def query(self, sql):
+                if "sqlite_master" in sql:
+                    return iter([SimpleNamespace(name="slice"), SimpleNamespace(name="process")])
+                return iter([QueryRow(name="A", dur=123), QueryRow(name="B", dur=456)])
+
+        fake_perfetto = types.ModuleType("perfetto")
+        fake_trace_processor = types.ModuleType("perfetto.trace_processor")
+        fake_trace_processor.TraceProcessor = FakeTraceProcessor
+        fake_perfetto.trace_processor = fake_trace_processor
+
+        old_perfetto = sys.modules.get("perfetto")
+        old_trace_processor = sys.modules.get("perfetto.trace_processor")
+        sys.modules["perfetto"] = fake_perfetto
+        sys.modules["perfetto.trace_processor"] = fake_trace_processor
+        try:
+            result = analyzer.query_sql(str(trace_file), "SELECT name, dur FROM slice")
+            assert result["columns"] == ["name", "dur"]
+            assert result["rows"] == [{"name": "A", "dur": 123}, {"name": "B", "dur": 456}]
+            assert result["row_count"] == 2
+
+            tables = analyzer.query_sql(str(trace_file), None)
+            assert tables == {"tables": ["slice", "process"]}
+        finally:
+            if old_perfetto is None:
+                sys.modules.pop("perfetto", None)
+            else:
+                sys.modules["perfetto"] = old_perfetto
+            if old_trace_processor is None:
+                sys.modules.pop("perfetto.trace_processor", None)
+            else:
+                sys.modules["perfetto.trace_processor"] = old_trace_processor

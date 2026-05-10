@@ -217,6 +217,7 @@ Available MCP tools:
 - `get_log_statistics(log_content)` — Get log statistics
 - `parse_perfetto_trace(trace_file_path)` — Parse a Perfetto trace file
 - `filter_perfetto_trace(trace_file_path, pids, process_name)` — Filter trace by process
+- `query_perfetto_trace_sql(trace_file_path, sql)` — Run SQL against a Perfetto trace (or list tables when sql is omitted)
 
 ## Development
 
