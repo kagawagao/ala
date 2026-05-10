@@ -1,7 +1,5 @@
 """Tests for MCP server tools."""
 
-import gzip
-import io
 import json
 import os
 import tempfile
@@ -35,16 +33,18 @@ SAMPLE_LOGCAT = """01-15 10:30:45.123  1234  5678 E AndroidRuntime: FATAL EXCEPT
 01-15 10:30:45.127  2345  6789 W MemoryInfo: Low memory warning
 """
 
-SAMPLE_JSON_TRACE = json.dumps({
-    "traceEvents": [
-        {"name": "slice1", "ph": "X", "ts": 0, "dur": 1000, "pid": 1, "tid": 1},
-        {"name": "slice2", "ph": "X", "ts": 2000, "dur": 500, "pid": 1, "tid": 2},
-        {"name": "slice3", "ph": "X", "ts": 3000, "dur": 200, "pid": 2, "tid": 3},
-        {"name": "process_name", "ph": "M", "pid": 1, "args": {"name": "com.example.app"}},
-        {"name": "process_name", "ph": "M", "pid": 2, "args": {"name": "system_server"}},
-    ],
-    "metadata": {"clock-offset-since-epoch": "0"},
-})
+SAMPLE_JSON_TRACE = json.dumps(
+    {
+        "traceEvents": [
+            {"name": "slice1", "ph": "X", "ts": 0, "dur": 1000, "pid": 1, "tid": 1},
+            {"name": "slice2", "ph": "X", "ts": 2000, "dur": 500, "pid": 1, "tid": 2},
+            {"name": "slice3", "ph": "X", "ts": 3000, "dur": 200, "pid": 2, "tid": 3},
+            {"name": "process_name", "ph": "M", "pid": 1, "args": {"name": "com.example.app"}},
+            {"name": "process_name", "ph": "M", "pid": 2, "args": {"name": "system_server"}},
+        ],
+        "metadata": {"clock-offset-since-epoch": "0"},
+    }
+)
 
 
 def _write_temp_file(content: str, suffix: str = ".txt") -> str:

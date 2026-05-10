@@ -10,6 +10,7 @@ import pytest
 
 try:
     from fastapi.testclient import TestClient
+
     from ala.main import app
 except ImportError:
     pytest.skip("fastapi not installed", allow_module_level=True)
@@ -163,7 +164,9 @@ class TestLogParse:
         assert "pids" in stats
 
     def test_parse_local_nonexistent_file_returns_400(self, client):
-        resp = client.post("/api/logs/parse-local", json={"path": "/tmp/nonexistent_ala_test_xyz.log"})
+        resp = client.post(
+            "/api/logs/parse-local", json={"path": "/tmp/nonexistent_ala_test_xyz.log"}
+        )
         assert resp.status_code in (400, 403, 404)
 
     def test_parse_local_valid_temp_file(self, client):
@@ -179,6 +182,7 @@ class TestLogParse:
             assert data["format_detected"] == "android_logcat"
         finally:
             import os
+
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -194,6 +198,7 @@ class TestLogParse:
             assert data["line_count"] == 5
         finally:
             import os
+
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -210,15 +215,17 @@ class TestLogParse:
 # Trace endpoints
 # ---------------------------------------------------------------------------
 
-SAMPLE_JSON_TRACE = json.dumps({
-    "traceEvents": [
-        {"name": "slice1", "ph": "X", "ts": 0, "dur": 1000, "pid": 1, "tid": 1},
-        {"name": "slice2", "ph": "X", "ts": 2000, "dur": 500, "pid": 1, "tid": 2},
-        {"name": "process_name", "ph": "M", "pid": 1, "args": {"name": "com.example.app"}},
-        {"name": "process_name", "ph": "M", "pid": 2, "args": {"name": "system_server"}},
-    ],
-    "metadata": {"clock-offset-since-epoch": "0"},
-}).encode()
+SAMPLE_JSON_TRACE = json.dumps(
+    {
+        "traceEvents": [
+            {"name": "slice1", "ph": "X", "ts": 0, "dur": 1000, "pid": 1, "tid": 1},
+            {"name": "slice2", "ph": "X", "ts": 2000, "dur": 500, "pid": 1, "tid": 2},
+            {"name": "process_name", "ph": "M", "pid": 1, "args": {"name": "com.example.app"}},
+            {"name": "process_name", "ph": "M", "pid": 2, "args": {"name": "system_server"}},
+        ],
+        "metadata": {"clock-offset-since-epoch": "0"},
+    }
+).encode()
 
 
 class TestTrace:
@@ -303,6 +310,7 @@ class TestProjects:
             assert get_resp.json()["name"] == "My Project"
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -316,6 +324,7 @@ class TestProjects:
             assert isinstance(projects, list)
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -334,6 +343,7 @@ class TestProjects:
             assert update_resp.json()["name"] == "New Name"
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -356,6 +366,7 @@ class TestProjects:
             assert get_resp.status_code == 404
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -399,6 +410,7 @@ class TestProjects:
             assert isinstance(resp.json(), list)
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -412,6 +424,7 @@ class TestProjects:
             assert isinstance(resp.json(), list)
         finally:
             import os
+
             if os.path.exists(tmpdir):
                 os.rmdir(tmpdir)
 
@@ -421,7 +434,9 @@ class TestProjects:
             create_resp = self._create_project(client, "Presets Update", [tmpdir])
             pid = create_resp.json()["id"]
 
-            new_presets = [{"name": "Test Preset", "description": "A test", "filters": {"level": "E"}}]
+            new_presets = [
+                {"name": "Test Preset", "description": "A test", "filters": {"level": "E"}}
+            ]
             resp = client.put(f"/api/projects/{pid}/presets", json={"presets": new_presets})
             assert resp.status_code == 200
             assert len(resp.json()) == 1
@@ -527,14 +542,13 @@ class TestChatSessions:
                 "/api/chat/sessions", json={"title": "File Session", "context_type": "log"}
             )
             sid = create_resp.json()["id"]
-            resp = client.put(
-                f"/api/chat/sessions/{sid}/file-path", json={"file_path": path}
-            )
+            resp = client.put(f"/api/chat/sessions/{sid}/file-path", json={"file_path": path})
             assert resp.status_code == 200
             assert resp.json()["success"] is True
             assert resp.json()["file_path"] == path
         finally:
             import os
+
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -544,9 +558,7 @@ class TestChatSessions:
         )
         sid = create_resp.json()["id"]
         # Clear with empty path
-        resp = client.put(
-            f"/api/chat/sessions/{sid}/file-path", json={"file_path": ""}
-        )
+        resp = client.put(f"/api/chat/sessions/{sid}/file-path", json={"file_path": ""})
         assert resp.status_code == 200
         assert resp.json()["file_path"] is None
 

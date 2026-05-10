@@ -75,9 +75,7 @@ class SessionManager:
         # LRU eviction: if at capacity, delete oldest and clean cache
         cur = self._db.execute("SELECT COUNT(*) FROM sessions")
         if cur.fetchone()[0] >= self._max_sessions:
-            evict_cur = self._db.execute(
-                "SELECT id FROM sessions ORDER BY created_at ASC LIMIT 1"
-            )
+            evict_cur = self._db.execute("SELECT id FROM sessions ORDER BY created_at ASC LIMIT 1")
             evict_row = evict_cur.fetchone()
             if evict_row:
                 evicted_id = evict_row[0]
