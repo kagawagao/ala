@@ -12,12 +12,14 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
+import enUS from 'antd/locale/en_US'
+import zhCN from 'antd/locale/zh_CN'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
-import { updateConfig } from './api/config'
-import { listModels } from './api/models'
+import { getConfig } from './api/config'
 import { parseLogStream } from './api/logs'
+import { listModels } from './api/models'
 import {
   getProjectPresets,
   listContextDocs,
@@ -32,9 +34,6 @@ import FileUpload from './components/FileUpload'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import TraceViewer from './components/TraceViewer'
-
-const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
-const ModelManager = React.lazy(() => import('./components/ModelManager'))
 import { useLogStream } from './hooks/useLogStream'
 import i18next from './i18n/config'
 import type {
@@ -55,6 +54,9 @@ import {
   migrateFromLegacyConfig,
   migrateLocalModelsToBackend,
 } from './utils/models'
+
+const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
+const ModelManager = React.lazy(() => import('./components/ModelManager'))
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -167,8 +169,15 @@ const AppContent: React.FC<{
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
   const [siderCollapsed, setSiderCollapsed] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
+  const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
+    const saved = localStorage.getItem('ala_splitter_ai_size')
+    return saved ? Number(saved) : 520
+  })
+  const saveSizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshModelsRef = useRef<(() => void) | null>(null)
   const [uploadPopoverOpen, setUploadPopoverOpen] = useState(false)
   const [backendConnected, setBackendConnected] = useState(false)
+  const [modelsLoaded, setModelsLoaded] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [allModels, setAllModels] = useState<ModelPreset[]>([])
@@ -318,49 +327,57 @@ const AppContent: React.FC<{
   // Fetch model presets from backend whenever connection is established.
   // Also runs the one-time migration of legacy localStorage custom models.
   useEffect(() => {
-    if (!backendConnected) return
+    if (!backendConnected) {
+      setModelsLoaded(false)
+      return
+    }
     void listModels()
       .then(async (fetched) => {
         const migrated = await migrateLocalModelsToBackend(fetched)
-        // Merge newly migrated presets directly to avoid a redundant second API call
-        setAllModels(migrated.length > 0 ? [...fetched, ...migrated] : fetched)
+        const merged = migrated.length > 0 ? [...fetched, ...migrated] : fetched
+        // Batch both updates so the config effect fires only once
+        setAllModels(merged)
+        setModelsLoaded(true)
         if (migrated.length > 0) {
           void message.success(t('migratedModels', { count: migrated.length }))
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        setModelsLoaded(true) // even on error, unblock the config effect
+      })
   }, [backendConnected, message, t])
 
-  // Derive AI config from the active model's per-model config.
-  // Runs whenever backendConnected or allModels changes.
+  // Derive AI config only after models have finished loading to avoid double getConfig() calls.
+  // API keys live in localStorage only — never synced to backend.
   useEffect(() => {
+    if (!modelsLoaded) return
     migrateFromLegacyConfig(allModels)
     const active = getActiveAIConfig(allModels)
-    if (active?.config.api_key) {
+    if (active && active.config.api_key?.trim()) {
       setAiConfigured(true)
       setAiConfig(active.config)
-      if (backendConnected) {
-        void updateConfig(active.config)
-      }
-    } else {
+      return
+    }
+
+    if (!backendConnected) {
       setAiConfigured(false)
       setAiConfig(null)
+      return
     }
-  }, [backendConnected, allModels])
 
-  // Re-derive AI config when navigating away from the models page
-  // (user may have configured / changed the active model there).
-  useEffect(() => {
-    if (!isFullPage) {
-      const active = getActiveAIConfig(allModels)
-      setAiConfigured(!!active?.config.api_key)
-      setAiConfig(active?.config ?? null)
-      if (active?.config.api_key && backendConnected) {
-        void updateConfig(active.config)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFullPage, allModels])
+    // Fallback: backend may have an env-var configured API key.
+    // '***' means the backend has a key set — treat it as configured.
+    getConfig()
+      .then((remote) => {
+        const hasKey = remote.api_key.trim() !== ''
+        setAiConfigured(hasKey)
+        setAiConfig(hasKey ? remote : null)
+      })
+      .catch(() => {
+        setAiConfigured(false)
+        setAiConfig(null)
+      })
+  }, [backendConnected, allModels, modelsLoaded])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -432,6 +449,25 @@ const AppContent: React.FC<{
     [abortParse, resetLogs],
   )
 
+  const handleRegisterRefreshModels = useCallback((fn: () => void) => {
+    refreshModelsRef.current = fn
+  }, [])
+
+  const handleRefreshModels = useCallback(() => {
+    refreshModelsRef.current?.()
+  }, [])
+
+  const handleSplitterResize = useCallback((sizes: number[]) => {
+    if (sizes.length >= 2) {
+      const aiSize = sizes[1]
+      setAiPanelSize(aiSize)
+      if (saveSizeTimer.current) clearTimeout(saveSizeTimer.current)
+      saveSizeTimer.current = setTimeout(() => {
+        localStorage.setItem('ala_splitter_ai_size', String(Math.round(aiSize)))
+      }, 500)
+    }
+  }, [])
+
   const handleLogFiles = useCallback(
     async (files: File[]) => {
       setLocalFilePath(null)
@@ -467,7 +503,7 @@ const AppContent: React.FC<{
     [t, message],
   )
 
-  const showFileUpload = allLogs.length === 0 && !traceResult
+  const showFileUpload = allLogs.length === 0 && !traceResult && !localFilePath
 
   const isLoading = loadingFile || traceLoading
   const errorMessage = fileError || traceError
@@ -535,6 +571,33 @@ const AppContent: React.FC<{
           error={errorMessage}
           fileNames={fileNames}
         />
+      ) : localFilePath && allLogs.length === 0 ? (
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          <Typography.Text style={{ fontSize: 28 }}>📂</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 14 }}>
+            {t('localFileLoaded')}
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            code
+            style={{ fontSize: 12, maxWidth: 480, textAlign: 'center', wordBreak: 'break-all' }}
+          >
+            {localFilePath}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
+            {t('localFileHint')}
+          </Typography.Text>
+        </div>
       ) : !hasActiveFilters ? (
         <div
           style={{
@@ -570,211 +633,220 @@ const AppContent: React.FC<{
     },
   ]
 
+  const antdLocale = language === 'zh' ? zhCN : enUS
+
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--ant-color-bg-layout)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header */}
-      <Header
-        isDark={isDark}
-        onToggleTheme={onToggleTheme}
-        language={language}
-        onToggleLanguage={handleToggleLanguage}
-        siderCollapsed={siderCollapsed}
-        onToggleSider={() => setSiderCollapsed((v) => !v)}
-        backendConnected={backendConnected}
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onProjectChange={handleProjectChange}
-      />
-
-      {/* Backend warning */}
-      {!backendConnected && (
-        <Alert
-          type="warning"
-          title={t('backendNotConnected')}
-          banner
-          closable
-          style={{ flexShrink: 0 }}
-        />
-      )}
-
-      {/* Main content */}
+    <ConfigProvider locale={antdLocale}>
       <div
         style={{
-          flex: 1,
-          overflow: isFullPage ? 'auto' : 'hidden',
-          position: 'relative',
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--ant-color-bg-layout)',
+          overflow: 'hidden',
         }}
       >
-        <Routes>
-          <Route
-            path="/projects"
-            element={
-              <Suspense fallback={null}>
-                <ProjectManager />
-              </Suspense>
-            }
+        {/* Header */}
+        <Header
+          isDark={isDark}
+          onToggleTheme={onToggleTheme}
+          language={language}
+          onToggleLanguage={handleToggleLanguage}
+          siderCollapsed={siderCollapsed}
+          onToggleSider={() => setSiderCollapsed((v) => !v)}
+          backendConnected={backendConnected}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onProjectChange={handleProjectChange}
+          onRefreshModels={handleRefreshModels}
+        />
+
+        {/* Backend warning */}
+        {!backendConnected && (
+          <Alert
+            type="warning"
+            title={t('backendNotConnected')}
+            banner
+            closable
+            style={{ flexShrink: 0 }}
           />
-          <Route
-            path="/models"
-            element={
-              <Suspense fallback={null}>
-                <ModelManager onModelsChange={setAllModels} />
-              </Suspense>
-            }
-          />
-          <Route
-            path="*"
-            element={
-              <>
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                  }}
-                >
-                  {/* Left: AppSider */}
+        )}
+
+        {/* Main content */}
+        <div
+          style={{
+            flex: 1,
+            overflow: isFullPage ? 'auto' : 'hidden',
+            position: 'relative',
+          }}
+        >
+          <Routes>
+            <Route
+              path="/projects"
+              element={
+                <Suspense fallback={null}>
+                  <ProjectManager />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/models"
+              element={
+                <Suspense fallback={null}>
+                  <ModelManager
+                    onModelsChange={setAllModels}
+                    onRegisterRefresh={handleRegisterRefreshModels}
+                  />
+                </Suspense>
+              }
+            />
+            <Route
+              path="*"
+              element={
+                <>
                   <div
                     style={{
-                      width: siderCollapsed ? 0 : 340,
-                      minWidth: siderCollapsed ? 0 : 240,
-                      maxWidth: 500,
-                      borderRight: siderCollapsed ? 'none' : '1px solid var(--ant-color-border)',
-                      overflow: 'hidden',
-                      transition: 'width 0.2s',
-                      flexShrink: 0,
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
                     }}
                   >
-                    {!siderCollapsed && (
-                      <AppSider
-                        filters={filters}
-                        onFiltersChange={setFilters}
-                        highlights={highlights}
-                        onHighlightsChange={setHighlights}
-                        statistics={statistics}
-                        presets={presets}
-                        onPresetsChange={handlePresetsChange}
-                        wordWrap={wordWrap}
-                        onWordWrapChange={setWordWrap}
-                        selectedProjectId={selectedProjectId}
-                      />
-                    )}
-                  </div>
-
-                  {/* Center + Right: Splitter for Log viewer and AI panel */}
-                  <Splitter style={{ flex: 1, height: '100%' }}>
-                    {/* Center: Log/Trace viewer */}
-                    <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
-                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <Tabs
-                          activeKey={activeTab}
-                          onChange={(k) => setActiveTab(k as 'log' | 'trace')}
-                          items={tabItems}
-                          tabBarExtraContent={{ right: tabBarExtra }}
-                          style={{ height: '100%' }}
-                          tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                          renderTabBar={(props, DefaultTabBar) => (
-                            <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                          )}
+                    {/* Left: AppSider */}
+                    <div
+                      style={{
+                        width: siderCollapsed ? 0 : 340,
+                        minWidth: siderCollapsed ? 0 : 240,
+                        maxWidth: 500,
+                        borderRight: siderCollapsed ? 'none' : '1px solid var(--ant-color-border)',
+                        overflow: 'hidden',
+                        transition: 'width 0.2s',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {!siderCollapsed && (
+                        <AppSider
+                          filters={filters}
+                          onFiltersChange={setFilters}
+                          highlights={highlights}
+                          onHighlightsChange={setHighlights}
+                          statistics={statistics}
+                          presets={presets}
+                          onPresetsChange={handlePresetsChange}
+                          wordWrap={wordWrap}
+                          onWordWrapChange={setWordWrap}
+                          selectedProjectId={selectedProjectId}
                         />
-                      </div>
-                    </Splitter.Panel>
+                      )}
+                    </div>
 
-                    {/* Right: AI Panel */}
-                    {!aiPanelCollapsed && (
-                      <Splitter.Panel
-                        defaultSize={520}
-                        min={320}
-                        max={'50%'}
-                        style={{
-                          borderLeft: '1px solid var(--ant-color-border)',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
+                    {/* Center + Right: Splitter for Log viewer and AI panel */}
+                    <Splitter style={{ flex: 1, height: '100%' }} onResize={handleSplitterResize}>
+                      {/* Center: Log/Trace viewer */}
+                      <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
+                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <Tabs
+                            activeKey={activeTab}
+                            onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                            items={tabItems}
+                            tabBarExtraContent={{ right: tabBarExtra }}
+                            style={{ height: '100%' }}
+                            tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                            renderTabBar={(props, DefaultTabBar) => (
+                              <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                            )}
+                          />
+                        </div>
+                      </Splitter.Panel>
+
+                      {/* Right: AI Panel */}
+                      {!aiPanelCollapsed && (
+                        <Splitter.Panel
+                          size={aiPanelSize}
+                          min={320}
+                          max={'50%'}
                           style={{
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
+                            borderLeft: '1px solid var(--ant-color-border)',
+                            overflow: 'hidden',
                           }}
                         >
                           <div
                             style={{
+                              height: '100%',
                               display: 'flex',
-                              justifyContent: 'flex-end',
-                              padding: '2px 6px',
-                              borderBottom: '1px solid var(--ant-color-border)',
-                              flexShrink: 0,
+                              flexDirection: 'column',
                             }}
                           >
-                            <span
+                            <div
                               style={{
-                                cursor: 'pointer',
-                                fontSize: 11,
-                                color: 'var(--ant-color-text-secondary)',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                padding: '2px 6px',
+                                borderBottom: '1px solid var(--ant-color-border)',
+                                flexShrink: 0,
                               }}
-                              onClick={() => setAiPanelCollapsed(true)}
                             >
-                              ✕
-                            </span>
+                              <span
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: 11,
+                                  color: 'var(--ant-color-text-secondary)',
+                                }}
+                                onClick={() => setAiPanelCollapsed(true)}
+                              >
+                                ✕
+                              </span>
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <AiPanel
+                                logs={filteredLogs}
+                                allLogs={allLogs}
+                                totalLogs={allLogs.length}
+                                filters={filters}
+                                traceResult={traceResult}
+                                aiConfigured={aiConfigured}
+                                selectedProjectId={selectedProjectId}
+                                projects={projects}
+                                contextDocs={contextDocs}
+                                localFilePath={localFilePath}
+                                aiConfig={aiConfig ?? undefined}
+                                allModels={allModels}
+                              />
+                            </div>
                           </div>
-                          <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <AiPanel
-                              logs={filteredLogs}
-                              allLogs={allLogs}
-                              totalLogs={allLogs.length}
-                              filters={filters}
-                              traceResult={traceResult}
-                              aiConfigured={aiConfigured}
-                              selectedProjectId={selectedProjectId}
-                              projects={projects}
-                              contextDocs={contextDocs}
-                              localFilePath={localFilePath}
-                              aiConfig={aiConfig ?? undefined}
-                            />
-                          </div>
-                        </div>
-                      </Splitter.Panel>
-                    )}
-                  </Splitter>
-                </div>
+                        </Splitter.Panel>
+                      )}
+                    </Splitter>
+                  </div>
 
-                {/* AI panel toggle when collapsed */}
-                {aiPanelCollapsed && (
-                  <button
-                    onClick={() => setAiPanelCollapsed(false)}
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      writingMode: 'vertical-rl',
-                      padding: '8px 4px',
-                      border: '1px solid var(--ant-color-border)',
-                      borderRight: 'none',
-                      borderRadius: '6px 0 0 6px',
-                      background: 'var(--ant-color-bg-container)',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                    }}
-                  >
-                    {t('aiAssistant')}
-                  </button>
-                )}
-              </>
-            }
-          />
-        </Routes>
+                  {/* AI panel toggle when collapsed */}
+                  {aiPanelCollapsed && (
+                    <button
+                      onClick={() => setAiPanelCollapsed(false)}
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        writingMode: 'vertical-rl',
+                        padding: '8px 4px',
+                        border: '1px solid var(--ant-color-border)',
+                        borderRight: 'none',
+                        borderRadius: '6px 0 0 6px',
+                        background: 'var(--ant-color-bg-container)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                      }}
+                    >
+                      {t('aiAssistant')}
+                    </button>
+                  )}
+                </>
+              }
+            />
+          </Routes>
+        </div>
       </div>
-    </div>
+    </ConfigProvider>
   )
 }
 
