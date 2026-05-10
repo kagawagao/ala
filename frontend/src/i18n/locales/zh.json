@@ -86,7 +86,7 @@
   "connected": "已连接",
   "disconnected": "未连接",
   "dropFileHere": "拖拽文件到此处或点击上传",
-  "supportedFormats": "支持格式：.log、.txt、.gz、.zip（logcat），.pb、.json（Perfetto trace）",
+  "supportedFormats": "支持格式：.log、.txt、.gz、.zip（logcat），.pb、.json（Perfetto trace），.pcap、.pcapng（网络抓包）",
   "fileUploaded": "文件上传成功",
   "traceSummary": "Trace 摘要",
   "duration": "持续时间",

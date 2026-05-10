@@ -86,7 +86,7 @@
   "connected": "Connected",
   "disconnected": "Disconnected",
   "dropFileHere": "Drop a file here or click to upload",
-  "supportedFormats": "Supported formats: .log, .txt, .gz, .zip (logcat), .pb, .json (Perfetto trace)",
+  "supportedFormats": "Supported formats: .log, .txt, .gz, .zip (logcat), .pb, .json (Perfetto trace), .pcap, .pcapng (network capture)",
   "fileUploaded": "File uploaded successfully",
   "traceSummary": "Trace Summary",
   "duration": "Duration",
