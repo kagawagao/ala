@@ -246,5 +246,20 @@
   "refresh": "Refresh",
   "migratedModels": "Migrated {{count}} custom model(s) from local storage to backend",
   "localFileLoaded": "Local file ready for AI analysis",
-  "localFileHint": "The AI assistant can analyze this file directly. Ask a question in the chat panel on the right."
+  "localFileHint": "The AI assistant can analyze this file directly. Ask a question in the chat panel on the right.",
+  "userGuide": "User Guide",
+  "userGuideDescription": "Use this guide to quickly get started with log and trace analysis in ALA.",
+  "guideQuickStart": "Quick Start",
+  "guideQuickStartItem1": "Open one or more log or trace files from the upload panel.",
+  "guideQuickStartItem2": "Use sidebar filters, then click Apply Filters to update the log view.",
+  "guideQuickStartItem3": "Switch between Log Analysis and Trace Analysis tabs to inspect results.",
+  "guideQuickStartItem4": "Optionally select a project to provide code context for AI analysis.",
+  "guideAiAssistant": "Using the AI Assistant",
+  "guideAiItem1": "Configure API endpoint, key, and model in Model Management if needed.",
+  "guideAiItem2": "Ask questions in the AI panel; it can analyze filtered logs and loaded traces.",
+  "guideAiItem3": "Attach context data to narrow the assistant's analysis scope.",
+  "guideTips": "Tips",
+  "guideTipsItem1": "Use presets to save and reuse common filter combinations.",
+  "guideTipsItem2": "Use Project Settings to register source directories for better AI context.",
+  "guideTipsItem3": "If backend is disconnected, start the Python backend service first."
 }

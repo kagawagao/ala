@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
+  BookOutlined,
   CodeOutlined,
   DisconnectOutlined,
   FolderOutlined,
@@ -146,6 +147,14 @@ const Header: React.FC<HeaderProps> = ({
             icon={<AppstoreOutlined />}
             onClick={() => navigate('/models')}
             aria-label={t('modelManagement')}
+          />
+        </Tooltip>
+        <Tooltip title={t('userGuide')}>
+          <Button
+            type="text"
+            icon={<BookOutlined />}
+            onClick={() => navigate('/guide')}
+            aria-label={t('userGuide')}
           />
         </Tooltip>
       </Space>

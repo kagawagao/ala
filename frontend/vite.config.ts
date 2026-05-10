@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const npmPackageVersion = (
-  globalThis as { process?: { env?: { npm_package_version?: string } } }
-).process?.env?.npm_package_version
+const npmPackageVersion = (globalThis as { process?: { env?: { npm_package_version?: string } } })
+  .process?.env?.npm_package_version
 
 export default defineConfig({
   define: {
