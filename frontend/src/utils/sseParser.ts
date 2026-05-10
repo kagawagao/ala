@@ -24,6 +24,9 @@ export interface SSEParseState {
   parts: MessagePart[]
   accumulated: string
   continueMessage: string | null
+  round: number
+  maxRounds: number
+  toolCallCount: number
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -87,6 +90,7 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
       const event = data as ToolCallEvent
       return {
         ...state,
+        toolCallCount: state.toolCallCount + 1,
         parts: [
           ...state.parts,
           { type: 'tool', call: { name: event.name, arguments: event.arguments } },
@@ -119,9 +123,16 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
       return { ...state, continueMessage: (data as MaxRoundsReachedEvent).message }
     }
 
-    // agent_meta — silently discard
+    // agent_meta — extract round info
     if ('type' in data && data.type === 'agent_meta') {
-      return state
+      const meta = data as Record<string, unknown>
+      const roundVal = typeof meta.rounds_used === 'number' ? meta.rounds_used : undefined
+      const maxVal = typeof meta.max_rounds === 'number' ? meta.max_rounds : undefined
+      return {
+        ...state,
+        round: roundVal !== undefined ? roundVal : state.round,
+        maxRounds: maxVal !== undefined ? maxVal : state.maxRounds,
+      }
     }
 
     // ── OpenAI-compatible delta extraction ────────────────────────────────
@@ -131,6 +142,7 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
 
     if (typeof delta === 'string' && delta) {
       return {
+        ...state,
         accumulated: state.accumulated + delta,
         parts: appendText(state.parts, delta),
         continueMessage: state.continueMessage,
@@ -141,6 +153,7 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
   } catch {
     // JSON.parse failed — treat chunk as plain text
     return {
+      ...state,
       accumulated: state.accumulated + chunk,
       parts: appendText(state.parts, chunk),
       continueMessage: state.continueMessage,
@@ -151,5 +164,12 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
 // ── Initial state factory ────────────────────────────────────────────────
 
 export function createSSEState(): SSEParseState {
-  return { parts: [], accumulated: '', continueMessage: null }
+  return {
+    parts: [],
+    accumulated: '',
+    continueMessage: null,
+    round: 0,
+    maxRounds: 0,
+    toolCallCount: 0,
+  }
 }

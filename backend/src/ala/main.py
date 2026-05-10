@@ -15,6 +15,7 @@ from .api import config as config_router
 from .config import settings
 from .logging_config import setup_logging
 from .mcp.server import mcp
+from .services.database import get_db
 
 # Initialise logging as early as possible so every subsequent import can log.
 setup_logging(log_level=settings.log_level, log_dir=settings.log_dir)
@@ -45,6 +46,8 @@ async def lifespan(app: FastAPI):
         settings.port,
         settings.log_level,
     )
+    # Trigger DB initialization and migration
+    get_db()
     # Start the FastMCP session-manager task-group alongside the FastAPI app.
     # The mcp_http_app lifespan initialises StreamableHTTPSessionManager.run()
     # which is required before any MCP request can be handled.

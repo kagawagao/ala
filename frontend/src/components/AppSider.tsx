@@ -364,6 +364,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                     {t('keywords')}
                   </Text>
                   <Input
+                    id="ala-keywords-input"
                     size="small"
                     placeholder={t('keywordsPlaceholder')}
                     value={pendingFilters.keywords}

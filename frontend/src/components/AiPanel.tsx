@@ -236,6 +236,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [continueMessage, setContinueMessage] = useState<string | null>(null)
+  // Streaming progress: round, tool calls, token estimate
+  const [streamStats, setStreamStats] = useState<{
+    round: number
+    maxRounds: number
+    toolCallCount: number
+    tokenEstimate: number
+  } | null>(null)
   // Per-session model override: sessionId → ModelPreset (missing entry = use global config)
   const [sessionModels, setSessionModels] = useState<Record<string, ModelPreset>>({})
   const abortRef = useRef<AbortController | null>(null)
@@ -449,6 +456,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
     setInputValue('')
     setStreaming(true)
     setContinueMessage(null) // dismiss any previous Continue prompt
+    setStreamStats(null)
 
     const assistantMsg: DisplayMessage = { role: 'assistant', content: '', parts: [] }
     setMessages((prev) => [...prev, assistantMsg])
@@ -491,6 +499,16 @@ const AiPanel: React.FC<AiPanelProps> = ({
         state = processSSEChunk(chunk, state)
         updateMsg(state.parts)
 
+        // Update stream stats (round counter, tool calls, token estimate)
+        if (state.round > 0 || state.toolCallCount > 0) {
+          setStreamStats({
+            round: state.round > 0 ? state.round : state.toolCallCount,
+            maxRounds: state.maxRounds,
+            toolCallCount: state.toolCallCount,
+            tokenEstimate: Math.round(state.accumulated.length / 4),
+          })
+        }
+
         if (state.continueMessage) {
           setContinueMessage(state.continueMessage)
         }
@@ -517,6 +535,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       }
     } finally {
       setStreaming(false)
+      setStreamStats(null)
       abortRef.current = null
     }
   }
@@ -526,6 +545,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Enter (plain or Ctrl+Enter / Cmd+Enter) → send
+    // Shift+Enter → newline (browser default)
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       void handleSend()
@@ -623,6 +644,21 @@ const AiPanel: React.FC<AiPanelProps> = ({
         <Text strong style={{ fontSize: 13, flex: 1 }}>
           <RobotOutlined /> {t('aiAssistant')}
         </Text>
+        {/* Streaming progress indicator */}
+        {streaming && streamStats && (
+          <Text
+            type="secondary"
+            style={{
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              fontFamily: 'monospace',
+            }}
+          >
+            Round {streamStats.round}
+            {streamStats.maxRounds > 0 ? `/${streamStats.maxRounds}` : ''} · ~
+            {streamStats.tokenEstimate.toLocaleString()} tokens
+          </Text>
+        )}
         <Tooltip title={t('newSession')}>
           <Button
             size="small"
