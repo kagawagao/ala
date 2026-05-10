@@ -1,7 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const npmPackageVersion = (
+  globalThis as { process?: { env?: { npm_package_version?: string } } }
+).process?.env?.npm_package_version
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(npmPackageVersion ?? '0.0.0-dev'),
+  },
   plugins: [react()],
   server: {
     port: 5173,
