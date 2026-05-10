@@ -1,52 +1,45 @@
-import React, { useState, useEffect, useCallback } from 'react'
 import {
+  CheckOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  KeyOutlined,
+  PlusOutlined,
+} from '@ant-design/icons'
+import {
+  App,
   Button,
   Card,
   Checkbox,
-  Typography,
-  Space,
-  Tag,
-  Divider,
+  Col,
+  Collapse,
+  Empty,
   Form,
   Input,
-  Modal,
-  App,
-  Popconfirm,
-  Tooltip,
-  Empty,
-  Row,
-  Col,
-  Slider,
-  Select,
   InputNumber,
+  Modal,
+  Popconfirm,
+  Row,
+  Select,
+  Slider,
+  Space,
   Spin,
   Switch,
+  Tag,
+  Tooltip,
+  Typography,
 } from 'antd'
-import {
-  ArrowLeftOutlined,
-  PlusOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  CopyOutlined,
-  CheckOutlined,
-  KeyOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
-import { updateConfig } from '../api/config'
-import { listModels, createModel, updateModel, deleteModel } from '../api/models'
+import { createModel, deleteModel, listModels, setModelEnabled, updateModel } from '../api/models'
+import type { ModelConfig, ModelPreset } from '../types'
 import {
+  deleteModelConfig,
   groupByProvider,
   loadModelConfigs,
-  saveModelConfig,
-  deleteModelConfig,
-  getActiveModelIds,
-  toggleActiveModel,
-  buildAIConfig,
   migrateFromLegacyConfig,
+  saveModelConfig,
 } from '../utils/models'
-import type { ModelPreset, ModelConfig } from '../types'
 
 const { Title, Text } = Typography
 
@@ -112,18 +105,17 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   )
 }
 
-const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void }> = ({
-  onModelsChange,
-}) => {
+const ModelManager: React.FC<{
+  onModelsChange?: (models: ModelPreset[]) => void
+  onRegisterRefresh?: (fn: () => void) => void
+}> = ({ onModelsChange, onRegisterRefresh }) => {
   const { t } = useTranslation()
   const { message } = App.useApp()
-  const navigate = useNavigate()
 
   const [models, setModels] = useState<ModelPreset[]>([])
   const [loading, setLoading] = useState(true)
   const [modelConfigs, setModelConfigs] =
     useState<Record<string, Partial<ModelConfig>>>(loadModelConfigs)
-  const [activeModelIds, setActiveModelIds] = useState<string[]>(getActiveModelIds)
 
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ModelPreset | null>(null)
@@ -141,7 +133,6 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
       migrateFromLegacyConfig(fetched)
       // Refresh modelConfigs state so the UI reflects any migrated API keys
       setModelConfigs(loadModelConfigs())
-      setActiveModelIds(getActiveModelIds())
     } catch {
       void message.error(t('failedToLoadModels'))
     } finally {
@@ -153,25 +144,27 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
     void fetchModels()
   }, [fetchModels])
 
+  // Register fetchModels so the parent (Header) can trigger a refresh
+  useEffect(() => {
+    onRegisterRefresh?.(fetchModels)
+  }, [onRegisterRefresh, fetchModels])
+
   // Propagate model list changes (add, edit, delete, copy) to the parent component
   // so App.tsx keeps its allModels state in sync without requiring navigation.
   useEffect(() => {
     onModelsChange?.(models)
   }, [models, onModelsChange])
 
-  const handleToggleActive = (preset: ModelPreset) => {
-    const updated = toggleActiveModel(preset.id)
-    setActiveModelIds(updated)
-    const cfg = modelConfigs[preset.id]
-    if (cfg?.api_key) {
-      const aiCfg = buildAIConfig(preset, cfg)
-      updateConfig(aiCfg).catch(() => {
-        /* backend may not be running */
-      })
-      localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
-    }
-    if (updated.includes(preset.id)) {
-      void message.success(t('modelActivated'))
+  const handleToggleActive = async (preset: ModelPreset) => {
+    try {
+      const updated = await setModelEnabled(preset.id, !preset.enabled)
+      setModels((prev) => prev.map((m) => (m.id === preset.id ? updated : m)))
+      if (updated.enabled) {
+        void message.success(t('modelActivated'))
+      }
+      onModelsChange?.(models.map((m) => (m.id === preset.id ? updated : m)))
+    } catch {
+      void message.error(t('failedToSaveModel'))
     }
   }
 
@@ -190,7 +183,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
     if (!configTarget) return
     configForm
       .validateFields()
-      .then((values) => {
+      .then(async (values) => {
         const cfg: Partial<ModelConfig> = {
           api_key: values.api_key.trim(),
           temperature: values.temperature,
@@ -200,12 +193,17 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
         saveModelConfig(configTarget.id, cfg)
         const updated = loadModelConfigs()
         setModelConfigs(updated)
-        if (activeModelIds.includes(configTarget.id) && cfg.api_key) {
-          const aiCfg = buildAIConfig(configTarget, cfg)
-          updateConfig(aiCfg).catch(() => {
-            /* backend may not be running */
-          })
-          localStorage.setItem('aiConfig', JSON.stringify(aiCfg))
+        // Auto-enable model after saving config with API key
+        if (cfg.api_key && !configTarget.enabled) {
+          try {
+            const enabledPreset = await setModelEnabled(configTarget.id, true)
+            setModels((prev) => prev.map((m) => (m.id === configTarget.id ? enabledPreset : m)))
+            onModelsChange?.(models.map((m) => (m.id === configTarget.id ? enabledPreset : m)))
+          } catch {
+            /* non-fatal: model is configured even if enable fails */
+          }
+        } else {
+          onModelsChange?.(models)
         }
         setConfigTarget(null)
         void message.success(t('modelConfigSaved'))
@@ -273,10 +271,6 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
       setModels((prev) => prev.filter((m) => m.id !== id))
       deleteModelConfig(id)
       setModelConfigs(loadModelConfigs())
-      if (activeModelIds.includes(id)) {
-        const ids = toggleActiveModel(id)
-        setActiveModelIds(ids)
-      }
       void message.success(t('customModelDeleted'))
     } catch {
       void message.error(t('failedToDeleteModel'))
@@ -326,7 +320,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
 
   const renderCard = (m: ModelPreset, isCustom: boolean) => {
     const cfg = modelConfigs[m.id] ?? {}
-    const isActive = activeModelIds.includes(m.id)
+    const isActive = m.enabled
     const hasKey = !!cfg.api_key?.trim()
     return (
       <Col key={m.id} xs={24} sm={12} md={8}>
@@ -344,7 +338,7 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
                   isActive ? t('clickToDeactivate') || 'Click to deactivate' : t('setAsActive')
                 }
               >
-                <Checkbox checked={isActive} onChange={() => handleToggleActive(m)} />
+                <Checkbox checked={isActive} onChange={() => void handleToggleActive(m)} />
               </Tooltip>
               <Tooltip title={t('configureModel')}>
                 <Button
@@ -363,28 +357,28 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
                 />
               </Tooltip>
               {isCustom && (
-                <>
-                  <Tooltip title={t('editCustomModel')}>
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => openEdit(m)}
-                    />
-                  </Tooltip>
-                  <Popconfirm
-                    title={t('deleteConfirm')}
-                    onConfirm={() => void handleDelete(m.id)}
-                    okType="danger"
-                  >
-                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </>
+                <Tooltip title={t('editCustomModel')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() => openEdit(m)}
+                  />
+                </Tooltip>
+              )}
+              {isCustom && (
+                <Popconfirm
+                  title={t('deleteConfirm')}
+                  onConfirm={() => void handleDelete(m.id)}
+                  okType="danger"
+                >
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>
               )}
             </Space>
           }
         >
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={4} style={{ width: '100%' }}>
             <Space size={4} wrap>
               <Text strong style={{ fontSize: 13 }}>
                 {m.name}
@@ -450,21 +444,6 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 24px 40px' }}>
-      {/* Page header */}
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
-          {t('backToAnalysis')}
-        </Button>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => void fetchModels()}
-          loading={loading}
-          size="small"
-        >
-          {t('refresh')}
-        </Button>
-      </Space>
-
       <Title level={4} style={{ marginBottom: 4 }}>
         {t('modelManagement')}
       </Title>
@@ -473,60 +452,79 @@ const ModelManager: React.FC<{ onModelsChange?: (models: ModelPreset[]) => void 
       </Text>
 
       <Spin spinning={loading}>
-        {/* ── Built-in models ─────────────────────────────────────── */}
-        <Divider
-          titlePlacement="left"
-          orientationMargin={0}
-          style={{ fontSize: 14, marginBottom: 16 }}
-        >
-          {t('builtinModels')}
-        </Divider>
-
-        {groupByProvider(builtinModels).map(([provider, providerModels]) => (
-          <div key={provider} style={{ marginBottom: 20 }}>
-            <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
-              {provider}
-            </Text>
-            <Row gutter={[12, 12]}>{providerModels.map((m) => renderCard(m, false))}</Row>
-          </div>
-        ))}
-
-        {/* ── Custom models ────────────────────────────────────────── */}
-        <Divider
-          titlePlacement="left"
-          orientationMargin={0}
-          style={{ fontSize: 14, margin: '24px 0 16px' }}
-        >
-          <Space>
-            {t('customModels')}
-            <Button
-              size="small"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setAddOpen(true)}
-            >
-              {t('addCustomModel')}
-            </Button>
-          </Space>
-        </Divider>
-
-        {customModels.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                {t('noCustomModels')}
-              </Text>
-            }
-            style={{ margin: '16px 0' }}
-          >
-            <Button icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-              {t('addCustomModel')}
-            </Button>
-          </Empty>
-        ) : (
-          <Row gutter={[12, 12]}>{customModels.map((m) => renderCard(m, true))}</Row>
-        )}
+        <Collapse
+          defaultActiveKey={['builtin', 'custom']}
+          ghost
+          style={{ marginTop: 8 }}
+          items={[
+            {
+              key: 'builtin',
+              label: (
+                <Text strong style={{ fontSize: 14 }}>
+                  {t('builtinModels')}
+                </Text>
+              ),
+              children: (
+                <Collapse
+                  defaultActiveKey={groupByProvider(builtinModels).map(([p]) => p)}
+                  ghost
+                  items={groupByProvider(builtinModels).map(([provider, providerModels]) => ({
+                    key: provider,
+                    label: (
+                      <Text strong style={{ fontSize: 13 }}>
+                        {provider}
+                      </Text>
+                    ),
+                    children: (
+                      <Row gutter={[12, 12]} style={{ marginTop: 4 }}>
+                        {providerModels.map((m) => renderCard(m, false))}
+                      </Row>
+                    ),
+                  }))}
+                />
+              ),
+            },
+            {
+              key: 'custom',
+              label: (
+                <Space size={8}>
+                  <Text strong style={{ fontSize: 14 }}>
+                    {t('customModels')}
+                  </Text>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setAddOpen(true)
+                    }}
+                  >
+                    {t('addCustomModel')}
+                  </Button>
+                </Space>
+              ),
+              children:
+                customModels.length === 0 ? (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        {t('noCustomModels')}
+                      </Text>
+                    }
+                    style={{ margin: '16px 0' }}
+                  >
+                    <Button icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+                      {t('addCustomModel')}
+                    </Button>
+                  </Empty>
+                ) : (
+                  <Row gutter={[12, 12]}>{customModels.map((m) => renderCard(m, true))}</Row>
+                ),
+            },
+          ]}
+        />
       </Spin>
 
       {/* ── Configure model modal (API key stored in localStorage) ── */}

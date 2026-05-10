@@ -1,59 +1,64 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Button,
-  Input,
-  Typography,
-  Space,
-  Tooltip,
-  Popconfirm,
-  App,
-  Empty,
-  Tag,
-  Collapse,
-  Select,
-} from 'antd'
-import {
-  PlusOutlined,
+  BulbOutlined,
+  CodeOutlined,
+  CopyOutlined,
   DeleteOutlined,
+  DownloadOutlined,
+  FileTextOutlined,
+  LinkOutlined,
+  PlusOutlined,
+  RobotOutlined,
   SendOutlined,
   StopOutlined,
-  RobotOutlined,
-  UserOutlined,
-  CodeOutlined,
-  ToolOutlined,
-  FileTextOutlined,
-  CopyOutlined,
-  LinkOutlined,
-  BulbOutlined,
-  DownloadOutlined,
   SwapOutlined,
+  ToolOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
+import {
+  App,
+  Button,
+  Collapse,
+  Empty,
+  Input,
+  Popconfirm,
+  Select,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   createSession,
-  listSessions,
   deleteSession,
+  listSessions,
   sendMessage,
-  setSessionTrace,
   setSessionFilePath,
   setSessionLogs,
+  setSessionTrace,
 } from '../api/chat'
-import { filterConfiguredModels, groupByProvider, loadModelConfigs } from '../utils/models'
 import { listModels } from '../api/models'
 import type {
-  Session,
+  AIConfig,
+  ContextDoc,
   LogEntry,
   LogFilters,
-  TraceParseResult,
-  Project,
-  ContextDoc,
-  AIConfig,
   ModelPreset,
+  Project,
+  Session,
+  TraceParseResult,
 } from '../types'
-import { processSSEChunk, createSSEState } from '../utils/sseParser'
-import type { TextAreaRef } from 'antd/lib/input/TextArea'
+import {
+  filterConfiguredModels,
+  groupByProvider,
+  loadModelConfigs,
+  MODEL_CONFIGS_CHANGE_EVENT,
+} from '../utils/models'
+import { createSSEState, processSSEChunk } from '../utils/sseParser'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -90,6 +95,7 @@ interface AiPanelProps {
   contextDocs: ContextDoc[]
   localFilePath?: string | null // FEAT-LAZY-LOG
   aiConfig?: AIConfig
+  allModels?: ModelPreset[]
 }
 
 const ThinkingDisplay: React.FC<{ blocks: string[]; thinkingMode?: string }> = ({
@@ -226,6 +232,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   contextDocs,
   localFilePath,
   aiConfig,
+  allModels: allModelsProp,
 }: AiPanelProps) => {
   const { t, i18n } = useTranslation()
   const { message: messageApi } = App.useApp()
@@ -302,27 +309,65 @@ const AiPanel: React.FC<AiPanelProps> = ({
   }, [selectedProjectId])
 
   // Models fetched from backend, filtered to those with a configured API key
-  const [allModels, setAllModels] = useState<ModelPreset[]>([])
+  const [fetchedModels, setFetchedModels] = useState<ModelPreset[]>([])
   useEffect(() => {
+    // Only fetch independently when the parent does NOT provide the prop at all (undefined).
+    // An empty array [] means the parent is managing models but they haven't loaded yet — don't duplicate the request.
+    if (allModelsProp !== undefined) return
     listModels()
-      .then((fetched) => setAllModels(fetched))
+      .then((fetched) => setFetchedModels(fetched))
       .catch(() => {
         /* backend may not be running */
       })
-  }, [])
-  const configuredModels = filterConfiguredModels(allModels)
+  }, [allModelsProp])
+  const allModels = allModelsProp !== undefined ? allModelsProp : fetchedModels
 
-  // Auto-assign last-used model to newly activated sessions
+  // Bump this counter whenever local model configs (API keys) change so that
+  // configuredModels recomputes even when allModels reference is unchanged.
+  const [modelConfigsRevision, setModelConfigsRevision] = useState(0)
+  useEffect(() => {
+    const handler = () => setModelConfigsRevision((r) => r + 1)
+    window.addEventListener(MODEL_CONFIGS_CHANGE_EVENT, handler)
+    return () => window.removeEventListener(MODEL_CONFIGS_CHANGE_EVENT, handler)
+  }, [])
+
+  const configuredModels = useMemo(
+    () => filterConfiguredModels(allModels),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allModels, modelConfigsRevision],
+  )
+  const configuredModelIds = useMemo(
+    () => new Set(configuredModels.map((m) => m.id)),
+    [configuredModels],
+  )
+
+  // Auto-assign last-used model to newly activated sessions.
+  // Falls back to the first configured model when no last-used record exists.
   useEffect(() => {
     if (!activeSessionId) return
     if (sessionModels[activeSessionId] !== undefined) return
     const lastId = localStorage.getItem(ALA_LAST_MODEL_KEY)
-    if (!lastId) return
-    const preset = configuredModels.find((m) => m.id === lastId)
+    const preset =
+      (lastId ? configuredModels.find((m) => m.id === lastId) : undefined) ?? configuredModels[0]
     if (preset) {
       setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
     }
   }, [activeSessionId, sessionModels, configuredModels])
+
+  // Clean up session models that are no longer in configuredModels
+  useEffect(() => {
+    setSessionModels((prev) => {
+      const updated = { ...prev }
+      let hasChanges = false
+      for (const sessionId in updated) {
+        if (!configuredModelIds.has(updated[sessionId].id)) {
+          delete updated[sessionId]
+          hasChanges = true
+        }
+      }
+      return hasChanges ? updated : prev
+    })
+  }, [configuredModelIds])
 
   // Keep the active session's trace in sync when traceResult changes
   useEffect(() => {
@@ -591,34 +636,50 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   // Whether sending is possible
   const sessionModelConfigs = loadModelConfigs()
-  const sessionModelConfigured = !!(
-    activeModelPreset && sessionModelConfigs[activeModelPreset.id]?.api_key?.trim()
-  )
+  const activeSessionModelConfig = activeModelPreset
+    ? sessionModelConfigs[activeModelPreset.id]
+    : undefined
+  const sessionModelConfigured = !!activeSessionModelConfig?.api_key?.trim()
   const canSend = aiConfigured || sessionModelConfigured
 
+  // Effective thinking mode: prefer session model's config, fall back to global aiConfig
+  const effectiveThinkingMode = activeSessionModelConfig?.thinking_mode ?? aiConfig?.thinking_mode
+
   // Build grouped options for the Select component
-  const modelSelectOptions = groupByProvider(configuredModels).map(([provider, models]) => ({
-    label: provider,
-    options: models.map((m) => ({
-      value: m.id,
-      label: (
-        <Space size={4}>
-          <span style={{ fontSize: 12 }}>{m.name}</span>
-          {m.description && (
-            <span style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }}>
-              · {m.description}
-            </span>
-          )}
-        </Space>
-      ),
-    })),
-  }))
+  const modelSelectOptions = useMemo(
+    () =>
+      groupByProvider(configuredModels).map(([provider, models]) => ({
+        label: provider,
+        options: models.map((m) => ({
+          value: m.id,
+          label: (
+            <Space size={4}>
+              <span style={{ fontSize: 12 }}>{m.name}</span>
+              {m.description && (
+                <span style={{ fontSize: 11, color: 'var(--ant-color-text-tertiary)' }}>
+                  · {m.description}
+                </span>
+              )}
+            </Space>
+          ),
+        })),
+      })),
+    [configuredModels],
+  )
 
   // Persist last-used model to localStorage
   const handleModelChange = (presetId: string) => {
     if (!activeSessionId) return
     const preset = configuredModels.find((m) => m.id === presetId)
-    if (!preset) return
+    if (!preset) {
+      // Model no longer valid — remove from session
+      setSessionModels((prev) => {
+        const updated = { ...prev }
+        delete updated[activeSessionId]
+        return updated
+      })
+      return
+    }
     setSessionModels((prev) => ({ ...prev, [activeSessionId]: preset }))
     localStorage.setItem(ALA_LAST_MODEL_KEY, presetId)
   }
@@ -877,7 +938,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                                   <ThinkingDisplay
                                     key={pIdx}
                                     blocks={[part.content]}
-                                    thinkingMode={aiConfig?.thinking_mode}
+                                    thinkingMode={effectiveThinkingMode}
                                   />
                                 )
                               }
@@ -905,7 +966,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                             {msg.thinkingBlocks && msg.thinkingBlocks.length > 0 && (
                               <ThinkingDisplay
                                 blocks={msg.thinkingBlocks}
-                                thinkingMode={aiConfig?.thinking_mode}
+                                thinkingMode={effectiveThinkingMode}
                               />
                             )}
                             {msg.toolCalls && msg.toolCalls.length > 0 && (

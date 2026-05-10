@@ -29,6 +29,10 @@ body {
   height: 100%;
 }
 
+.ant-tabs-nav-wrap {
+  padding: 0 12px;
+}
+
 /* Markdown rendering in AI chat bubbles */
 .ai-message-content pre {
   overflow-x: auto;

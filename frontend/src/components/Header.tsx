@@ -1,19 +1,21 @@
-import React from 'react'
-import { Button, Select, Space, Tag, Tooltip } from 'antd'
 import {
-  MoonOutlined,
-  SunOutlined,
+  AppstoreOutlined,
+  ArrowLeftOutlined,
+  CodeOutlined,
+  DisconnectOutlined,
+  FolderOutlined,
   GlobalOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  MoonOutlined,
+  ReloadOutlined,
+  SunOutlined,
   WifiOutlined,
-  DisconnectOutlined,
-  FolderOutlined,
-  CodeOutlined,
-  AppstoreOutlined,
 } from '@ant-design/icons'
+import { Button, Select, Space, Tag, Tooltip } from 'antd'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../types'
 
 interface HeaderProps {
@@ -27,6 +29,7 @@ interface HeaderProps {
   projects: Project[]
   selectedProjectId: string | null
   onProjectChange: (id: string | null) => void
+  onRefreshModels?: () => void
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -40,9 +43,13 @@ const Header: React.FC<HeaderProps> = ({
   projects,
   selectedProjectId,
   onProjectChange,
+  onRefreshModels,
 }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
+  const isHomePage = location.pathname === '/'
+  const isModelsPage = location.pathname === '/models'
   return (
     <div
       style={{
@@ -55,38 +62,53 @@ const Header: React.FC<HeaderProps> = ({
       }}
     >
       <Space>
-        <Tooltip title={siderCollapsed ? t('showSidebar') : t('hideSidebar')}>
-          <Button
-            type="text"
-            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={onToggleSider}
-          />
-        </Tooltip>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
-        <Tag
-          color={backendConnected ? 'success' : 'error'}
-          icon={backendConnected ? <WifiOutlined /> : <DisconnectOutlined />}
-        >
-          {backendConnected ? t('connected') : t('disconnected')}
-        </Tag>
-        {projects.length > 0 && (
-          <Select
-            size="small"
-            placeholder={t('selectProject')}
-            value={selectedProjectId}
-            onChange={(v) => onProjectChange(v ?? null)}
-            allowClear
-            style={{ minWidth: 160 }}
-            options={projects.map((p) => ({
-              value: p.id,
-              label: (
-                <Space size={4}>
-                  <CodeOutlined />
-                  {p.name}
-                </Space>
-              ),
-            }))}
-          />
+        {isHomePage ? (
+          <>
+            <Tooltip title={siderCollapsed ? t('showSidebar') : t('hideSidebar')}>
+              <Button
+                type="text"
+                icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={onToggleSider}
+              />
+            </Tooltip>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
+            <Tag
+              color={backendConnected ? 'success' : 'error'}
+              icon={backendConnected ? <WifiOutlined /> : <DisconnectOutlined />}
+            >
+              {backendConnected ? t('connected') : t('disconnected')}
+            </Tag>
+            {projects.length > 0 && (
+              <Select
+                size="small"
+                placeholder={t('selectProject')}
+                value={selectedProjectId}
+                onChange={(v) => onProjectChange(v ?? null)}
+                allowClear
+                style={{ minWidth: 160 }}
+                options={projects.map((p) => ({
+                  value: p.id,
+                  label: (
+                    <Space size={4}>
+                      <CodeOutlined />
+                      {p.name}
+                    </Space>
+                  ),
+                }))}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
+              {t('backToAnalysis')}
+            </Button>
+            {isModelsPage && onRefreshModels && (
+              <Tooltip title={t('refresh')}>
+                <Button type="text" icon={<ReloadOutlined />} onClick={onRefreshModels} />
+              </Tooltip>
+            )}
+          </>
         )}
       </Space>
       <Space>
