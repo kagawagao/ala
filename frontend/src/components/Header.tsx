@@ -113,6 +113,7 @@ const Header: React.FC<HeaderProps> = ({
         )}
       </Space>
       <Space>
+        <Tag style={{ fontSize: 11, lineHeight: '16px', padding: '0 4px' }}>v{__APP_VERSION__}</Tag>
         <Tooltip title={isDark ? t('switchToLightMode') : t('switchToDarkMode')}>
           <Button
             type="text"
