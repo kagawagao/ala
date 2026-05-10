@@ -518,7 +518,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                         icon={<DeleteOutlined />}
                         onClick={() => removeHighlight(i)}
                         style={{ padding: 0 }}
-                        aria-label="delete"
+                        aria-label={t('delete')}
                       />
                     </div>
                   ))}
@@ -600,7 +600,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                           icon={<DeleteOutlined />}
                           danger
                           style={{ padding: 0 }}
-                          aria-label="delete"
+                          aria-label={t('delete')}
                         />
                       </Popconfirm>
                     </div>
