@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? 'unknown'),
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0-dev'),
   },
   plugins: [react()],
   server: {
