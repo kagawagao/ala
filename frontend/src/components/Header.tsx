@@ -16,6 +16,7 @@ import { Button, Select, Space, Tag, Tooltip } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { version } from '../../package.json'
 import type { Project } from '../types'
 
 interface HeaderProps {
@@ -113,6 +114,7 @@ const Header: React.FC<HeaderProps> = ({
         )}
       </Space>
       <Space>
+        <Tag style={{ fontSize: 11, lineHeight: '16px', padding: '0 4px' }}>v{version}</Tag>
         <Tooltip title={isDark ? t('switchToLightMode') : t('switchToDarkMode')}>
           <Button
             type="text"
