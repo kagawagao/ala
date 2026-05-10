@@ -1,7 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { applyFiltersClient, computeStatistics } from '../App'
-import { hasFilterConditions } from '../utils/filters'
+import { describe, expect, it } from 'vitest'
 import type { LogEntry, LogFilters } from '../types'
+import { applyFiltersClient, computeStatistics, hasFilterConditions } from '../utils/filters'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
