@@ -17,8 +17,14 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 // Ant Design v6 uses @rc-component/resize-observer which requires ResizeObserver
-;(window as any).ResizeObserver = vi.fn().mockImplementation(() => ({
+const ResizeObserverMock = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }))
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: ResizeObserverMock,
+})
