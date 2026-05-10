@@ -31,6 +31,7 @@ import AiPanel from './components/AiPanel'
 import AppSider from './components/AppSider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
+import FilterDrawer from './components/FilterDrawer'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import PcapViewer from './components/PcapViewer'
@@ -169,6 +170,10 @@ const AppContent: React.FC<{
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
+  const [filteredTraceResult, setFilteredTraceResult] = useState<TraceParseResult | null>(null)
+
+  // PCAP filtered state
+  const [filteredPcapEntries, setFilteredPcapEntries] = useState<import('./types/pcap').PcapEntry[]>([])
 
   // Clear stale localFilePath when data source changes
   useEffect(() => {
@@ -599,7 +604,7 @@ const AppContent: React.FC<{
         />
       ) : (
         <PcapViewer
-          entries={pcapEntries}
+          entries={filteredPcapEntries.length > 0 ? filteredPcapEntries : pcapEntries}
           totalPackets={pcapEntries.length}
           formatDetected={pcapFormat}
         />
@@ -608,7 +613,7 @@ const AppContent: React.FC<{
     {
       key: 'trace',
       label: t('traceAnalysis'),
-      children: <TraceViewer traceResult={traceResult} />,
+      children: <TraceViewer traceResult={filteredTraceResult || traceResult} />,
     },
   ]
 
@@ -827,6 +832,25 @@ const AppContent: React.FC<{
                       {t('aiAssistant')}
                     </button>
                   )}
+
+                  {/* FilterDrawer - keyboard shortcut Ctrl+Shift+F */}
+                  <FilterDrawer
+                    activeTab={activeTab}
+                    logFilters={filters}
+                    onLogFiltersChange={setFilters}
+                    logStatistics={statistics}
+                    highlights={highlights}
+                    onHighlightsChange={setHighlights}
+                    presets={presets}
+                    onPresetsChange={handlePresetsChange}
+                    wordWrap={wordWrap}
+                    onWordWrapChange={setWordWrap}
+                    selectedProjectId={selectedProjectId}
+                    traceResult={traceResult}
+                    onTraceFilteredResult={setFilteredTraceResult}
+                    pcapEntries={pcapEntries}
+                    onPcapFilteredEntries={setFilteredPcapEntries}
+                  />
                 </>
               }
             />
