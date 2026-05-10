@@ -72,14 +72,17 @@ class SessionManager:
         context_type: str = "general",
         project_id: str | None = None,
     ) -> Session:
-        # LRU eviction: if at capacity, delete oldest
+        # LRU eviction: if at capacity, delete oldest and clean cache
         cur = self._db.execute("SELECT COUNT(*) FROM sessions")
         if cur.fetchone()[0] >= self._max_sessions:
-            self._db.execute(
-                "DELETE FROM sessions WHERE id = ("
+            evict_cur = self._db.execute(
                 "SELECT id FROM sessions ORDER BY created_at ASC LIMIT 1"
-                ")"
             )
+            evict_row = evict_cur.fetchone()
+            if evict_row:
+                evicted_id = evict_row[0]
+                self._db.execute("DELETE FROM sessions WHERE id = ?", (evicted_id,))
+                self._log_index_cache.pop(evicted_id, None)
         session = Session(
             id=str(uuid.uuid4()), title=title, context_type=context_type, project_id=project_id
         )
@@ -131,6 +134,7 @@ class SessionManager:
     def delete_session(self, session_id: str) -> bool:
         cur = self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         self._db.commit()
+        self._log_index_cache.pop(session_id, None)
         return cur.rowcount > 0
 
     def add_message(self, session_id: str, role: str, content: str) -> Message | None:

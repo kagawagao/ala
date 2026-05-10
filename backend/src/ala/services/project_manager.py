@@ -70,10 +70,10 @@ class ProjectManager:
             name=row["name"],
             paths=paths,
             include_patterns=include_patterns
-            if include_patterns
+            if include_patterns is not None
             else Project.__dataclass_fields__["include_patterns"].default_factory(),
             exclude_patterns=exclude_patterns
-            if exclude_patterns
+            if exclude_patterns is not None
             else Project.__dataclass_fields__["exclude_patterns"].default_factory(),
             filter_presets=filter_presets,
             created_at=row["created_at"],

@@ -523,15 +523,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
             pagination={false}
             scroll={{ y: tableHeight, x: wordWrap ? undefined : 900 }}
             virtual
-            rowClassName={(record) => {
+            rowClassName={(record, index) => {
               const classes: string[] = []
               if (LEVEL_BG[record.level]) classes.push(`log-row-${record.level}`)
-              if (currentMatchRowIndex === record.line_number - 1)
+              if (index !== undefined && index === currentMatchRowIndex)
                 classes.push('log-row-search-active')
               return classes.join(' ')
             }}
-            onRow={(record) => {
-              const rowIndex = record.line_number - 1
+            onRow={(record, index) => {
+              const rowIndex = index ?? -1
               const isCurrentMatch = rowIndex === currentMatchRowIndex
               const isMatch = matchIndexSet.has(rowIndex)
               return {

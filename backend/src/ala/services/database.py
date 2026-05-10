@@ -81,6 +81,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     cur = conn.execute("SELECT COUNT(*) FROM _ala_schema_version")
     if cur.fetchone()[0] == 0:
         conn.execute("INSERT INTO _ala_schema_version (version) VALUES (1)")
+        conn.commit()
 
 
 def _import_projects_json(conn: sqlite3.Connection) -> None:
