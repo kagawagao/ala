@@ -197,9 +197,10 @@ LAZY_LOG_TOOLS: list[dict] = [
     {
         "name": "overview_local_log",
         "description": (
-            "Get statistics about a local Android log file or directory. "
+            "Get statistics about a local Android log file, network capture (pcap), or directory. "
             "Streams through file(s) to compute level distribution, "
             "unique tags/PIDs, time range, and line count. "
+            "For pcap files: reports protocols (TCP/UDP/etc) instead of tags. "
             "Does NOT load all entries into memory. "
             "Use this FIRST before search_local_log or read_log_range. "
             "For directories: pass file_path to target a specific file. "
@@ -231,9 +232,10 @@ LAZY_LOG_TOOLS: list[dict] = [
     {
         "name": "search_local_log",
         "description": (
-            "Search and filter a local Android log file. "
+            "Search and filter a local Android log or network capture (pcap) file. "
             "Streams through the file line-by-line, applying filters. "
             "Returns matching entries with pagination support. "
+            "For pcap files: tag filter matches protocol (TCP/UDP/etc). "
             "Use overview_local_log first to see what's available. "
             "**file_path is required when the log source is a directory.**"
         ),
@@ -507,8 +509,8 @@ LOG_TOOLS: list[dict[str, Any]] = [
     {
         "name": "query_log_overview",
         "description": (
-            "Get statistics about the loaded Android logs: total count, "
-            "level distribution, time range, unique tags and PIDs. "
+            "Get statistics about the loaded Android logs or network captures: total count, "
+            "level distribution, time range, unique tags/protocols and PIDs. "
             "Note: may reflect a capped subset if the log file is very large."
         ),
         "input_schema": {
@@ -520,8 +522,9 @@ LOG_TOOLS: list[dict[str, Any]] = [
     {
         "name": "search_logs",
         "description": (
-            "Search and filter the loaded Android log entries. "
+            "Search and filter the loaded Android log or network capture entries. "
             "Start with query_log_overview first, then use targeted search_logs with limit=50. "
+            "For pcap files: tag filter matches protocol (TCP/UDP/etc). "
             "**Time-filtering strategy**: when the user mentions a specific time "
             "(e.g. 'around 14:30', 'at 3pm'), use start_time/end_time with a narrow "
             "±2 minute window first. If that yields fewer than 20 results, expand "
@@ -712,7 +715,7 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
