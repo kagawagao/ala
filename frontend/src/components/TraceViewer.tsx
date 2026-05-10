@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Card,
   Descriptions,
@@ -9,16 +9,8 @@ import {
   Row,
   Col,
   Statistic,
-  Input,
-  Select,
-  Space,
-  Button,
-  Spin,
-  App,
 } from 'antd'
-import { FilterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
-import { filterTrace } from '../api/trace'
 import type { TraceParseResult } from '../types'
 
 const { Text } = Typography
@@ -29,18 +21,9 @@ interface TraceViewerProps {
 
 const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
   const { t } = useTranslation()
-  const { message } = App.useApp()
 
-  // Filter state
-  const [pidInput, setPidInput] = useState('')
-  const [processNameFilter, setProcessNameFilter] = useState('')
-  const [selectedPids, setSelectedPids] = useState<number[]>([])
-  const [filteredResult, setFilteredResult] = useState<TraceParseResult | null>(null)
-  const [filtering, setFiltering] = useState(false)
   const sliceTableWrapperRef = useRef<HTMLDivElement>(null)
   const [sliceTableHeight, setSliceTableHeight] = useState(320)
-
-  const displayResult = filteredResult ?? traceResult
 
   useEffect(() => {
     const el = sliceTableWrapperRef.current
@@ -54,45 +37,6 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
     return () => observer.disconnect()
   }, [])
 
-  const handleFilter = useCallback(async () => {
-    if (!traceResult) return
-
-    const pids: number[] = [
-      ...selectedPids,
-      ...pidInput
-        .split(',')
-        .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !isNaN(n)),
-    ]
-
-    if (pids.length === 0 && !processNameFilter.trim()) {
-      setFilteredResult(null)
-      return
-    }
-
-    setFiltering(true)
-    try {
-      const result = await filterTrace({
-        result: traceResult,
-        pids: pids.length > 0 ? pids : undefined,
-        process_name: processNameFilter.trim() || undefined,
-      })
-      setFilteredResult(result)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Filter failed'
-      void message.error(msg)
-    } finally {
-      setFiltering(false)
-    }
-  }, [traceResult, selectedPids, pidInput, processNameFilter, message])
-
-  const handleReset = useCallback(() => {
-    setPidInput('')
-    setProcessNameFilter('')
-    setSelectedPids([])
-    setFilteredResult(null)
-  }, [])
-
   if (!traceResult) {
     return (
       <Empty
@@ -103,14 +47,7 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
     )
   }
 
-  const { summary, format, file_size } = displayResult!
-  const isFiltered = filteredResult !== null
-
-  // Build PID options from the unfiltered trace
-  const pidOptions = (traceResult.summary.processes ?? []).map((p) => ({
-    label: `${p.pid} – ${p.name}`,
-    value: p.pid,
-  }))
+  const { summary, format, file_size } = traceResult
 
   const processColumns = [
     { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80 },
@@ -176,70 +113,8 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
         <Col>
           <Tag>Format: {format}</Tag>
           <Tag>Size: {(file_size / 1024).toFixed(1)} KB</Tag>
-          {isFiltered && <Tag color="blue">{t('filtered')}</Tag>}
         </Col>
       </Row>
-
-      {/* Process Filter Panel */}
-      <Card
-        size="small"
-        title={
-          <Space>
-            <FilterOutlined />
-            {t('processFilter')}
-          </Space>
-        }
-        style={{ marginBottom: 12 }}
-        extra={
-          isFiltered ? (
-            <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
-              {t('resetFilter')}
-            </Button>
-          ) : null
-        }
-      >
-        <Space wrap style={{ width: '100%' }}>
-          <Select
-            mode="multiple"
-            style={{ minWidth: 220 }}
-            placeholder={t('selectProcesses')}
-            options={pidOptions}
-            value={selectedPids}
-            onChange={setSelectedPids}
-            allowClear
-            showSearch
-            filterOption={(input, option) =>
-              String(option?.label ?? '')
-                .toLowerCase()
-                .includes(input.toLowerCase())
-            }
-          />
-          <Input
-            style={{ width: 160 }}
-            placeholder={t('processNameRegex')}
-            value={processNameFilter}
-            onChange={(e) => setProcessNameFilter(e.target.value)}
-            onPressEnter={() => void handleFilter()}
-            allowClear
-          />
-          <Input
-            style={{ width: 160 }}
-            placeholder={t('pidCommaList')}
-            value={pidInput}
-            onChange={(e) => setPidInput(e.target.value)}
-            onPressEnter={() => void handleFilter()}
-            allowClear
-          />
-          <Button
-            type="primary"
-            icon={filtering ? <Spin size="small" /> : <FilterOutlined />}
-            onClick={() => void handleFilter()}
-            disabled={filtering}
-          >
-            {t('applyFilter')}
-          </Button>
-        </Space>
-      </Card>
 
       {/* Process List */}
       {summary.processes?.length > 0 && (
