@@ -100,15 +100,30 @@ const Header: React.FC<HeaderProps> = ({
           />
         </Tooltip>
         <Tooltip title={t('switchLanguage')}>
-          <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage} aria-label={t('switchLanguage')}>
+          <Button
+            type="text"
+            icon={<GlobalOutlined />}
+            onClick={onToggleLanguage}
+            aria-label={t('switchLanguage')}
+          >
             {t('langCode')}
           </Button>
         </Tooltip>
         <Tooltip title={t('projectSettings')}>
-          <Button type="text" icon={<FolderOutlined />} onClick={() => navigate('/projects')} aria-label={t('projectSettings')} />
+          <Button
+            type="text"
+            icon={<FolderOutlined />}
+            onClick={() => navigate('/projects')}
+            aria-label={t('projectSettings')}
+          />
         </Tooltip>
         <Tooltip title={t('modelManagement')}>
-          <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/models')} aria-label={t('modelManagement')} />
+          <Button
+            type="text"
+            icon={<AppstoreOutlined />}
+            onClick={() => navigate('/models')}
+            aria-label={t('modelManagement')}
+          />
         </Tooltip>
       </Space>
     </div>

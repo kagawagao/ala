@@ -289,7 +289,12 @@ const AppSider: React.FC<AppSiderProps> = ({
           </Button>
         </Tooltip>
         <Tooltip title={t('clearFilters')}>
-          <Button size="small" icon={<ClearOutlined />} onClick={clearFilters} aria-label={t('clearFilters')} />
+          <Button
+            size="small"
+            icon={<ClearOutlined />}
+            onClick={clearFilters}
+            aria-label={t('clearFilters')}
+          />
         </Tooltip>
         <Tooltip title={t('savePreset')}>
           <Button
