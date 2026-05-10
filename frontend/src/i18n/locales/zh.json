@@ -264,5 +264,9 @@
   "protocolDistribution": "协议分布",
   "packets": "数据包",
   "source": "源地址",
-  "destination": "目标地址"
+  "destination": "目标地址",
+  "filters": "过滤器",
+  "logFilters": "日志过滤器",
+  "traceFilters": "跟踪过滤器",
+  "noFiltersAvailable": "此视图无可用过滤器"
 }

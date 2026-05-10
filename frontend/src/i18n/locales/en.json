@@ -264,5 +264,9 @@
   "protocolDistribution": "Protocol Distribution",
   "packets": "Packets",
   "source": "Source",
-  "destination": "Destination"
+  "destination": "Destination",
+  "filters": "Filters",
+  "logFilters": "Log Filters",
+  "traceFilters": "Trace Filters",
+  "noFiltersAvailable": "No filters available for this view"
 }
