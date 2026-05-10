@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from 'antd'
 import { MemoryRouter } from 'react-router-dom'
@@ -140,7 +140,9 @@ describe('ProjectManager', () => {
       </Wrapper>,
     )
     await waitFor(() => {
-      expect(screen.getByText('1 path(s)')).toBeInTheDocument()
+      // Two projects each with 1 path
+      const tags = screen.getAllByText('1 path(s)')
+      expect(tags.length).toBe(2)
     })
   })
 
@@ -183,11 +185,15 @@ describe('ProjectManager', () => {
     })
     // Click Add Project
     await userEvent.click(screen.getByText('Add Project'))
-    // Fill form
-    await userEvent.type(screen.getByPlaceholderText('e.g., MyAndroidApp'), 'NewProject')
-    await userEvent.type(screen.getByPlaceholderText('/path/to/android/project'), '/new/path')
-    // Submit
-    await userEvent.click(screen.getAllByText('Add Project')[1])
+    // Fill form using fireEvent for antd v6 Form compatibility
+    const nameInput = screen.getByPlaceholderText('e.g., MyAndroidApp')
+    fireEvent.change(nameInput, { target: { value: 'NewProject' } })
+    const pathInput = screen.getByPlaceholderText('/path/to/android/project')
+    fireEvent.change(pathInput, { target: { value: '/new/path' } })
+    // Submit — get the form submit button by its role/type
+    const submitBtns = screen.getAllByRole('button', { name: /add project/i })
+    // The last "Add Project" button is the submit button in the form
+    await userEvent.click(submitBtns[submitBtns.length - 1])
     await waitFor(() => {
       expect(createProject).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'NewProject', paths: ['/new/path'] }),
@@ -240,8 +246,9 @@ describe('ProjectManager', () => {
     await waitFor(() => {
       expect(screen.getByText('TestApp')).toBeInTheDocument()
     })
-    // Expand the collapse by clicking the context docs label
-    await userEvent.click(screen.getByText('Context Docs'))
+    // Expand the collapse by clicking the first context docs label
+    const contextDocsLabels = screen.getAllByText('Context Docs')
+    await userEvent.click(contextDocsLabels[0])
     await waitFor(() => {
       expect(listContextDocs).toHaveBeenCalledWith('1')
     })
@@ -277,10 +284,13 @@ describe('ProjectManager', () => {
     })
     await userEvent.click(screen.getByText('Add Project'))
     // Try to submit without filling form
-    await userEvent.click(screen.getAllByText('Add Project')[1])
-    // Should show validation error
+    const submitBtns = screen.getAllByRole('button', { name: /add project/i })
+    await userEvent.click(submitBtns[submitBtns.length - 1])
+    // Should show validation error — antd v6 renders form explain in .ant-form-item-explain-error
     await waitFor(() => {
-      expect(screen.getByText('Please enter a project name')).toBeInTheDocument()
+      const errorEl = document.querySelector('.ant-form-item-explain-error')
+      expect(errorEl).toBeInTheDocument()
+      expect(errorEl?.textContent).toContain('Please enter a project name')
     })
   })
 })

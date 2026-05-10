@@ -60,6 +60,7 @@ const Header: React.FC<HeaderProps> = ({
             type="text"
             icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={onToggleSider}
+            aria-label={siderCollapsed ? t('showSidebar') : t('hideSidebar')}
           />
         </Tooltip>
         <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
@@ -95,18 +96,19 @@ const Header: React.FC<HeaderProps> = ({
             type="text"
             icon={isDark ? <SunOutlined /> : <MoonOutlined />}
             onClick={onToggleTheme}
+            aria-label={isDark ? t('switchToLightMode') : t('switchToDarkMode')}
           />
         </Tooltip>
         <Tooltip title={t('switchLanguage')}>
-          <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage}>
+          <Button type="text" icon={<GlobalOutlined />} onClick={onToggleLanguage} aria-label={t('switchLanguage')}>
             {t('langCode')}
           </Button>
         </Tooltip>
         <Tooltip title={t('projectSettings')}>
-          <Button type="text" icon={<FolderOutlined />} onClick={() => navigate('/projects')} />
+          <Button type="text" icon={<FolderOutlined />} onClick={() => navigate('/projects')} aria-label={t('projectSettings')} />
         </Tooltip>
         <Tooltip title={t('modelManagement')}>
-          <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/models')} />
+          <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/models')} aria-label={t('modelManagement')} />
         </Tooltip>
       </Space>
     </div>

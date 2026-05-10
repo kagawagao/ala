@@ -289,10 +289,15 @@ const AppSider: React.FC<AppSiderProps> = ({
           </Button>
         </Tooltip>
         <Tooltip title={t('clearFilters')}>
-          <Button size="small" icon={<ClearOutlined />} onClick={clearFilters} />
+          <Button size="small" icon={<ClearOutlined />} onClick={clearFilters} aria-label={t('clearFilters')} />
         </Tooltip>
         <Tooltip title={t('savePreset')}>
-          <Button size="small" icon={<SaveOutlined />} onClick={() => setPresetModalOpen(true)} />
+          <Button
+            size="small"
+            icon={<SaveOutlined />}
+            onClick={() => setPresetModalOpen(true)}
+            aria-label={t('savePreset')}
+          />
         </Tooltip>
         <Tooltip title={t('exportFilters')}>
           <Button size="small" icon={<DownloadOutlined />} onClick={exportFilters} />
@@ -508,6 +513,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                         icon={<DeleteOutlined />}
                         onClick={() => removeHighlight(i)}
                         style={{ padding: 0 }}
+                        aria-label="delete"
                       />
                     </div>
                   ))}
@@ -589,6 +595,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                           icon={<DeleteOutlined />}
                           danger
                           style={{ padding: 0 }}
+                          aria-label="delete"
                         />
                       </Popconfirm>
                     </div>
