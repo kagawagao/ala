@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-ALA is a full-stack AI-powered Android log and Perfetto trace analyzer.
+ALA is a full-stack AI-powered Android log, network capture (pcap), and Perfetto trace analyzer.
 
 - **Backend**: Python 3.12+ FastAPI server managed with Poetry (`backend/`)
 - **Frontend**: React 19 + Vite 6 + Ant Design 6 + TypeScript 5 (`frontend/`)
@@ -246,7 +246,8 @@ Initialised in `main.py` via `setup_logging()` from `logging_config.py`:
 ### Logs Pipeline
 
 - Backend: `ala.api.logs` → `ala.services.log_analyzer.LogAnalyzer`
-- Upload supports plain text, `.gz`, and `.zip` (ZIPs expand to multiple log files)
+- Upload supports plain text, `.gz`, `.zip` (ZIPs expand to multiple log files), and network capture files (`.pcap`, `.pcapng`)
+- **PCAP support**: requires `scapy` library; packets are converted to log entries with protocol tags (TCP/UDP/etc.), timestamps, and summary messages
 - **Streaming parse**: `POST /api/logs/parse/stream` returns NDJSON — each line is a `LogEntry`, final line is `{ "_done": true, "total": N }` sentinel
 - Frontend consumes via `parseLogStream()` in `frontend/src/api/logs.ts`
 - Parsed entries carry `source_file` — **always preserve this field** when changing log models
@@ -375,7 +376,7 @@ Supports any OpenAI-compatible API (Ollama, LM Studio, Azure OpenAI, etc.).
 - FastAPI, Uvicorn, python-multipart, sse-starlette
 - FastMCP (MCP protocol server)
 - Pydantic, Pydantic-settings, python-dotenv
-- httpx, perfetto
+- httpx, perfetto, scapy (pcap parsing)
 - anthropic, openai
 - Dev: pytest, pytest-asyncio, ruff, PyInstaller, pyinstaller-hooks-contrib
 

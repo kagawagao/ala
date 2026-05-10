@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kagawagao/ala/actions/workflows/ci.yml/badge.svg)](https://github.com/kagawagao/ala/actions/workflows/ci.yml)
 
-A full-stack tool for analyzing **Android logcat** files and **Perfetto trace** files, powered by AI. Supports both upload-based analysis and **lazy local log analysis** — point ALA at a local file or directory path, and the AI agent explores your logs on-demand with streaming tools.
+A full-stack tool for analyzing **Android logcat** files, **tcpdump pcap** files, and **Perfetto trace** files, powered by AI. Supports both upload-based analysis and **lazy local log analysis** — point ALA at a local file or directory path, and the AI agent explores your logs on-demand with streaming tools.
 
 ## Architecture
 
@@ -28,9 +28,10 @@ ala/
 ## Features
 
 - **Android Log Analysis** — Parse, filter, and search Android logcat files
-  - Support for `android_logcat`, `generic_timestamped`, and unknown formats
-  - **Multi-file upload**: select or drag multiple `.log` / `.txt` files at once
+  - Support for `android_logcat`, `generic_timestamped`, `pcap`, and unknown formats
+  - **Multi-file upload**: select or drag multiple `.log` / `.txt` / `.pcap` files at once
   - **Compressed archives**: upload `.gz` (single-file gzip) or `.zip` (multi-log archives) directly
+  - **Network capture files**: support for `.pcap` and `.pcapng` (tcpdump) files with packet-level analysis
   - **Streaming parse**: log entries are streamed to the browser as they are parsed — no large JSON body, instant first-row display
   - **Virtualized list**: renders large log datasets without UI lag
   - Filters: time range, keywords (regex), log level, tag (regex), PID, TID
