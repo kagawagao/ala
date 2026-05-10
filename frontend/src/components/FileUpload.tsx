@@ -11,6 +11,7 @@ const { Text } = Typography
 interface FileUploadProps {
   onLogFiles: (files: File[]) => void
   onTraceFile: (file: File) => void
+  onPcapFile?: (file: File) => void
   onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
   loading: boolean
   error?: string
@@ -28,27 +29,32 @@ interface FileUploadProps {
  * 1. GZ / ZIP magic bytes are checked first so that compressed log archives
  *    are never mistaken for binary trace files.
  *
- * 2. "Binary" detection counts only ASCII control bytes (0x00–0x1F, excluding
+ * 2. PCAP magic bytes are checked to detect network capture files.
+ *
+ * 3. "Binary" detection counts only ASCII control bytes (0x00–0x1F, excluding
  *    TAB / LF / CR).  We deliberately do NOT count high bytes (0x80–0xFF)
  *    because those are valid UTF-8 continuation bytes and appear in every
  *    logcat file that contains CJK characters.  Protobuf field-tag bytes
  *    (e.g. 0x08, 0x12, 0x18 …) are below 0x20 and accumulate quickly, so a
  *    threshold of > 4 reliably separates binary proto traces from text logs.
  *
- * 3. The JSON-signature search window is 8 KB (not 512 B) so that trace files
+ * 4. The JSON-signature search window is 8 KB (not 512 B) so that trace files
  *    whose `traceEvents` key is preceded by a long metadata object are still
  *    correctly identified.
  *
- * 4. If content analysis is inconclusive, the file extension is used as a
+ * 5. If content analysis is inconclusive, the file extension is used as a
  *    tiebreaker, preserving the original backward-compatible behaviour.
  */
-export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace'> {
+export async function detectFileTypeByHeader(
+  file: File,
+): Promise<'log' | 'trace' | 'pcap'> {
   const name = file.name.toLowerCase()
   const lastDot = name.lastIndexOf('.')
   const ext = lastDot !== -1 ? name.slice(lastDot) : ''
 
   const TRACE_EXTS = new Set(['.pb', '.json', '.perfetto-trace', '.perfetto'])
   const LOG_EXTS = new Set(['.log', '.txt', '.logcat', '.gz', '.zip'])
+  const PCAP_EXTS = new Set(['.pcap', '.pcapng'])
 
   try {
     const slice = file.slice(0, 8 * 1024) // Read up to 8 KB
@@ -56,10 +62,28 @@ export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace
     const bytes = new Uint8Array(buf)
 
     if (bytes.length === 0) {
+      if (PCAP_EXTS.has(ext)) return 'pcap'
       return TRACE_EXTS.has(ext) ? 'trace' : 'log'
     }
 
     // ── Magic bytes ────────────────────────────────────────────────────────
+    // PCAP magic bytes (check first for network captures)
+    if (bytes.length >= 4) {
+      const magic =
+        (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
+      // pcap little-endian: 0xD4C3B2A1, big-endian: 0xA1B2C3D4
+      // pcapng: 0x0A0D0D0A
+      if (
+        magic === 0xd4c3b2a1 ||
+        magic === 0xa1b2c3d4 ||
+        magic === 0x4d3cb2a1 ||
+        magic === 0xa1b23c4d ||
+        magic === 0x0a0d0d0a
+      ) {
+        return 'pcap'
+      }
+    }
+
     // GZ: 1F 8B  →  gzip-compressed → log (gzipped logcat / ZIP of logs)
     if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'log'
     // ZIP: 50 4B  →  zip archive → log
@@ -98,7 +122,8 @@ export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace
 
     // ── Extension fallback ─────────────────────────────────────────────────
     // If the content analysis is inconclusive, trust the file extension so
-    // that known trace / log file types are always routed correctly.
+    // that known trace / log / pcap file types are always routed correctly.
+    if (PCAP_EXTS.has(ext)) return 'pcap'
     if (TRACE_EXTS.has(ext)) return 'trace'
     if (LOG_EXTS.has(ext)) return 'log'
 
@@ -106,6 +131,7 @@ export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace
     return 'log'
   } catch {
     // Unable to read the file – pure extension fallback
+    if (PCAP_EXTS.has(ext)) return 'pcap'
     if (TRACE_EXTS.has(ext)) return 'trace'
     return 'log'
   }
@@ -114,6 +140,7 @@ export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace
 const FileUpload: React.FC<FileUploadProps> = ({
   onLogFiles,
   onTraceFile,
+  onPcapFile,
   onLocalFilePath,
   loading,
   error,
@@ -130,20 +157,29 @@ const FileUpload: React.FC<FileUploadProps> = ({
     async (files: File[]) => {
       const logFiles: File[] = []
       let traceFile: File | null = null
+      let pcapFile: File | null = null
 
       for (const file of files) {
         const type = await detectFileTypeByHeader(file)
         if (type === 'trace') {
           traceFile = file
+        } else if (type === 'pcap') {
+          pcapFile = file
         } else {
           logFiles.push(file)
         }
       }
 
-      if (traceFile) onTraceFile(traceFile)
-      if (logFiles.length > 0) onLogFiles(logFiles)
+      // Route files to appropriate handlers
+      if (pcapFile && onPcapFile) {
+        onPcapFile(pcapFile)
+      } else if (traceFile) {
+        onTraceFile(traceFile)
+      } else if (logFiles.length > 0) {
+        onLogFiles(logFiles)
+      }
     },
-    [onLogFiles, onTraceFile],
+    [onLogFiles, onTraceFile, onPcapFile],
   )
 
   const handlePathSubmit = useCallback(
