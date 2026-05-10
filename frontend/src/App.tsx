@@ -91,7 +91,7 @@ const AppContent: React.FC<{
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [allModels, setAllModels] = useState<ModelPreset[]>([])
-  const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
+  const [activeTab, setActiveTab] = useState<'log' | 'pcap' | 'trace'>('log')
 
   // Project state (lifted here so Header and AiPanel share it)
   const [projects, setProjects] = useState<Project[]>([])
@@ -159,6 +159,15 @@ const AppContent: React.FC<{
   useEffect(() => {
     setLocalFilePath(null)
   }, [traceResult, selectedProjectId])
+
+  // Auto-switch to PCAP tab when PCAP files are detected
+  useEffect(() => {
+    if (formatDetected === 'pcap' && allLogs.length > 0) {
+      setActiveTab('pcap')
+    } else if (formatDetected && formatDetected !== 'pcap' && allLogs.length > 0) {
+      setActiveTab('log')
+    }
+  }, [formatDetected, allLogs.length])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -382,7 +391,6 @@ const AppContent: React.FC<{
     async (files: File[]) => {
       setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
 
       const ok = await loadFromStream(
         (signal) => parseLogStream(files, signal),
@@ -465,6 +473,80 @@ const AppContent: React.FC<{
     {
       key: 'log',
       label: t('logAnalysis'),
+      children: showFileUpload ? (
+        <FileUpload
+          onLogFiles={(files) => {
+            void handleLogFiles(files)
+          }}
+          onTraceFile={(f) => {
+            void handleTraceFile(f)
+          }}
+          onLocalFilePath={(_path, ref) => {
+            setLocalFilePath(ref.session_file)
+            void message.success(t('fileUploaded'))
+          }}
+          loading={isLoading}
+          error={errorMessage}
+          fileNames={fileNames}
+        />
+      ) : localFilePath && allLogs.length === 0 ? (
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          <Typography.Text style={{ fontSize: 28 }}>📂</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 14 }}>
+            {t('localFileLoaded')}
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            code
+            style={{ fontSize: 12, maxWidth: 480, textAlign: 'center', wordBreak: 'break-all' }}
+          >
+            {localFilePath}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
+            {t('localFileHint')}
+          </Typography.Text>
+        </div>
+      ) : !hasActiveFilters ? (
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          <Empty description={t('noFilterApplied')} />
+          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
+            {t('applyFiltersToView')}
+          </Typography.Text>
+        </div>
+      ) : (
+        <LogViewer
+          logs={filteredLogs}
+          totalLogs={allLogs.length}
+          highlights={highlights}
+          wordWrap={wordWrap}
+          formatDetected={formatDetected}
+          parseProgress={parseProgress}
+        />
+      ),
+    },
+    {
+      key: 'pcap',
+      label: t('pcapAnalysis'),
       children: showFileUpload ? (
         <FileUpload
           onLogFiles={(files) => {
@@ -664,7 +746,7 @@ const AppContent: React.FC<{
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                           <Tabs
                             activeKey={activeTab}
-                            onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                            onChange={(k) => setActiveTab(k as 'log' | 'pcap' | 'trace')}
                             items={tabItems}
                             tabBarExtraContent={{ right: tabBarExtra }}
                             style={{ height: '100%' }}
