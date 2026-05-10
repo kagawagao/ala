@@ -145,7 +145,6 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
         ...state,
         accumulated: state.accumulated + delta,
         parts: appendText(state.parts, delta),
-        continueMessage: state.continueMessage,
       }
     }
 
@@ -156,7 +155,6 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
       ...state,
       accumulated: state.accumulated + chunk,
       parts: appendText(state.parts, chunk),
-      continueMessage: state.continueMessage,
     }
   }
 }

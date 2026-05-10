@@ -12,6 +12,7 @@ from typing import Any
 from ..services.log_analyzer import LogAnalyzer
 from .code_scanner import CodeScanner
 from .project_manager import Project
+from .trace_analyzer import TraceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ def build_log_index(entries: list[dict]) -> LogIndex:
 
 
 _scanner = CodeScanner()
+_trace_analyzer = TraceAnalyzer()
 
 
 class _NoOpOverviewCache:
@@ -469,6 +471,35 @@ TRACE_TOOLS: list[dict[str, Any]] = [
             "required": [],
         },
     },
+    {
+        "name": "query_trace_sql",
+        "description": (
+            "Run arbitrary SQL queries directly against a Perfetto trace file on disk. "
+            "Use this for deep performance analysis: CPU scheduling, memory allocations, "
+            "Binder calls, frame timelines, custom counters. "
+            "Pass sql=null to discover available tables first. "
+            "Common tables: slice, process, thread, sched, counter, raw, ftrace_event, "
+            "android_log. Limit results to 200 rows unless aggregating."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trace_file_path": {
+                    "type": "string",
+                    "description": "Path to the Perfetto trace file (.pb or .json).",
+                },
+                "sql": {
+                    "type": "string",
+                    "description": (
+                        "SQL query. Pass null/omit to list available tables. "
+                        "Example: SELECT name, dur/1e6 AS ms FROM slice "
+                        "WHERE dur > 1e6 ORDER BY dur DESC LIMIT 20"
+                    ),
+                },
+            },
+            "required": ["trace_file_path"],
+        },
+    },
 ]
 
 # Anthropic tool schemas – log-specific tools
@@ -561,6 +592,23 @@ def execute_tool(
         if trace_summary is None:
             return json.dumps({"error": "No trace loaded in this session"})
         return _execute_trace_tool(tool_name, args, trace_summary)
+
+    if tool_name == "query_trace_sql":
+        trace_file_path = args.get("trace_file_path")
+        if not isinstance(trace_file_path, str) or not trace_file_path.strip():
+            return json.dumps({"error": "trace_file_path is required"})
+
+        sql = args.get("sql")
+        if sql is not None and not isinstance(sql, str):
+            return json.dumps({"error": "sql must be a string or null"})
+        if isinstance(sql, str) and not sql.strip():
+            sql = None
+
+        try:
+            return json.dumps(_trace_analyzer.query_sql(trace_file_path=trace_file_path, sql=sql))
+        except Exception as e:
+            logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
+            return json.dumps({"error": f"Trace SQL tool failed: {e}"})
 
     # Lazy log tools (operate on local file/directory path, not in-memory entries)
     if tool_name in (

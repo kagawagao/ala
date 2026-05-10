@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import re
 from dataclasses import dataclass
 
@@ -482,3 +483,95 @@ class TraceAnalyzer:
             if shift >= 64:
                 return 0, 0
         return 0, 0
+
+    def query_sql(self, trace_file_path: str, sql: str | None = None) -> dict:
+        """Open a Perfetto trace file and run arbitrary SQL queries against it.
+
+        Uses the Perfetto TraceProcessor to load the trace and execute SQL.
+        Returns a dict with column names and row data as lists of dicts.
+
+        If no SQL is provided, returns a list of available table names.
+
+        Only SELECT queries are allowed for safety.
+
+        Args:
+            trace_file_path: Path to the Perfetto trace file (.pb or .json).
+            sql: SQL query to execute. If None, returns available tables.
+
+        Returns:
+            dict with keys: columns (list[str]), rows (list[dict]), row_count (int),
+            or if sql is None: tables (list[str]).
+
+        Raises:
+            ValueError: If SQL is provided but is not a SELECT statement.
+            FileNotFoundError: If the trace file does not exist.
+            RuntimeError: If the perfetto package is not installed or query fails.
+        """
+        from perfetto.trace_processor import TraceProcessor
+
+        # Validate SQL: only SELECT queries are allowed
+        if sql is not None:
+            sql_stripped = sql.strip()
+            if not sql_stripped.lower().startswith("select") and not sql_stripped.lower().startswith(
+                "with"
+            ):
+                raise ValueError(
+                    f"Only SELECT (and WITH ... SELECT) queries are allowed. Got: {sql_stripped[:100]}"
+                )
+
+        if not os.path.isfile(trace_file_path):
+            raise FileNotFoundError(f"Trace file not found: {trace_file_path}")
+
+        try:
+            with open(trace_file_path, "rb") as f:
+                content = f.read()
+
+            with TraceProcessor(trace=io.BytesIO(content)) as tp:
+                if sql is None:
+                    tables = []
+                    for row in self._query_with_timeout(
+                        tp,
+                        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+                    ):
+                        tables.append(row.name)
+                    return {"tables": tables}
+
+                rows = list(self._query_with_timeout(tp, sql))
+                if not rows:
+                    return {"columns": [], "rows": [], "row_count": 0}
+
+                first_row = rows[0]
+                if hasattr(first_row, "_fields"):
+                    columns = list(first_row._fields)
+                elif hasattr(first_row, "keys"):
+                    columns = list(first_row.keys())
+                elif hasattr(first_row, "__dict__") and first_row.__dict__:
+                    columns = list(first_row.__dict__.keys())
+                else:
+                    columns = []
+
+                result_rows = []
+                for row in rows:
+                    if hasattr(row, "_asdict"):
+                        row_dict = dict(row._asdict())
+                    elif hasattr(row, "keys") and hasattr(row, "__getitem__"):
+                        row_dict = {col: row[col] for col in row.keys()}
+                    elif hasattr(row, "__dict__") and row.__dict__:
+                        row_dict = dict(row.__dict__)
+                    else:
+                        row_dict = {col: getattr(row, col, None) for col in columns}
+                    result_rows.append(row_dict)
+
+                return {
+                    "columns": columns,
+                    "rows": result_rows,
+                    "row_count": len(result_rows),
+                }
+        except ImportError:
+            raise RuntimeError(
+                "perfetto package is not installed. Install with: pip install perfetto"
+            ) from None
+        except (ValueError, FileNotFoundError):
+            raise
+        except Exception as e:
+            raise RuntimeError(f"SQL query failed: {e}") from e
