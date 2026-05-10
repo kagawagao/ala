@@ -1,8 +1,10 @@
 import { createModel } from '../api/models'
-import type { ModelPreset, ModelConfig, AIConfig } from '../types'
+import type { AIConfig, ModelConfig, ModelPreset } from '../types'
 
 export const MODEL_CONFIGS_STORAGE_KEY = 'ala_model_configs'
-export const ACTIVE_MODELS_STORAGE_KEY = 'ala_active_models'
+
+/** Dispatched on `window` whenever local model configs change. */
+export const MODEL_CONFIGS_CHANGE_EVENT = 'ala:modelConfigsChange'
 
 /** Group an array of ModelPreset objects by their provider field. */
 export function groupByProvider(models: ModelPreset[]): [string, ModelPreset[]][] {
@@ -32,47 +34,26 @@ export function saveModelConfig(presetId: string, config: Partial<ModelConfig>):
   const all = loadModelConfigs()
   all[presetId] = { ...all[presetId], ...config }
   localStorage.setItem(MODEL_CONFIGS_STORAGE_KEY, JSON.stringify(all))
+  window.dispatchEvent(new Event(MODEL_CONFIGS_CHANGE_EVENT))
 }
 
 export function deleteModelConfig(presetId: string): void {
   const all = loadModelConfigs()
   delete all[presetId]
   localStorage.setItem(MODEL_CONFIGS_STORAGE_KEY, JSON.stringify(all))
+  window.dispatchEvent(new Event(MODEL_CONFIGS_CHANGE_EVENT))
 }
 
 // ── Active model helpers (multi-select) ────────────────────────────────────
 
+/** @deprecated Active state is now stored in the backend via preset.enabled. */
 export function getActiveModelIds(): string[] {
-  // Backward compat: migrate old single ID to array
-  const old = localStorage.getItem('ala_active_model_id')
-  if (old) {
-    localStorage.removeItem('ala_active_model_id')
-    const ids = [old]
-    localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
-    return ids
-  }
   try {
-    const stored = localStorage.getItem(ACTIVE_MODELS_STORAGE_KEY)
+    const stored = localStorage.getItem('ala_active_models')
     return stored ? (JSON.parse(stored) as string[]) : []
   } catch {
     return []
   }
-}
-
-export function isModelActive(id: string): boolean {
-  return getActiveModelIds().includes(id)
-}
-
-export function toggleActiveModel(id: string): string[] {
-  const ids = getActiveModelIds()
-  const idx = ids.indexOf(id)
-  if (idx >= 0) {
-    ids.splice(idx, 1)
-  } else {
-    ids.push(id)
-  }
-  localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
-  return ids
 }
 
 /** @deprecated use getActiveModelIds() instead */
@@ -80,13 +61,9 @@ export function getActiveModelId(): string | null {
   return getActiveModelIds()[0] ?? null
 }
 
-/** @deprecated use toggleActiveModel() instead */
-export function setActiveModelId(id: string): void {
-  const ids = getActiveModelIds()
-  if (!ids.includes(id)) {
-    ids.push(id)
-    localStorage.setItem(ACTIVE_MODELS_STORAGE_KEY, JSON.stringify(ids))
-  }
+/** @deprecated use setModelEnabled() API instead */
+export function setActiveModelId(_id: string): void {
+  /* no-op: active state migrated to backend preset.enabled */
 }
 
 export function findPresetById(id: string, models: ModelPreset[]): ModelPreset | undefined {
@@ -106,16 +83,14 @@ export function buildAIConfig(preset: ModelPreset, config: Partial<ModelConfig>)
   }
 }
 
-/** Return the active model's derived AIConfig, or null if none is set. */
+/** Return the first enabled model that has a configured API key, or null. */
 export function getActiveAIConfig(
   models: ModelPreset[],
 ): { config: AIConfig; preset: ModelPreset } | null {
-  const id = getActiveModelId()
-  if (!id) return null
-  const preset = findPresetById(id, models)
-  if (!preset) return null
   const configs = loadModelConfigs()
-  return { config: buildAIConfig(preset, configs[id] ?? {}), preset }
+  const preset = models.find((m) => m.enabled && !!configs[m.id]?.api_key?.trim())
+  if (!preset) return null
+  return { config: buildAIConfig(preset, configs[preset.id] ?? {}), preset }
 }
 
 /**
@@ -125,7 +100,6 @@ export function getActiveAIConfig(
  * If no preset matches, skips (custom models are now managed by the backend).
  */
 export function migrateFromLegacyConfig(models: ModelPreset[]): void {
-  if (getActiveModelId()) return // already migrated
   const saved = localStorage.getItem('aiConfig')
   if (!saved) return
   try {
@@ -141,18 +115,21 @@ export function migrateFromLegacyConfig(models: ModelPreset[]): void {
       (m) => m.model_id === cfg.model && m.api_endpoint === cfg.api_endpoint,
     )
     if (match) {
-      saveModelConfig(match.id, modelConfig)
-      setActiveModelId(match.id)
+      const existing = loadModelConfigs()
+      // Only migrate if this preset has no key yet
+      if (!existing[match.id]?.api_key?.trim()) {
+        saveModelConfig(match.id, modelConfig)
+      }
     }
   } catch {
     /* ignore */
   }
 }
 
-/** Return models that have an API key configured in localStorage. */
+/** Return models that are enabled and have an API key configured in localStorage. */
 export function filterConfiguredModels(models: ModelPreset[]): ModelPreset[] {
   const configs = loadModelConfigs()
-  return models.filter((m) => !!configs[m.id]?.api_key?.trim())
+  return models.filter((m) => m.enabled && !!configs[m.id]?.api_key?.trim())
 }
 
 // ── Backwards-compatibility shims (removed localStorage model storage) ──────

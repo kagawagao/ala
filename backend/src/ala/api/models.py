@@ -28,6 +28,7 @@ class ModelPresetOut(BaseModel):
     builtin: bool = False
     anthropic_compatible: bool | None = None
     supports_thinking: bool = False
+    enabled: bool = True
 
     @classmethod
     def from_preset(cls, p: _ModelPreset) -> "ModelPresetOut":
@@ -41,6 +42,7 @@ class ModelPresetOut(BaseModel):
             builtin=p.builtin,
             anthropic_compatible=p.anthropic_compatible,
             supports_thinking=p.supports_thinking,
+            enabled=p.enabled,
         )
 
 
@@ -60,8 +62,14 @@ class UpdateModelRequest(BaseModel):
     model_id: str | None = None
     api_endpoint: str | None = None
     description: str | None = None
-    anthropic_compatible: bool | None | Literal["unset"] = "unset"  # "unset" = leave unchanged
+    # "unset" = leave unchanged
+    anthropic_compatible: bool | None | Literal["unset"] = "unset"
     supports_thinking: bool | None = None
+    enabled: bool | None = None
+
+
+class SetEnabledRequest(BaseModel):
+    enabled: bool
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +117,7 @@ async def update_model(preset_id: str, req: UpdateModelRequest):
             description=req.description,
             anthropic_compatible=compat,
             supports_thinking=req.supports_thinking,
+            enabled=req.enabled,
         )
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -138,3 +147,16 @@ async def reload_models():
     count = len(model_manager.list_models())
     logger.info("Reloaded models from disk: %d total", count)
     return {"success": True, "count": count}
+
+
+@router.patch("/{preset_id}/enabled", response_model=ModelPresetOut)
+async def set_model_enabled(preset_id: str, req: SetEnabledRequest):
+    """Enable or disable a model preset.  Works for both built-in and custom models."""
+    try:
+        preset = model_manager.update_model(preset_id=preset_id, enabled=req.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if not preset:
+        raise HTTPException(status_code=404, detail="Model not found")
+    logger.info("Set model %s enabled=%s", preset_id, req.enabled)
+    return ModelPresetOut.from_preset(preset)

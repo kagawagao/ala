@@ -60,7 +60,8 @@ class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
     model_override: ModelOverride | None = None
-    language: str | None = None  # UI language for AI responses (e.g. "en", "zh")
+    # UI language for AI responses (e.g. "en", "zh")
+    language: str | None = None
 
 
 class SetTraceRequest(BaseModel):
@@ -227,13 +228,17 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
         else ai_config.anthropic_compatible,
     )
 
-    # Build messages list including context if provided
+    # Build messages list including context if provided.
+    # NOTE: `session` is a DB snapshot fetched *before* add_message(), so it does
+    # not yet contain the current user message. Append it explicitly at the end.
     messages: list[dict] = []
     if req.context:
         messages.append({"role": "system", "content": req.context})
 
     for msg in session.messages:
         messages.append({"role": msg.role, "content": msg.content})
+
+    messages.append({"role": "user", "content": req.message})
 
     # Resolve project (if any) and trace/log data for agentic mode
     project = None

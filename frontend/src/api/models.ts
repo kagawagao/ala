@@ -1,5 +1,5 @@
-import { apiFetch } from './client'
 import type { ModelPreset } from '../types'
+import { apiFetch } from './client'
 
 export interface CreateModelPayload {
   name: string
@@ -53,4 +53,11 @@ export async function deleteModel(id: string): Promise<void> {
 
 export async function reloadModels(): Promise<{ count: number }> {
   return apiFetch<{ count: number }>('/models/reload', { method: 'POST' })
+}
+
+export async function setModelEnabled(id: string, enabled: boolean): Promise<ModelPreset> {
+  return apiFetch<ModelPreset>(`/models/${id}/enabled`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  })
 }
