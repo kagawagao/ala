@@ -247,19 +247,5 @@
   "migratedModels": "已将 {{count}} 个自定义模型从本地迁移至后端",
   "localFileLoaded": "本地文件已就绪，可供 AI 分析",
   "localFileHint": "AI 助手可直接分析此文件，在右侧聊天面板中提问即可。",
-  "userGuide": "使用指南",
-  "userGuideDescription": "通过本指南快速开始在 ALA 中进行日志与 Trace 分析。",
-  "guideQuickStart": "快速开始",
-  "guideQuickStartItem1": "在上传面板中打开一个或多个日志或 Trace 文件。",
-  "guideQuickStartItem2": "在侧边栏设置过滤条件后，点击「应用过滤器」更新日志视图。",
-  "guideQuickStartItem3": "在「日志分析」与「Trace 分析」标签之间切换查看结果。",
-  "guideQuickStartItem4": "可选：选择项目，为 AI 分析提供代码上下文。",
-  "guideAiAssistant": "使用 AI 助手",
-  "guideAiItem1": "如有需要，请先在模型管理中配置 API 端点、密钥和模型。",
-  "guideAiItem2": "在 AI 面板提问，助手可分析已过滤日志和已加载 Trace 数据。",
-  "guideAiItem3": "可附加上下文数据，缩小助手分析范围。",
-  "guideTips": "使用建议",
-  "guideTipsItem1": "使用预设保存并复用常见过滤条件组合。",
-  "guideTipsItem2": "在项目设置中注册源码目录以获得更好的 AI 上下文。",
-  "guideTipsItem3": "若后端未连接，请先启动 Python 后端服务。"
+  "userGuide": "使用指南"
 }
