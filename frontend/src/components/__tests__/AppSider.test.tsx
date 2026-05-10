@@ -124,7 +124,7 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
-    expect(screen.getByPlaceholderText('MM-DD HH:mm:ss.SSS')).toBeInTheDocument()
+    expect(screen.getAllByPlaceholderText('MM-DD HH:mm:ss.SSS').length).toBe(2)
     expect(screen.getByPlaceholderText('Filter by keywords (regex supported)')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Filter by tag (regex)')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('e.g., 1234')).toBeInTheDocument()
@@ -328,7 +328,7 @@ describe('AppSider', () => {
     expect(onHighlightsChange).toHaveBeenCalledWith([{ pattern: 'warn', color: '#ffff00' }])
   })
 
-  it('shows no presets when presets array is empty', () => {
+  it('shows no presets when presets array is empty', async () => {
     render(
       <Wrapper>
         <AppSider
@@ -345,6 +345,8 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
+    // Expand the presets collapse panel
+    await userEvent.click(screen.getByText('Filter Presets'))
     expect(screen.getByText('No saved presets')).toBeInTheDocument()
   })
 
@@ -366,13 +368,15 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
-    // Open save preset modal
+    // Open save preset modal via aria-label
     await userEvent.click(screen.getByLabelText('Save Preset'))
     // Fill in preset name
     const nameInput = screen.getByPlaceholderText('Preset Name')
     await userEvent.type(nameInput, 'My Preset')
-    // Click OK
-    await userEvent.click(screen.getByText('Save Preset'))
+    // Click OK — use the modal's OK button specifically
+    const modalFooter = document.querySelector('.ant-modal-footer')
+    const okBtn = modalFooter?.querySelector('.ant-btn-primary') as HTMLElement
+    await userEvent.click(okBtn)
     expect(onPresetsChange).toHaveBeenCalled()
   })
 
@@ -397,6 +401,8 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
+    // Expand the presets collapse panel
+    await userEvent.click(screen.getByText('Filter Presets'))
     // Click apply on the preset
     await userEvent.click(screen.getByText('Apply'))
     expect(onFiltersChange).toHaveBeenCalledWith(
@@ -423,6 +429,8 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
+    // Expand the presets collapse panel
+    await userEvent.click(screen.getByText('Filter Presets'))
     // Click delete on the preset
     const deleteBtn = screen.getAllByLabelText('delete')[0]
     await userEvent.click(deleteBtn)
@@ -455,7 +463,7 @@ describe('AppSider', () => {
     expect(onWordWrapChange).toHaveBeenCalledWith(true)
   })
 
-  it('shows statistics when provided', () => {
+  it('shows statistics when provided', async () => {
     render(
       <Wrapper>
         <AppSider
@@ -472,7 +480,8 @@ describe('AppSider', () => {
         />
       </Wrapper>,
     )
-    expect(screen.getByText('Statistics')).toBeInTheDocument()
+    // Expand the statistics collapse panel
+    await userEvent.click(screen.getByText('Statistics'))
     expect(screen.getByText('Total')).toBeInTheDocument()
   })
 

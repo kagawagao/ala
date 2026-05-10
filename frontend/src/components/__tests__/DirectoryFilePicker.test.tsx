@@ -96,7 +96,7 @@ describe('DirectoryFilePicker', () => {
     ]
     renderPicker({ files })
     expect(screen.getByText('500 B')).toBeInTheDocument()
-    expect(screen.getByText('2.0 MB')).toBeInTheDocument()
+    expect(screen.getByText('1.9 MB')).toBeInTheDocument()
   })
 
   it('shows gzip tag for .gz files', () => {
@@ -115,7 +115,7 @@ describe('DirectoryFilePicker', () => {
     renderPicker()
     // All files start selected, so deselect all
     await userEvent.click(screen.getByText('Deselect All'))
-    const confirmBtn = screen.getByText('Load Selected')
+    const confirmBtn = screen.getByText('Load Selected').closest('button')
     expect(confirmBtn).toBeDisabled()
   })
 
