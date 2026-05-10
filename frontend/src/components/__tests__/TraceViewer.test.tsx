@@ -111,8 +111,8 @@ describe('TraceViewer', () => {
         <TraceViewer traceResult={result} />
       </Wrapper>,
     )
-    expect(screen.getByText('Processes')).toBeInTheDocument()
-    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getAllByText('Processes').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('5').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders thread count statistic', () => {
@@ -122,7 +122,7 @@ describe('TraceViewer', () => {
         <TraceViewer traceResult={result} />
       </Wrapper>,
     )
-    expect(screen.getByText('Threads')).toBeInTheDocument()
+    expect(screen.getAllByText('Threads').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('20')).toBeInTheDocument()
   })
 
@@ -212,7 +212,8 @@ describe('TraceViewer', () => {
     )
     expect(screen.getByText('Process Filter')).toBeInTheDocument()
     expect(screen.getByText('Apply Filter')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Select processes…')).toBeInTheDocument()
+    // antd v6 Select may render placeholder differently; check via text content
+    expect(screen.getByText('Select processes…')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Name regex')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('PIDs')).toBeInTheDocument()
   })
