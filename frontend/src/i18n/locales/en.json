@@ -250,5 +250,19 @@
   "localFileLoaded": "Local file ready for AI analysis",
   "localFileHint": "The AI assistant can analyze this file directly. Ask a question in the chat panel on the right.",
   "userGuide": "User Guide",
-  "guideLoadError": "Failed to load the user guide. Please refresh the page and try again."
+  "guideLoadError": "Failed to load the user guide. Please refresh the page and try again.",
+  "totalPackets": "Total Packets",
+  "uniqueIPs": "Unique IPs",
+  "connections": "Connections",
+  "pcapFilters": "PCAP Filters",
+  "protocol": "Protocol",
+  "sourceIP": "Source IP",
+  "destinationIP": "Destination IP",
+  "srcPort": "Src Port",
+  "dstPort": "Dst Port",
+  "tcpFlags": "TCP Flags",
+  "protocolDistribution": "Protocol Distribution",
+  "packets": "Packets",
+  "source": "Source",
+  "destination": "Destination"
 }
