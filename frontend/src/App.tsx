@@ -12,7 +12,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { updateConfig } from './api/config'
@@ -27,12 +27,14 @@ import {
 import { parseTrace } from './api/trace'
 import AiPanel from './components/AiPanel'
 import AppSider from './components/AppSider'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
-import ModelManager from './components/ModelManager'
-import ProjectManager from './components/ProjectManager'
 import TraceViewer from './components/TraceViewer'
+
+const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
+const ModelManager = React.lazy(() => import('./components/ModelManager'))
 import { useLogStream } from './hooks/useLogStream'
 import i18next from './i18n/config'
 import type {
@@ -225,6 +227,7 @@ const AppContent: React.FC<{
     error: fileError,
     fileNames,
     formatDetected,
+    parseProgress,
     loadFromStream,
     abort: abortParse,
     reset: resetLogs,
@@ -358,6 +361,46 @@ const AppContent: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullPage, allModels])
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K → toggle sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSiderCollapsed((v) => !v)
+        return
+      }
+      // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        document.getElementById('ala-keywords-input')?.focus()
+        return
+      }
+      // Ctrl+D / Cmd+D → toggle dark/light theme
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault()
+        onToggleTheme()
+        return
+      }
+      // Esc → close upload popover, then collapse sider, then collapse aiPanel
+      if (e.key === 'Escape') {
+        if (uploadPopoverOpen) {
+          setUploadPopoverOpen(false)
+          return
+        }
+        if (!siderCollapsed) {
+          setSiderCollapsed(true)
+          return
+        }
+        if (!aiPanelCollapsed) {
+          setAiPanelCollapsed(true)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -516,6 +559,7 @@ const AppContent: React.FC<{
           highlights={highlights}
           wordWrap={wordWrap}
           formatDetected={formatDetected}
+          parseProgress={parseProgress}
         />
       ),
     },
@@ -570,8 +614,22 @@ const AppContent: React.FC<{
         }}
       >
         <Routes>
-          <Route path="/projects" element={<ProjectManager />} />
-          <Route path="/models" element={<ModelManager onModelsChange={setAllModels} />} />
+          <Route
+            path="/projects"
+            element={
+              <Suspense fallback={null}>
+                <ProjectManager />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/models"
+            element={
+              <Suspense fallback={null}>
+                <ModelManager onModelsChange={setAllModels} />
+              </Suspense>
+            }
+          />
           <Route
             path="*"
             element={
@@ -744,7 +802,9 @@ const App: React.FC = () => {
       }}
     >
       <AntApp style={{ height: '100%' }}>
-        <AppContent isDark={isDark} onToggleTheme={handleToggleTheme} />
+        <ErrorBoundary>
+          <AppContent isDark={isDark} onToggleTheme={handleToggleTheme} />
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   )

@@ -5,7 +5,7 @@ import logging
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
@@ -113,6 +113,32 @@ async def delete_session(session_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"success": True}
+
+
+@router.get("/sessions/{session_id}/export")
+async def export_session(session_id: str):
+    """Export a session and its messages as a downloadable JSON file."""
+    session = _session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    export_data = {
+        "id": session.id,
+        "title": session.title,
+        "context_type": session.context_type,
+        "project_id": session.project_id,
+        "created_at": session.created_at,
+        "messages": [
+            {"role": m.role, "content": m.content, "timestamp": m.timestamp}
+            for m in session.messages
+        ],
+    }
+
+    filename = f"ala-session-{session_id[:8]}.json"
+    return JSONResponse(
+        content=export_data,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.put("/sessions/{session_id}/trace")

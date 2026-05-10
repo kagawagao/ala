@@ -5,6 +5,11 @@ type StreamFactory = (
   signal: AbortSignal,
 ) => AsyncGenerator<LogEntry | { _done?: boolean; _error?: string }, void, unknown>
 
+export interface ParseProgress {
+  current: number
+  total: number
+}
+
 interface UseLogStreamReturn {
   allLogs: LogEntry[]
   loading: boolean
@@ -12,6 +17,7 @@ interface UseLogStreamReturn {
   fileNames: string[]
   formatDetected: string | undefined
   parsedCount: number
+  parseProgress: ParseProgress | null
   loadFromStream: (streamFactory: StreamFactory, fileLabels: string[]) => Promise<boolean>
   abort: () => void
   reset: () => void
@@ -26,6 +32,7 @@ export function useLogStream(): UseLogStreamReturn {
   const [fileNames, setFileNames] = useState<string[]>([])
   const [formatDetected, setFormatDetected] = useState<string | undefined>()
   const [parsedCount, setParsedCount] = useState(0)
+  const [totalExpected, setTotalExpected] = useState<number>(0)
   const abortRef = useRef<AbortController | null>(null)
   const formatRef = useRef<string | undefined>(undefined)
 
@@ -40,6 +47,7 @@ export function useLogStream(): UseLogStreamReturn {
     setFileNames([])
     setFormatDetected(undefined)
     setParsedCount(0)
+    setTotalExpected(0)
   }, [abort])
 
   const loadFromStream = useCallback(
@@ -54,6 +62,7 @@ export function useLogStream(): UseLogStreamReturn {
       setAllLogs([])
       setFormatDetected(undefined)
       setParsedCount(0)
+      setTotalExpected(0)
       formatRef.current = undefined
 
       const buffer: LogEntry[] = []
@@ -69,7 +78,12 @@ export function useLogStream(): UseLogStreamReturn {
       try {
         const streamGen = streamFactory(controller.signal)
         for await (const line of streamGen) {
-          if ('_done' in line) break
+          if ('_done' in line) {
+            if ('total' in line && typeof line.total === 'number') {
+              setTotalExpected(line.total as number)
+            }
+            break
+          }
           if ('_error' in line) {
             streamError = line._error as string
             setError(streamError)
@@ -102,6 +116,9 @@ export function useLogStream(): UseLogStreamReturn {
     [],
   )
 
+  const parseProgress: ParseProgress | null =
+    parsedCount > 0 && totalExpected > 0 ? { current: parsedCount, total: totalExpected } : null
+
   return {
     allLogs,
     loading,
@@ -109,6 +126,7 @@ export function useLogStream(): UseLogStreamReturn {
     fileNames,
     formatDetected,
     parsedCount,
+    parseProgress,
     loadFromStream,
     abort,
     reset,
