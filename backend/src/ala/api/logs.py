@@ -352,7 +352,7 @@ class DirectorySelectedRequest(BaseModel):
     selected_files: list[str]  # relative file paths to parse
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
 
 MAX_SCAN_DEPTH = 5
 MAX_SCAN_FILES = 500

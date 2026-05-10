@@ -7,13 +7,25 @@ import re
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+
+try:
+    from scapy.all import PcapReader, rdpcap
+    from scapy.layers.inet import IP, TCP, UDP
+    from scapy.layers.inet6 import IPv6
+    from scapy.packet import Packet
+
+    SCAPY_AVAILABLE = True
+except ImportError:
+    SCAPY_AVAILABLE = False
 
 
 class LogFormat(StrEnum):
     ANDROID_LOGCAT = "android_logcat"
     GENERIC_TIMESTAMPED = "generic_timestamped"
+    PCAP = "pcap"
     UNKNOWN = "unknown"
 
 
@@ -79,7 +91,7 @@ class PathTraversalError(ValueError):
 # ---------------------------------------------------------------------------
 
 #: File extensions treated as log text files
-_LOG_TEXT_EXTS = {".log", ".txt", ".logcat", ""}
+_LOG_TEXT_EXTS = {".log", ".txt", ".logcat", ".pcap", ".pcapng", ""}
 
 #: Maximum size (bytes) for a single decoded text file to prevent OOM
 _MAX_DECODE_BYTES = 256 * 1024 * 1024  # 256 MB
@@ -147,6 +159,23 @@ class LogAnalyzer:
             re.IGNORECASE,
         )
 
+    @staticmethod
+    def _is_pcap_data(data: bytes) -> bool:
+        """Check if data starts with pcap or pcapng magic bytes."""
+        if len(data) < 4:
+            return False
+        # Standard pcap magic: 0xA1B2C3D4 or 0xD4C3B2A1 (little-endian)
+        # pcapng magic: 0x0A0D0D0A
+        magic = data[:4]
+        pcap_magics = [
+            b"\xd4\xc3\xb2\xa1",  # pcap little-endian
+            b"\xa1\xb2\xc3\xd4",  # pcap big-endian
+            b"\x4d\x3c\xb2\xa1",  # pcap nanosecond little-endian
+            b"\xa1\xb2\x3c\x4d",  # pcap nanosecond big-endian
+            b"\x0a\x0d\x0d\x0a",  # pcapng
+        ]
+        return magic in pcap_magics
+
     def detect_log_format(self, content: str) -> LogFormat:
         lines = [line for line in content.split("\n") if line.strip()]
         sample = lines[:10]
@@ -173,27 +202,50 @@ class LogAnalyzer:
     def parse_log_bytes(self, data: bytes, filename: str) -> list[ParseResult]:
         """Parse one or more log files from *data*.
 
-        Handles plain text, ``.zip`` archives and ``.gz`` single-file gzip.
+        Handles plain text, ``.zip`` archives, ``.gz`` single-file gzip, and pcap files.
         Returns one :class:`ParseResult` per extracted text file.
         """
         text_files = extract_text_files(data, filename)
         results: list[ParseResult] = []
         for name, raw_bytes in text_files:
-            text = raw_bytes.decode("utf-8", errors="replace")
-            results.append(self.parse_log(text, source_file=name))
+            # Check if this is a pcap file
+            if self._is_pcap_data(raw_bytes):
+                if not SCAPY_AVAILABLE:
+                    raise ValueError(
+                        "Cannot parse pcap file: scapy library not installed. "
+                        "Install with: pip install scapy"
+                    )
+                logs = self._parse_pcap_bytes(raw_bytes, name)
+                results.append(
+                    ParseResult(
+                        logs=logs, total_lines=len(logs), format_detected=LogFormat.PCAP.value
+                    )
+                )
+            else:
+                text = raw_bytes.decode("utf-8", errors="replace")
+                results.append(self.parse_log(text, source_file=name))
         return results
 
     def stream_log_bytes(self, data: bytes, filename: str) -> Iterator[LogEntry]:
         """Yield :class:`LogEntry` objects one by one.
 
-        Handles plain text, ``.zip`` and ``.gz`` files, yielding entries
+        Handles plain text, ``.zip``, ``.gz``, and pcap files, yielding entries
         across all extracted members in order so callers can stream them
         without buffering the full result.
         """
         text_files = extract_text_files(data, filename)
         for name, raw_bytes in text_files:
-            text = raw_bytes.decode("utf-8", errors="replace")
-            yield from self.parse_log_iter(text, source_file=name)
+            # Check if this is a pcap file
+            if self._is_pcap_data(raw_bytes):
+                if not SCAPY_AVAILABLE:
+                    raise ValueError(
+                        "Cannot parse pcap file: scapy library not installed. "
+                        "Install with: pip install scapy"
+                    )
+                yield from self._parse_pcap_bytes_iter(raw_bytes, name)
+            else:
+                text = raw_bytes.decode("utf-8", errors="replace")
+                yield from self.parse_log_iter(text, source_file=name)
 
     def _parse_android_logcat(self, content: str, source_file: str | None = None) -> list[LogEntry]:
         entries = []
@@ -389,6 +441,102 @@ class LogAnalyzer:
                 raw_line=line,
                 source_file=source_file,
             )
+
+    # ------------------------------------------------------------------
+    # PCAP parsing methods
+    # ------------------------------------------------------------------
+
+    def _parse_pcap_bytes(self, data: bytes, source_file: str | None = None) -> list[LogEntry]:
+        """Parse pcap file from raw bytes into a list of LogEntry objects."""
+        return list(self._parse_pcap_bytes_iter(data, source_file))
+
+    def _parse_pcap_bytes_iter(
+        self, data: bytes, source_file: str | None = None
+    ) -> Iterator[LogEntry]:
+        """Parse pcap file from raw bytes, yielding LogEntry objects one by one."""
+        if not SCAPY_AVAILABLE:
+            raise ValueError("scapy library not available")
+
+        # Write bytes to a temporary BytesIO object and use PcapReader
+        pcap_io = io.BytesIO(data)
+        try:
+            reader = PcapReader(pcap_io)
+            line_number = 0
+            for pkt in reader:
+                line_number += 1
+                yield self._packet_to_log_entry(pkt, line_number, source_file)
+        except Exception as e:
+            raise ValueError(f"Failed to parse pcap file: {e}") from e
+        finally:
+            pcap_io.close()
+
+    def _packet_to_log_entry(
+        self, pkt: "Packet", line_number: int, source_file: str | None = None
+    ) -> LogEntry:
+        """Convert a scapy Packet to a LogEntry."""
+        # Extract timestamp
+        timestamp = None
+        if hasattr(pkt, "time") and pkt.time:
+            timestamp = datetime.fromtimestamp(pkt.time).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        # Extract protocol and basic info
+        protocol = "UNKNOWN"
+        src = "?"
+        dst = "?"
+        sport = ""
+        dport = ""
+        summary = pkt.summary()
+
+        # Check for IP layer
+        if IP in pkt:
+            ip_layer = pkt[IP]
+            src = ip_layer.src
+            dst = ip_layer.dst
+            protocol = ip_layer.sprintf("%IP.proto%")
+        elif IPv6 in pkt:
+            ip_layer = pkt[IPv6]
+            src = ip_layer.src
+            dst = ip_layer.dst
+            protocol = ip_layer.sprintf("%IPv6.nh%")
+
+        # Check for TCP/UDP
+        if TCP in pkt:
+            tcp_layer = pkt[TCP]
+            sport = f":{tcp_layer.sport}"
+            dport = f":{tcp_layer.dport}"
+            protocol = "TCP"
+        elif UDP in pkt:
+            udp_layer = pkt[UDP]
+            sport = f":{udp_layer.sport}"
+            dport = f":{udp_layer.dport}"
+            protocol = "UDP"
+
+        # Build message
+        message = f"{src}{sport} → {dst}{dport} | {summary}"
+
+        # Determine log level based on packet type
+        level = "I"  # Default to INFO
+        if TCP in pkt:
+            tcp_layer = pkt[TCP]
+            # Flag connections/disconnections as more notable
+            if tcp_layer.flags & 0x02:  # SYN
+                level = "D"
+            elif tcp_layer.flags & 0x01:  # FIN
+                level = "W"
+            elif tcp_layer.flags & 0x04:  # RST
+                level = "E"
+
+        return LogEntry(
+            line_number=line_number,
+            timestamp=timestamp,
+            pid=None,
+            tid=None,
+            level=level,
+            tag=protocol,
+            message=message,
+            raw_line=summary,
+            source_file=source_file,
+        )
 
     def _normalize_level(self, level: str) -> str:
         u = level.upper()
