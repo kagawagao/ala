@@ -4,7 +4,6 @@ import pytest
 
 from ala.services.session_manager import Message, Session, SessionManager
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

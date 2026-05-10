@@ -8,10 +8,8 @@ import pytest
 try:
     from ala.services.ai_service import (
         AIService,
-        _anthropic_tool_to_openai,
         _is_anthropic_endpoint,
         _safe_repr,
-        _truncate_tool_result,
     )
 except ImportError:
     pytest.skip("anthropic not installed", allow_module_level=True)
@@ -263,6 +261,7 @@ class TestBuildAgenticContext:
             assert "local log file" in system_text.lower()
         finally:
             import os
+
             os.unlink(path)
 
     def test_language_setting_in_context(self):
@@ -286,7 +285,6 @@ class TestStreamChatOpenai:
     @pytest.mark.asyncio
     async def test_stream_chat_openai_yields_text(self, openai_service):
         """Mock the OpenAI stream to return a simple text chunk."""
-        import openai
 
         fake_chunk = MagicMock()
         fake_chunk.choices = [MagicMock()]
@@ -333,7 +331,6 @@ class TestStreamChatAnthropic:
     @pytest.mark.asyncio
     async def test_stream_chat_anthropic_yields_text(self, anthropic_service):
         """Mock the Anthropic stream to return a text delta."""
-        import anthropic
 
         # Build a mock stream that yields text deltas
         fake_text_delta = MagicMock()

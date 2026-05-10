@@ -512,9 +512,9 @@ class TraceAnalyzer:
         # Validate SQL: only SELECT queries are allowed
         if sql is not None:
             sql_stripped = sql.strip()
-            if not sql_stripped.lower().startswith("select") and not sql_stripped.lower().startswith(
-                "with"
-            ):
+            if not sql_stripped.lower().startswith(
+                "select"
+            ) and not sql_stripped.lower().startswith("with"):
                 raise ValueError(
                     f"Only SELECT (and WITH ... SELECT) queries are allowed. Got: {sql_stripped[:100]}"
                 )
