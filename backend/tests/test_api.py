@@ -11,7 +11,7 @@ import pytest
 try:
     from fastapi.testclient import TestClient
 
-    from ala.main import app
+    from ala.main import create_app
 except ImportError:
     pytest.skip("fastapi not installed", allow_module_level=True)
 
@@ -29,7 +29,7 @@ SAMPLE_LOGCAT = """01-15 10:30:45.123  1234  5678 E AndroidRuntime: FATAL EXCEPT
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(create_app()) as c:
         yield c
 
 
