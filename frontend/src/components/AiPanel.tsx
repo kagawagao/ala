@@ -39,6 +39,7 @@ import {
   sendMessage,
   setSessionFilePath,
   setSessionLogs,
+  setSessionPcap,
   setSessionTrace,
 } from '../api/chat'
 import { listModels } from '../api/models'
@@ -89,6 +90,7 @@ interface AiPanelProps {
   totalLogs: number
   filters: LogFilters
   traceResult: TraceParseResult | null
+  pcapEntries: import('../types/pcap').PcapEntry[]
   aiConfigured: boolean
   selectedProjectId: string | null
   projects: Project[]
@@ -226,6 +228,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   totalLogs: _totalLogs,
   filters: _filters,
   traceResult,
+  pcapEntries,
   aiConfigured,
   selectedProjectId,
   projects,
@@ -379,6 +382,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }, [traceResult, activeSessionId])
 
+  // Keep the active session's PCAP data in sync when pcapEntries changes
+  useEffect(() => {
+    if (activeSessionId && pcapEntries.length > 0) {
+      void setSessionPcap(activeSessionId, pcapEntries as unknown as Record<string, unknown>[])
+    }
+  }, [pcapEntries, activeSessionId])
+
   // Sync local file path to the active session (FEAT-LAZY-LOG)
   useEffect(() => {
     if (!activeSessionId) return
@@ -415,7 +425,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const handleNewSession = async () => {
     try {
-      const contextType = allLogs.length > 0 ? 'log' : traceResult ? 'trace' : 'general'
+      const contextType = pcapEntries.length > 0
+        ? 'pcap'
+        : allLogs.length > 0
+        ? 'log'
+        : traceResult
+        ? 'trace'
+        : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
         contextType,
@@ -426,6 +442,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setMessages(session.messages)
       if (traceResult) {
         await setSessionTrace(session.id, traceResult.summary as unknown as Record<string, unknown>)
+      }
+      if (pcapEntries.length > 0) {
+        await setSessionPcap(session.id, pcapEntries as unknown as Record<string, unknown>[])
       }
       if (allLogs.length > 0) {
         await setSessionLogs(session.id, allLogs as unknown as Record<string, unknown>[])

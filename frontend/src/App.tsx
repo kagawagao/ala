@@ -810,6 +810,7 @@ const AppContent: React.FC<{
                                 totalLogs={allLogs.length}
                                 filters={filters}
                                 traceResult={traceResult}
+                                pcapEntries={pcapEntries}
                                 aiConfigured={aiConfigured}
                                 selectedProjectId={selectedProjectId}
                                 projects={projects}
