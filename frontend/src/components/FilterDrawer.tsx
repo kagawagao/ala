@@ -64,7 +64,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'logs':
+      case 'log':
         if (
           !logFilters ||
           !onLogFiltersChange ||
@@ -135,7 +135,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
   const getTitle = () => {
     switch (activeTab) {
-      case 'logs':
+      case 'log':
         return t('logFilters')
       case 'trace':
         return t('traceFilters')

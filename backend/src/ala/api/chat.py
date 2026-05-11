@@ -78,6 +78,10 @@ class SetLogsRequest(BaseModel):
     entries: list[dict]
 
 
+class SetPcapRequest(BaseModel):
+    entries: list[dict]
+
+
 def _session_to_response(session) -> Session:
     return Session(
         id=session.id,
@@ -192,6 +196,16 @@ async def set_session_logs(session_id: str, req: SetLogsRequest):
     """
     entries = req.entries
     ok = _session_manager.set_log_entries(session_id, entries)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "stored": len(entries)}
+
+
+@router.put("/sessions/{session_id}/pcap")
+async def set_session_pcap(session_id: str, req: SetPcapRequest):
+    """Store PCAP entries in the session for agentic tool access."""
+    entries = req.entries
+    ok = _session_manager.set_pcap_entries(session_id, entries)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"success": True, "stored": len(entries)}

@@ -175,6 +175,12 @@ const AppContent: React.FC<{
   // PCAP filtered state
   const [filteredPcapEntries, setFilteredPcapEntries] = useState<import('./types/pcap').PcapEntry[]>([])
 
+  // Reset filtered state when switching tabs
+  useEffect(() => {
+    setFilteredTraceResult(null)
+    setFilteredPcapEntries([])
+  }, [activeTab])
+
   // Clear stale localFilePath when data source changes
   useEffect(() => {
     setLocalFilePath(null)
@@ -405,6 +411,9 @@ const AppContent: React.FC<{
       setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
+      // Clear stale filtered state from other tabs
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
 
       const ok = await loadFromStream(
         (signal) => parseLogStream(files, signal),
@@ -420,6 +429,9 @@ const AppContent: React.FC<{
       setLocalFilePath(null)
       resetLogs() // Clear any log data
       setTraceResult(null) // Clear any trace data
+      // Clear stale filtered state
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
 
       const ok = await loadPcapFile(file)
       if (ok) {
@@ -434,6 +446,9 @@ const AppContent: React.FC<{
     async (file: File) => {
       setTraceLoading(true)
       setTraceError(undefined)
+      // Clear stale filtered state
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
       try {
         const result = await parseTrace(file)
         setTraceResult(result)
