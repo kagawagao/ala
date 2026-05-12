@@ -247,5 +247,6 @@
   "migratedModels": "Migrated {{count}} custom model(s) from local storage to backend",
   "localFileLoaded": "Local file ready for AI analysis",
   "localFileHint": "The AI assistant can analyze this file directly. Ask a question in the chat panel on the right.",
-  "userGuide": "User Guide"
+  "userGuide": "User Guide",
+  "guideLoadError": "Failed to load the user guide. Please refresh the page and try again."
 }

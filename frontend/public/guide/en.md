@@ -6,7 +6,7 @@ ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android
 
 ## Quick Start
 
-1. **Open a file** – Click the upload panel or drag and drop a log or trace file into the main area.  
+1. **Open a file** – Click the upload panel, drag and drop a log or trace file into the main area, or type a local file/directory path in the path input below the upload area.  
    Supported formats: `.log`, `.txt`, `.gz`, `.zip` (logcat), `.pb`, `.json` (Perfetto trace).
 2. **Apply filters** – Use the sidebar to set time range, keywords, log level, tag, PID, or TID.  
    Click **Apply Filters** to update the log view.
@@ -17,7 +17,7 @@ ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android
 
 ## Log Analysis
 
-- Upload one or more `.log`, `.txt`, `.gz`, or `.zip` files.
+- Upload one or more `.log`, `.txt`, `.gz`, or `.zip` files via drag-and-drop or the file picker, or enter a local file/directory path in the path input below the upload area.
 - Use the **sidebar filters** to narrow down results:
   - **Keywords** – Regular expression supported.
   - **Log Level** – Verbose, Debug, Info, Warning, Error, Fatal.
@@ -64,6 +64,6 @@ Projects register a local source code directory so the AI assistant can read cod
 
 - **Filter presets** are saved per-project (when a project is selected) or globally in `localStorage`.
 - The **backend must be running** before the frontend connects. If the status tag shows "Disconnected", start the Python backend.
-- API keys are stored **locally in your browser** and never sent to the ALA server itself.
+- API keys are stored **locally in your browser** (`localStorage`) and are sent to the ALA backend only to forward requests to the configured AI provider. They are never sent to any third-party service other than the one you configured.
 - Log files are streamed to the backend incrementally; very large files will appear progressively.
 - Use the **Export** button (CSV or JSON) to export filtered log entries for further processing.

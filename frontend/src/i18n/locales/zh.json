@@ -247,5 +247,6 @@
   "migratedModels": "已将 {{count}} 个自定义模型从本地迁移至后端",
   "localFileLoaded": "本地文件已就绪，可供 AI 分析",
   "localFileHint": "AI 助手可直接分析此文件，在右侧聊天面板中提问即可。",
-  "userGuide": "使用指南"
+  "userGuide": "使用指南",
+  "guideLoadError": "使用指南加载失败，请刷新页面后重试。"
 }
