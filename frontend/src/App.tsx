@@ -56,6 +56,7 @@ import {
 
 const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
 const ModelManager = React.lazy(() => import('./components/ModelManager'))
+const UserGuide = React.lazy(() => import('./components/UserGuide'))
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -606,6 +607,14 @@ const AppContent: React.FC<{
                     onModelsChange={setAllModels}
                     onRegisterRefresh={handleRegisterRefreshModels}
                   />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/guide"
+              element={
+                <Suspense fallback={null}>
+                  <UserGuide />
                 </Suspense>
               }
             />

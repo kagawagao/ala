@@ -89,7 +89,32 @@ body {
   font-size: inherit;
 }
 
-/* User bubble (white text on blue) markdown overrides */
+/* User guide Markdown page overrides */
+.user-guide-content h1 {
+  font-size: 1.8em;
+  margin: 0 0 8px 0;
+}
+
+.user-guide-content h2 {
+  font-size: 1.3em;
+  margin: 20px 0 8px 0;
+}
+
+.user-guide-content h3 {
+  font-size: 1.1em;
+  margin: 14px 0 6px 0;
+}
+
+.user-guide-content hr {
+  border: none;
+  border-top: 1px solid var(--ant-color-border);
+  margin: 16px 0;
+}
+
+.user-guide-content li {
+  margin-bottom: 4px;
+}
+
 .ai-bubble-user .ai-message-content code {
   background: rgba(255, 255, 255, 0.2);
   color: inherit;
