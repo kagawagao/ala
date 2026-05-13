@@ -36,7 +36,10 @@ describe('UserGuide', () => {
   // Test 1 – loading state (en, cache empty on first run)
   it('shows a loading indicator while the guide file is being fetched', () => {
     // fetch returns a promise that never settles so the component stays in loading state
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    )
 
     render(<UserGuide />)
 
@@ -49,10 +52,7 @@ describe('UserGuide', () => {
 
   // Test 2 – error state (en still uncached; test 1's fetch never resolved)
   it('shows an error message when the guide file cannot be loaded', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false, statusText: 'Not Found' }),
-    )
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, statusText: 'Not Found' }))
 
     render(<UserGuide />)
 
@@ -82,7 +82,7 @@ describe('UserGuide', () => {
       'fetch',
       vi.fn().mockRejectedValue(new DOMException('The user aborted a request.', 'AbortError')),
     )
-    const fetchMock = vi.mocked(global.fetch)
+    const fetchMock = vi.mocked(globalThis.fetch)
 
     render(<UserGuide />)
 
