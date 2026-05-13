@@ -21,6 +21,11 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+/** Returns a mock fetch that resolves with the given markdown text. */
+function mockSuccessfulFetch(text: string) {
+  return vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve(text) })
+}
+
 describe('UserGuide', () => {
   afterEach(() => {
     cleanup()
@@ -60,10 +65,7 @@ describe('UserGuide', () => {
   // Test 3 – success state (zh, uncached; after this test 'zh' is cached)
   it('renders markdown content after the guide file loads successfully', async () => {
     mockLang.current = 'zh'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve('# 用户指南\n\n欢迎使用 ALA。'),
-    }))
+    vi.stubGlobal('fetch', mockSuccessfulFetch('# 用户指南\n\n欢迎使用 ALA。'))
 
     render(<UserGuide />)
 
@@ -75,17 +77,20 @@ describe('UserGuide', () => {
 
   // Test 4 – AbortError must not trigger the error state (en still uncached)
   it('does not show an error when the fetch is cancelled (AbortError)', async () => {
-    const abortError = new Error('The user aborted a request.')
-    abortError.name = 'AbortError'
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError))
+    // Use DOMException with 'AbortError' name – the standard abort signal error.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new DOMException('The user aborted a request.', 'AbortError')),
+    )
+    const fetchMock = vi.mocked(global.fetch)
 
     render(<UserGuide />)
 
-    // Give the rejected promise time to propagate through the .catch handler
-    await new Promise<void>((resolve) => setTimeout(resolve, 20))
+    // Wait until fetch has been invoked and its rejection has propagated.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
     expect(screen.queryByText('guideLoadError')).toBeNull()
-    // Component remains in the loading/spinner state (content is null, no error)
+    // Component remains in the loading/spinner state (content is null, no error set)
     expect(document.querySelector('.ant-spin')).toBeInTheDocument()
   })
 
@@ -103,10 +108,7 @@ describe('UserGuide', () => {
 
   // Test 6 – verify the URL contains the correct language segment (en still uncached)
   it('fetches the guide file that corresponds to the active language', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve('# English Guide'),
-    })
+    const fetchMock = mockSuccessfulFetch('# English Guide')
     vi.stubGlobal('fetch', fetchMock)
 
     render(<UserGuide />)
