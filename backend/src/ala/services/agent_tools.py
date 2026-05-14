@@ -161,6 +161,13 @@ class _OverviewCache:
     collected, and matching length at the same address for a *different* log
     session is astronomically unlikely.
 
+    **Assumption**: the ``entries`` list is treated as immutable after the
+    first ``set()`` call.  If entries are appended or removed after caching,
+    the length changes, which invalidates the key automatically.  Replacing
+    entries in-place (same length, different content) would produce a stale
+    cache hit — but the session model never mutates loaded log entries in
+    place, so this is safe in practice.
+
     Capped at ``_MAX`` entries with LRU eviction to avoid unbounded growth.
     """
 
@@ -1305,7 +1312,7 @@ def _execute_log_tool(
             # Count matches and collect only the page [offset, offset+limit) in one pass.
             all_matched = []
             total_matched = 0
-            skipped = 0
+            entries_skipped = 0  # tracks progress toward the offset target
             for entry in log_entries:
                 lvl = entry.get("level", "V")
                 if _LEVEL_ORDER.get(lvl, 0) < min_level:
@@ -1324,8 +1331,8 @@ def _execute_log_tool(
                 ):
                     continue
                 total_matched += 1
-                if skipped < offset:
-                    skipped += 1
+                if entries_skipped < offset:
+                    entries_skipped += 1
                     continue
                 if len(all_matched) < limit:
                     all_matched.append(entry)

@@ -1,7 +1,7 @@
 import type { LogEntry, LogFilters, LogStatistics } from '../types'
 
 function hasRegexMetaChars(value: string): boolean {
-  return /[\\^$.*+?()[\]{}|]/.test(value)
+  return /[\\^$.*+?()[\]{}|-]/.test(value)
 }
 
 function createMatcher(value: string): ((text: string) => boolean) | undefined {
