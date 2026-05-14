@@ -1,5 +1,26 @@
 import type { LogEntry, LogFilters, LogStatistics } from '../types'
 
+function hasRegexMetaChars(value: string): boolean {
+  return /[\\^$.*+?()[\]{}|]/.test(value)
+}
+
+function createMatcher(value: string): ((text: string) => boolean) | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+
+  if (!hasRegexMetaChars(trimmed)) {
+    const lower = trimmed.toLowerCase()
+    return (text: string) => text.toLowerCase().includes(lower)
+  }
+
+  try {
+    const regex = new RegExp(trimmed, 'i')
+    return (text: string) => regex.test(text)
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Returns true when at least one filter condition field contains a non-default value.
  * The `tag_keyword_relation` field is intentionally excluded as it is a combinator,
@@ -18,70 +39,46 @@ export function hasFilterConditions(filters: LogFilters): boolean {
 }
 
 export function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEntry[] {
-  let result = logs
+  const keywordMatcher = createMatcher(filters.keywords)
+  const tagMatcher = createMatcher(filters.tag)
+  const hasKeyword = keywordMatcher !== undefined
+  const hasTag = tagMatcher !== undefined
+  const useAndRelation = filters.tag_keyword_relation !== 'OR'
 
-  if (filters.start_time) {
-    result = result.filter((l) => !l.timestamp || l.timestamp >= filters.start_time)
-  }
-  if (filters.end_time) {
-    result = result.filter((l) => !l.timestamp || l.timestamp <= filters.end_time)
-  }
-  if (filters.level) {
-    result = result.filter((l) => l.level === filters.level)
-  }
-  if (filters.pid) {
-    result = result.filter((l) => l.pid === filters.pid)
-  }
-  if (filters.tid) {
-    result = result.filter((l) => l.tid === filters.tid)
-  }
+  return logs.filter((log) => {
+    if (filters.start_time && log.timestamp && log.timestamp < filters.start_time) {
+      return false
+    }
+    if (filters.end_time && log.timestamp && log.timestamp > filters.end_time) {
+      return false
+    }
+    if (filters.level && log.level !== filters.level) {
+      return false
+    }
+    if (filters.pid && log.pid !== filters.pid) {
+      return false
+    }
+    if (filters.tid && log.tid !== filters.tid) {
+      return false
+    }
 
-  const hasKeyword = filters.keywords.trim() !== ''
-  const hasTag = filters.tag.trim() !== ''
+    if (hasKeyword || hasTag) {
+      const keywordMatch = keywordMatcher
+      const tagMatch = tagMatcher
+      const matchesKeyword = hasKeyword
+        ? keywordMatch!(log.message) || keywordMatch!(log.raw_line)
+        : false
+      const matchesTag = hasTag ? tagMatch!(log.tag) : false
 
-  if (hasKeyword || hasTag) {
-    let keywordRe: RegExp | null = null
-    let tagRe: RegExp | null = null
-
-    if (hasKeyword) {
-      try {
-        keywordRe = new RegExp(filters.keywords, 'i')
-      } catch {
-        keywordRe = null
+      if (hasKeyword && hasTag) {
+        return useAndRelation ? matchesKeyword && matchesTag : matchesKeyword || matchesTag
       }
-    }
-    if (hasTag) {
-      try {
-        tagRe = new RegExp(filters.tag, 'i')
-      } catch {
-        tagRe = null
-      }
+      if (hasKeyword) return matchesKeyword
+      if (hasTag) return matchesTag
     }
 
-    // Silently fall back when regex is invalid — treat as if no filter on that dimension
-    const effectiveHasKeyword = hasKeyword && keywordRe !== null
-    const effectiveHasTag = hasTag && tagRe !== null
-
-    if (effectiveHasKeyword || effectiveHasTag) {
-      result = result.filter((l) => {
-        const matchesKeyword = keywordRe
-          ? keywordRe.test(l.message) || keywordRe.test(l.raw_line)
-          : false
-        const matchesTag = tagRe ? tagRe.test(l.tag) : false
-
-        if (effectiveHasKeyword && effectiveHasTag) {
-          return filters.tag_keyword_relation === 'AND'
-            ? matchesKeyword && matchesTag
-            : matchesKeyword || matchesTag
-        }
-        if (effectiveHasKeyword) return matchesKeyword
-        if (effectiveHasTag) return matchesTag
-        return true
-      })
-    }
-  }
-
-  return result
+    return true
+  })
 }
 
 export function computeStatistics(logs: LogEntry[]): LogStatistics {

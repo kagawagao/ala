@@ -186,10 +186,16 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
     # Gather code context: search for logging patterns
     code_context_parts: list[str] = []
     for path in project.paths:
-        # Search for Android Log tags
-        log_results = _scanner.search_code(
-            path, r"Log\.[dviwef]\(", project.include_patterns, project.exclude_patterns
+        search_results = _scanner.search_code_patterns(
+            path,
+            {
+                "log_usage": r"Log\.[dviwef]\(",
+                "tag_defs": r"(TAG|LOG_TAG)\s*=",
+            },
+            project.include_patterns,
+            project.exclude_patterns,
         )
+        log_results = search_results["log_usage"]
         if log_results.matches:
             code_context_parts.append(
                 f"Log usage in {path}:\n"
@@ -197,10 +203,7 @@ async def generate_filters(project_id: str, req: GenerateFiltersRequest | None =
                     f"  {m.path}:{m.line_number}: {m.line}" for m in log_results.matches[:50]
                 )
             )
-        # Search for TAG definitions
-        tag_results = _scanner.search_code(
-            path, r"(TAG|LOG_TAG)\s*=", project.include_patterns, project.exclude_patterns
-        )
+        tag_results = search_results["tag_defs"]
         if tag_results.matches:
             code_context_parts.append(
                 f"TAG definitions in {path}:\n"

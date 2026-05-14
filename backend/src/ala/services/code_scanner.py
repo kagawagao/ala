@@ -3,12 +3,14 @@
 import fnmatch
 import os
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
 MAX_FILE_SIZE = 100 * 1024  # 100KB per file
 MAX_FILES_LIST = 2000
 MAX_SEARCH_RESULTS = 50
+MAX_FILE_CACHE_ENTRIES = 256
 
 # Well-known LLM context/instruction files (like charmbracelet/crush)
 CONTEXT_DOC_PATHS = [
@@ -66,6 +68,13 @@ class SearchResult:
     files_searched: int = 0
 
 
+@dataclass
+class _CachedFile:
+    size: int
+    mtime_ns: int
+    content: str
+
+
 def _matches_any(path: str, patterns: list[str]) -> bool:
     """Check if a relative path matches any of the given glob patterns."""
     for pattern in patterns:
@@ -99,6 +108,52 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
 
 class CodeScanner:
     """Scans project directories for source files."""
+
+    def __init__(self):
+        self._file_cache: OrderedDict[str, _CachedFile] = OrderedDict()
+
+    def _read_text_file(
+        self,
+        full_path: Path,
+        *,
+        max_size: int | None = None,
+    ) -> tuple[str, int, bool] | None:
+        """Read a text file with a small LRU cache for repeated searches."""
+        try:
+            stat = full_path.stat()
+        except OSError:
+            return None
+
+        resolved = str(full_path.resolve())
+        size = stat.st_size
+        mtime_ns = stat.st_mtime_ns
+        if max_size is not None and size > max_size:
+            try:
+                with full_path.open(encoding="utf-8", errors="replace") as handle:
+                    content = handle.read(max_size + 1)
+            except (OSError, UnicodeDecodeError):
+                return None
+            return content[:max_size], size, True
+
+        cache_entry = self._file_cache.get(resolved)
+        if cache_entry and cache_entry.size == size and cache_entry.mtime_ns == mtime_ns:
+            self._file_cache.move_to_end(resolved)
+            content = cache_entry.content
+        else:
+            try:
+                with full_path.open(encoding="utf-8", errors="replace") as handle:
+                    content = handle.read()
+            except (OSError, UnicodeDecodeError):
+                return None
+
+            self._file_cache[resolved] = _CachedFile(size=size, mtime_ns=mtime_ns, content=content)
+            self._file_cache.move_to_end(resolved)
+            while len(self._file_cache) > MAX_FILE_CACHE_ENTRIES:
+                self._file_cache.popitem(last=False)
+
+        if max_size is None or len(content) <= max_size:
+            return content, size, False
+        return content[:max_size], size, True
 
     def discover_context_docs(self, project_paths: str | list[str]) -> list[ContextDoc]:
         """Discover well-known LLM context/instruction files in project paths.
@@ -222,15 +277,10 @@ class CodeScanner:
         if not full.is_file():
             return None
 
-        size = full.stat().st_size
-        truncated = size > max_size
-
-        try:
-            content = full.read_text(errors="replace")
-            if truncated:
-                content = content[:max_size]
-        except (OSError, UnicodeDecodeError):
+        file_data = self._read_text_file(full, max_size=max_size)
+        if file_data is None:
             return None
+        content, size, truncated = file_data
 
         return FileContent(
             path=file_path,
@@ -238,6 +288,70 @@ class CodeScanner:
             size=size,
             truncated=truncated,
         )
+
+    def search_code_patterns(
+        self,
+        project_path: str,
+        patterns: dict[str, str],
+        include_patterns: list[str],
+        exclude_patterns: list[str],
+        case_sensitive: bool = False,
+    ) -> dict[str, SearchResult]:
+        """Search multiple regex patterns across project files in a single pass."""
+        results = {name: SearchResult() for name in patterns}
+        if not patterns:
+            return results
+
+        flags = 0 if case_sensitive else re.IGNORECASE
+        compiled: dict[str, re.Pattern[str]] = {}
+        for name, pattern in patterns.items():
+            try:
+                compiled[name] = re.compile(pattern, flags)
+            except re.error:
+                continue
+
+        if not compiled:
+            return results
+
+        files = self.list_files(project_path, include_patterns, exclude_patterns)
+        files_searched = 0
+        active_names = set(compiled)
+
+        for file_info in files:
+            if file_info.size > MAX_FILE_SIZE or not active_names:
+                continue
+
+            file_data = self._read_text_file(
+                Path(project_path) / file_info.path, max_size=MAX_FILE_SIZE
+            )
+            if file_data is None:
+                continue
+
+            content, _, _ = file_data
+            files_searched += 1
+
+            for line_num, line in enumerate(content.splitlines(), start=1):
+                for name in tuple(active_names):
+                    if not compiled[name].search(line):
+                        continue
+                    result = results[name]
+                    result.matches.append(
+                        SearchMatch(
+                            path=file_info.path,
+                            line_number=line_num,
+                            line=line.rstrip()[:500],
+                        )
+                    )
+                    result.total_matches += 1
+                    if len(result.matches) >= MAX_SEARCH_RESULTS:
+                        active_names.discard(name)
+
+                if not active_names:
+                    break
+
+        for name in compiled:
+            results[name].files_searched = files_searched
+        return results
 
     def search_code(
         self,
@@ -248,45 +362,10 @@ class CodeScanner:
         case_sensitive: bool = False,
     ) -> SearchResult:
         """Search for a regex pattern across project files."""
-        try:
-            flags = 0 if case_sensitive else re.IGNORECASE
-            regex = re.compile(pattern, flags)
-        except re.error:
-            return SearchResult()
-
-        files = self.list_files(project_path, include_patterns, exclude_patterns)
-        matches: list[SearchMatch] = []
-        files_searched = 0
-
-        for file_info in files:
-            if file_info.size > MAX_FILE_SIZE:
-                continue
-
-            full = Path(project_path) / file_info.path
-            try:
-                content = full.read_text(errors="replace")
-            except (OSError, UnicodeDecodeError):
-                continue
-
-            files_searched += 1
-            for line_num, line in enumerate(content.splitlines(), start=1):
-                if regex.search(line):
-                    matches.append(
-                        SearchMatch(
-                            path=file_info.path,
-                            line_number=line_num,
-                            line=line.rstrip()[:500],  # limit line length
-                        )
-                    )
-                    if len(matches) >= MAX_SEARCH_RESULTS:
-                        return SearchResult(
-                            matches=matches,
-                            total_matches=len(matches),
-                            files_searched=files_searched,
-                        )
-
-        return SearchResult(
-            matches=matches,
-            total_matches=len(matches),
-            files_searched=files_searched,
-        )
+        return self.search_code_patterns(
+            project_path,
+            {"default": pattern},
+            include_patterns,
+            exclude_patterns,
+            case_sensitive=case_sensitive,
+        ).get("default", SearchResult())

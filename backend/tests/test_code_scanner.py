@@ -69,3 +69,31 @@ def test_known_doc_paths_include_key_files():
     assert ".github/copilot-instructions.md" in CONTEXT_DOC_PATHS
     assert "CLAUDE.md" in CONTEXT_DOC_PATHS
     assert "README.md" in CONTEXT_DOC_PATHS
+
+
+def test_search_code_patterns_scans_files_once_per_query_batch(scanner):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        src = os.path.join(tmpdir, "src")
+        os.makedirs(src)
+        target = os.path.join(src, "MainActivity.kt")
+        with open(target, "w") as f:
+            f.write(
+                'private const val TAG = "MainActivity"\n'
+                'Log.d(TAG, "started")\n'
+                'Log.e(TAG, "failed")\n'
+            )
+
+        results = scanner.search_code_patterns(
+            tmpdir,
+            {
+                "log_usage": r"Log\.[dviwef]\(",
+                "tag_defs": r"(TAG|LOG_TAG)\s*=",
+            },
+            include_patterns=["**/*.kt"],
+            exclude_patterns=[],
+        )
+
+        assert [m.line_number for m in results["log_usage"].matches] == [2, 3]
+        assert [m.line_number for m in results["tag_defs"].matches] == [1]
+        assert results["log_usage"].files_searched == 1
+        assert results["tag_defs"].files_searched == 1
