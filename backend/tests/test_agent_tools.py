@@ -77,9 +77,7 @@ def test_search_logs_slow_path_streaming():
 def test_search_logs_slow_path_no_overshoot():
     """search_logs slow path must not return more than limit entries."""
     entries = _make_entries(100)
-    result = json.loads(
-        _execute_log_tool("search_logs", {"keyword": "msg", "limit": 10}, entries)
-    )
+    result = json.loads(_execute_log_tool("search_logs", {"keyword": "msg", "limit": 10}, entries))
 
     assert len(result["entries"]) == 10
     assert result["total_matched"] == 100
