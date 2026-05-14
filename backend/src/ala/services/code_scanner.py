@@ -369,3 +369,16 @@ class CodeScanner:
             exclude_patterns,
             case_sensitive=case_sensitive,
         ).get("default", SearchResult())
+
+
+# Module-level shared instance so that the file cache is shared across all
+# callers (agent_tools, ai_service, projects API) in a single process.
+_shared_scanner: "CodeScanner | None" = None
+
+
+def get_shared_scanner() -> "CodeScanner":
+    """Return the process-wide shared CodeScanner singleton."""
+    global _shared_scanner
+    if _shared_scanner is None:
+        _shared_scanner = CodeScanner()
+    return _shared_scanner
