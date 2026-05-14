@@ -9,7 +9,7 @@ from ala.services.agent_tools import _execute_log_tool, build_log_index
 from ala.services.code_scanner import CodeScanner
 
 
-class _NoIterEntries(list):
+class _IterationBlocker(list):
     def __iter__(self):
         raise AssertionError("indexed benchmark should not iterate the full entry list")
 
@@ -68,7 +68,7 @@ def _write_source_file(path: Path, index: int) -> None:
 @pytest.fixture(scope="session")
 def log_search_dataset() -> tuple[list[dict], list[dict], object]:
     entries = _make_log_entries()
-    return entries, _NoIterEntries(entries), build_log_index(entries)
+    return entries, _IterationBlocker(entries), build_log_index(entries)
 
 
 @pytest.fixture(scope="session")
