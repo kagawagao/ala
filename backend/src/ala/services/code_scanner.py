@@ -329,12 +329,10 @@ class CodeScanner:
 
             content, _, _ = file_data
             files_searched += 1
-            active_names_list = list(active_names)
 
             for line_num, line in enumerate(content.splitlines(), start=1):
-                removed_names: list[str] = []
-                for name in active_names_list:
-                    if not compiled[name].search(line):
+                for name, regex in compiled.items():
+                    if name not in active_names or not regex.search(line):
                         continue
                     result = results[name]
                     result.matches.append(
@@ -347,13 +345,6 @@ class CodeScanner:
                     result.total_matches += 1
                     if len(result.matches) >= MAX_SEARCH_RESULTS:
                         active_names.discard(name)
-                        removed_names.append(name)
-
-                if removed_names:
-                    removed_lookup = set(removed_names)
-                    active_names_list = [
-                        name for name in active_names_list if name not in removed_lookup
-                    ]
 
                 if not active_names:
                     break
