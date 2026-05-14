@@ -184,6 +184,16 @@ Or configure it in the app's Settings UI after launching.
 
 > **Note:** PyInstaller builds are platform-specific. Build on Windows to get a Windows binary, macOS for macOS, Linux for Linux.
 
+### Installer Packages (GitHub Releases)
+
+Tag releases now publish desktop install/distribution assets for multiple platforms:
+
+- **Windows**: `.msi` installer (plus zipped standalone folder)
+- **macOS**: `.dmg` package containing `ALA.app`
+- **Linux**: `.tar.gz` archive of the standalone bundle
+
+Download them from the corresponding GitHub Release assets.
+
 ## Configuration
 
 ### AI Settings
