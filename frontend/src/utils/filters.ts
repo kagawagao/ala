@@ -63,12 +63,10 @@ export function applyFiltersClient(logs: LogEntry[], filters: LogFilters): LogEn
     }
 
     if (hasKeyword || hasTag) {
-      const keywordMatch = keywordMatcher
-      const tagMatch = tagMatcher
       const matchesKeyword = hasKeyword
-        ? keywordMatch!(log.message) || keywordMatch!(log.raw_line)
+        ? keywordMatcher!(log.message) || keywordMatcher!(log.raw_line)
         : false
-      const matchesTag = hasTag ? tagMatch!(log.tag) : false
+      const matchesTag = hasTag ? tagMatcher!(log.tag) : false
 
       if (hasKeyword && hasTag) {
         return useAndRelation ? matchesKeyword && matchesTag : matchesKeyword || matchesTag
