@@ -160,6 +160,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          MACOS_MIN_VERSION: ${{ env.MACOS_MIN_VERSION }}
         run: |
           set -euo pipefail
           mkdir -p release-assets dist/macos/ALA.app/Contents/MacOS dist/macos/ALA.app/Contents/Resources
@@ -184,7 +185,7 @@ jobs:
               <key>CFBundleVersion</key>
               <string>$VERSION</string>
               <key>LSMinimumSystemVersion</key>
-              <string>${{ env.MACOS_MIN_VERSION }}</string>
+              <string>$MACOS_MIN_VERSION</string>
             </dict>
           </plist>
           EOF
@@ -257,7 +258,7 @@ jobs:
       contents: write
     steps:
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           pattern: desktop-package-*
           path: release-assets
