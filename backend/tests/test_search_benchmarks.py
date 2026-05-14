@@ -9,6 +9,11 @@ from ala.services.agent_tools import _execute_log_tool, build_log_index
 from ala.services.code_scanner import CodeScanner
 
 
+class _NoIterEntries(list):
+    def __iter__(self):
+        raise AssertionError("indexed benchmark should not iterate the full entry list")
+
+
 def _make_log_entries(count: int = 50_000) -> list[dict]:
     tags = [
         "ActivityManager",
@@ -56,14 +61,14 @@ def _write_source_file(path: Path, index: int) -> None:
         if line_index % 11 == 0:
             lines.append(f'Log.e(TAG, "database timeout {index}-{line_index}")')
         if line_index % 29 == 0:
-            lines.append(f'println("critical startup regression {index}-{line_index}")')
+            lines.append(f'Log.e(TAG, "critical startup regression {index}-{line_index}")')
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
 @pytest.fixture(scope="session")
-def log_search_dataset() -> tuple[list[dict], object]:
+def log_search_dataset() -> tuple[list[dict], list[dict], object]:
     entries = _make_log_entries()
-    return entries, build_log_index(entries)
+    return entries, _NoIterEntries(entries), build_log_index(entries)
 
 
 @pytest.fixture(scope="session")
@@ -79,11 +84,11 @@ def source_search_project(tmp_path_factory) -> Path:
 
 @pytest.mark.benchmark(group="log-search")
 def test_benchmark_search_logs_indexed(log_search_dataset, benchmark):
-    entries, log_index = log_search_dataset
+    _, indexed_entries, log_index = log_search_dataset
     args = {"level": "W", "tag": "NetworkManager", "limit": 50, "offset": 0}
 
     payload = benchmark(
-        lambda: _execute_log_tool("search_logs", args, entries, log_index=log_index)
+        lambda: _execute_log_tool("search_logs", args, indexed_entries, log_index=log_index)
     )
     result = json.loads(payload)
 
@@ -93,7 +98,7 @@ def test_benchmark_search_logs_indexed(log_search_dataset, benchmark):
 
 @pytest.mark.benchmark(group="log-search")
 def test_benchmark_search_logs_keyword_scan(log_search_dataset, benchmark):
-    entries, log_index = log_search_dataset
+    entries, _, _ = log_search_dataset
     args = {
         "keyword": "database timeout",
         "start_time": "01-15 10:05:00.000",
@@ -102,9 +107,7 @@ def test_benchmark_search_logs_keyword_scan(log_search_dataset, benchmark):
         "offset": 100,
     }
 
-    payload = benchmark(
-        lambda: _execute_log_tool("search_logs", args, entries, log_index=log_index)
-    )
+    payload = benchmark(lambda: _execute_log_tool("search_logs", args, entries, log_index=None))
     result = json.loads(payload)
 
     assert result["returned"] == 50
