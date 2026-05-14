@@ -16,7 +16,13 @@ import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
-REPO_ROOT = Path(SPECPATH).parent  # noqa: F821 – SPECPATH is set by PyInstaller
+_spec_path = Path(SPECPATH)  # noqa: F821 – SPECPATH is set by PyInstaller
+# SPECPATH may be either the spec directory (e.g. ".../backend") or the spec file
+# path (e.g. ".../backend/ala.spec") depending on invocation context.
+_spec_location = _spec_path if _spec_path.is_dir() else _spec_path.parent
+REPO_ROOT = (
+    _spec_location.parent if _spec_location.name == "backend" else _spec_location
+)
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 if not FRONTEND_DIST.is_dir():

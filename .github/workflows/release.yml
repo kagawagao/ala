@@ -6,10 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
   FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  MACOS_MIN_VERSION: '12.0'
 
 jobs:
   test:
@@ -51,12 +55,12 @@ jobs:
           poetry run ruff check src/
           poetry run pytest tests/ -v
 
-  release:
+  docker-release:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
     needs: test
     permissions:
-      contents: write
+      contents: read
       packages: write
 
     steps:
@@ -92,8 +96,178 @@ jobs:
             ${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.version }}
             ${{ env.FRONTEND_IMAGE }}:latest
 
+  desktop-packages:
+    name: Build Desktop Packages (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_suffix: linux-x64
+          - os: macos-latest
+            asset_suffix: macos
+          - os: windows-latest
+            asset_suffix: windows-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry==2.3.2
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Install backend dependencies
+        run: cd backend && poetry install --no-interaction --no-ansi
+
+      - name: Build standalone executable
+        run: cd backend && poetry run pyinstaller ala.spec --noconfirm
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package Linux archive
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          tar -C backend/dist -czf "release-assets/ALA-${{ steps.version.outputs.version }}-${{ matrix.asset_suffix }}.tar.gz" ala
+
+      - name: Package macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MACOS_MIN_VERSION: ${{ env.MACOS_MIN_VERSION }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets dist/macos/ALA.app/Contents/MacOS dist/macos/ALA.app/Contents/Resources
+          cp -R backend/dist/ala/. dist/macos/ALA.app/Contents/MacOS/
+          cat > dist/macos/ALA.app/Contents/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+            <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>ala</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.kagawagao.ala</string>
+              <key>CFBundleName</key>
+              <string>ALA</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>$VERSION</string>
+              <key>CFBundleVersion</key>
+              <string>$VERSION</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>$MACOS_MIN_VERSION</string>
+            </dict>
+          </plist>
+          EOF
+          hdiutil create -volname "ALA" -srcfolder dist/macos -ov -format UDZO "release-assets/ALA-$VERSION-${{ matrix.asset_suffix }}.dmg"
+
+      - name: Package Windows MSI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $Version = "${{ steps.version.outputs.version }}"
+          $SafeVersion = $Version -replace '-.*$',''
+          $SafeVersion = $SafeVersion -replace '[^0-9\.]',''
+          if ([string]::IsNullOrWhiteSpace($SafeVersion)) { $SafeVersion = "1.0.0" }
+          $ReleaseDir = Join-Path $PWD "release-assets"
+          New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
+
+          Compress-Archive -Path "backend\dist\ala\*" -DestinationPath "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.zip" -Force
+
+          choco install wixtoolset --version 3.11.2 --no-progress -y
+          $WixBin = "${env:ProgramFiles(x86)}\WiX Toolset v3.11\bin"
+          $env:PATH = "$WixBin;$env:PATH"
+
+          $WxsDir = Join-Path $env:RUNNER_TEMP "wix"
+          New-Item -ItemType Directory -Force -Path $WxsDir | Out-Null
+
+          $ProductWxs = Join-Path $WxsDir "Product.wxs"
+          @"
+          <?xml version='1.0' encoding='UTF-8'?>
+          <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+            <Product Id='*' Name='ALA' Language='1033' Version='$SafeVersion' Manufacturer='kagawagao' UpgradeCode='EC2F02F9-F9C5-4A31-8F0E-EF2A2B049A2D'>
+              <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine'/>
+              <MajorUpgrade DowngradeErrorMessage='A newer version of ALA is already installed.'/>
+              <MediaTemplate EmbedCab='yes'/>
+              <Feature Id='MainFeature' Title='ALA' Level='1'>
+                <ComponentGroupRef Id='AppFiles'/>
+              </Feature>
+              <UIRef Id='WixUI_Minimal'/>
+              <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+            </Product>
+            <Fragment>
+              <Directory Id='TARGETDIR' Name='SourceDir'>
+                <Directory Id='ProgramFiles64Folder'>
+                  <Directory Id='INSTALLDIR' Name='ALA'/>
+                </Directory>
+              </Directory>
+            </Fragment>
+          </Wix>
+          "@ | Set-Content -Path $ProductWxs -Encoding utf8
+
+          $BackendDist = Join-Path $PWD "backend\dist\ala"
+          heat.exe dir $BackendDist -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -out (Join-Path $WxsDir "Files.wxs")
+          candle.exe -ext WixUIExtension -out "$WxsDir\" $ProductWxs (Join-Path $WxsDir "Files.wxs")
+          light.exe -ext WixUIExtension -out "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi" (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-package-${{ matrix.asset_suffix }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - docker-release
+      - desktop-packages
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4.1.3
+        with:
+          pattern: desktop-package-*
+          path: release-assets
+          merge-multiple: true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: release-assets/*
