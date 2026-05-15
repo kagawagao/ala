@@ -247,8 +247,8 @@ jobs:
           Copy-Item -Path "$BackendDist\*" -Destination $StageDir -Recurse -Force
 
           $FilesWxs = Join-Path $WxsDir "Files.wxs"
-          heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -out $FilesWxs
-          candle.exe -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
+          heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -var var.StageDir -out $FilesWxs
+          candle.exe -dStageDir="$StageDir" -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
           light.exe -ext WixUIExtension -out "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi" (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
 
       - name: Upload packaged artifact
