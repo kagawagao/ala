@@ -682,6 +682,7 @@ const AppContent: React.FC<{
                           size={aiPanelSize}
                           min={320}
                           max={'50%'}
+                          defaultSize={'50%'}
                           style={{
                             borderLeft: '1px solid var(--ant-color-border)',
                             overflow: 'hidden',
