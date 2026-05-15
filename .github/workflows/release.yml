@@ -237,8 +237,18 @@ jobs:
           "@ | Set-Content -Path $ProductWxs -Encoding utf8
 
           $BackendDist = Join-Path $PWD "backend\dist\ala"
-          heat.exe dir $BackendDist -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -out (Join-Path $WxsDir "Files.wxs")
-          candle.exe -ext WixUIExtension -out "$WxsDir\" $ProductWxs (Join-Path $WxsDir "Files.wxs")
+
+          # Copy the PyInstaller output to a stable staging directory so that
+          # heat.exe harvests a consistent snapshot and light.exe can find every
+          # file referenced in the generated Files.wxs.
+          $StageDir = Join-Path $env:RUNNER_TEMP "msi-stage"
+          if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
+          Copy-Item -Path "$BackendDist\*" -Destination $StageDir -Recurse -Force
+
+          $FilesWxs = Join-Path $WxsDir "Files.wxs"
+          heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -out $FilesWxs
+          candle.exe -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
           light.exe -ext WixUIExtension -out "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi" (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
 
       - name: Upload packaged artifact
