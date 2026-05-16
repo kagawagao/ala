@@ -260,11 +260,11 @@ class CodeScanner:
         """Search for a regex pattern across project files.
 
         Uses ripgrep (rg) when available for 10-100x faster search.
-        Falls back to Python regex scanning when rg is unavailable.
+        Falls back to Python regex scanning when rg is unavailable or fails.
         """
         # Fast path: ripgrep (10-100x faster than Python)
-        if _RG_PATH is not None:
-            return self._search_with_rg(
+        if _RG_PATH is not None and pattern:
+            result = self._search_with_rg(
                 project_path,
                 pattern,
                 include_patterns,
@@ -272,6 +272,12 @@ class CodeScanner:
                 case_sensitive=case_sensitive,
                 max_results=max_results,
             )
+            # If rg found matches, return immediately.
+            # An empty result may mean no matches OR rg failed;
+            # fall back to Python to be safe.
+            if result.matches:
+                return result
+            logger.debug("rg returned empty result, falling back to Python scanner")
 
         # Slow path: pure Python fallback
         try:
@@ -328,9 +334,8 @@ class CodeScanner:
         """
         rg_globs: list[str] = []
         for p in patterns:
-            # Skip overly complex patterns (rg glob is simpler than fnmatch)
-            if "{" in p or "[" in p:
-                continue
+            # rg glob syntax supports {a,b} alternations and [abc] char classes natively.
+            # Only skip patterns that are clearly not valid globs (e.g. full regex).
             rg_globs.append(p)
         return rg_globs
 
@@ -386,6 +391,16 @@ class CodeScanner:
             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             logger.warning("rg search timed out or not found, falling back to Python")
+            return SearchResult()
+
+        # rg may exit non-zero on invalid regex or permission errors.
+        # Fall back to Python scanner so callers aren't left with empty results.
+        if proc.returncode != 0:
+            logger.warning(
+                "rg exited %d (stderr: %s), falling back to Python",
+                proc.returncode,
+                proc.stderr[:200].strip(),
+            )
             return SearchResult()
 
         # Parse JSON lines output
