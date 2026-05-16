@@ -1,15 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import {
-  Card,
-  Table,
-  Tag,
-  Typography,
-  Empty,
-  Row,
-  Col,
-  Statistic,
-  Space,
-} from 'antd'
+import { Card, Table, Tag, Typography, Empty, Row, Col, Statistic, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { PcapEntry, PcapStatistics } from '../types/pcap'
 import { getPcapStatistics } from '../api/pcap'
@@ -157,9 +147,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
               value={entries.length}
               suffix={totalPackets !== entries.length ? `/ ${totalPackets}` : ''}
               valueStyle={
-                totalPackets !== entries.length
-                  ? { color: 'var(--ant-color-primary)' }
-                  : undefined
+                totalPackets !== entries.length ? { color: 'var(--ant-color-primary)' } : undefined
               }
               loading={loadingStats}
             />
@@ -188,9 +176,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
             <Statistic
               title={t('duration')}
               value={
-                statistics?.duration_seconds != null
-                  ? statistics.duration_seconds.toFixed(2)
-                  : '—'
+                statistics?.duration_seconds != null ? statistics.duration_seconds.toFixed(2) : '—'
               }
               suffix={statistics?.duration_seconds != null ? 's' : ''}
               loading={loadingStats}
@@ -200,9 +186,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
       </Row>
 
       <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col>
-          {formatDetected && <Tag>Format: {formatDetected}</Tag>}
-        </Col>
+        <Col>{formatDetected && <Tag>Format: {formatDetected}</Tag>}</Col>
       </Row>
 
       {/* Protocol Distribution */}

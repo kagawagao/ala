@@ -277,7 +277,13 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
         api_messages_out: list[dict] = []
         current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
-            if project or trace_summary or log_entries is not None or pcap_entries is not None or file_path is not None:
+            if (
+                project
+                or trace_summary
+                or log_entries is not None
+                or pcap_entries is not None
+                or file_path is not None
+            ):
                 # Agentic mode: project, trace, log, pcap, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(

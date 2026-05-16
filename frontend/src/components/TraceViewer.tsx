@@ -1,15 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import {
-  Card,
-  Descriptions,
-  Table,
-  Tag,
-  Typography,
-  Empty,
-  Row,
-  Col,
-  Statistic,
-} from 'antd'
+import { Card, Descriptions, Table, Tag, Typography, Empty, Row, Col, Statistic } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { TraceParseResult } from '../types'
 
@@ -90,11 +80,7 @@ const TraceViewer: React.FC<TraceViewerProps> = ({ traceResult }) => {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic
-              title={t('processes')}
-              value={summary.process_count}
-              valueStyle={isFiltered ? { color: 'var(--ant-color-primary)' } : undefined}
-            />
+            <Statistic title={t('processes')} value={summary.process_count} />
           </Card>
         </Col>
         <Col span={6}>

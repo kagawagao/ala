@@ -126,7 +126,9 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
       default:
         return (
-          <div style={{ padding: 16, textAlign: 'center', color: 'var(--ant-color-text-secondary)' }}>
+          <div
+            style={{ padding: 16, textAlign: 'center', color: 'var(--ant-color-text-secondary)' }}
+          >
             {t('noFiltersAvailable')}
           </div>
         )

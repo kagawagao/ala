@@ -90,9 +90,7 @@ class PcapAnalyzer:
         ]
         return magic in pcap_magics
 
-    def parse_pcap(
-        self, data: bytes, filename: str = "capture.pcap"
-    ) -> PcapParseResult:
+    def parse_pcap(self, data: bytes, filename: str = "capture.pcap") -> PcapParseResult:
         """Parse a PCAP file from raw bytes.
 
         Args:
@@ -149,9 +147,7 @@ class PcapAnalyzer:
             file_size=len(data),
         )
 
-    def stream_pcap(
-        self, data: bytes, filename: str = "capture.pcap"
-    ) -> Iterator[PcapEntry]:
+    def stream_pcap(self, data: bytes, filename: str = "capture.pcap") -> Iterator[PcapEntry]:
         """Stream packets from a PCAP file one by one.
 
         Args:
@@ -219,9 +215,7 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time).strftime(
-                "%Y-%m-%d %H:%M:%S.%f"
-            )[:-3]
+            timestamp = datetime.fromtimestamp(pkt.time).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         # Extract network layer info
         protocol = "UNKNOWN"
@@ -274,12 +268,6 @@ class PcapAnalyzer:
         length = len(pkt) if hasattr(pkt, "__len__") else 0
 
         # Build info message
-        port_info = ""
-        if src_port is not None and dst_port is not None:
-            port_info = f":{src_port} → {dst_port} | "
-        else:
-            port_info = " | "
-
         summary = pkt.summary()
         info = f"{src_ip}{':' + str(src_port) if src_port else ''} → {dst_ip}{':' + str(dst_port) if dst_port else ''}"
         if tcp_flags:
@@ -300,9 +288,7 @@ class PcapAnalyzer:
             source_file=source_file,
         )
 
-    def filter_pcap(
-        self, entries: list[PcapEntry], filters: PcapFilters
-    ) -> list[PcapEntry]:
+    def filter_pcap(self, entries: list[PcapEntry], filters: PcapFilters) -> list[PcapEntry]:
         """Apply filters to a list of PCAP entries.
 
         Args:
@@ -332,32 +318,18 @@ class PcapAnalyzer:
 
         if filters.tcp_flags:
             flags_upper = filters.tcp_flags.upper()
-            result = [
-                e
-                for e in result
-                if e.tcp_flags and flags_upper in e.tcp_flags.upper()
-            ]
+            result = [e for e in result if e.tcp_flags and flags_upper in e.tcp_flags.upper()]
 
         if filters.keywords:
             kw = filters.keywords.lower()
-            result = [
-                e
-                for e in result
-                if kw in e.info.lower() or kw in e.raw_summary.lower()
-            ]
+            result = [e for e in result if kw in e.info.lower() or kw in e.raw_summary.lower()]
 
         # Time filtering
         if filters.start_time:
-            result = [
-                e
-                for e in result
-                if e.timestamp and e.timestamp >= filters.start_time
-            ]
+            result = [e for e in result if e.timestamp and e.timestamp >= filters.start_time]
 
         if filters.end_time:
-            result = [
-                e for e in result if e.timestamp and e.timestamp <= filters.end_time
-            ]
+            result = [e for e in result if e.timestamp and e.timestamp <= filters.end_time]
 
         return result
 
@@ -395,15 +367,11 @@ class PcapAnalyzer:
 
             # Track unique connections (src_ip:port -> dst_ip:port)
             if entry.src_port and entry.dst_port:
-                connections.add(
-                    (entry.src_ip, entry.src_port, entry.dst_ip, entry.dst_port)
-                )
+                connections.add((entry.src_ip, entry.src_port, entry.dst_ip, entry.dst_port))
 
         # Calculate duration
         duration_seconds = None
-        timestamps = [
-            e.timestamp for e in entries if e.timestamp
-        ]
+        timestamps = [e.timestamp for e in entries if e.timestamp]
         if len(timestamps) >= 2:
             try:
                 start = datetime.strptime(timestamps[0], "%Y-%m-%d %H:%M:%S.%f")

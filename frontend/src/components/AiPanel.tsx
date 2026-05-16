@@ -425,13 +425,14 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const handleNewSession = async () => {
     try {
-      const contextType = pcapEntries.length > 0
-        ? 'pcap'
-        : allLogs.length > 0
-        ? 'log'
-        : traceResult
-        ? 'trace'
-        : 'general'
+      const contextType =
+        pcapEntries.length > 0
+          ? 'pcap'
+          : allLogs.length > 0
+            ? 'log'
+            : traceResult
+              ? 'trace'
+              : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
         contextType,

@@ -1190,16 +1190,20 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
                 if max_time is None or timestamp > max_time:
                     max_time = timestamp
 
-        return json.dumps({
-            "total_packets": len(pcap_entries),
-            "protocols": protocols,
-            "unique_ips": len(ips),
-            "unique_ports": len(ports),
-            "time_range": {
-                "start": min_time,
-                "end": max_time,
-            } if min_time and max_time else None,
-        })
+        return json.dumps(
+            {
+                "total_packets": len(pcap_entries),
+                "protocols": protocols,
+                "unique_ips": len(ips),
+                "unique_ports": len(ports),
+                "time_range": {
+                    "start": min_time,
+                    "end": max_time,
+                }
+                if min_time and max_time
+                else None,
+            }
+        )
 
     if tool_name == "search_pcap_packets":
         # Apply filters
@@ -1238,18 +1242,22 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
         offset = int(args.get("offset", 0))
         limit = min(int(args.get("limit", 50)), 500)
 
-        return json.dumps({
-            "total": len(filtered),
-            "packets": filtered[offset:offset + limit],
-        })
+        return json.dumps(
+            {
+                "total": len(filtered),
+                "packets": filtered[offset : offset + limit],
+            }
+        )
 
     if tool_name == "list_pcap_files":
         # Get unique source files
         source_files = sorted(set(e.get("source_file", "unknown") for e in pcap_entries))
-        return json.dumps({
-            "total": len(source_files),
-            "files": source_files,
-        })
+        return json.dumps(
+            {
+                "total": len(source_files),
+                "files": source_files,
+            }
+        )
 
     return json.dumps({"error": f"Unknown PCAP tool: {tool_name}"})
 

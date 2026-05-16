@@ -7,7 +7,6 @@ import re
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 

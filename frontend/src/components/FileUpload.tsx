@@ -45,9 +45,7 @@ interface FileUploadProps {
  * 5. If content analysis is inconclusive, the file extension is used as a
  *    tiebreaker, preserving the original backward-compatible behaviour.
  */
-export async function detectFileTypeByHeader(
-  file: File,
-): Promise<'log' | 'trace' | 'pcap'> {
+export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace' | 'pcap'> {
   const name = file.name.toLowerCase()
   const lastDot = name.lastIndexOf('.')
   const ext = lastDot !== -1 ? name.slice(lastDot) : ''
@@ -69,8 +67,7 @@ export async function detectFileTypeByHeader(
     // ── Magic bytes ────────────────────────────────────────────────────────
     // PCAP magic bytes (check first for network captures)
     if (bytes.length >= 4) {
-      const magic =
-        (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
+      const magic = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
       // pcap little-endian: 0xD4C3B2A1, big-endian: 0xA1B2C3D4
       // pcapng: 0x0A0D0D0A
       if (

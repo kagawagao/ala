@@ -577,7 +577,12 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, pcap_entries, file_path=file_path, language=language
+            project,
+            trace_summary,
+            log_entries,
+            pcap_entries,
+            file_path=file_path,
+            language=language,
         )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
@@ -852,7 +857,12 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         anthropic_tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, pcap_entries, file_path=file_path, language=language
+            project,
+            trace_summary,
+            log_entries,
+            pcap_entries,
+            file_path=file_path,
+            language=language,
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
 

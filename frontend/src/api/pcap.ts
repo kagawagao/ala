@@ -1,38 +1,42 @@
 import type { PcapEntry, PcapFilters, PcapParseResult, PcapStatistics } from '../types/pcap'
-import { apiUpload, streamNDJSON } from './client'
+import { apiUpload, streamUploadNDJSON } from './client'
 
 export async function parsePcap(file: File): Promise<PcapParseResult> {
   return apiUpload<PcapParseResult>('/api/pcap/parse', file)
 }
 
-export async function parsePcapStream(
-  file: File,
-  onEntry: (entry: PcapEntry) => void,
-  onProgress?: (count: number) => void,
-  signal?: AbortSignal,
-): Promise<{ total: number }> {
-  let count = 0
-
-  await streamNDJSON<PcapEntry>(
-    '/api/pcap/parse/stream',
-    file,
-    (entry) => {
-      onEntry(entry)
-      count++
-      if (onProgress) {
-        onProgress(count)
-      }
-    },
-    signal,
-  )
-
-  return { total: count }
+interface StreamDone {
+  _done: true
+  total: number
 }
 
-export async function filterPcap(
-  entries: PcapEntry[],
-  filters: PcapFilters,
-): Promise<PcapEntry[]> {
+interface StreamError {
+  _error: string
+}
+
+type StreamLine = PcapEntry | StreamDone | StreamError
+
+const isDone = (line: StreamLine): line is StreamDone => '_done' in line
+const isError = (line: StreamLine): line is StreamError => '_error' in line
+
+export async function* parsePcapStream(
+  file: File,
+  signal?: AbortSignal,
+): AsyncGenerator<PcapEntry | StreamDone> {
+  for await (const line of streamUploadNDJSON<StreamLine>(
+    '/api/pcap/parse/stream',
+    [file],
+    signal,
+  )) {
+    if (isError(line)) {
+      throw new Error(line._error)
+    }
+    yield line as PcapEntry | StreamDone
+    if (isDone(line)) return
+  }
+}
+
+export async function filterPcap(entries: PcapEntry[], filters: PcapFilters): Promise<PcapEntry[]> {
   const response = await fetch('/api/pcap/filter', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

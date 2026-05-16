@@ -174,9 +174,7 @@ async def parse_pcap_stream(file: UploadFile = File(...)):
     The final line is a sentinel: {"_done": true, "total": N}
     """
     content = await file.read()
-    logger.debug(
-        "Streaming PCAP parse — name=%s size=%d", file.filename, len(content)
-    )
+    logger.debug("Streaming PCAP parse — name=%s size=%d", file.filename, len(content))
 
     async def generate():
         """Generate NDJSON lines for each packet."""

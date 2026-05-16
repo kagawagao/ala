@@ -173,7 +173,9 @@ const AppContent: React.FC<{
   const [filteredTraceResult, setFilteredTraceResult] = useState<TraceParseResult | null>(null)
 
   // PCAP filtered state
-  const [filteredPcapEntries, setFilteredPcapEntries] = useState<import('./types/pcap').PcapEntry[]>([])
+  const [filteredPcapEntries, setFilteredPcapEntries] = useState<
+    import('./types/pcap').PcapEntry[]
+  >([])
 
   // Reset filtered state when switching tabs
   useEffect(() => {
@@ -465,7 +467,8 @@ const AppContent: React.FC<{
     [t, message],
   )
 
-  const showFileUpload = allLogs.length === 0 && pcapEntries.length === 0 && !traceResult && !localFilePath
+  const showFileUpload =
+    allLogs.length === 0 && pcapEntries.length === 0 && !traceResult && !localFilePath
 
   const isLoading = loadingFile || pcapLoading || traceLoading
   const errorMessage = fileError || pcapError || traceError
