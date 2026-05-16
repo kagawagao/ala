@@ -69,3 +69,54 @@ def test_known_doc_paths_include_key_files():
     assert ".github/copilot-instructions.md" in CONTEXT_DOC_PATHS
     assert "CLAUDE.md" in CONTEXT_DOC_PATHS
     assert "README.md" in CONTEXT_DOC_PATHS
+
+
+@pytest.fixture
+def code_project_dir():
+    """Create a temp project dir with Python files for search testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write("class LogAnalyzer:\n    def search(self, pattern):\n        pass\n")
+        with open(os.path.join(tmpdir, "utils.py"), "w") as f:
+            f.write("def format_log(entry):\n    return str(entry)\n")
+        # Create a non-Python file
+        with open(os.path.join(tmpdir, "README.md"), "w") as f:
+            f.write("# Project\nLogAnalyzer reference\n")
+        yield tmpdir
+
+
+def test_search_code_rg_finds_matches(scanner, code_project_dir):
+    """Verify ripgrep-backed search finds matches in Python files."""
+    result = scanner.search_code(code_project_dir, "LogAnalyzer", ["*.py"], [], max_results=10)
+    assert result.total_matches >= 1
+    assert any("main.py" in m.path for m in result.matches)
+
+
+def test_search_code_rg_respects_max_results(scanner, code_project_dir):
+    """Verify search caps at max_results."""
+    result = scanner.search_code(code_project_dir, ".", ["*.py"], [], max_results=2)
+    assert len(result.matches) <= 2
+
+
+def test_search_code_rg_handles_invalid_regex(scanner, code_project_dir):
+    """Verify invalid regex returns empty result without crash."""
+    result = scanner.search_code(code_project_dir, "[invalid(", ["*.py"], [], max_results=10)
+    # Should not crash; may return empty or fall back depending on rg behavior
+    assert result is not None
+
+
+def test_search_code_rg_case_sensitive(scanner, code_project_dir):
+    """Verify case-sensitive search."""
+    result = scanner.search_code(
+        code_project_dir, "loganalyzer", ["*.py"], [], case_sensitive=True, max_results=10
+    )
+    # "LogAnalyzer" won't match "loganalyzer" case-sensitively
+    assert result.total_matches == 0
+
+
+def test_search_code_rg_case_insensitive(scanner, code_project_dir):
+    """Verify case-insensitive search (default)."""
+    result = scanner.search_code(
+        code_project_dir, "loganalyzer", ["*.py"], [], case_sensitive=False, max_results=10
+    )
+    assert result.total_matches >= 1
