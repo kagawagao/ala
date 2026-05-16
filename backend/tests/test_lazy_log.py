@@ -839,3 +839,176 @@ class TestScanFileMetaEarlyExit:
             assert ref.truncated is True
         finally:
             os.unlink(path)
+
+
+# ── search_all_local composite tool tests ──────────────────────────────────
+
+
+class TestSearchAllLocal:
+    """Tests for the search_all_local composite tool."""
+
+    def test_search_all_local_no_args_returns_error(self):
+        """Calling with no search targets returns an error."""
+        from ala.services.agent_tools import _execute_search_all_local
+
+        result = _execute_search_all_local({}, "/tmp/test.log", None)
+        import json
+        r = json.loads(result)
+        assert "error" in r
+        assert "search target" in r["error"].lower()
+
+    def test_search_all_local_invalid_path_returns_error(self):
+        """Non-existent file path returns an error."""
+        from ala.services.agent_tools import _execute_search_all_local
+
+        result = _execute_search_all_local(
+            {"keyword_log": "test"},
+            "/nonexistent/path/test.log",
+            None,
+        )
+        import json
+        r = json.loads(result)
+        assert "error" in r
+        assert "Invalid log file path" in r["error"]
+
+    def test_search_all_local_none_args_safe(self):
+        """Passing null/None values in args should not crash."""
+        from ala.services.agent_tools import _execute_search_all_local
+
+        # Simulate JSON null values (common in AI tool calls)
+        log_content = "01-15 10:30:45.123  1234  5678 I TestTag: test message\n"
+        path = _write_temp_file(log_content)
+        try:
+            result = _execute_search_all_local(
+                {
+                    "keyword_log": "test",
+                    "level": None,
+                    "tag": None,
+                    "pid": None,
+                },
+                path,
+                None,
+            )
+            import json
+            r = json.loads(result)
+            # Should not crash — should return results or error gracefully
+            assert "error" not in r, f"Got unexpected error: {r.get('error')}"
+            assert r.get("elapsed_ms", 0) >= 0
+        finally:
+            os.unlink(path)
+
+    def test_search_all_local_log_keyword_search(self):
+        """Basic keyword search in log file returns results."""
+        from ala.services.agent_tools import _execute_search_all_local
+
+        log_content = (
+            "01-15 10:30:45.123  1234  5678 I TestTag: found message\n"
+            "01-15 10:30:46.123  1234  5678 E ErrorTag: other message\n"
+            "01-15 10:30:47.123  1234  5678 W WarnTag: another found here\n"
+        )
+        path = _write_temp_file(log_content)
+        try:
+            result = _execute_search_all_local(
+                {"keyword_log": "found"},
+                path,
+                None,
+            )
+            import json
+            r = json.loads(result)
+            assert "error" not in r, f"Got unexpected error: {r.get('error')}"
+            logs = r.get("logs", {})
+            assert logs is not None, "Logs result should not be None"
+            entries = logs.get("entries", [])
+            assert len(entries) >= 1, f"Expected at least 1 match, got {len(entries)}"
+            # Verify entries have expected fields
+            for entry in entries:
+                assert "line_number" in entry
+                assert "message" in entry
+                assert "found" in entry["message"].lower()
+        finally:
+            os.unlink(path)
+
+    def test_search_all_local_combined_log_and_code(self):
+        """Combined search with both keyword_log and code_pattern."""
+        import tempfile
+
+        from ala.services.agent_tools import _execute_search_all_local
+        from ala.services.project_manager import Project
+
+        log_content = (
+            "01-15 10:30:45.123  1234  5678 I TestTag: test message\n"
+        )
+        log_path = _write_temp_file(log_content)
+
+        # Create a temp project with code
+        with tempfile.TemporaryDirectory() as project_dir:
+            with open(os.path.join(project_dir, "main.py"), "w") as f:
+                f.write("class LogAnalyzer:\n    def analyze(self):\n        pass\n")
+
+            project = Project(
+                id="test-project-1",
+                name="test",
+                paths=[project_dir],
+                include_patterns=["*.py"],
+                exclude_patterns=[],
+            )
+
+            try:
+                result = _execute_search_all_local(
+                    {
+                        "keyword_log": "test",
+                        "code_pattern": "LogAnalyzer",
+                    },
+                    log_path,
+                    project,
+                )
+                import json
+                r = json.loads(result)
+                assert "error" not in r, f"Got unexpected error: {r.get('error')}"
+
+                # Check log results
+                logs = r.get("logs", {})
+                assert logs is not None
+                assert logs.get("returned", 0) >= 1
+
+                # Check code results
+                code = r.get("code", {})
+                assert code is not None
+                assert code.get("returned", 0) >= 1
+                assert any(
+                    "main.py" in m.get("path", "") for m in code.get("matches", [])
+                )
+
+                # Check elapsed time
+                assert r.get("elapsed_ms", 0) >= 0
+            finally:
+                os.unlink(log_path)
+
+    def test_search_all_local_respects_limit(self):
+        """limit_log parameter caps the number of returned entries."""
+        from ala.services.agent_tools import _execute_search_all_local
+
+        # Generate a log with many matching lines
+        lines = []
+        for i in range(100):
+            lines.append(
+                f"01-15 10:30:{i:02d}.123  1234  5678 I TestTag: match message {i}"
+            )
+        log_content = "\n".join(lines) + "\n"
+        path = _write_temp_file(log_content)
+        try:
+            result = _execute_search_all_local(
+                {"keyword_log": "match", "limit_log": 5},
+                path,
+                None,
+            )
+            import json
+            r = json.loads(result)
+            assert "error" not in r, f"Got unexpected error: {r.get('error')}"
+            logs = r.get("logs", {})
+            assert logs is not None
+            assert logs.get("returned", 0) <= 5
+            # total_matched reflects the capped count (since rg stops at limit)
+            assert logs.get("total_matched", 0) >= 1
+        finally:
+            os.unlink(path)

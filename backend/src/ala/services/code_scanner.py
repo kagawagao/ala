@@ -359,8 +359,6 @@ class CodeScanner:
             "--json",  # machine-parseable output
             "--no-heading",
             "--line-number",
-            "--max-count",
-            str(max_results),
         ]
 
         if not case_sensitive:
@@ -403,9 +401,10 @@ class CodeScanner:
             )
             return SearchResult()
 
-        # Parse JSON lines output
+        # Parse JSON lines output (single pass — collect matches + summary)
         matches: list[SearchMatch] = []
         files_seen: set[str] = set()
+        stats_data = None
 
         for line in proc.stdout.splitlines():
             if not line.strip():
@@ -441,19 +440,8 @@ class CodeScanner:
 
                 if len(matches) >= max_results:
                     break
-
-        # Count distinct files from JSON summary or best-effort
-        # rg --json with --stats or --files-with-matches gives file counts,
-        # but for simplicity count from what we've seen
-        stats_data = None
-        for line in proc.stdout.splitlines():
-            try:
-                entry = json.loads(line)
-                if entry.get("type") == "summary":
-                    stats_data = entry.get("data", {})
-                    break
-            except json.JSONDecodeError:
-                continue
+            elif msg_type == "summary":
+                stats_data = entry.get("data", {})
 
         total_matches = (
             stats_data.get("stats", {}).get("matches", len(matches)) if stats_data else len(matches)

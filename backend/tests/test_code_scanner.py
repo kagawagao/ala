@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from ala.services.code_scanner import CONTEXT_DOC_PATHS, CodeScanner
+from ala.services.code_scanner import CONTEXT_DOC_PATHS, CodeScanner, _RG_PATH
 
 
 @pytest.fixture
@@ -87,6 +87,8 @@ def code_project_dir():
 
 def test_search_code_rg_finds_matches(scanner, code_project_dir):
     """Verify ripgrep-backed search finds matches in Python files."""
+    if _RG_PATH is None:
+        pytest.skip("ripgrep not available")
     result = scanner.search_code(code_project_dir, "LogAnalyzer", ["*.py"], [], max_results=10)
     assert result.total_matches >= 1
     assert any("main.py" in m.path for m in result.matches)
@@ -94,19 +96,28 @@ def test_search_code_rg_finds_matches(scanner, code_project_dir):
 
 def test_search_code_rg_respects_max_results(scanner, code_project_dir):
     """Verify search caps at max_results."""
+    if _RG_PATH is None:
+        pytest.skip("ripgrep not available")
     result = scanner.search_code(code_project_dir, ".", ["*.py"], [], max_results=2)
     assert len(result.matches) <= 2
 
 
 def test_search_code_rg_handles_invalid_regex(scanner, code_project_dir):
     """Verify invalid regex returns empty result without crash."""
+    if _RG_PATH is None:
+        pytest.skip("ripgrep not available")
     result = scanner.search_code(code_project_dir, "[invalid(", ["*.py"], [], max_results=10)
-    # Should not crash; may return empty or fall back depending on rg behavior
+    # Should not crash; returns empty or falls back to Python (both are valid)
     assert result is not None
+    assert result.total_matches == 0, (
+        f"Invalid regex should produce 0 matches, got {result.total_matches}"
+    )
 
 
 def test_search_code_rg_case_sensitive(scanner, code_project_dir):
     """Verify case-sensitive search."""
+    if _RG_PATH is None:
+        pytest.skip("ripgrep not available")
     result = scanner.search_code(
         code_project_dir, "loganalyzer", ["*.py"], [], case_sensitive=True, max_results=10
     )
@@ -116,6 +127,8 @@ def test_search_code_rg_case_sensitive(scanner, code_project_dir):
 
 def test_search_code_rg_case_insensitive(scanner, code_project_dir):
     """Verify case-insensitive search (default)."""
+    if _RG_PATH is None:
+        pytest.skip("ripgrep not available")
     result = scanner.search_code(
         code_project_dir, "loganalyzer", ["*.py"], [], case_sensitive=False, max_results=10
     )
