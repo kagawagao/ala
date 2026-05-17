@@ -23,14 +23,17 @@ class Project:
     id: str
     name: str
     paths: list[str]
-    include_patterns: list[str] = field(
-        default_factory=lambda: ["**/*.java", "**/*.kt", "**/*.xml"]
-    )
+    include_patterns: list[str] = field(default_factory=lambda: ["**/*"])
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
     )
     filter_presets: list[dict] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
+
+
+# Legacy Android-specific include patterns. Projects with this exact set are
+# auto-upgraded to ["**/*"] at load time (see _row_to_project).
+_LEGACY_ANDROID_PATTERNS = ["**/*.java", "**/*.kt", "**/*.xml"]
 
 
 class ProjectManager:
@@ -56,6 +59,10 @@ class ProjectManager:
         ).fetchall()
         include_patterns = [p["pattern"] for p in inc_rows]
 
+        # Normalize: old Android-only default → new unrestricted default
+        if include_patterns == _LEGACY_ANDROID_PATTERNS:
+            include_patterns = ["**/*"]
+
         # Load exclude patterns
         exc_rows = self._db.execute(
             "SELECT pattern FROM project_patterns WHERE project_id = ? AND type = 'exclude' ORDER BY ordering",
@@ -70,10 +77,10 @@ class ProjectManager:
             name=row["name"],
             paths=paths,
             include_patterns=include_patterns
-            if include_patterns is not None
+            if include_patterns
             else Project.__dataclass_fields__["include_patterns"].default_factory(),
             exclude_patterns=exclude_patterns
-            if exclude_patterns is not None
+            if exclude_patterns
             else Project.__dataclass_fields__["exclude_patterns"].default_factory(),
             filter_presets=filter_presets,
             created_at=row["created_at"],
