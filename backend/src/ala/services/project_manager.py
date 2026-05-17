@@ -23,9 +23,7 @@ class Project:
     id: str
     name: str
     paths: list[str]
-    include_patterns: list[str] = field(
-        default_factory=lambda: ["**/*"]
-    )
+    include_patterns: list[str] = field(default_factory=lambda: ["**/*"])
     exclude_patterns: list[str] = field(
         default_factory=lambda: ["**/build/**", "**/node_modules/**", "**/.gradle/**", "**/.git/**"]
     )
