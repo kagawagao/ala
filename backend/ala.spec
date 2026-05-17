@@ -60,7 +60,7 @@ if _RG_BINARY.is_file():
     datas.append((str(_RG_BINARY), "ala/bin"))
     print(f"  Bundled rg: {_RG_BINARY} ({_RG_BINARY.stat().st_size:,} bytes)")
 else:
-    print(f"  ⚠ Bundled rg not found at {_RG_BINARY} — rg will only work if installed on target")
+    print(f"  WARNING: Bundled rg not found at {_RG_BINARY} - rg will only work if installed on target")
 
 # Copy .dist-info metadata for packages that call importlib.metadata.version() at import time.
 # Without this, PackageNotFoundError is raised when the frozen exe tries to read package versions.
