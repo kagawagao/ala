@@ -7,7 +7,7 @@ ALA is a full-stack AI-powered Android log and Perfetto trace analyzer.
 - **Backend**: Python 3.12+ FastAPI server managed with Poetry (`backend/`)
 - **Frontend**: React 19 + Vite 6 + Ant Design 6 + TypeScript 5 (`frontend/`)
 - **Repository**: monorepo at `https://github.com/kagawagao/ala`, license MIT
-- **Version**: 1.1.0
+- **Version**: 2.2.2
 
 ## Repository Layout
 
@@ -34,6 +34,7 @@ ala/
 │   │   │   ├── config.py       # AI config GET/PUT (key masked on read)
 │   │   │   ├── health.py       # /health endpoint
 │   │   │   ├── logs.py         # Log parse/stream/filter/statistics
+│   │   │   ├── models.py       # Model library management API
 │   │   │   ├── projects.py     # Project CRUD, file listing, AI filter generation
 │   │   │   └── trace.py        # Trace parse/filter
 │   │   ├── services/           # Business logic
@@ -43,13 +44,24 @@ ala/
 │   │   │   ├── trace_analyzer.py # Trace parsing engine (perfetto wrapper)
 │   │   │   ├── session_manager.py # In-memory chat session store
 │   │   │   ├── project_manager.py # Project persistence
-│   │   │   └── code_scanner.py # Source code pattern discovery
+│   │   │   ├── model_manager.py   # Model library persistence (JSON file store)
+│   │   │   ├── database.py     # Database layer (provider-agnostic)
+│   │   │   └── code_scanner.py # Source code pattern discovery (ripgrep-backed)
 │   │   └── mcp/                # FastMCP server
 │   │       └── server.py       # MCP tools for external AI clients
 │   ├── tests/                  # pytest suite (pytest + pytest-asyncio, asyncio_mode=auto)
 │   │   ├── test_log_analyzer.py
 │   │   ├── test_trace_analyzer.py
-│   │   └── test_code_scanner.py
+│   │   ├── test_code_scanner.py
+│   │   ├── test_agent_tools.py
+│   │   ├── test_ai_service.py
+│   │   ├── test_api.py
+│   │   ├── test_lazy_log.py
+│   │   ├── test_mcp.py
+│   │   ├── test_model_manager.py
+│   │   ├── test_search_all_local.py
+│   │   ├── test_search_benchmarks.py
+│   │   └── test_session_manager.py
 │   ├── ala_server.py           # PyInstaller entry point (opens browser when frozen)
 │   ├── ala.spec                # PyInstaller build spec
 │   ├── Dockerfile              # Backend image (uvicorn)
@@ -74,7 +86,10 @@ ala/
 │   │   │   ├── ProjectManager.tsx  # Project CRUD UI
 │   │   │   ├── ModelManager.tsx    # AI model & endpoint configuration
 │   │   │   ├── DirectoryFilePicker.tsx  # Browse local directories
-│   │   │   └── Header.tsx      # Top bar (settings, theme, language toggle)
+│   │   │   ├── UserGuide.tsx   # In-app markdown user guide (en/zh)
+│   │   │   ├── ErrorBoundary.tsx  # React error boundary
+│   │   │   ├── Header.tsx      # Top bar (settings, theme, language toggle)
+│   │   │   └── __tests__/      # Vitest component tests (12 test files)
 │   │   ├── i18n/               # i18next setup
 │   │   │   ├── config.ts       # i18next init
 │   │   │   └── locales/        # en.json, zh.json
@@ -85,6 +100,8 @@ ala/
 │   │   ├── App.tsx             # Root component with React Router
 │   │   └── main.tsx            # React entry point
 │   ├── index.html              # Vite entry
+│   ├── public/
+│   │   └── guide/               # In-app user guide (en.md / zh.md)
 │   ├── vite.config.ts          # Dev proxy → localhost:8000, build → dist/
 │   ├── tsconfig.json           # References tsconfig.app.json + tsconfig.node.json
 │   ├── tsconfig.app.json       # Strict mode, ESNext modules, React JSX
@@ -185,18 +202,27 @@ npm run build:exe         # Standalone executable via PyInstaller (macOS/Linux, 
 ### Test
 
 ```bash
-npm test                  # Backend pytest + frontend type-check
+npm test                  # Backend pytest + frontend Vitest
 npm run test:backend      # cd backend && poetry run pytest tests/ -v
-npm run test:frontend     # cd frontend && tsc --noEmit (type-check only; no UI tests)
+npm run test:frontend     # cd frontend && vitest run (jsdom, 12 test files)
+
+# Frontend watch mode
+cd frontend && npm run test:watch
 ```
 
-Run a single test:
+Run a single backend test:
 
 ```bash
 cd backend
 poetry run pytest tests/test_log_analyzer.py::TestLogParsing::test_parse_android_logcat -v
 poetry run pytest tests/test_trace_analyzer.py::TestTraceFilter::test_filter_by_pid -v
 ```
+
+Run a single frontend test:
+
+```bash
+cd frontend
+npx vitest run src/components/__tests__/LogViewer.test.tsx
 
 ### Lint & Format
 
@@ -275,7 +301,7 @@ Initialised in `main.py` via `setup_logging()` from `logging_config.py`:
 
 - MCP server starts as part of the FastAPI lifecycle — **no separate process needed**
 - Mounted at `/mcp` (Streamable HTTP transport, MCP 1.0)
-- Tools: `parse_android_log`, `filter_android_logs`, `get_log_statistics`, `parse_perfetto_trace`, `filter_perfetto_trace`
+- Tools: `parse_android_log`, `filter_android_logs`, `get_log_statistics`, `parse_perfetto_trace`, `filter_perfetto_trace`, `query_perfetto_trace_sql`
 
 ### Projects Feature
 
@@ -386,6 +412,7 @@ Supports any OpenAI-compatible API (Ollama, LM Studio, Azure OpenAI, etc.).
 - i18next, react-i18next
 - react-markdown, remark-gfm (GitHub-flavoured Markdown rendering)
 - TypeScript 5, Vite 6
+- Dev: ESLint 9, Vitest 3, Testing Library (react + jest-dom + user-event), jsdom
 
 ### Root workspace
 
