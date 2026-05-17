@@ -31,6 +31,11 @@ class Project:
     created_at: str = field(default_factory=_utcnow)
 
 
+# Legacy Android-specific include patterns. Projects with this exact set are
+# auto-upgraded to ["**/*"] at load time (see _row_to_project).
+_LEGACY_ANDROID_PATTERNS = ["**/*.java", "**/*.kt", "**/*.xml"]
+
+
 class ProjectManager:
     def __init__(self, max_projects: int = 20, db=None, storage_path: Path | None = None):
         self._max_projects = max_projects
@@ -55,8 +60,7 @@ class ProjectManager:
         include_patterns = [p["pattern"] for p in inc_rows]
 
         # Normalize: old Android-only default → new unrestricted default
-        _LEGACY_DEFAULT = ["**/*.java", "**/*.kt", "**/*.xml"]
-        if include_patterns == _LEGACY_DEFAULT:
+        if include_patterns == _LEGACY_ANDROID_PATTERNS:
             include_patterns = ["**/*"]
 
         # Load exclude patterns
