@@ -282,8 +282,20 @@ jobs:
 
           $FilesWxs = Join-Path $WxsDir "Files.wxs"
           heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -var var.StageDir -out $FilesWxs
+          [xml]$FilesDoc = Get-Content -Path $FilesWxs
+          $WixNs = New-Object System.Xml.XmlNamespaceManager($FilesDoc.NameTable)
+          $WixNs.AddNamespace("w", "http://schemas.microsoft.com/wix/2006/wi")
+          $FilesDoc.SelectNodes("//w:Component", $WixNs) | ForEach-Object {
+            $_.SetAttribute("Win64", "yes")
+          }
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $Writer = [System.IO.StreamWriter]::new($FilesWxs, $false, $Utf8NoBom)
+          $FilesDoc.Save($Writer)
+          $Writer.Close()
           candle.exe -dStageDir="$StageDir" -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
           light.exe -ext WixUIExtension -out "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi" (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
+          if (-not (Test-Path "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.zip")) { throw "ZIP artifact was not created" }
+          if (-not (Test-Path "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi")) { throw "MSI artifact was not created" }
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
