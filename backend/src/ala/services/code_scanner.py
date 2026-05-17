@@ -419,7 +419,9 @@ class CodeScanner:
         active_names = set(compiled)
 
         for file_info in files:
-            if file_info.size > MAX_FILE_SIZE or not active_names:
+            if not active_names:
+                break
+            if file_info.size > MAX_FILE_SIZE:
                 continue
 
             file_data = self._read_text_file(

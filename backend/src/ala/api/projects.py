@@ -7,13 +7,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..services.ai_service import AIService
-from ..services.code_scanner import CodeScanner
+from ..services.code_scanner import get_shared_scanner
 from ..services.project_manager import ProjectManager
 from .config import get_ai_config
 
 router = APIRouter()
 _project_manager = ProjectManager()
-_scanner = CodeScanner()
+_scanner = get_shared_scanner()
 
 
 # Export for use by chat API
