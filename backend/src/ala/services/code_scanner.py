@@ -198,12 +198,16 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
+        # Strip trailing slash (gitignore directory marker) so patterns
+        # like "dist/" generate "**/dist" and "**/dist/**" — covering files
+        # inside excluded directories, not just the directory entry itself.
+        line = line.rstrip("/")
         # Convert gitignore patterns to glob-style
         if line.startswith("/"):
             patterns.append(line[1:])
         else:
             patterns.append(f"**/{line}")
-        if not line.endswith("/") and not line.endswith("*"):
+        if not line.endswith("*"):
             patterns.append(f"**/{line}/**")
     return patterns
 
