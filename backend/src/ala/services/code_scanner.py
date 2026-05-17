@@ -550,7 +550,10 @@ class CodeScanner:
             stderr_text = ""
             try:
                 if proc.stderr:
-                    stderr_text = proc.stderr.read().strip()
+                    raw = proc.stderr.read()
+                    stderr_text = raw[:2000].strip()
+                    if len(raw) > 2000:
+                        stderr_text += f" [...truncated, total {len(raw)} chars]"
             except Exception as exc:
                 stderr_text = f"[failed to read stderr: {exc}]"
             logger.warning(
