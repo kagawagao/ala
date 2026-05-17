@@ -3,6 +3,8 @@
 import json
 import logging
 import re
+import subprocess
+import sys
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -10,11 +12,14 @@ from datetime import datetime
 from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
-from .code_scanner import CodeScanner
+from . import code_scanner
 from .project_manager import Project
 from .trace_analyzer import TraceAnalyzer
 
 logger = logging.getLogger(__name__)
+
+# ── Ripgrep availability ────────────────────────────────────────────────────
+# Use code_scanner._RG_PATH as the single source of truth.
 
 # ── ToolResultCache (US-FE2) ────────────────────────────────────────────────
 
@@ -147,7 +152,7 @@ def build_log_index(entries: list[dict]) -> LogIndex:
     return idx
 
 
-_scanner = CodeScanner()
+_scanner = code_scanner.CodeScanner()
 _trace_analyzer = TraceAnalyzer()
 
 
@@ -340,6 +345,61 @@ LAZY_LOG_TOOLS: list[dict] = [
             "required": [],
         },
     },
+    {
+        "name": "execute_shell_search",
+        "description": (
+            "Execute a shell command for direct log/code searching. "
+            "Runs in a sandboxed directory (the log source or project root). "
+            "Use this for complex searches that the predefined tools can't express: "
+            "multi-pattern grep, context lines, awk processing, file statistics, "
+            "PowerShell Select-String, etc.\n\n"
+            "**Platform**: Linux, macOS, Windows. Uses the native shell "
+            "(bash/zsh on Unix, cmd.exe on Windows).\n\n"
+            "**Available commands (Unix)**: rg, grep, awk, sed, head, tail, wc, "
+            "sort, uniq, cut, find, ls, cat, file, stat, du.\n"
+            "**Available commands (Windows)**: rg, findstr, sort, dir, type, "
+            "more, where, comp, fc.\n"
+            "**Cross-platform**: rg (ripgrep) works everywhere when installed.\n\n"
+            "Output limit: 64KB. Timeout: 30s.\n\n"
+            "Examples (Unix/Linux/macOS):\n"
+            "- rg 'FATAL|ANR' -C 3         (search with 3 lines context)\n"
+            "- rg -c 'Exception' | sort -rn (count and rank)\n"
+            "- grep -n 'crash' *.log        (search all log files)\n"
+            "- awk '/ERROR/,/^$/' log.txt   (error blocks)\n"
+            "- find . -name '*.log' -ls     (list log files with details)\n"
+            "- wc -l *.log                  (line counts)\n"
+            "- rg --files -g '*.py' | head  (list Python files)\n\n"
+            "Examples (Windows cmd):\n"
+            "- rg 'FATAL|ANR' -C 3          (ripgrep — same as Unix)\n"
+            "- findstr /n /i 'crash' *.log  (search with line numbers)\n"
+            "- dir /s /b *.log               (list all log files)\n"
+            "- type *.log | findstr 'ERROR'  (search across files)\n"
+            "- where py.exe                  (locate Python)\n\n"
+            "**Security**: commands are sandboxed to the search directory. "
+            "Dangerous operations (rm, del, chmod, sudo, curl, wget, etc.) "
+            "and file output redirection are blocked."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": (
+                        "The shell command to execute. Platform-native syntax supported: "
+                        "bash/zsh on Linux/macOS, cmd.exe on Windows. Pipes are allowed."
+                    ),
+                },
+                "workdir": {
+                    "type": "string",
+                    "description": (
+                        "Working directory. Defaults to the log source directory. "
+                        "Use 'project' to run in the project root instead."
+                    ),
+                },
+            },
+            "required": ["command"],
+        },
+    },
 ]
 
 # Anthropic tool schemas – project (code/log) tools
@@ -398,6 +458,71 @@ AGENT_TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["pattern"],
+        },
+    },
+    {
+        "name": "search_all_local",
+        "description": (
+            "**Composite search** — search both local log files AND project source code "
+            "in a single call, eliminating round trips. "
+            "Ideal for debugging workflows where you need to correlate log messages "
+            "with the code that produces them.\n\n"
+            "Accepts both log search params (level, tag, pid, keyword_log) and "
+            "code search params (code_pattern, code_dir). At least one of "
+            "keyword_log or code_pattern must be provided. Results from both "
+            "searches are returned together.\n\n"
+            "Performance: uses ripgrep for near-instant keyword search when available. "
+            "For structured log searches (by level/tag/pid), falls back to streaming scan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Log file name or path to search (required for directories)",
+                },
+                "level": {
+                    "type": "string",
+                    "description": "Log level filter (V, D, I, W, E, F)",
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Tag substring filter (case-insensitive)",
+                },
+                "pid": {
+                    "type": "string",
+                    "description": "Process ID to filter by",
+                },
+                "keyword_log": {
+                    "type": "string",
+                    "description": "Keyword or regex to search in log messages",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "Only include log entries after this timestamp",
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "Only include log entries before this timestamp",
+                },
+                "limit_log": {
+                    "type": "integer",
+                    "description": "Max log results (default: 50, max: 200)",
+                },
+                "code_pattern": {
+                    "type": "string",
+                    "description": "Regex pattern to search in source code files",
+                },
+                "code_dir": {
+                    "type": "string",
+                    "description": "Directory to search code in (defaults to project root)",
+                },
+                "limit_code": {
+                    "type": "integer",
+                    "description": "Max code results (default: 30, max: 100)",
+                },
+            },
+            "required": [],
         },
     },
     {
@@ -625,6 +750,26 @@ def execute_tool(
         except Exception as e:
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
+
+    # search_all_local — composite: logs + code in one call
+    if tool_name == "search_all_local":
+        if file_path is None:
+            return json.dumps({"error": "No local log path set in this session"})
+        try:
+            return _execute_search_all_local(args, file_path, project)
+        except Exception as e:
+            logger.warning("tool=search_all_local failed: %s", e, exc_info=True)
+            return json.dumps({"error": f"search_all_local failed: {e}"})
+
+    # execute_shell_search — arbitrary shell commands for searching
+    if tool_name == "execute_shell_search":
+        if file_path is None and (project is None or not project.paths):
+            return json.dumps({"error": "No log path or project set in this session"})
+        try:
+            return _execute_shell_search(args, file_path, project)
+        except Exception as e:
+            logger.warning("tool=execute_shell_search failed: %s", e, exc_info=True)
+            return json.dumps({"error": f"execute_shell_search failed: {e}"})
 
     # Log tools (work standalone or alongside project tools)
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
@@ -912,7 +1057,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if pid_filter and entry.pid != pid_filter:
                 continue
             if keyword_re:
-                text = f"{entry.tag} {entry.message}"
+                text = f"{entry.tag or ''} {entry.message or ''}"
                 if not keyword_re.search(text):
                     continue
             if start_time and entry.timestamp and entry.timestamp < start_time:
@@ -1460,3 +1605,687 @@ def _execute_filter_logs(args: dict) -> str:
         )
     except Exception as e:
         return json.dumps({"error": f"Failed to filter logs: {str(e)}"})
+
+
+# ── Ripgrep-accelerated log search ────────────────────────────────────────
+
+
+def _search_log_with_rg(
+    file_path: str,
+    keyword: str,
+    *,
+    limit: int = 50,
+    case_sensitive: bool = False,
+) -> list[dict] | None:
+    """Search a log file for *keyword* using ripgrep (10-100x faster than Python scan).
+
+    Returns parsed log entries (same format as search_local_log) when possible,
+    or raw line matches when the file can't be parsed as logcat.
+
+    Falls back gracefully if rg is unavailable.
+    """
+    rg_path = code_scanner._RG_PATH
+    if rg_path is None:
+        return None  # Caller should fall back to streaming scan
+
+    cmd: list[str] = [
+        rg_path,
+        "--json",  # robust parsing across platforms
+        "--no-heading",
+        "--line-number",
+    ]
+
+    if not case_sensitive:
+        cmd.append("--ignore-case")
+
+    cmd.extend(["--regexp", keyword, file_path])
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        logger.debug("rg log search failed, will fall back")
+        return None
+
+    results: list[dict] = []
+    early_exit = False
+
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if entry.get("type") != "match":
+                continue
+
+            data = entry.get("data", {})
+            line_num = int(data.get("line_number") or 0)
+            content = (data.get("lines", {}) or {}).get("text", "").rstrip("\n\r")
+
+            parsed = _analyzer._parse_single_line(
+                content,
+                line_num,
+                _analyzer.detect_log_format(content),
+                source_file=file_path,
+            )
+            results.append(
+                {
+                    "line_number": line_num,
+                    "timestamp": parsed.timestamp,
+                    "level": parsed.level,
+                    "tag": parsed.tag,
+                    "pid": parsed.pid,
+                    "message": (parsed.message or content)[:500],
+                }
+            )
+
+            if len(results) >= limit:
+                early_exit = True
+                break
+    finally:
+        if early_exit:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        try:
+            proc.wait(timeout=5 if early_exit else 15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+    # ripgrep exit codes:
+    # 0 = matches found, 1 = no matches, 2 = error
+    if not early_exit and proc.returncode not in (0, 1):
+        return None
+
+    return results
+
+
+# ── Composite search_all_local executor ───────────────────────────────────
+
+
+def _execute_search_all_local(args: dict, file_path: str, project: "Project | None") -> str:
+    """Execute search_all_local: combined log + code search in one call.
+
+    Runs log search (via rg fast path or streaming) and code search (via rg or
+    Python) and returns combined results. Log search uses the session file_path;
+    code search uses the project root.
+
+    At least one of keyword_log or code_pattern must be provided.
+    """
+    t_start = time.monotonic()
+    import os
+
+    # ── Log search ───────────────────────────────────────────────────────
+    log_result: dict | None = None
+    keyword_log = (args.get("keyword_log") or "").strip()
+    level_filter = (args.get("level") or "").upper()
+    tag_filter = (args.get("tag") or "").lower()
+    pid_filter = str(args.get("pid") or "")
+    start_time = args.get("start_time")
+    end_time = args.get("end_time")
+    limit_log = min(int(args.get("limit_log") or 50), 200)
+    log_file = (args.get("file_path") or "").strip()
+
+    # ── Code search params (extract early for validation) ─────────────────
+    code_pattern = (args.get("code_pattern") or "").strip()
+
+    # Validate: at least one search target must be provided
+    if (
+        not keyword_log
+        and not code_pattern
+        and not level_filter
+        and not tag_filter
+        and not pid_filter
+    ):
+        elapsed = (time.monotonic() - t_start) * 1000
+        return json.dumps(
+            {
+                "error": (
+                    "At least one search target is required: provide keyword_log, "
+                    "code_pattern, or a structured filter (level/tag/pid)"
+                ),
+                "elapsed_ms": int(elapsed),
+            }
+        )
+
+    # Resolve the log file path (same logic as _resolve_log_path)
+    resolved_log = file_path
+    if os.path.isdir(file_path) and log_file:
+        candidate = os.path.join(file_path, log_file)
+        if os.path.isfile(candidate):
+            resolved_log = candidate
+        elif os.path.isabs(log_file) and os.path.isfile(log_file):
+            resolved_log = log_file
+    if not os.path.isfile(resolved_log):
+        elapsed = (time.monotonic() - t_start) * 1000
+        return json.dumps(
+            {
+                "error": "Invalid log file path",
+                "elapsed_ms": int(elapsed),
+            }
+        )
+
+    # Fast path: use rg for keyword-only search (no structured filters)
+    use_rg = (
+        code_scanner._RG_PATH is not None
+        and keyword_log
+        and not level_filter
+        and not tag_filter
+        and not pid_filter
+        and not start_time
+        and not end_time
+    )
+
+    if use_rg:
+        log_matches = _search_log_with_rg(resolved_log, keyword_log, limit=limit_log)
+        if log_matches is not None:
+            log_result = {
+                "total_matched": len(log_matches),
+                "returned": len(log_matches),
+                "entries": log_matches,
+                "method": "rg",
+            }
+        else:
+            use_rg = False
+
+    if not use_rg and (
+        keyword_log or level_filter or tag_filter or pid_filter or start_time or end_time
+    ):
+        # Structured search: use streaming scanner (mimic search_local_log)
+        min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
+        try:
+            keyword_re = re.compile(keyword_log, re.IGNORECASE) if keyword_log else None
+        except re.error:
+            elapsed = (time.monotonic() - t_start) * 1000
+            return json.dumps(
+                {"error": f"Invalid regex: {keyword_log}", "elapsed_ms": int(elapsed)}
+            )
+
+        matches: list[dict] = []
+        total_matched = 0
+        for entry in _analyzer.stream_file(resolved_log):
+            if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
+                continue
+            if tag_filter and tag_filter not in entry.tag.lower():
+                continue
+            if pid_filter and entry.pid != pid_filter:
+                continue
+            if keyword_re:
+                text = f"{entry.tag or ''} {entry.message or ''}"
+                if not keyword_re.search(text):
+                    continue
+            if start_time and entry.timestamp and entry.timestamp < start_time:
+                continue
+            if end_time and entry.timestamp and entry.timestamp > end_time:
+                continue
+
+            total_matched += 1
+            if len(matches) >= limit_log:
+                continue
+
+            matches.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": (entry.message or "")[:500],
+                }
+            )
+
+        log_result = {
+            "total_matched": total_matched,
+            "returned": len(matches),
+            "entries": matches,
+            "method": "streaming",
+        }
+
+    # ── Code search ──────────────────────────────────────────────────────
+    code_result: dict | None = None
+    code_dir = (args.get("code_dir") or "").strip()
+    limit_code = min(int(args.get("limit_code") or 30), 100)
+
+    if code_pattern and project is not None:
+        scanner = code_scanner.CodeScanner()
+        search_root = code_dir if code_dir else project.paths[0] if project.paths else ""
+
+        if search_root and os.path.isdir(search_root):
+            sr = scanner.search_code(
+                search_root,
+                code_pattern,
+                project.include_patterns if project else ["*"],
+                project.exclude_patterns if project else [],
+                case_sensitive=False,
+                max_results=limit_code,
+            )
+            code_result = {
+                "total_matches": sr.total_matches,
+                "files_searched": sr.files_searched,
+                "returned": len(sr.matches),
+                "matches": [
+                    {"path": m.path, "line_number": m.line_number, "line": m.line}
+                    for m in sr.matches
+                ],
+            }
+
+    # ── Combine ──────────────────────────────────────────────────────────
+    elapsed = (time.monotonic() - t_start) * 1000
+    logger.debug(
+        "tool=search_all_local completed in %dms log_matches=%d code_matches=%d",
+        int(elapsed),
+        log_result["returned"] if log_result else 0,
+        code_result["returned"] if code_result else 0,
+    )
+
+    combined = {
+        "elapsed_ms": int(elapsed),
+        "logs": log_result,
+        "code": code_result,
+    }
+    return json.dumps(combined)
+
+
+# ── Shell search executor ────────────────────────────────────────────────
+
+# Platform detection for cross-platform support
+_IS_WINDOWS = sys.platform == "win32"
+
+# Commands blocked for security in execute_shell_search
+# Platform-specific: Windows has different command names for dangerous operations
+_UNIX_BLOCKED_COMMANDS = frozenset(
+    {
+        "rm",
+        "mv",
+        "cp",
+        "chmod",
+        "chown",
+        "sudo",
+        "su",
+        "curl",
+        "wget",
+        "nc",
+        "telnet",
+        "ssh",
+        "scp",
+        "kill",
+        "pkill",
+        "reboot",
+        "shutdown",
+        "systemctl",
+        "dd",
+        "mkfs",
+        "mount",
+        "umount",
+        "python",
+        "python3",
+        "pip",
+        "npm",
+        "node",
+    }
+)
+
+_WINDOWS_BLOCKED_COMMANDS = frozenset(
+    {
+        # File destruction
+        "del",
+        "erase",
+        "rmdir",
+        "rd",
+        "format",
+        # Permission/registry
+        "cacls",
+        "icacls",
+        "takeown",
+        "reg",
+        "regedit",
+        # System admin
+        "net",
+        "taskkill",
+        "tskill",
+        "shutdown",
+        "logoff",
+        # Network
+        "curl",
+        "wget",
+        "nc",
+        "telnet",
+        "ftp",
+        "ssh",
+        # Interpreters
+        "python",
+        "python3",
+        "pip",
+        "npm",
+        "node",
+        "npx",
+        # WSL escape
+        "wsl",
+        "bash",
+        # Nested shells
+        "powershell",
+        "pwsh",
+        "cmd",
+    }
+)
+
+_BLOCKED_COMMANDS = _WINDOWS_BLOCKED_COMMANDS if _IS_WINDOWS else _UNIX_BLOCKED_COMMANDS
+
+# Characters/substrings that are always blocked (write redirects)
+_BLOCKED_TOKENS = frozenset({">", ">>"})
+
+_SHELL_TIMEOUT = 30
+_MAX_OUTPUT_BYTES = 64 * 1024  # 64KB
+
+
+def _split_command_cross_platform(command: str) -> list[str] | None:
+    """Parse a shell command string into tokens, cross-platform.
+
+    Unix: uses shlex.split() (POSIX shell rules).
+    Windows: basic tokenizer that handles quoted strings and cmd.exe metacharacters
+        (&&, ||, |).  We don't need a full cmd parser — just enough to extract
+        the first token for security checks.
+
+    Returns None if the command is empty after parsing.
+    """
+    command = command.strip()
+    if not command:
+        return None
+
+    if _IS_WINDOWS:
+        # Basic cmd.exe tokenization: split on spaces, respect double-quotes
+        tokens: list[str] = []
+        current: list[str] = []
+        in_quotes = False
+        for ch in command:
+            if ch == '"':
+                in_quotes = not in_quotes
+                current.append(ch)
+            elif ch in (" ", "\t") and not in_quotes:
+                if current:
+                    tokens.append("".join(current))
+                    current = []
+            else:
+                current.append(ch)
+        if current:
+            tokens.append("".join(current))
+
+        # Strip surrounding quotes from each token for comparison
+        tokens = [t[1:-1] if t.startswith('"') and t.endswith('"') else t for t in tokens]
+        return tokens if tokens else None
+    else:
+        import shlex
+
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return None
+        return tokens if tokens else None
+
+
+def _check_command_blocked(command: str, tokens: list[str]) -> dict | None:
+    """Return an error dict if the command is blocked, otherwise None.
+
+    Checks:
+    1. First token (command name) against _BLOCKED_COMMANDS.
+    2. Write-redirect tokens (">", ">>") unless inside a pipeline.
+    3. Shell metacharacter chaining on Windows (&&, ||).
+    """
+    import os as _os
+
+    cmd_base = _os.path.basename(tokens[0]).lower()
+    if cmd_base in _BLOCKED_COMMANDS:
+        return {
+            "error": f"Command '{tokens[0]}' is blocked for security reasons",
+            "exit_code": -1,
+        }
+
+    # Block write redirects (> file) unless used in a pipe context
+    if "|" not in command:
+        for tok in _BLOCKED_TOKENS:
+            if tok in tokens:
+                return {
+                    "error": "File output redirection is blocked. Use pipes instead.",
+                    "exit_code": -1,
+                }
+
+    # On Windows: block cmd-chaining operators that could bypass
+    if _IS_WINDOWS:
+        for dangerous in ("&&", "||", "&"):
+            if dangerous in tokens:
+                return {
+                    "error": f"Command chaining '{dangerous}' is blocked for security",
+                    "exit_code": -1,
+                }
+
+    return None
+
+
+def _resolve_shell_workdir(
+    args: dict, file_path: str | None, project: "Project | None"
+) -> str | None:
+    """Resolve the working directory for shell command execution.
+
+    Returns the resolved directory path, or None if unresolvable.
+    """
+    import os as _os
+
+    workdir_mode = (args.get("workdir") or "").strip().lower()
+
+    if workdir_mode == "project":
+        if project is not None and project.paths:
+            return project.paths[0]
+        return None
+    elif file_path:
+        if _os.path.isdir(file_path):
+            return file_path
+        elif _os.path.isfile(file_path):
+            return _os.path.dirname(file_path) or "."
+    return None
+
+
+def _get_shell_env(cwd: str) -> dict[str, str]:
+    """Build a sanitized environment dict for shell command execution.
+
+    Cross-platform: preserves PATH from the parent process.
+    On Windows: adds SystemRoot and COMSPEC if missing.
+    """
+    import os as _os
+
+    env = {**_os.environ}  # Start with the real environment
+
+    # Ensure HOME / USERPROFILE is sandboxed to cwd
+    if _IS_WINDOWS:
+        env["USERPROFILE"] = cwd
+        env["HOMEDRIVE"] = _os.path.splitdrive(cwd)[0] or "C:"
+        env["HOMEPATH"] = cwd
+        # cmd.exe needs these
+        if "SystemRoot" not in env:
+            env["SystemRoot"] = _os.environ.get("SystemRoot", "C:\\Windows")
+        if "COMSPEC" not in env:
+            env["COMSPEC"] = _os.environ.get("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
+    else:
+        env["HOME"] = cwd
+
+    return env
+
+
+def _execute_shell_search(args: dict, file_path: str | None, project: "Project | None") -> str:
+    """Execute a shell command for searching logs/code.
+
+    Cross-platform: works on Linux, macOS, and Windows.
+    Sandboxes the command to the log source directory or project root.
+    Blocks dangerous commands and enforces timeout/output limits.
+    """
+    import os as _os
+
+    t_start = time.monotonic()
+
+    command = (args.get("command") or "").strip()
+    if not command:
+        return json.dumps({"error": "command is required", "exit_code": -1})
+
+    # ── Security: parse and block dangerous commands ────────────────────
+    tokens = _split_command_cross_platform(command)
+    if not tokens:
+        return json.dumps({"error": "empty command after parsing", "exit_code": -1})
+
+    err = _check_command_blocked(command, tokens)
+    if err is not None:
+        return json.dumps(err)
+
+    # ── Determine working directory ────────────────────────────────────
+    cwd = _resolve_shell_workdir(args, file_path, project)
+    if not cwd or not _os.path.isdir(cwd):
+        return json.dumps(
+            {
+                "error": "No valid working directory available. Set a log source or project.",
+                "exit_code": -1,
+            }
+        )
+
+    # ── Execute ────────────────────────────────────────────────────────
+    try:
+        proc = subprocess.run(
+            command,
+            shell=True,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=_SHELL_TIMEOUT,
+            env=_get_shell_env(cwd),
+        )
+    except subprocess.TimeoutExpired:
+        elapsed = (time.monotonic() - t_start) * 1000
+        return json.dumps(
+            {
+                "error": f"Command timed out after {_SHELL_TIMEOUT}s",
+                "exit_code": -1,
+                "elapsed_ms": int(elapsed),
+            }
+        )
+    except FileNotFoundError:
+        return json.dumps(
+            {
+                "error": f"Command not found: {tokens[0]}",
+                "exit_code": -1,
+            }
+        )
+
+    elapsed = (time.monotonic() - t_start) * 1000
+
+    # Trim output
+    stdout = proc.stdout[:_MAX_OUTPUT_BYTES]
+    stderr = proc.stderr[:_MAX_OUTPUT_BYTES]
+    truncated = len(proc.stdout) > _MAX_OUTPUT_BYTES or len(proc.stderr) > _MAX_OUTPUT_BYTES
+
+    logger.debug(
+        "tool=execute_shell_search completed in %dms exit=%d stdout=%d stderr=%d platform=%s",
+        int(elapsed),
+        proc.returncode,
+        len(stdout),
+        len(stderr),
+        sys.platform,
+    )
+
+    result = {
+        "command": command[:500],
+        "workdir": cwd,
+        "exit_code": proc.returncode,
+        "elapsed_ms": int(elapsed),
+        "stdout": stdout,
+        "stderr": stderr,
+        "truncated": truncated,
+        "platform": sys.platform,
+    }
+    return json.dumps(result)
+
+
+# ── Timestamp byte-offset index for O(log n) time-range queries ─────────
+
+# Module-level index cache: file_path -> list of (timestamp_sortable, byte_offset)
+_timestamp_index_cache: dict[str, list[tuple[int, int]]] = {}
+_MAX_INDEX_SIZE = 500_000  # max entries per index
+
+
+def _build_timestamp_index(file_path: str) -> list[tuple[int, int]]:
+    """Build a timestamp→byte_offset index for binary-search time queries.
+
+    Returns a sorted list of (timestamp_sortable_int, byte_offset) tuples.
+    The sortable int is a pseudo-timeline key from _timestamp_to_seconds().
+    """
+    if file_path in _timestamp_index_cache:
+        return _timestamp_index_cache[file_path]
+
+    index: list[tuple[int, int]] = []
+    with open(file_path, "rb") as f:
+        offset = 0
+        for raw_line in f:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
+            if not line.strip():
+                offset += len(raw_line)
+                continue
+            # Try to parse as a logcat entry to extract timestamp
+            parsed = _analyzer._parse_single_line(
+                line,
+                0,
+                _analyzer.detect_log_format(line),
+                source_file=file_path,
+            )
+            if parsed.timestamp:
+                ts_sec = _timestamp_to_seconds(parsed.timestamp)
+                if ts_sec is not None:
+                    index.append((int(ts_sec), offset))
+
+            offset += len(raw_line)
+            if len(index) >= _MAX_INDEX_SIZE:
+                break
+
+    _timestamp_index_cache[file_path] = index
+    return index
+
+
+def _binary_search_timerange(
+    file_path: str, start_time: str | None, end_time: str | None
+) -> tuple[int, int] | None:
+    """Return (start_offset, end_offset) for a time range using binary search.
+
+    Returns None if the index can't be built or the time range can't be resolved.
+    """
+    import bisect
+
+    index = _build_timestamp_index(file_path)
+    if not index:
+        return None
+
+    timestamps = [e[0] for e in index]
+
+    start_ts = _timestamp_to_seconds(start_time) if start_time else None
+    end_ts = _timestamp_to_seconds(end_time) if end_time else None
+
+    if start_ts is not None:
+        start_idx = bisect.bisect_left(timestamps, int(start_ts))
+    else:
+        start_idx = 0
+
+    if end_ts is not None:
+        end_idx = bisect.bisect_right(timestamps, int(end_ts)) - 1
+    else:
+        end_idx = len(index) - 1
+
+    if start_idx > end_idx or start_idx >= len(index):
+        return None
+
+    return (index[start_idx][1], index[end_idx][1])

@@ -48,6 +48,20 @@ datas += collect_data_files("certifi")
 # httpx ships its own CA bundle too
 datas += collect_data_files("httpx")
 
+# ── Bundled ripgrep binary ────────────────────────────────────────────────
+# Include the platform-specific rg binary so the frozen app always has a
+# ripgrep available.  The code in code_scanner._discover_rg() will still
+# prefer a newer system install if one exists.
+_RG_BIN_DIR = REPO_ROOT / "backend" / "src" / "ala" / "bin" / sys.platform
+_RG_NAME = "rg.exe" if sys.platform == "win32" else "rg"
+_RG_BINARY = _RG_BIN_DIR / _RG_NAME
+if _RG_BINARY.is_file():
+    # Extract to sys._MEIPASS/ala/bin/rg (matching _get_bundled_rg_path)
+    datas.append((str(_RG_BINARY), "ala/bin"))
+    print(f"  Bundled rg: {_RG_BINARY} ({_RG_BINARY.stat().st_size:,} bytes)")
+else:
+    print(f"  ⚠ Bundled rg not found at {_RG_BINARY} — rg will only work if installed on target")
+
 # Copy .dist-info metadata for packages that call importlib.metadata.version() at import time.
 # Without this, PackageNotFoundError is raised when the frozen exe tries to read package versions.
 for _pkg in (
