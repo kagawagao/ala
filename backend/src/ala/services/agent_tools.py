@@ -12,14 +12,14 @@ from datetime import datetime
 from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
-from .code_scanner import _RG_PATH, CodeScanner
+from . import code_scanner
 from .project_manager import Project
 from .trace_analyzer import TraceAnalyzer
 
 logger = logging.getLogger(__name__)
 
 # ── Ripgrep availability ────────────────────────────────────────────────────
-# _RG_PATH is imported from .code_scanner (single source of truth)
+# Use code_scanner._RG_PATH as the single source of truth.
 
 # ── ToolResultCache (US-FE2) ────────────────────────────────────────────────
 
@@ -152,7 +152,7 @@ def build_log_index(entries: list[dict]) -> LogIndex:
     return idx
 
 
-_scanner = CodeScanner()
+_scanner = code_scanner.CodeScanner()
 _trace_analyzer = TraceAnalyzer()
 
 
@@ -1681,7 +1681,7 @@ def _search_log_with_rg(
     *,
     limit: int = 50,
     case_sensitive: bool = False,
-) -> list[dict]:
+) -> list[dict] | None:
     """Search a log file for *keyword* using ripgrep (10-100x faster than Python scan).
 
     Returns parsed log entries (same format as search_local_log) when possible,
@@ -1689,13 +1689,14 @@ def _search_log_with_rg(
 
     Falls back gracefully if rg is unavailable.
     """
-    if _RG_PATH is None:
-        return []  # Caller should fall back to streaming scan
+    rg_path = code_scanner._RG_PATH
+    if rg_path is None:
+        return None  # Caller should fall back to streaming scan
 
     cmd: list[str] = [
-        _RG_PATH,
+        rg_path,
+        "--json",  # robust parsing across platforms
         "--no-heading",
-        "--no-filename",  # avoid Windows drive-letter colon in output (C:\...)
         "--line-number",
     ]
 
@@ -1705,53 +1706,72 @@ def _search_log_with_rg(
     cmd.extend(["--regexp", keyword, file_path])
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=15,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except FileNotFoundError:
         logger.debug("rg log search failed, will fall back")
-        return []
+        return None
 
     results: list[dict] = []
-    for line in proc.stdout.splitlines():
-        if not line.strip():
-            continue
-        # rg output: "line_num:content" (with --no-filename, cross-platform safe)
-        # Using --no-filename avoids Windows drive-letter colon issues (C:\...)
-        parts = line.split(":", 1)
-        if len(parts) >= 2:
+    early_exit = False
+
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            if not line.strip():
+                continue
             try:
-                line_num = int(parts[0])
-            except ValueError:
-                line_num = 0
-            content = parts[1].strip()
-        else:
-            line_num = 0
-            content = line.strip()
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
-        # Try to parse as a logcat entry for structured output
-        parsed = _analyzer._parse_single_line(
-            content,
-            line_num,
-            _analyzer.detect_log_format(content),
-            source_file=file_path,
-        )
-        results.append(
-            {
-                "line_number": line_num,
-                "timestamp": parsed.timestamp,
-                "level": parsed.level,
-                "tag": parsed.tag,
-                "pid": parsed.pid,
-                "message": (parsed.message or content)[:500],
-            }
-        )
+            if entry.get("type") != "match":
+                continue
 
-        if len(results) >= limit:
-            break
+            data = entry.get("data", {})
+            line_num = int(data.get("line_number") or 0)
+            content = (data.get("lines", {}) or {}).get("text", "").rstrip("\n\r")
+
+            parsed = _analyzer._parse_single_line(
+                content,
+                line_num,
+                _analyzer.detect_log_format(content),
+                source_file=file_path,
+            )
+            results.append(
+                {
+                    "line_number": line_num,
+                    "timestamp": parsed.timestamp,
+                    "level": parsed.level,
+                    "tag": parsed.tag,
+                    "pid": parsed.pid,
+                    "message": (parsed.message or content)[:500],
+                }
+            )
+
+            if len(results) >= limit:
+                early_exit = True
+                break
+    finally:
+        if early_exit:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        try:
+            proc.wait(timeout=5 if early_exit else 15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+    # ripgrep exit codes:
+    # 0 = matches found, 1 = no matches, 2 = error
+    if not early_exit and proc.returncode not in (0, 1):
+        return None
 
     return results
 
@@ -1823,7 +1843,7 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
 
     # Fast path: use rg for keyword-only search (no structured filters)
     use_rg = (
-        _RG_PATH is not None
+        code_scanner._RG_PATH is not None
         and keyword_log
         and not level_filter
         and not tag_filter
@@ -1834,19 +1854,28 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
 
     if use_rg:
         log_matches = _search_log_with_rg(resolved_log, keyword_log, limit=limit_log)
-        log_result = {
-            "total_matched": len(log_matches),
-            "returned": len(log_matches),
-            "entries": log_matches,
-            "method": "rg",
-        }
-    elif keyword_log or level_filter or tag_filter or pid_filter or start_time or end_time:
+        if log_matches is not None:
+            log_result = {
+                "total_matched": len(log_matches),
+                "returned": len(log_matches),
+                "entries": log_matches,
+                "method": "rg",
+            }
+        else:
+            use_rg = False
+
+    if not use_rg and (
+        keyword_log or level_filter or tag_filter or pid_filter or start_time or end_time
+    ):
         # Structured search: use streaming scanner (mimic search_local_log)
         min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
         try:
             keyword_re = re.compile(keyword_log, re.IGNORECASE) if keyword_log else None
         except re.error:
-            keyword_re = None
+            elapsed = (time.monotonic() - t_start) * 1000
+            return json.dumps(
+                {"error": f"Invalid regex: {keyword_log}", "elapsed_ms": int(elapsed)}
+            )
 
         matches: list[dict] = []
         total_matched = 0
@@ -1888,8 +1917,6 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
             "entries": matches,
             "method": "streaming",
         }
-    else:
-        log_result = None
 
     # ── Code search ──────────────────────────────────────────────────────
     code_result: dict | None = None
@@ -1897,7 +1924,7 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
     limit_code = min(int(args.get("limit_code") or 30), 100)
 
     if code_pattern and project is not None:
-        scanner = CodeScanner()
+        scanner = code_scanner.CodeScanner()
         search_root = code_dir if code_dir else project.paths[0] if project.paths else ""
 
         if search_root and os.path.isdir(search_root):

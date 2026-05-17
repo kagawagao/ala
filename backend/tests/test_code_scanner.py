@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from ala.services.code_scanner import CONTEXT_DOC_PATHS, CodeScanner, _RG_PATH
+from ala.services.code_scanner import _RG_PATH, CONTEXT_DOC_PATHS, CodeScanner
 
 
 @pytest.fixture

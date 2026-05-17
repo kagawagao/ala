@@ -853,6 +853,7 @@ class TestSearchAllLocal:
 
         result = _execute_search_all_local({}, "/tmp/test.log", None)
         import json
+
         r = json.loads(result)
         assert "error" in r
         assert "search target" in r["error"].lower()
@@ -867,6 +868,7 @@ class TestSearchAllLocal:
             None,
         )
         import json
+
         r = json.loads(result)
         assert "error" in r
         assert "Invalid log file path" in r["error"]
@@ -890,6 +892,7 @@ class TestSearchAllLocal:
                 None,
             )
             import json
+
             r = json.loads(result)
             # Should not crash — should return results or error gracefully
             assert "error" not in r, f"Got unexpected error: {r.get('error')}"
@@ -914,6 +917,7 @@ class TestSearchAllLocal:
                 None,
             )
             import json
+
             r = json.loads(result)
             assert "error" not in r, f"Got unexpected error: {r.get('error')}"
             logs = r.get("logs", {})
@@ -935,9 +939,7 @@ class TestSearchAllLocal:
         from ala.services.agent_tools import _execute_search_all_local
         from ala.services.project_manager import Project
 
-        log_content = (
-            "01-15 10:30:45.123  1234  5678 I TestTag: test message\n"
-        )
+        log_content = "01-15 10:30:45.123  1234  5678 I TestTag: test message\n"
         log_path = _write_temp_file(log_content)
 
         # Create a temp project with code
@@ -963,6 +965,7 @@ class TestSearchAllLocal:
                     project,
                 )
                 import json
+
                 r = json.loads(result)
                 assert "error" not in r, f"Got unexpected error: {r.get('error')}"
 
@@ -975,9 +978,7 @@ class TestSearchAllLocal:
                 code = r.get("code", {})
                 assert code is not None
                 assert code.get("returned", 0) >= 1
-                assert any(
-                    "main.py" in m.get("path", "") for m in code.get("matches", [])
-                )
+                assert any("main.py" in m.get("path", "") for m in code.get("matches", []))
 
                 # Check elapsed time
                 assert r.get("elapsed_ms", 0) >= 0
@@ -991,9 +992,7 @@ class TestSearchAllLocal:
         # Generate a log with many matching lines
         lines = []
         for i in range(100):
-            lines.append(
-                f"01-15 10:30:{i:02d}.123  1234  5678 I TestTag: match message {i}"
-            )
+            lines.append(f"01-15 10:30:{i:02d}.123  1234  5678 I TestTag: match message {i}")
         log_content = "\n".join(lines) + "\n"
         path = _write_temp_file(log_content)
         try:
@@ -1003,6 +1002,7 @@ class TestSearchAllLocal:
                 None,
             )
             import json
+
             r = json.loads(result)
             assert "error" not in r, f"Got unexpected error: {r.get('error')}"
             logs = r.get("logs", {})
