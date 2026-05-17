@@ -34,8 +34,9 @@ ala/
   - **Streaming parse**: log entries are streamed to the browser as they are parsed — no large JSON body, instant first-row display
   - **Virtualized list**: renders large log datasets without UI lag
   - Filters: time range, keywords (regex), log level, tag (regex), PID, TID
-  - Filter presets (save/load/delete)
+  - Filter presets (save/load/delete per-project or globally)
   - Color-coded log levels
+  - **Export**: download filtered log entries as CSV (RFC 4180, BOM) or JSON
 - **Perfetto Trace Analysis** — Analyze Perfetto `.pb` and JSON trace files
   - Extract process/thread/event summary (all slices, not just top 20)
   - Top slices by duration with virtualized rendering
@@ -43,24 +44,29 @@ ala/
   - **Process filter**: filter the trace view by PID list or process name regex
 - **AI Assistant** — Multi-turn conversation with streaming responses
   - Analysis presets: General, Crash, Performance, Security
-  - Attach log/trace data as conversation context
+  - Attach log/trace data or local file/directory paths as conversation context
   - **Agentic analysis**: AI uses tools (`query_log_overview`, `search_logs`, `list_log_files`, `query_trace_overview`, `list_trace_processes`, `query_trace_slices`) to iteratively explore loaded data
   - **Lazy local log analysis**: AI agent analyzes local files on-demand via streaming tools — no upload, no size cap
     - `overview_local_log` — single-pass stats (line count, levels, tags, time range)
     - `search_local_log` — regex search with pagination
+    - `search_all_local` — composite tool: regex search across log + source code, merges and deduplicates results
     - `read_log_range` — precise line-range reads
     - `tail_local_log` — last N lines via ring buffer
     - **Directory support**: point ALA at a directory of logs for multi-file AI-driven analysis
-  - **Extended thinking**: optional "think mode" for deeper reasoning
-  - Session management (create, rename, delete)
-  - OpenAI-compatible API (works with OpenAI, Ollama, Azure, etc.)
+  - **Extended thinking**: Anthropic extended thinking mode with configurable budget tokens
+  - **Dual-provider AI**: supports Anthropic (native SDK) and OpenAI-compatible APIs (OpenAI, Ollama, Azure, LM Studio, etc.)
+  - Built-in model library with presets for common models
+  - Session management (create, rename, delete, export chat)
 - **Projects** — Group source code paths for AI-assisted analysis
   - Scan project files to discover logging patterns
+  - **Ripgrep-backed code scanner**: 265x faster than pure-Python pattern discovery
   - **AI-generated filter presets**: automatically suggest log filters based on the project's code (`Log.d/i/w/e` tags, process names, error keywords)
   - Context documents (AGENTS.md, CLAUDE.md, etc.) auto-injected into the AI system prompt
+  - Project-level filter preset storage
 - **MCP Server** — Expose log and trace analysis tools via Model Context Protocol
   - `parse_android_log`, `filter_android_logs`, `get_log_statistics`
-  - `parse_perfetto_trace`, `filter_perfetto_trace`
+  - `parse_perfetto_trace`, `filter_perfetto_trace`, `query_perfetto_trace_sql`
+- **In-App User Guide** — Markdown-based guide (English / 中文) rendered with react-markdown, accessible via header button
 - **i18n** — English and Chinese (中文) UI; language auto-detected from browser locale
 - **Dark/light theme**
 
@@ -291,9 +297,19 @@ Git hooks (via Husky):
 | --------- | --------------------------------------- | ------------------------------------------------------- |
 | `GET`     | `/health`                               | Health check                                            |
 | `GET/PUT` | `/api/config`                           | AI configuration                                        |
+| `GET`     | `/api/models`                           | List model presets (built-in + custom)                  |
+| `POST`    | `/api/models`                           | Create custom model preset                              |
+| `PUT`     | `/api/models/:id`                       | Update model preset                                     |
+| `DELETE`  | `/api/models/:id`                       | Delete model preset                                     |
+| `PATCH`   | `/api/models/:id/enabled`               | Toggle model preset enabled/disabled                    |
+| `POST`    | `/api/models/reload`                    | Reload built-in models from on-disk cache               |
 | `POST`    | `/api/logs/parse`                       | Parse log files (multipart, multiple files, .gz / .zip) |
 | `POST`    | `/api/logs/parse/stream`                | Stream-parse log files as NDJSON                        |
 | `POST`    | `/api/logs/parse-local`                 | Validate and scan a server-local log file path          |
+| `POST`    | `/api/logs/auto-path`                   | Auto-detect Android platform-tools log path             |
+| `POST`    | `/api/logs/directory/list`              | List log files in a server-local directory              |
+| `POST`    | `/api/logs/directory/parse/stream`      | Stream-parse all log files in a directory               |
+| `POST`    | `/api/logs/directory/parse/selected/stream` | Stream-parse selected log files in a directory      |
 | `POST`    | `/api/logs/filter`                      | Filter log entries                                      |
 | `POST`    | `/api/logs/statistics`                  | Get log statistics                                      |
 | `POST`    | `/api/trace/parse`                      | Parse Perfetto trace (multipart)                        |
@@ -301,10 +317,12 @@ Git hooks (via Husky):
 | `POST`    | `/api/chat/sessions`                    | Create chat session                                     |
 | `GET`     | `/api/chat/sessions`                    | List chat sessions                                      |
 | `GET`     | `/api/chat/sessions/:id`                | Get session with messages                               |
+| `GET`     | `/api/chat/sessions/:id/export`         | Export session as JSON                                  |
 | `DELETE`  | `/api/chat/sessions/:id`                | Delete session                                          |
 | `POST`    | `/api/chat/sessions/:id/messages`       | Send message (SSE stream)                               |
+| `PUT`     | `/api/chat/sessions/:id/trace`          | Bind parsed trace data to a chat session                |
+| `PUT`     | `/api/chat/sessions/:id/logs`           | Bind parsed log data to a chat session                  |
 | `PUT`     | `/api/chat/sessions/:id/file-path`      | Bind a local file path to a chat session                |
-| `PUT`     | `/api/chat/sessions/:id/directory-path` | Bind a local directory path to a chat session           |
 | `POST`    | `/api/projects`                         | Create project                                          |
 | `GET`     | `/api/projects`                         | List projects                                           |
 | `GET`     | `/api/projects/:id`                     | Get project                                             |
@@ -313,6 +331,8 @@ Git hooks (via Husky):
 | `GET`     | `/api/projects/:id/files`               | List project source files                               |
 | `GET`     | `/api/projects/:id/context-docs`        | List AI context documents in project                    |
 | `POST`    | `/api/projects/:id/generate-filters`    | AI-generate log filter presets (SSE stream)             |
+| `GET`     | `/api/projects/:id/presets`             | List project-level filter presets                       |
+| `PUT`     | `/api/projects/:id/presets`             | Save project-level filter presets                       |
 
 ## License
 
