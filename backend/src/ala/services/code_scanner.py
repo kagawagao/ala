@@ -547,12 +547,13 @@ class CodeScanner:
         # If rg exited with an error AND we have no matches, fall back to Python.
         # (A non-zero exit after we terminated early via SIGTERM is expected.)
         if not early_exit and proc.returncode != 0 and not matches:
+            max_stderr_log_chars = 4096
             stderr_text = ""
             try:
                 if proc.stderr:
                     raw = proc.stderr.read()
-                    stderr_text = raw[:2000].strip()
-                    if len(raw) > 2000:
+                    stderr_text = raw[:max_stderr_log_chars].strip()
+                    if len(raw) > max_stderr_log_chars:
                         stderr_text += f" [...truncated, total {len(raw)} chars]"
             except Exception as exc:
                 stderr_text = f"[failed to read stderr: {exc}]"
