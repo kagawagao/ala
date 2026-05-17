@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
+from . import code_scanner
 from .code_scanner import get_shared_scanner
 from .project_manager import Project
 from .trace_analyzer import TraceAnalyzer
