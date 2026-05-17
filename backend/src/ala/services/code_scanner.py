@@ -178,6 +178,16 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
     return False
 
 
+# Sentinel patterns that mean "include everything" — skip --glob so rg uses
+# its native file discovery (respects .gitignore, skips binaries/hidden files).
+_UNRESTRICTED_PATTERNS: frozenset[str] = frozenset({"**/*", "**", "*"})
+
+
+def _is_unrestricted(patterns: list[str]) -> bool:
+    """Return True if the patterns mean 'search everything'."""
+    return not patterns or all(p in _UNRESTRICTED_PATTERNS for p in patterns)
+
+
 def _load_gitignore_patterns(project_root: Path) -> list[str]:
     """Load patterns from .gitignore if it exists."""
     gitignore = project_root / ".gitignore"
@@ -188,13 +198,23 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        # Convert gitignore patterns to glob-style
-        if line.startswith("/"):
-            patterns.append(line[1:])
-        else:
+        # Strip trailing slash (gitignore directory marker) so patterns
+        # like "dist/" generate "**/dist" and "**/dist/**" — covering files
+        # inside excluded directories, not just the directory entry itself.
+        line = line.rstrip("/")
+        # Convert gitignore patterns to glob-style.
+        # Root-anchored patterns (starting with "/") only match at repo root —
+        # emit root-relative patterns without the "**/" prefix.
+        root_anchored = line.startswith("/")
+        if root_anchored:
+            line = line[1:]
+        if not root_anchored:
             patterns.append(f"**/{line}")
-        if not line.endswith("/") and not line.endswith("*"):
-            patterns.append(f"**/{line}/**")
+        patterns.append(line)
+        if not line.endswith("*"):
+            patterns.append(f"{line}/**")
+            if not root_anchored:
+                patterns.append(f"**/{line}/**")
     return patterns
 
 
@@ -284,8 +304,10 @@ class CodeScanner:
                 if _matches_any(rel_path, all_exclude):
                     continue
 
-                # Check include
-                if not _matches_any(rel_path, include_patterns):
+                # Check include (skip when unrestricted)
+                if not _is_unrestricted(include_patterns) and not _matches_any(
+                    rel_path, include_patterns
+                ):
                     continue
 
                 try:
@@ -462,9 +484,10 @@ class CodeScanner:
         else:
             return SearchResult()
 
-        # Include patterns → --glob
-        for g in self._rg_glob_to_patterns(include_patterns):
-            cmd.extend(["--glob", g])
+        # Include patterns → --glob (skip when unrestricted — let rg discover files natively)
+        if not _is_unrestricted(include_patterns):
+            for g in self._rg_glob_to_patterns(include_patterns):
+                cmd.extend(["--glob", g])
 
         # Exclude patterns → --glob '!...'
         for g in self._rg_glob_to_patterns(exclude_patterns):
