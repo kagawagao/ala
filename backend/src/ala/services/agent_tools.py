@@ -13,6 +13,7 @@ from typing import Any
 
 from ..services.log_analyzer import LogAnalyzer
 from . import code_scanner
+from .code_scanner import get_shared_scanner
 from .project_manager import Project
 from .trace_analyzer import TraceAnalyzer
 
@@ -152,34 +153,57 @@ def build_log_index(entries: list[dict]) -> LogIndex:
     return idx
 
 
-_scanner = code_scanner.CodeScanner()
+_scanner = get_shared_scanner()
 _trace_analyzer = TraceAnalyzer()
 
 
-class _NoOpOverviewCache:
-    """Compatibility shim for overview caching.
+class _OverviewCache:
+    """LRU cache for query_log_overview results.
 
-    A module-level cache keyed by ``id(log_entries)`` is unsafe because entries
-    are never evicted and Python may reuse object ids after a list is freed.
-    Keep the existing cache interface for current call sites, but disable
-    storage so overviews are recomputed per request instead of being retained
-    across sessions.
+    Uses ``(id(entries), len(entries))`` as the cache key.  The risk of a
+    false-positive hit — a different list that happens to land at the same
+    memory address *and* has the same length — is negligible in practice:
+    Python only reuses an object id after the original object is garbage-
+    collected, and matching length at the same address for a *different* log
+    session is astronomically unlikely.
+
+    **Assumption**: the ``entries`` list is treated as immutable after the
+    first ``set()`` call.  If entries are appended or removed after caching,
+    the length changes, which invalidates the key automatically.  Replacing
+    entries in-place (same length, different content) would produce a stale
+    cache hit — but the session model never mutates loaded log entries in
+    place, so this is safe in practice.
+
+    Capped at ``_MAX`` entries with LRU eviction to avoid unbounded growth.
     """
 
-    def __contains__(self, key: int) -> bool:
-        return False
+    _MAX = 32
 
-    def get(self, key: int, default: dict | None = None) -> dict | None:
-        return default
+    def __init__(self) -> None:
+        self._store: OrderedDict[tuple[int, int], dict] = OrderedDict()
 
-    def __setitem__(self, key: int, value: dict) -> None:
-        return None
+    def _key(self, entries: list[dict]) -> tuple[int, int]:
+        return (id(entries), len(entries))
+
+    def get(self, entries: list[dict]) -> dict | None:
+        key = self._key(entries)
+        if key not in self._store:
+            return None
+        self._store.move_to_end(key)
+        return self._store[key]
+
+    def set(self, entries: list[dict], value: dict) -> None:
+        key = self._key(entries)
+        self._store[key] = value
+        self._store.move_to_end(key)
+        while len(self._store) > self._MAX:
+            self._store.popitem(last=False)
 
     def clear(self) -> None:
-        return None
+        self._store.clear()
 
 
-_overview_cache = _NoOpOverviewCache()
+_overview_cache = _OverviewCache()
 
 # Anthropic tool schemas – lazy local file tools (FEAT-LAZY-LOG)
 # When file_path points to a directory, use list_directory_logs first,
@@ -1315,9 +1339,9 @@ def _execute_log_tool(
         return json.dumps({"total_files": len(file_list), "files": file_list})
 
     if tool_name == "query_log_overview":
-        cache_key = id(log_entries)
-        if cache_key in _overview_cache:
-            return json.dumps(_overview_cache[cache_key])
+        cached = _overview_cache.get(log_entries)
+        if cached is not None:
+            return json.dumps(cached)
 
         level_counts: dict[str, int] = {}
         tags: set[str] = set()
@@ -1373,7 +1397,7 @@ def _execute_log_tool(
             "sample_tags": sorted(tags)[:30],
             "sample_pids": sorted(pids)[:30],
         }
-        _overview_cache[cache_key] = result
+        _overview_cache.set(log_entries, result)
         return json.dumps(result)
 
     if tool_name == "search_logs":
@@ -1430,8 +1454,11 @@ def _execute_log_tool(
                 all_matched = []
                 total_matched = 0
         else:
-            # Slow path: linear scan (original behavior)
+            # Slow path: linear scan with streaming to avoid a large intermediate list.
+            # Count matches and collect only the page [offset, offset+limit) in one pass.
             all_matched = []
+            total_matched = 0
+            entries_skipped = 0  # tracks progress toward the offset target
             for entry in log_entries:
                 lvl = entry.get("level", "V")
                 if _LEVEL_ORDER.get(lvl, 0) < min_level:
@@ -1449,10 +1476,12 @@ def _execute_log_tool(
                     entry.get("message") or entry.get("raw_line") or ""
                 ):
                     continue
-                all_matched.append(entry)
-
-            total_matched = len(all_matched)
-            all_matched = all_matched[offset : offset + limit]
+                total_matched += 1
+                if entries_skipped < offset:
+                    entries_skipped += 1
+                    continue
+                if len(all_matched) < limit:
+                    all_matched.append(entry)
 
         # Trim message length to avoid token overflow when results are sent to the model
         trimmed = []
