@@ -70,8 +70,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            asset_suffix: linux-x64
           - os: macos-latest
             asset_suffix: macos
           - os: windows-latest
@@ -118,13 +116,6 @@ jobs:
           else
             echo "version=0.0.0-dev" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Package Linux archive
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          mkdir -p release-assets
-          tar -C backend/dist -czf "release-assets/ALA-${{ steps.version.outputs.version }}-${{ matrix.asset_suffix }}.tar.gz" ala
 
       - name: Package macOS DMG
         if: runner.os == 'macOS'
