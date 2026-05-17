@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ala-backend"
-version = "2.2.2"
+version = "2.3.0"
 description = "ALA Backend - Android Log Analyzer Python backend"
 authors = ["Jingsong Gao <gao.jingsong@gmail.com>"]
 readme = "../README.md"
