@@ -23,8 +23,22 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
   const [keywordsFilter, setKeywordsFilter] = useState('')
   const [filtering, setFiltering] = useState(false)
 
+  const hasFilterConditions =
+    !!protocolFilter.trim() ||
+    !!srcIpFilter.trim() ||
+    !!dstIpFilter.trim() ||
+    !!srcPortFilter.trim() ||
+    !!dstPortFilter.trim() ||
+    !!tcpFlagsFilter.trim() ||
+    !!keywordsFilter.trim()
+
   const handleFilter = useCallback(async () => {
     if (entries.length === 0) return
+
+    if (!hasFilterConditions) {
+      onFilteredEntries(entries)
+      return
+    }
 
     const filters: PcapFilters = {
       start_time: null,
@@ -36,12 +50,6 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
       dst_port: dstPortFilter.trim() ? parseInt(dstPortFilter.trim(), 10) : null,
       tcp_flags: tcpFlagsFilter.trim() || null,
       keywords: keywordsFilter.trim() || null,
-    }
-
-    const hasFilters = Object.values(filters).some((v) => v !== null)
-    if (!hasFilters) {
-      onFilteredEntries(entries)
-      return
     }
 
     setFiltering(true)
@@ -56,6 +64,7 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
     }
   }, [
     entries,
+    hasFilterConditions,
     protocolFilter,
     srcIpFilter,
     dstIpFilter,
@@ -152,7 +161,7 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
             type="primary"
             icon={filtering ? <Spin size="small" /> : <FilterOutlined />}
             onClick={() => void handleFilter()}
-            disabled={filtering}
+            disabled={filtering || !hasFilterConditions}
             block
           >
             {t('applyFilter')}

@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { Card, Table, Tag, Typography, Empty, Row, Col, Statistic, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { PcapEntry, PcapStatistics } from '../types/pcap'
-import { getPcapStatistics } from '../api/pcap'
 
 const { Text } = Typography
 
@@ -12,49 +11,65 @@ interface PcapViewerProps {
   formatDetected?: string
 }
 
+/** Compute PCAP statistics client-side to avoid re-uploading the full packet list. */
+function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
+  if (entries.length === 0) return null
+
+  const byProtocol: Record<string, number> = {}
+  const ips = new Set<string>()
+  const connections = new Set<string>()
+
+  for (const e of entries) {
+    byProtocol[e.protocol] = (byProtocol[e.protocol] ?? 0) + 1
+    if (e.src_ip && e.src_ip !== '?') ips.add(e.src_ip)
+    if (e.dst_ip && e.dst_ip !== '?') ips.add(e.dst_ip)
+    if (e.src_port && e.dst_port) {
+      connections.add(`${e.src_ip}:${e.src_port}->${e.dst_ip}:${e.dst_port}`)
+    }
+  }
+
+  const timestamps = entries
+    .map((e) => e.timestamp)
+    .filter((t): t is string => t !== null)
+    .sort()
+  let duration_seconds: number | null = null
+  if (timestamps.length >= 2) {
+    const start = new Date(timestamps[0]).getTime()
+    const end = new Date(timestamps[timestamps.length - 1]).getTime()
+    if (!isNaN(start) && !isNaN(end)) {
+      duration_seconds = (end - start) / 1000
+    }
+  }
+
+  return {
+    total: entries.length,
+    by_protocol: byProtocol,
+    unique_ips: ips.size,
+    unique_connections: connections.size,
+    duration_seconds,
+  }
+}
+
 const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDetected }) => {
   const { t } = useTranslation()
 
-  const [statistics, setStatistics] = useState<PcapStatistics | null>(null)
-  const [loadingStats, setLoadingStats] = useState(false)
+  const statistics = useMemo(() => computeStatistics(entries), [entries])
 
   const packetTableWrapperRef = useRef<HTMLDivElement>(null)
   const [packetTableHeight, setPacketTableHeight] = useState(400)
 
-  // Update statistics when entries change
-  useEffect(() => {
-    void loadStatistics(entries)
-  }, [entries])
-
-  // Auto-resize table
-  useEffect(() => {
+  // Auto-resize table based on container
+  React.useEffect(() => {
     const el = packetTableWrapperRef.current
     if (!el) return
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
+    const observer = new ResizeObserver((observerEntries) => {
+      for (const entry of observerEntries) {
         setPacketTableHeight(entry.contentRect.height)
       }
     })
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
-
-  const loadStatistics = async (entriesToAnalyze: PcapEntry[]) => {
-    if (entriesToAnalyze.length === 0) {
-      setStatistics(null)
-      return
-    }
-
-    setLoadingStats(true)
-    try {
-      const stats = await getPcapStatistics(entriesToAnalyze)
-      setStatistics(stats)
-    } catch (err) {
-      console.error('Failed to load statistics:', err)
-    } finally {
-      setLoadingStats(false)
-    }
-  }
 
   if (entries.length === 0) {
     return (
@@ -149,26 +164,17 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
               valueStyle={
                 totalPackets !== entries.length ? { color: 'var(--ant-color-primary)' } : undefined
               }
-              loading={loadingStats}
             />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic
-              title={t('uniqueIPs')}
-              value={statistics?.unique_ips ?? 0}
-              loading={loadingStats}
-            />
+            <Statistic title={t('uniqueIPs')} value={statistics?.unique_ips ?? 0} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic
-              title={t('connections')}
-              value={statistics?.unique_connections ?? 0}
-              loading={loadingStats}
-            />
+            <Statistic title={t('connections')} value={statistics?.unique_connections ?? 0} />
           </Card>
         </Col>
         <Col span={6}>
@@ -179,7 +185,6 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
                 statistics?.duration_seconds != null ? statistics.duration_seconds.toFixed(2) : '—'
               }
               suffix={statistics?.duration_seconds != null ? 's' : ''}
-              loading={loadingStats}
             />
           </Card>
         </Col>
@@ -206,7 +211,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
 
       {/* Packet Table */}
       <Card size="small" title={t('packets')} styles={{ body: { padding: 0 } }}>
-        <div ref={packetTableWrapperRef} style={{ height: 400, overflow: 'hidden' }}>
+        <div ref={packetTableWrapperRef} style={{ flex: 1, minHeight: 200, overflow: 'hidden' }}>
           <Table
             dataSource={entries}
             columns={packetColumns}

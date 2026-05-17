@@ -215,7 +215,9 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            timestamp = datetime.fromtimestamp(pkt.time, tz=datetime.UTC).strftime(
+                "%Y-%m-%d %H:%M:%S.%f"
+            )[:-3]
 
         # Extract network layer info
         protocol = "UNKNOWN"
@@ -369,14 +371,13 @@ class PcapAnalyzer:
             if entry.src_port and entry.dst_port:
                 connections.add((entry.src_ip, entry.src_port, entry.dst_ip, entry.dst_port))
 
-        # Calculate duration
+        # Calculate duration using min/max timestamps for correctness
         duration_seconds = None
         timestamps = [e.timestamp for e in entries if e.timestamp]
         if len(timestamps) >= 2:
             try:
-                start = datetime.strptime(timestamps[0], "%Y-%m-%d %H:%M:%S.%f")
-                end = datetime.strptime(timestamps[-1], "%Y-%m-%d %H:%M:%S.%f")
-                duration_seconds = (end - start).total_seconds()
+                parsed = [datetime.strptime(ts, "%Y-%m-%d %H:%M:%S.%f") for ts in timestamps]
+                duration_seconds = (max(parsed) - min(parsed)).total_seconds()
             except (ValueError, IndexError):
                 pass
 

@@ -1171,16 +1171,16 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
             protocols[protocol] = protocols.get(protocol, 0) + 1
 
             # Unique IPs
-            if "src" in entry:
-                ips.add(entry["src"])
-            if "dst" in entry:
-                ips.add(entry["dst"])
+            if "src_ip" in entry:
+                ips.add(entry["src_ip"])
+            if "dst_ip" in entry:
+                ips.add(entry["dst_ip"])
 
             # Unique ports
-            if "sport" in entry and entry["sport"]:
-                ports.add(entry["sport"])
-            if "dport" in entry and entry["dport"]:
-                ports.add(entry["dport"])
+            if "src_port" in entry and entry["src_port"]:
+                ports.add(entry["src_port"])
+            if "dst_port" in entry and entry["dst_port"]:
+                ports.add(entry["dst_port"])
 
             # Time range
             timestamp = entry.get("timestamp")
@@ -1215,23 +1215,23 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
 
         src_ip = args.get("src_ip", "")
         if src_ip:
-            filtered = [e for e in filtered if src_ip in e.get("src", "")]
+            filtered = [e for e in filtered if src_ip in e.get("src_ip", "")]
 
         dst_ip = args.get("dst_ip", "")
         if dst_ip:
-            filtered = [e for e in filtered if dst_ip in e.get("dst", "")]
+            filtered = [e for e in filtered if dst_ip in e.get("dst_ip", "")]
 
         src_port = args.get("src_port")
         if src_port is not None:
-            filtered = [e for e in filtered if e.get("sport") == src_port]
+            filtered = [e for e in filtered if e.get("src_port") == src_port]
 
         dst_port = args.get("dst_port")
         if dst_port is not None:
-            filtered = [e for e in filtered if e.get("dport") == dst_port]
+            filtered = [e for e in filtered if e.get("dst_port") == dst_port]
 
         tcp_flags = args.get("tcp_flags", "").upper()
         if tcp_flags:
-            filtered = [e for e in filtered if tcp_flags in e.get("flags", "").upper()]
+            filtered = [e for e in filtered if tcp_flags in e.get("tcp_flags", "").upper()]
 
         content = args.get("content", "")
         if content:

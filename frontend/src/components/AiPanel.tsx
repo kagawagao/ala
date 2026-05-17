@@ -384,8 +384,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   // Keep the active session's PCAP data in sync when pcapEntries changes
   useEffect(() => {
-    if (activeSessionId && pcapEntries.length > 0) {
+    if (!activeSessionId) return
+    if (pcapEntries.length > 0) {
       void setSessionPcap(activeSessionId, pcapEntries as unknown as Record<string, unknown>[])
+    } else {
+      void setSessionPcap(activeSessionId, [])
     }
   }, [pcapEntries, activeSessionId])
 

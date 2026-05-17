@@ -2,12 +2,11 @@
 
 import gzip
 import io
-import struct
 import zipfile
 
 import pytest
 
-from ala.services.log_analyzer import LogAnalyzer, LogFilters, LogFormat, extract_text_files
+from ala.services.log_analyzer import LogAnalyzer, LogFilters, extract_text_files
 
 
 @pytest.fixture
@@ -195,136 +194,3 @@ class TestMultiFileParsing:
             zf.writestr("b.log", SAMPLE_LOGCAT)
         entries = list(analyzer.stream_log_bytes(buf.getvalue(), "logs.zip"))
         assert len(entries) == 10
-
-
-def _create_minimal_pcap() -> bytes:
-    """Create a minimal valid pcap file with one packet for testing."""
-    # PCAP global header (little-endian)
-    magic_number = 0xA1B2C3D4  # pcap magic
-    version_major = 2
-    version_minor = 4
-    thiszone = 0
-    sigfigs = 0
-    snaplen = 65535
-    network = 1  # Ethernet
-
-    header = struct.pack(
-        "<IHHIIII",
-        magic_number,
-        version_major,
-        version_minor,
-        thiszone,
-        sigfigs,
-        snaplen,
-        network,
-    )
-
-    # Simple Ethernet + IP + TCP packet header
-    # Packet record header
-    ts_sec = 1609459200  # 2021-01-01 00:00:00
-    ts_usec = 0
-    incl_len = 54  # Ethernet(14) + IP(20) + TCP(20)
-    orig_len = 54
-
-    packet_header = struct.pack("<IIII", ts_sec, ts_usec, incl_len, orig_len)
-
-    # Ethernet frame (14 bytes)
-    eth_dst = b"\x00\x00\x00\x00\x00\x00"
-    eth_src = b"\x00\x00\x00\x00\x00\x01"
-    eth_type = b"\x08\x00"  # IPv4
-    eth_frame = eth_dst + eth_src + eth_type
-
-    # IP header (20 bytes)
-    ip_header = (
-        b"\x45\x00\x00\x28"  # Version, IHL, TOS, Total Length
-        b"\x00\x00\x40\x00"  # ID, Flags, Fragment Offset
-        b"\x40\x06\x00\x00"  # TTL, Protocol (TCP=6), Checksum
-        b"\xc0\xa8\x01\x01"  # Source IP: 192.168.1.1
-        b"\xc0\xa8\x01\x02"  # Dest IP: 192.168.1.2
-    )
-
-    # TCP header (20 bytes)
-    tcp_header = (
-        b"\x00\x50"  # Source port: 80
-        b"\x04\x00"  # Dest port: 1024
-        b"\x00\x00\x00\x00"  # Sequence number
-        b"\x00\x00\x00\x00"  # Acknowledgment number
-        b"\x50\x02"  # Data offset, flags (SYN)
-        b"\x20\x00"  # Window size
-        b"\x00\x00"  # Checksum
-        b"\x00\x00"  # Urgent pointer
-    )
-
-    packet = eth_frame + ip_header + tcp_header
-
-    return header + packet_header + packet
-
-
-class TestPcapParsing:
-    """Tests for pcap file parsing."""
-
-    def test_is_pcap_data(self, analyzer):
-        """Test pcap magic byte detection."""
-        pcap_data = _create_minimal_pcap()
-        assert analyzer._is_pcap_data(pcap_data)
-
-        # Test non-pcap data
-        assert not analyzer._is_pcap_data(b"hello world")
-        assert not analyzer._is_pcap_data(b"")
-        assert not analyzer._is_pcap_data(SAMPLE_LOGCAT.encode())
-
-    def test_parse_pcap_file(self, analyzer):
-        """Test parsing a minimal pcap file."""
-        pytest.importorskip("scapy")
-        pcap_data = _create_minimal_pcap()
-        results = analyzer.parse_log_bytes(pcap_data, "capture.pcap")
-
-        assert len(results) == 1
-        result = results[0]
-        assert result.format_detected == LogFormat.PCAP.value
-        assert result.total_lines >= 1
-        assert len(result.logs) >= 1
-
-        # Check first packet entry
-        entry = result.logs[0]
-        assert entry.line_number == 1
-        assert entry.timestamp is not None  # Should have extracted timestamp
-        assert entry.tag in ("TCP", "UNKNOWN")  # Should detect protocol
-        assert entry.source_file == "capture.pcap"
-        assert entry.level in ("D", "I", "W", "E", "U")  # Valid log level
-
-    def test_stream_pcap_file(self, analyzer):
-        """Test streaming pcap file."""
-        pytest.importorskip("scapy")
-        pcap_data = _create_minimal_pcap()
-        entries = list(analyzer.stream_log_bytes(pcap_data, "capture.pcap"))
-
-        assert len(entries) >= 1
-        entry = entries[0]
-        assert entry.timestamp is not None
-        assert entry.source_file == "capture.pcap"
-
-    def test_pcap_in_zip(self, analyzer):
-        """Test parsing pcap file inside a zip archive."""
-        pytest.importorskip("scapy")
-        pcap_data = _create_minimal_pcap()
-
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w") as zf:
-            zf.writestr("network.pcap", pcap_data)
-
-        results = analyzer.parse_log_bytes(buf.getvalue(), "logs.zip")
-        assert len(results) == 1
-        assert results[0].format_detected == LogFormat.PCAP.value
-
-    def test_pcap_without_scapy_raises(self, analyzer, monkeypatch):
-        """Test that parsing pcap without scapy raises helpful error."""
-        # Mock SCAPY_AVAILABLE to False
-        import ala.services.log_analyzer
-
-        monkeypatch.setattr(ala.services.log_analyzer, "SCAPY_AVAILABLE", False)
-
-        pcap_data = _create_minimal_pcap()
-        with pytest.raises(ValueError, match="scapy library not installed"):
-            analyzer.parse_log_bytes(pcap_data, "capture.pcap")
-

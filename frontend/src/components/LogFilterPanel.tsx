@@ -335,7 +335,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
               </Text>
             ),
             children: (
-              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
+              <Space direction="vertical" style={{ width: '100%' }} size={6}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 11 }}>
                     {t('startTime')}
@@ -449,7 +449,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
             key: 'highlights',
             label: <Text strong>{t('highlights')}</Text>,
             children: (
-              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
+              <Space direction="vertical" style={{ width: '100%' }} size={6}>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <Input
                     size="small"
@@ -548,7 +548,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                   {t('noPresets')}
                 </Text>
               ) : (
-                <Space orientation="vertical" style={{ width: '100%' }} size={4}>
+                <Space direction="vertical" style={{ width: '100%' }} size={4}>
                   {presets.map((p) => (
                     <div
                       key={p.id}

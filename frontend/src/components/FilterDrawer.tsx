@@ -52,7 +52,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   // Keyboard shortcut: Ctrl+Shift+F
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+      if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') {
         e.preventDefault()
         setOpen((prev) => !prev)
       }

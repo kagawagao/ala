@@ -59,7 +59,7 @@ class SessionManager:
             created_at=row["created_at"],
             trace_summary=json.loads(row["trace_summary"]) if row["trace_summary"] else None,
             log_entries=json.loads(row["log_entries"]) if row["log_entries"] else None,
-            pcap_entries=json.loads(row["pcap_entries"]) if row.get("pcap_entries") else None,
+            pcap_entries=json.loads(row["pcap_entries"]) if row["pcap_entries"] else None,
             file_path=row["file_path"],
             log_index=self._log_index_cache.get(sid),
             raw_api_messages=json.loads(row["raw_api_messages"])
