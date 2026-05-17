@@ -1,5 +1,6 @@
 """Test configuration — provides isolated in-memory SQLite DB for all tests."""
 
+import os
 import sqlite3
 
 import pytest
@@ -24,3 +25,20 @@ def _isolate_db(monkeypatch):
     monkeypatch.setattr(database, "get_db", lambda: conn)
     yield
     conn.close()
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "benchmark: performance benchmark tests; set ALA_RUN_BENCHMARKS=1 to enable",
+    )
+
+
+def pytest_collection_modifyitems(items):
+    if os.environ.get("ALA_RUN_BENCHMARKS") == "1":
+        return
+
+    skip_benchmark = pytest.mark.skip(reason="set ALA_RUN_BENCHMARKS=1 to run benchmark tests")
+    for item in items:
+        if "benchmark" in item.keywords:
+            item.add_marker(skip_benchmark)
