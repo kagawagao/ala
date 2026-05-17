@@ -547,13 +547,20 @@ class CodeScanner:
         # If rg exited with an error AND we have no matches, fall back to Python.
         # (A non-zero exit after we terminated early via SIGTERM is expected.)
         if not early_exit and proc.returncode != 0 and not matches:
+            max_stderr_log_chars = 4096
             stderr_text = ""
             try:
-                stderr_text = proc.stderr.read()[:200].strip()
-            except Exception:
-                pass
+                if proc.stderr:
+                    raw = proc.stderr.read()
+                    stderr_text = raw[:max_stderr_log_chars].strip()
+                    if len(raw) > max_stderr_log_chars:
+                        stderr_text += f" [...truncated, total {len(raw)} chars]"
+            except Exception as exc:
+                stderr_text = f"[failed to read stderr: {exc}]"
             logger.warning(
-                "rg exited %d (stderr: %s), falling back to Python",
+                "rg exited — project=%s pattern=%r rc=%d stderr=%s",
+                project_path,
+                pattern,
                 proc.returncode,
                 stderr_text,
             )
