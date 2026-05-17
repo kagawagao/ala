@@ -1122,7 +1122,7 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
             if pid_filter and entry.pid != pid_filter:
                 continue
             if keyword_re:
-                text = f"{entry.tag} {entry.message}"
+                text = f"{entry.tag or ''} {entry.message or ''}"
                 if not keyword_re.search(text):
                     continue
             if start_time and entry.timestamp and entry.timestamp < start_time:
@@ -1887,7 +1887,7 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
             if pid_filter and entry.pid != pid_filter:
                 continue
             if keyword_re:
-                text = f"{entry.tag} {entry.message}"
+                text = f"{entry.tag or ''} {entry.message or ''}"
                 if not keyword_re.search(text):
                     continue
             if start_time and entry.timestamp and entry.timestamp < start_time:

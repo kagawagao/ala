@@ -608,6 +608,7 @@ def search_all_local(
                 [
                     rg_path,
                     "--no-heading",
+                    "--no-filename",
                     "--line-number",
                     "--max-count",
                     str(limit_log),
@@ -623,9 +624,17 @@ def search_all_local(
             for line in proc.stdout.splitlines():
                 if not line.strip():
                     continue
-                parts = line.split(":", 2)
-                line_num = int(parts[1]) if len(parts) >= 3 and parts[1].isdigit() else 0
-                content = parts[2].strip() if len(parts) >= 3 else line.strip()
+                # rg output with --no-filename: "line_num:content"
+                parts = line.split(":", 1)
+                if len(parts) >= 2:
+                    try:
+                        line_num = int(parts[0])
+                    except ValueError:
+                        line_num = 0
+                    content = parts[1].strip()
+                else:
+                    line_num = 0
+                    content = line.strip()
                 parsed = _log_analyzer._parse_single_line(
                     content,
                     line_num,
@@ -672,7 +681,7 @@ def search_all_local(
             if pid and str(pid) != str(entry.pid):
                 continue
             if keyword_re:
-                text = f"{entry.tag} {entry.message}"
+                text = f"{entry.tag or ''} {entry.message or ''}"
                 if not keyword_re.search(text):
                     continue
             if start_time and entry.timestamp and entry.timestamp < start_time:
