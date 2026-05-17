@@ -202,13 +202,19 @@ def _load_gitignore_patterns(project_root: Path) -> list[str]:
         # like "dist/" generate "**/dist" and "**/dist/**" — covering files
         # inside excluded directories, not just the directory entry itself.
         line = line.rstrip("/")
-        # Convert gitignore patterns to glob-style
-        if line.startswith("/"):
-            patterns.append(line[1:])
-        else:
+        # Convert gitignore patterns to glob-style.
+        # Root-anchored patterns (starting with "/") only match at repo root —
+        # emit root-relative patterns without the "**/" prefix.
+        root_anchored = line.startswith("/")
+        if root_anchored:
+            line = line[1:]
+        if not root_anchored:
             patterns.append(f"**/{line}")
+        patterns.append(line)
         if not line.endswith("*"):
-            patterns.append(f"**/{line}/**")
+            patterns.append(f"{line}/**")
+            if not root_anchored:
+                patterns.append(f"**/{line}/**")
     return patterns
 
 

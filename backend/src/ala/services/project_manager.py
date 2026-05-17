@@ -54,6 +54,11 @@ class ProjectManager:
         ).fetchall()
         include_patterns = [p["pattern"] for p in inc_rows]
 
+        # Normalize: old Android-only default → new unrestricted default
+        _LEGACY_DEFAULT = ["**/*.java", "**/*.kt", "**/*.xml"]
+        if include_patterns == _LEGACY_DEFAULT:
+            include_patterns = ["**/*"]
+
         # Load exclude patterns
         exc_rows = self._db.execute(
             "SELECT pattern FROM project_patterns WHERE project_id = ? AND type = 'exclude' ORDER BY ordering",
@@ -68,10 +73,10 @@ class ProjectManager:
             name=row["name"],
             paths=paths,
             include_patterns=include_patterns
-            if include_patterns is not None
+            if include_patterns
             else Project.__dataclass_fields__["include_patterns"].default_factory(),
             exclude_patterns=exclude_patterns
-            if exclude_patterns is not None
+            if exclude_patterns
             else Project.__dataclass_fields__["exclude_patterns"].default_factory(),
             filter_presets=filter_presets,
             created_at=row["created_at"],
