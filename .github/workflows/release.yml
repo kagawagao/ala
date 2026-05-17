@@ -69,8 +69,18 @@ jobs:
       packages: write
 
     steps:
+      - name: Resolve release ref
+        id: ref
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "tag=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -122,8 +132,18 @@ jobs:
             asset_suffix: windows-x64
 
     steps:
+      - name: Resolve release ref
+        id: ref
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "tag=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -283,6 +303,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve tag name
+        id: tag
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "name=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4.1.3
         with:
@@ -293,7 +321,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version || github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.name }}
           generate_release_notes: true
-          prerelease: ${{ contains(inputs.version || github.ref_name, 'alpha') || contains(inputs.version || github.ref_name, 'beta') || contains(inputs.version || github.ref_name, 'rc') }}
+          prerelease: ${{ contains(steps.tag.outputs.name, 'alpha') || contains(steps.tag.outputs.name, 'beta') || contains(steps.tag.outputs.name, 'rc') }}
           files: release-assets/*
