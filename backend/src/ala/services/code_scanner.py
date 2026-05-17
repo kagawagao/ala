@@ -549,11 +549,14 @@ class CodeScanner:
         if not early_exit and proc.returncode != 0 and not matches:
             stderr_text = ""
             try:
-                stderr_text = proc.stderr.read()[:200].strip()
-            except Exception:
-                pass
+                if proc.stderr:
+                    stderr_text = proc.stderr.read().strip()
+            except Exception as exc:
+                stderr_text = f"[failed to read stderr: {exc}]"
             logger.warning(
-                "rg exited %d (stderr: %s), falling back to Python",
+                "rg exited — project=%s pattern=%r rc=%d stderr=%s",
+                project_path,
+                pattern,
                 proc.returncode,
                 stderr_text,
             )
