@@ -16,7 +16,13 @@ import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
-REPO_ROOT = Path(SPECPATH).parent  # noqa: F821 – SPECPATH is set by PyInstaller
+_spec_path = Path(SPECPATH)  # noqa: F821 – SPECPATH is set by PyInstaller
+# SPECPATH may be either the spec directory (e.g. ".../backend") or the spec file
+# path (e.g. ".../backend/ala.spec") depending on invocation context.
+_spec_location = _spec_path if _spec_path.is_dir() else _spec_path.parent
+REPO_ROOT = (
+    _spec_location.parent if _spec_location.name == "backend" else _spec_location
+)
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 if not FRONTEND_DIST.is_dir():
@@ -41,6 +47,20 @@ datas += collect_data_files("certifi")
 
 # httpx ships its own CA bundle too
 datas += collect_data_files("httpx")
+
+# ── Bundled ripgrep binary ────────────────────────────────────────────────
+# Include the platform-specific rg binary so the frozen app always has a
+# ripgrep available.  The code in code_scanner._discover_rg() will still
+# prefer a newer system install if one exists.
+_RG_BIN_DIR = REPO_ROOT / "backend" / "src" / "ala" / "bin" / sys.platform
+_RG_NAME = "rg.exe" if sys.platform == "win32" else "rg"
+_RG_BINARY = _RG_BIN_DIR / _RG_NAME
+if _RG_BINARY.is_file():
+    # Extract to sys._MEIPASS/ala/bin/rg (matching _get_bundled_rg_path)
+    datas.append((str(_RG_BINARY), "ala/bin"))
+    print(f"  Bundled rg: {_RG_BINARY} ({_RG_BINARY.stat().st_size:,} bytes)")
+else:
+    print(f"  ⚠ Bundled rg not found at {_RG_BINARY} — rg will only work if installed on target")
 
 # Copy .dist-info metadata for packages that call importlib.metadata.version() at import time.
 # Without this, PackageNotFoundError is raised when the frozen exe tries to read package versions.

@@ -50,8 +50,6 @@ const UserGuide: React.FC = () => {
         padding: '16px 24px',
         maxWidth: 960,
         margin: '0 auto',
-        overflowY: 'auto',
-        height: '100%',
       }}
     >
       {content === null && !error ? (

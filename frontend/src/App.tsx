@@ -103,7 +103,7 @@ const AppContent: React.FC<{
   const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
   const location = useLocation()
-  const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
+  const isFullPage = useMemo(() => location.pathname !== '/', [location.pathname])
 
   // Ref to avoid stale closure in the project-loading effect
   const selectedProjectIdRef = useRef(selectedProjectId)
@@ -682,6 +682,7 @@ const AppContent: React.FC<{
                           size={aiPanelSize}
                           min={320}
                           max={'50%'}
+                          defaultSize={'50%'}
                           style={{
                             borderLeft: '1px solid var(--ant-color-border)',
                             overflow: 'hidden',
