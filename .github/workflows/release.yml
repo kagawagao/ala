@@ -242,7 +242,7 @@ jobs:
           <?xml version='1.0' encoding='UTF-8'?>
           <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
             <Product Id='*' Name='ALA' Language='1033' Version='$SafeVersion' Manufacturer='kagawagao' UpgradeCode='EC2F02F9-F9C5-4A31-8F0E-EF2A2B049A2D'>
-              <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine'/>
+              <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine' Platform='x64'/>
               <MajorUpgrade DowngradeErrorMessage='A newer version of ALA is already installed.'/>
               <MediaTemplate EmbedCab='yes'/>
               <Feature Id='MainFeature' Title='ALA' Level='1'>
