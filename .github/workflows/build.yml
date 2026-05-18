@@ -8,6 +8,15 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      build_packages:
+        description: 'Build desktop packages (macOS DMG + Windows MSI/ZIP) for self-testing'
+        type: boolean
+        default: false
+      version:
+        description: 'Version label for artifact names when not triggered from a tag (e.g. 2.3.0-test)'
+        required: false
+        type: string
 
 jobs:
   lint-ruff:
@@ -69,7 +78,7 @@ jobs:
       - lint-eslint
       - test-pytest
       - build-check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.build_packages == true)
     strategy:
       fail-fast: false
       matrix:
@@ -114,12 +123,16 @@ jobs:
       - name: Build standalone executable
         run: cd backend && poetry run pyinstaller ala.spec --noconfirm
 
-      - name: Extract version from tag
+      - name: Extract version from tag or input
         id: version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Package macOS DMG
         if: runner.os == 'macOS'
