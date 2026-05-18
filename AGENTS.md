@@ -223,6 +223,7 @@ Run a single frontend test:
 ```bash
 cd frontend
 npx vitest run src/components/__tests__/LogViewer.test.tsx
+```
 
 ### Lint & Format
 

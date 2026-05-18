@@ -293,46 +293,46 @@ Git hooks (via Husky):
 
 ## API Reference
 
-| Method    | Path                                    | Description                                             |
-| --------- | --------------------------------------- | ------------------------------------------------------- |
-| `GET`     | `/health`                               | Health check                                            |
-| `GET/PUT` | `/api/config`                           | AI configuration                                        |
-| `GET`     | `/api/models`                           | List model presets (built-in + custom)                  |
-| `POST`    | `/api/models`                           | Create custom model preset                              |
-| `PUT`     | `/api/models/:id`                       | Update model preset                                     |
-| `DELETE`  | `/api/models/:id`                       | Delete model preset                                     |
-| `PATCH`   | `/api/models/:id/enabled`               | Toggle model preset enabled/disabled                    |
-| `POST`    | `/api/models/reload`                    | Reload built-in models from on-disk cache               |
-| `POST`    | `/api/logs/parse`                       | Parse log files (multipart, multiple files, .gz / .zip) |
-| `POST`    | `/api/logs/parse/stream`                | Stream-parse log files as NDJSON                        |
-| `POST`    | `/api/logs/parse-local`                 | Validate and scan a server-local log file path          |
-| `POST`    | `/api/logs/auto-path`                   | Auto-detect Android platform-tools log path             |
-| `POST`    | `/api/logs/directory/list`              | List log files in a server-local directory              |
-| `POST`    | `/api/logs/directory/parse/stream`      | Stream-parse all log files in a directory               |
-| `POST`    | `/api/logs/directory/parse/selected/stream` | Stream-parse selected log files in a directory      |
-| `POST`    | `/api/logs/filter`                      | Filter log entries                                      |
-| `POST`    | `/api/logs/statistics`                  | Get log statistics                                      |
-| `POST`    | `/api/trace/parse`                      | Parse Perfetto trace (multipart)                        |
-| `POST`    | `/api/trace/filter`                     | Filter trace by process PID(s) / name regex             |
-| `POST`    | `/api/chat/sessions`                    | Create chat session                                     |
-| `GET`     | `/api/chat/sessions`                    | List chat sessions                                      |
-| `GET`     | `/api/chat/sessions/:id`                | Get session with messages                               |
-| `GET`     | `/api/chat/sessions/:id/export`         | Export session as JSON                                  |
-| `DELETE`  | `/api/chat/sessions/:id`                | Delete session                                          |
-| `POST`    | `/api/chat/sessions/:id/messages`       | Send message (SSE stream)                               |
-| `PUT`     | `/api/chat/sessions/:id/trace`          | Bind parsed trace data to a chat session                |
-| `PUT`     | `/api/chat/sessions/:id/logs`           | Bind parsed log data to a chat session                  |
-| `PUT`     | `/api/chat/sessions/:id/file-path`      | Bind a local file path to a chat session                |
-| `POST`    | `/api/projects`                         | Create project                                          |
-| `GET`     | `/api/projects`                         | List projects                                           |
-| `GET`     | `/api/projects/:id`                     | Get project                                             |
-| `PUT`     | `/api/projects/:id`                     | Update project                                          |
-| `DELETE`  | `/api/projects/:id`                     | Delete project                                          |
-| `GET`     | `/api/projects/:id/files`               | List project source files                               |
-| `GET`     | `/api/projects/:id/context-docs`        | List AI context documents in project                    |
-| `POST`    | `/api/projects/:id/generate-filters`    | AI-generate log filter presets (SSE stream)             |
-| `GET`     | `/api/projects/:id/presets`             | List project-level filter presets                       |
-| `PUT`     | `/api/projects/:id/presets`             | Save project-level filter presets                       |
+| Method    | Path                                        | Description                                             |
+| --------- | ------------------------------------------- | ------------------------------------------------------- |
+| `GET`     | `/health`                                   | Health check                                            |
+| `GET/PUT` | `/api/config`                               | AI configuration                                        |
+| `GET`     | `/api/models`                               | List model presets (built-in + custom)                  |
+| `POST`    | `/api/models`                               | Create custom model preset                              |
+| `PUT`     | `/api/models/:id`                           | Update model preset                                     |
+| `DELETE`  | `/api/models/:id`                           | Delete model preset                                     |
+| `PATCH`   | `/api/models/:id/enabled`                   | Toggle model preset enabled/disabled                    |
+| `POST`    | `/api/models/reload`                        | Reload built-in models from on-disk cache               |
+| `POST`    | `/api/logs/parse`                           | Parse log files (multipart, multiple files, .gz / .zip) |
+| `POST`    | `/api/logs/parse/stream`                    | Stream-parse log files as NDJSON                        |
+| `POST`    | `/api/logs/parse-local`                     | Validate and scan a server-local log file path          |
+| `POST`    | `/api/logs/auto-path`                       | Auto-detect Android platform-tools log path             |
+| `POST`    | `/api/logs/directory/list`                  | List log files in a server-local directory              |
+| `POST`    | `/api/logs/directory/parse/stream`          | Stream-parse all log files in a directory               |
+| `POST`    | `/api/logs/directory/parse/selected/stream` | Stream-parse selected log files in a directory          |
+| `POST`    | `/api/logs/filter`                          | Filter log entries                                      |
+| `POST`    | `/api/logs/statistics`                      | Get log statistics                                      |
+| `POST`    | `/api/trace/parse`                          | Parse Perfetto trace (multipart)                        |
+| `POST`    | `/api/trace/filter`                         | Filter trace by process PID(s) / name regex             |
+| `POST`    | `/api/chat/sessions`                        | Create chat session                                     |
+| `GET`     | `/api/chat/sessions`                        | List chat sessions                                      |
+| `GET`     | `/api/chat/sessions/:id`                    | Get session with messages                               |
+| `GET`     | `/api/chat/sessions/:id/export`             | Export session as JSON                                  |
+| `DELETE`  | `/api/chat/sessions/:id`                    | Delete session                                          |
+| `POST`    | `/api/chat/sessions/:id/messages`           | Send message (SSE stream)                               |
+| `PUT`     | `/api/chat/sessions/:id/trace`              | Bind parsed trace data to a chat session                |
+| `PUT`     | `/api/chat/sessions/:id/logs`               | Bind parsed log data to a chat session                  |
+| `PUT`     | `/api/chat/sessions/:id/file-path`          | Bind a local file path to a chat session                |
+| `POST`    | `/api/projects`                             | Create project                                          |
+| `GET`     | `/api/projects`                             | List projects                                           |
+| `GET`     | `/api/projects/:id`                         | Get project                                             |
+| `PUT`     | `/api/projects/:id`                         | Update project                                          |
+| `DELETE`  | `/api/projects/:id`                         | Delete project                                          |
+| `GET`     | `/api/projects/:id/files`                   | List project source files                               |
+| `GET`     | `/api/projects/:id/context-docs`            | List AI context documents in project                    |
+| `POST`    | `/api/projects/:id/generate-filters`        | AI-generate log filter presets (SSE stream)             |
+| `GET`     | `/api/projects/:id/presets`                 | List project-level filter presets                       |
+| `PUT`     | `/api/projects/:id/presets`                 | Save project-level filter presets                       |
 
 ## License
 
