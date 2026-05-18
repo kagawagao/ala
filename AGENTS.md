@@ -220,9 +220,10 @@ poetry run pytest tests/test_trace_analyzer.py::TestTraceFilter::test_filter_by_
 
 Run a single frontend test:
 
-````bash
+```bash
 cd frontend
 npx vitest run src/components/__tests__/LogViewer.test.tsx
+```
 
 ### Lint & Format
 
@@ -239,7 +240,7 @@ npm run format:check      # Prettier + ruff check-only (CI)
 cd backend
 poetry run ruff check src/
 poetry run ruff format --check src/
-````
+```
 
 ### Docker
 
