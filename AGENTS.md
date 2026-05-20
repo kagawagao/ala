@@ -7,7 +7,7 @@ ALA is a full-stack AI-powered Android log and Perfetto trace analyzer.
 - **Backend**: Python 3.12+ FastAPI server managed with Poetry (`backend/`)
 - **Frontend**: React 19 + Vite 6 + Ant Design 6 + TypeScript 5 (`frontend/`)
 - **Repository**: monorepo at `https://github.com/kagawagao/ala`, license MIT
-- **Version**: 2.2.2
+- **Version**: 2.3.3
 
 ## Repository Layout
 

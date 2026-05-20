@@ -5,10 +5,10 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .api import chat, health, logs, models, projects, trace
 from .api import config as config_router
@@ -32,6 +32,18 @@ if _FROZEN:
         _candidate = Path(_meipass) / "frontend_dist"
         if _candidate.is_dir():
             _FRONTEND_DIR = _candidate
+
+
+class _SPAStaticFiles(StaticFiles):
+    """StaticFiles that falls back to index.html for missing paths (SPA routing)."""
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
 
 
 def create_app() -> FastAPI:
@@ -87,14 +99,15 @@ def create_app() -> FastAPI:
     # This must come AFTER all API routers and /mcp mount so that API paths
     # are matched first and only unrecognised paths fall through to the SPA.
     if _FRONTEND_DIR is not None:
-        # Serve static assets (JS/CSS/images etc.)
-        app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
-
-        @app.get("/{full_path:path}", include_in_schema=False)
-        async def serve_spa(full_path: str, request: Request) -> FileResponse:  # noqa: ARG001
-            """Return index.html for every non-API path (React client-side routing)."""
-            index = _FRONTEND_DIR / "index.html"  # type: ignore[operator]
-            return FileResponse(str(index))
+        # Serve the entire frontend dist directory; _SPAStaticFiles falls back
+        # to index.html for any path that doesn't resolve to an actual file,
+        # enabling React client-side routing while still serving static assets
+        # (e.g. /guide/zh.md, /assets/...) directly.
+        app.mount(
+            "/",
+            _SPAStaticFiles(directory=str(_FRONTEND_DIR), html=True),
+            name="spa",
+        )
 
     return app
 
