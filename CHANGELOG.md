@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ---
 
+## [2.3.3](https://github.com/kagawagao/ala/compare/v2.3.2...v2.3.3) (2026-05-20)
+
+### Bug Fixes
+
+- **msi:** set x64 platform for Windows MSI package
+
+---
+
+## [2.3.2](https://github.com/kagawagao/ala/compare/v2.3.1...v2.3.2) (2026-05-18)
+
+### CI/CD
+
+- **workflows:** restructure into Build → Release pipeline ([#83](https://github.com/kagawagao/ala/pull/83))
+- **msi:** fix Windows MSI ICE80 validation errors and artifact security ([#83](https://github.com/kagawagao/ala/pull/83))
+
+---
+
+## [2.3.1](https://github.com/kagawagao/ala/compare/v2.3.0...v2.3.1) (2026-05-17)
+
+### Bug Fixes
+
+- **release:** Windows UnicodeEncodeError in ala.spec + manual workflow_dispatch support ([#82](https://github.com/kagawagao/ala/pull/82))
+
+---
+
+## [2.3.0](https://github.com/kagawagao/ala/compare/v2.2.2...v2.3.0) (2026-05-17)
+
+### Performance
+
+- **search:** ripgrep-backed code/log search — 265x faster than pure-Python ([#78](https://github.com/kagawagao/ala/pull/78))
+- **search:** `search_all_local` composite tool — single API call searches both logs and source code ([#78](https://github.com/kagawagao/ala/pull/78))
+- **agentic:** optimize log overview, search_logs, and code scanner with benchmark suite ([#79](https://github.com/kagawagao/ala/pull/79))
+
+### Bug Fixes
+
+- **scanner:** use `.gitignore`-based exclusion instead of hardcoded file-type whitelist ([#81](https://github.com/kagawagao/ala/pull/81))
+- **scanner:** improve rg error logging — include project path, pattern, and capped stderr output ([#80](https://github.com/kagawagao/ala/pull/80))
+- **ci:** resolve Windows MSI file binding in release workflow ([#77](https://github.com/kagawagao/ala/pull/77))
+
+### Documentation
+
+- **docs:** update CHANGELOG from tags, README features, AGENTS layout, user guides
+
+---
+
 ## [2.2.2](https://github.com/kagawagao/ala/compare/v2.2.1...v2.2.2) (2026-05-15)
 
 ### Features

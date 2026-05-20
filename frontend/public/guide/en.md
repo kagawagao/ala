@@ -1,7 +1,7 @@
 # ALA User Guide
 
 ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat output and Perfetto traces.  
-**Version 2.2.2**
+**Version 2.3.3**
 
 ---
 
