@@ -572,3 +572,48 @@ class TestChatSessions:
             json={"file_path": "/tmp/nonexistent_file_xyz_123.log"},
         )
         assert resp.status_code in (400, 403, 404)
+
+
+# ---------------------------------------------------------------------------
+# _SPAStaticFiles – SPA routing fallback
+# ---------------------------------------------------------------------------
+
+
+class TestSPAStaticFiles:
+    """Tests for the _SPAStaticFiles static-file handler used in frozen builds.
+
+    These tests mount _SPAStaticFiles against a temporary directory so they
+    run without a real PyInstaller executable.
+    """
+
+    @pytest.fixture()
+    def spa_client(self, tmp_path):
+        """Return a TestClient whose root is a minimal fake frontend dist."""
+        from fastapi import FastAPI
+
+        from ala.main import _SPAStaticFiles
+
+        # Create a minimal dist layout
+        index = tmp_path / "index.html"
+        index.write_text("<html><body>SPA</body></html>", encoding="utf-8")
+        guide_dir = tmp_path / "guide"
+        guide_dir.mkdir()
+        zh_md = guide_dir / "zh.md"
+        zh_md.write_text("# 中文指南", encoding="utf-8")
+
+        mini_app = FastAPI()
+        mini_app.mount("/", _SPAStaticFiles(directory=str(tmp_path), html=True), name="spa")
+        with TestClient(mini_app, raise_server_exceptions=False) as c:
+            yield c
+
+    def test_existing_static_file_served_directly(self, spa_client):
+        """A file that exists on disk should be served with its real content."""
+        resp = spa_client.get("/guide/zh.md")
+        assert resp.status_code == 200
+        assert "中文指南" in resp.text
+
+    def test_missing_path_falls_back_to_index_html(self, spa_client):
+        """A path with no corresponding file should fall back to index.html."""
+        resp = spa_client.get("/some/client-side/route")
+        assert resp.status_code == 200
+        assert "SPA" in resp.text
