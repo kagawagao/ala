@@ -230,6 +230,19 @@ jobs:
           $WxsDir = Join-Path $env:RUNNER_TEMP "wix"
           New-Item -ItemType Directory -Force -Path $WxsDir | Out-Null
 
+          $IconDest = Join-Path $WxsDir "icon.ico"
+          Copy-Item -Path "assets\icons\icon.ico" -Destination $IconDest -Force
+
+          $LicenseRtf = Join-Path $WxsDir "License.rtf"
+          $licLines = Get-Content -Path "LICENSE" -Encoding UTF8
+          $rtfLines = $licLines | ForEach-Object {
+            $line = $_ -replace '\\', '\\\\' -replace '\{', '\{' -replace '\}', '\}'
+            if ([string]::IsNullOrWhiteSpace($line)) { '\par\par ' } else { "$line\par " }
+          }
+          $rtfBody = $rtfLines -join ' '
+          $rtfContent = "{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fcharset0 Arial;}}\f0\fs18 $rtfBody}"
+          [System.IO.File]::WriteAllText($LicenseRtf, $rtfContent, [System.Text.Encoding]::GetEncoding(1252))
+
           $ProductWxs = Join-Path $WxsDir "Product.wxs"
           @"
           <?xml version='1.0' encoding='UTF-8'?>
@@ -238,18 +251,47 @@ jobs:
               <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine' Platform='x64'/>
               <MajorUpgrade DowngradeErrorMessage='A newer version of ALA is already installed.'/>
               <MediaTemplate EmbedCab='yes'/>
+              <Icon Id='AlaIcon' SourceFile='$IconDest'/>
+              <Property Id='ARPPRODUCTICON' Value='AlaIcon'/>
+              <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+              <WixVariable Id='WixUILicenseRtf' Value='$LicenseRtf'/>
               <Feature Id='MainFeature' Title='ALA' Level='1'>
                 <ComponentGroupRef Id='AppFiles'/>
+                <ComponentRef Id='DesktopShortcutComp'/>
+                <ComponentRef Id='ProgramMenuShortcutComp'/>
               </Feature>
-              <UIRef Id='WixUI_Minimal'/>
-              <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+              <UIRef Id='WixUI_InstallDir'/>
             </Product>
             <Fragment>
               <Directory Id='TARGETDIR' Name='SourceDir'>
                 <Directory Id='ProgramFiles64Folder'>
                   <Directory Id='INSTALLDIR' Name='ALA'/>
                 </Directory>
+                <Directory Id='CommonProgramsFolder'>
+                  <Directory Id='ProgramMenuDir' Name='ALA'/>
+                </Directory>
               </Directory>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id='CommonDesktopFolder'>
+                <Component Id='DesktopShortcutComp' Guid='B8F2A0C1-3D5E-4F7A-9B0C-1D2E3F4A5B6C'>
+                <Shortcut Id='DesktopShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
+                          WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
+                          Icon='AlaIcon' IconIndex='0'/>
+                <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='desktop_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+                </Component>
+              </DirectoryRef>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id='ProgramMenuDir'>
+                <Component Id='ProgramMenuShortcutComp' Guid='C9F3B1D2-4E6F-5A8B-0C1D-2E3F4A5B6C7D'>
+                <Shortcut Id='StartMenuShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
+                          WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
+                          Icon='AlaIcon' IconIndex='0'/>
+                <RemoveFolder Id='RemoveProgramMenuDir' Directory='ProgramMenuDir' On='uninstall'/>
+                <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='startmenu_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+                </Component>
+              </DirectoryRef>
             </Fragment>
           </Wix>
           "@ | Set-Content -Path $ProductWxs -Encoding utf8
