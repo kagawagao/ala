@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ALA Backend",
         description="Android Log Analyzer backend API",
-        version="2.3.3",
+        version="2.3.4",
         lifespan=lifespan,
     )
 
