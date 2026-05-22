@@ -79,7 +79,7 @@
 ### Features
 
 - implement model management features with backend integration ([#60](https://github.com/kagawagao/ala/issues/60)) ([8154172](https://github.com/kagawagao/ala/commit/8154172435fef9881d927efec7f65c01dde3f2c4))
-- Phase 3+4 — frontend tests, LRU cache, CSV/JSON export, CHANGELOG ([#58](https://github.com/kagawagao/ala/issues/58)) ([b745026](https://github.com/kagawagao/ala/commit/b74502689036d848c170814baae1fa42bf0e6533)), closes [#XX](https://github.com/kagawagao/ala/issues/XX)
+- Phase 3+4 — frontend tests, LRU cache, CSV/JSON export, CHANGELOG ([#58](https://github.com/kagawagao/ala/issues/58)) ([b745026](https://github.com/kagawagao/ala/commit/b74502689036d848c170814baae1fa42bf0e6533))
 
 ### Bug Fixes
 
