@@ -273,7 +273,7 @@ jobs:
               </Directory>
             </Fragment>
             <Fragment>
-              <DirectoryRef Id='CommonDesktopFolder'>
+              <DirectoryRef Id='DesktopFolder'>
                 <Component Id='DesktopShortcutComp' Guid='B8F2A0C1-3D5E-4F7A-9B0C-1D2E3F4A5B6C'>
                 <Shortcut Id='DesktopShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
                           WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
