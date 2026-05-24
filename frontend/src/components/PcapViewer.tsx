@@ -144,7 +144,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       width: 80,
     },
     {
-      title: 'Flags',
+      title: t('tcpFlags'),
       dataIndex: 'tcp_flags',
       key: 'tcp_flags',
       width: 120,
@@ -201,7 +201,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       </Row>
 
       <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col>{formatDetected && <Tag>Format: {formatDetected}</Tag>}</Col>
+        <Col>{formatDetected && <Tag>{t('pcapFormat')}: {formatDetected}</Tag>}</Col>
       </Row>
 
       {/* Protocol Distribution */}

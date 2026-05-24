@@ -262,6 +262,7 @@
   "pcapFilters": "PCAP 过滤器",
   "pcapFilterFailed": "过滤失败",
   "pcapPacketNumber": "#",
+  "pcapFormat": "格式",
   "protocol": "协议",
   "sourceIP": "源 IP",
   "destinationIP": "目标 IP",

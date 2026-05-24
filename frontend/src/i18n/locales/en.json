@@ -262,6 +262,7 @@
   "pcapFilters": "PCAP Filters",
   "pcapFilterFailed": "Filter failed",
   "pcapPacketNumber": "#",
+  "pcapFormat": "Format",
   "protocol": "Protocol",
   "sourceIP": "Source IP",
   "destinationIP": "Destination IP",
