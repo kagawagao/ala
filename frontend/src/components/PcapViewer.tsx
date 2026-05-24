@@ -9,6 +9,8 @@ interface PcapViewerProps {
   entries: PcapEntry[]
   totalPackets: number
   formatDetected?: string
+  /** Pre-computed statistics from server (lazy mode). Falls back to client-side compute. */
+  statistics?: PcapStatistics | null
 }
 
 /** Compute PCAP statistics client-side to avoid re-uploading the full packet list. */
@@ -50,10 +52,13 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
   }
 }
 
-const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDetected }) => {
+const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDetected, statistics: externalStats }) => {
   const { t } = useTranslation()
 
-  const statistics = useMemo(() => computeStatistics(entries), [entries])
+  const statistics = useMemo(
+    () => externalStats ?? computeStatistics(entries),
+    [externalStats, entries],
+  )
 
   const packetTableWrapperRef = useRef<HTMLDivElement>(null)
   const [packetTableHeight, setPacketTableHeight] = useState(400)

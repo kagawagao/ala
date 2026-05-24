@@ -1,13 +1,56 @@
 import type { PcapEntry, PcapFilters, PcapParseResult, PcapStatistics } from '../types/pcap'
-import { apiUpload, streamUploadNDJSON } from './client'
+import { apiFetch, apiUploadMulti } from './client'
+
+// ── Temp upload / status ──────────────────────────────────────────────
+
+export interface PcapTempFileInfo {
+  original_name: string
+  saved_path: string
+  size_bytes: number
+  format_detected: string
+}
+
+export interface PcapTempUploadResponse {
+  session_uuid: string
+  files: PcapTempFileInfo[]
+}
+
+export interface PcapTempStatusResponse {
+  dir_path: string
+  session_count: number
+  total_size_bytes: number
+}
+
+export async function uploadPcapToTemp(files: File[]): Promise<PcapTempUploadResponse> {
+  return apiUploadMulti<PcapTempUploadResponse>('/pcap/upload/temp', files)
+}
+
+export async function getPcapTempStatus(): Promise<PcapTempStatusResponse> {
+  return apiFetch<PcapTempStatusResponse>('/pcap/temp/status')
+}
+
+export async function cleanupPcapTemp(): Promise<{ removed: number }> {
+  return apiFetch<{ removed: number }>('/pcap/temp/cleanup', { method: 'POST' })
+}
+
+// ── Legacy (kept for backward compat) ─────────────────────────────────
 
 export async function parsePcap(file: File): Promise<PcapParseResult> {
-  return apiUpload<PcapParseResult>('/api/pcap/parse', file)
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiFetch<PcapParseResult>('/pcap/parse', {
+    method: 'POST',
+    body: formData,
+  })
 }
+
+// ── Stream types ──────────────────────────────────────────────────────
 
 interface StreamDone {
   _done: true
-  total: number
+  matched: number
+  scanned: number
+  stats: PcapStatistics
 }
 
 interface StreamError {
@@ -19,22 +62,74 @@ type StreamLine = PcapEntry | StreamDone | StreamError
 const isDone = (line: StreamLine): line is StreamDone => '_done' in line
 const isError = (line: StreamLine): line is StreamError => '_error' in line
 
-export async function* parsePcapStream(
-  file: File,
+// ── Lazy filter/stream ────────────────────────────────────────────────
+
+export interface PcapFilterStreamResult {
+  entries: PcapEntry[]
+  stats: PcapStatistics | null
+  matched: number
+  scanned: number
+}
+
+const BATCH_SIZE = 500
+
+export async function* streamFilteredPcap(
+  path: string,
+  filters: PcapFilters,
   signal?: AbortSignal,
-): AsyncGenerator<PcapEntry | StreamDone> {
-  for await (const line of streamUploadNDJSON<StreamLine>(
-    '/api/pcap/parse/stream',
-    [file],
+): AsyncGenerator<PcapEntry | StreamDone | StreamError> {
+  const response = await fetch('/api/pcap/filter/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, filters }),
     signal,
-  )) {
-    if (isError(line)) {
-      throw new Error(line._error)
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `${response.status}`)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // Process complete lines from buffer
+      let newlineIdx: number
+      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIdx).trim()
+        buffer = buffer.slice(newlineIdx + 1)
+
+        if (!line) continue
+
+        try {
+          const parsed: StreamLine = JSON.parse(line)
+          if (isError(parsed)) {
+            throw new Error(parsed._error)
+          }
+          yield parsed
+          if (isDone(parsed)) return
+        } catch (e) {
+          if (e instanceof SyntaxError) continue
+          throw e
+        }
+      }
     }
-    yield line as PcapEntry | StreamDone
-    if (isDone(line)) return
+  } finally {
+    reader.releaseLock()
   }
 }
+
+// ── Legacy filter (kept for backward compat) ───────────────────────────
 
 export async function filterPcap(entries: PcapEntry[], filters: PcapFilters): Promise<PcapEntry[]> {
   const response = await fetch('/api/pcap/filter', {

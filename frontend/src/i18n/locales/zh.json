@@ -268,6 +268,7 @@
   "tcpFlags": "TCP 标志",
   "protocolDistribution": "协议分布",
   "packets": "数据包",
+  "length": "长度",
   "source": "源地址",
   "destination": "目标地址",
   "filters": "过滤器",
