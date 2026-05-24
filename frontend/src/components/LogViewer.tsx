@@ -1,17 +1,17 @@
-import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
-import type { InputRef } from 'antd'
-import { Table, Tag, Typography, Tooltip, Empty, App, Button, Input, Progress } from 'antd'
 import {
+  CloseOutlined,
   CopyOutlined,
   DownloadOutlined,
-  SearchOutlined,
-  CloseOutlined,
-  UpOutlined,
   DownOutlined,
+  SearchOutlined,
+  UpOutlined,
 } from '@ant-design/icons'
+import type { InputRef } from 'antd'
+import { App, Button, Empty, Input, Progress, Table, Tag, Tooltip, Typography } from 'antd'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { LogEntry, HighlightItem } from '../types'
-import { generateCSV, generateJSON, downloadBlob, generateExportFilename } from '../utils/export'
+import type { HighlightItem, LogEntry } from '../types'
+import { downloadBlob, generateCSV, generateExportFilename, generateJSON } from '../utils/export'
 
 const { Text } = Typography
 
@@ -378,7 +378,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
               showInfo={false}
               style={{ flex: 1, margin: 0 }}
               strokeColor="var(--ant-color-primary)"
-              trailColor="var(--ant-color-bg-container-disabled)"
+              railColor="var(--ant-color-bg-container-disabled)"
             />
             <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
               {parseProgress.current.toLocaleString()} / {parseProgress.total.toLocaleString()}{' '}

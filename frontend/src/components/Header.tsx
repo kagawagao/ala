@@ -6,8 +6,6 @@ import {
   DisconnectOutlined,
   FolderOutlined,
   GlobalOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
   MoonOutlined,
   ReloadOutlined,
   SunOutlined,
@@ -24,8 +22,6 @@ interface HeaderProps {
   onToggleTheme: () => void
   language: string
   onToggleLanguage: () => void
-  siderCollapsed: boolean
-  onToggleSider: () => void
   backendConnected: boolean
   projects: Project[]
   selectedProjectId: string | null
@@ -38,8 +34,6 @@ const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   language: _language,
   onToggleLanguage,
-  siderCollapsed,
-  onToggleSider,
   backendConnected,
   projects,
   selectedProjectId,
@@ -65,14 +59,6 @@ const Header: React.FC<HeaderProps> = ({
       <Space>
         {isHomePage ? (
           <>
-            <Tooltip title={siderCollapsed ? t('showSidebar') : t('hideSidebar')}>
-              <Button
-                type="text"
-                icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={onToggleSider}
-                aria-label={siderCollapsed ? t('showSidebar') : t('hideSidebar')}
-              />
-            </Tooltip>
             <span style={{ fontWeight: 700, fontSize: 16 }}>ALA</span>
             <Tag
               color={backendConnected ? 'success' : 'error'}

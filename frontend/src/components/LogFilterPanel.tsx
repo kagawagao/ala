@@ -1,37 +1,37 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import {
+  CheckOutlined,
+  ClearOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  FilterOutlined,
+  FolderOpenOutlined,
+  SaveOutlined,
+  ThunderboltOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
+import {
+  App,
   Button,
+  Col,
+  Collapse,
+  Divider,
+  Form,
   Input,
+  Modal,
+  Popconfirm,
+  Radio,
+  Row,
   Select,
   Space,
-  Collapse,
-  Typography,
-  Divider,
-  Tag,
-  Popconfirm,
-  Modal,
-  Form,
-  Radio,
   Statistic,
-  Row,
-  Col,
+  Tag,
   Tooltip,
-  App,
+  Typography,
 } from 'antd'
-import {
-  FilterOutlined,
-  ClearOutlined,
-  SaveOutlined,
-  FolderOpenOutlined,
-  DownloadOutlined,
-  UploadOutlined,
-  DeleteOutlined,
-  CheckOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
 import { generateFilters } from '../api/projects'
+import type { FilterPreset, HighlightItem, LogFilters, LogStatistics } from '../types'
 import { hasFilterConditions } from '../utils/filters'
 
 const { Text } = Typography
@@ -265,62 +265,6 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '8px 0' }}>
-      <div style={{ padding: '0 12px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <Tooltip title={hasPendingConditions ? t('applyFilters') : t('filterDisabledNoConditions')}>
-          <Button
-            size="small"
-            type={isDirty && hasPendingConditions ? 'primary' : 'default'}
-            icon={<FilterOutlined />}
-            onClick={applyFilters}
-            disabled={!hasPendingConditions}
-          >
-            {t('applyFilters')}
-          </Button>
-        </Tooltip>
-        <Tooltip title={t('clearFilters')}>
-          <Button
-            size="small"
-            icon={<ClearOutlined />}
-            onClick={clearFilters}
-            aria-label={t('clearFilters')}
-          />
-        </Tooltip>
-        <Tooltip title={t('savePreset')}>
-          <Button
-            size="small"
-            icon={<SaveOutlined />}
-            onClick={() => setPresetModalOpen(true)}
-            aria-label={t('savePreset')}
-          />
-        </Tooltip>
-        <Tooltip title={t('exportFilters')}>
-          <Button size="small" icon={<DownloadOutlined />} onClick={exportFilters} />
-        </Tooltip>
-        <Tooltip title={t('importFilters')}>
-          <Button size="small" icon={<UploadOutlined />} onClick={importFilters} />
-        </Tooltip>
-      </div>
-      {selectedProjectId && (
-        <div style={{ padding: '0 12px 8px' }}>
-          <Button
-            size="small"
-            block
-            icon={<ThunderboltOutlined />}
-            onClick={() => void handleGenerateFilters()}
-            loading={generatingFilters}
-          >
-            {presets.length > 0 ? t('updateFilters') : t('initFilters')}
-          </Button>
-        </div>
-      )}
-      {isDirty && (
-        <div style={{ padding: '0 12px 6px' }}>
-          <Text type="warning" style={{ fontSize: 11 }}>
-            {t('filtersPendingChanges')}
-          </Text>
-        </div>
-      )}
-
       <Collapse
         defaultActiveKey={['filters', 'highlights', 'display']}
         bordered={false}
@@ -334,8 +278,58 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                 <FilterOutlined /> {t('search')}
               </Text>
             ),
+            extra: (
+              <>
+                <div style={{ padding: '0 12px 8px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <Tooltip
+                    title={
+                      hasPendingConditions ? t('applyFilters') : t('filterDisabledNoConditions')
+                    }
+                  >
+                    <Button
+                      size="small"
+                      type={isDirty && hasPendingConditions ? 'primary' : 'default'}
+                      icon={<FilterOutlined />}
+                      onClick={applyFilters}
+                      disabled={!hasPendingConditions}
+                    >
+                      {t('applyFilters')}
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title={t('clearFilters')}>
+                    <Button
+                      size="small"
+                      icon={<ClearOutlined />}
+                      onClick={clearFilters}
+                      aria-label={t('clearFilters')}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t('savePreset')}>
+                    <Button
+                      size="small"
+                      icon={<SaveOutlined />}
+                      onClick={() => setPresetModalOpen(true)}
+                      aria-label={t('savePreset')}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t('exportFilters')}>
+                    <Button size="small" icon={<DownloadOutlined />} onClick={exportFilters} />
+                  </Tooltip>
+                  <Tooltip title={t('importFilters')}>
+                    <Button size="small" icon={<UploadOutlined />} onClick={importFilters} />
+                  </Tooltip>
+                </div>
+                {isDirty && (
+                  <div style={{ padding: '0 12px 6px' }}>
+                    <Text type="warning" style={{ fontSize: 11 }}>
+                      {t('filtersPendingChanges')}
+                    </Text>
+                  </div>
+                )}
+              </>
+            ),
             children: (
-              <Space direction="vertical" style={{ width: '100%' }} size={6}>
+              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 11 }}>
                     {t('startTime')}
@@ -449,7 +443,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
             key: 'highlights',
             label: <Text strong>{t('highlights')}</Text>,
             children: (
-              <Space direction="vertical" style={{ width: '100%' }} size={6}>
+              <Space orientation="vertical" style={{ width: '100%' }} size={6}>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <Input
                     size="small"
@@ -542,13 +536,30 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                 <FolderOpenOutlined /> {t('filterPresets')}
               </Text>
             ),
+            extra: (
+              <>
+                {selectedProjectId && (
+                  <div style={{ padding: '0 12px 8px' }}>
+                    <Button
+                      size="small"
+                      block
+                      icon={<ThunderboltOutlined />}
+                      onClick={() => void handleGenerateFilters()}
+                      loading={generatingFilters}
+                    >
+                      {presets.length > 0 ? t('updateFilters') : t('initFilters')}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ),
             children:
               presets.length === 0 ? (
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {t('noPresets')}
                 </Text>
               ) : (
-                <Space direction="vertical" style={{ width: '100%' }} size={4}>
+                <Space orientation="vertical" style={{ width: '100%' }} size={4}>
                   {presets.map((p) => (
                     <div
                       key={p.id}
