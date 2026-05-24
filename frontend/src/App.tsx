@@ -343,7 +343,7 @@ const AppContent: React.FC<{
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme])
+  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -512,7 +512,7 @@ const AppContent: React.FC<{
       void message.success(t('fileUploaded'))
     }
     closeUploadPopover()
-  }, [loadFromStream, pendingFiles, uploadMode, t, message])
+  }, [loadFromStream, pendingFiles, uploadMode, t, message, closeUploadPopover])
 
   const showFileUpload = allLogs.length === 0 && !traceResult && !localFilePath
 
