@@ -462,23 +462,6 @@ const AppContent: React.FC<{
     [loadSource, t, message],
   )
 
-  const handlePcapFile = useCallback(
-    async (file: File) => {
-      resetLogs() // Clear any log data
-      setTraceResult(null) // Clear any trace data
-      // Clear stale filtered state
-      setFilteredTraceResult(null)
-      setFilteredPcapEntries([])
-
-      const ok = await loadPcapFile(file)
-      if (ok) {
-        setActiveTab('pcap')
-        void message.success(t('fileUploaded'))
-      }
-    },
-    [loadPcapFile, resetLogs, t, message],
-  )
-
   const handleTraceFile = useCallback(
     async (file: File) => {
       resetLogs()
