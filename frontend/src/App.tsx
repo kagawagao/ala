@@ -82,7 +82,6 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
-  const [siderCollapsed, setSiderCollapsed] = useState(true)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
@@ -342,12 +341,6 @@ const AppContent: React.FC<{
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ctrl+K / Cmd+K → toggle sidebar
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setSiderCollapsed((v) => !v)
-        return
-      }
       // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
         e.preventDefault()
@@ -366,10 +359,6 @@ const AppContent: React.FC<{
           closeUploadPopover()
           return
         }
-        if (!siderCollapsed) {
-          setSiderCollapsed(true)
-          return
-        }
         if (!aiPanelCollapsed) {
           setAiPanelCollapsed(true)
         }
@@ -377,7 +366,7 @@ const AppContent: React.FC<{
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
+  }, [uploadPopoverOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -748,8 +737,6 @@ const AppContent: React.FC<{
           onToggleTheme={onToggleTheme}
           language={language}
           onToggleLanguage={handleToggleLanguage}
-          siderCollapsed={siderCollapsed}
-          onToggleSider={() => setSiderCollapsed((v) => !v)}
           backendConnected={backendConnected}
           projects={projects}
           selectedProjectId={selectedProjectId}
