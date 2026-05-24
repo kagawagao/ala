@@ -1,6 +1,7 @@
 # ALA User Guide
 
-ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat output and Perfetto traces.
+ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat output and Perfetto traces.  
+**Version 2.3.3**
 
 ---
 
@@ -23,9 +24,10 @@ ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android
   - **Log Level** – Verbose, Debug, Info, Warning, Error, Fatal.
   - **Tag** – Regular expression supported.
   - **Time Range**, **PID**, **TID** – Optional exact-match fields.
-- **Filter Presets** – Save frequently used filter combinations and reload them later.
+- **Filter Presets** – Save frequently used filter combinations and reload them later. Presets are saved per-project when a project is selected, or globally.
 - **Word Wrap** – Toggle line wrapping for long log messages.
 - **Highlights** – Mark keywords visually without affecting the displayed log set.
+- **Export** – Download filtered log entries as CSV (RFC 4180, with BOM) or JSON.
 
 ---
 
@@ -34,17 +36,19 @@ ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android
 - Upload a Perfetto trace file (`.pb` or `.json`).
 - Browse the **Trace Summary**: duration, processes, threads, top slices, FTrace events, and metadata.
 - Apply a **Process Filter** by process name (regex, case-insensitive) or PID list.
+- Use **SQL Query** (Python Perfetto API) to run custom queries against the trace for advanced analysis.
 
 ---
 
 ## AI Assistant
 
 1. **Configure AI** – Go to **Model Management** (grid icon in the header) and enter your API endpoint, key, and model.  
-   ALA supports Anthropic Claude, OpenAI-compatible APIs, and any provider with an OpenAI-compatible endpoint.
-2. **Ask questions** – Type in the AI chat panel on the right. The assistant can analyze filtered log entries and loaded traces.
-3. **Agent mode** – Enable agent mode to let the AI actively query log overviews, search entries, and inspect trace processes.
-4. **Attach context** – Use the context selector to focus the assistant on logs, trace data, or general questions.
-5. **Extended thinking** – Enable "Thinking mode" (if supported by the model) for deeper reasoning.
+   ALA supports Anthropic Claude, OpenAI-compatible APIs, and any provider with an OpenAI-compatible endpoint. Custom models can be added, enabled/disabled, and configured with thinking support.
+2. **Ask questions** – Type in the AI chat panel on the right. The assistant can analyze filtered log entries, loaded traces, and local file/directory contents.
+3. **Agent mode** – Enable agent mode to let the AI actively query log overviews, search entries, inspect trace processes, and run SQL queries on traces.
+4. **Attach context** – Use the context selector to focus the assistant on logs, trace data, a local file, a local directory, or general questions.
+5. **Lazy local analysis** – Point ALA at a local file or directory path. The AI agent explores logs on-demand with streaming tools: no upload needed, no file size cap.
+6. **Extended thinking** – Enable "Thinking mode" (Anthropic) for deeper reasoning with configurable budget tokens.
 
 ---
 
@@ -56,7 +60,7 @@ Projects register a local source code directory so the AI assistant can read cod
 2. Click **Add Project**, enter a name and the absolute path to your Android source directory.
 3. Select the project from the header dropdown to activate it.
 4. **Context documents** (`AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, etc.) found inside the project are automatically injected into AI context.
-5. Use **Initialize Filters** / **Update Filters** to generate filter presets based on the project's logging patterns.
+5. Use **Initialize Filters** / **Update Filters** to generate filter presets based on the project's logging patterns (ripgrep-backed, 265x faster than pure Python).
 
 ---
 
@@ -66,4 +70,5 @@ Projects register a local source code directory so the AI assistant can read cod
 - The **backend must be running** before the frontend connects. If the status tag shows "Disconnected", start the Python backend.
 - API keys are stored **locally in your browser** (`localStorage`) and are sent to the ALA backend only to forward requests to the configured AI provider. They are never sent to any third-party service other than the one you configured.
 - Log files are streamed to the backend incrementally; very large files will appear progressively.
-- Use the **Export** button (CSV or JSON) to export filtered log entries for further processing.
+- Use the **Export** button (CSV or JSON) to download filtered log entries for further processing.
+- The version number is displayed in the header — useful when reporting issues.

@@ -4,6 +4,7 @@ import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/ico
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
 import { autoPath } from '../api/logs'
+import type { AutoPathResponse } from '../api/logs'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -13,6 +14,7 @@ interface FileUploadProps {
   onTraceFile: (file: File) => void
   onPcapFile?: (file: File) => void
   onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
+  onLocalPathStream?: (path: string, type: 'file' | 'directory', result: AutoPathResponse) => void
   loading: boolean
   error?: string
   fileNames?: string[]
@@ -139,6 +141,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onTraceFile,
   onPcapFile,
   onLocalFilePath,
+  onLocalPathStream,
   loading,
   error,
   fileNames = [],
@@ -187,26 +190,32 @@ const FileUpload: React.FC<FileUploadProps> = ({
         const result = await autoPath(path)
 
         if (result.type === 'file' && result.session_file) {
-          // File or directory: register for lazy analysis
-          onLocalFilePath?.(path, {
-            session_file: result.session_file,
-            line_count: result.line_count ?? 0,
-            size_bytes: result.size_bytes ?? 0,
-            format_detected: result.format_detected ?? 'unknown',
-            is_gzip: result.is_gzip ?? false,
-            is_zip: result.is_zip ?? false,
-          })
+          if (onLocalPathStream) {
+            onLocalPathStream(path, 'file', result)
+          } else {
+            onLocalFilePath?.(path, {
+              session_file: result.session_file,
+              line_count: result.line_count ?? 0,
+              size_bytes: result.size_bytes ?? 0,
+              format_detected: result.format_detected ?? 'unknown',
+              is_gzip: result.is_gzip ?? false,
+              is_zip: result.is_zip ?? false,
+            })
+          }
           setInputPath('')
         } else if (result.type === 'directory') {
-          // Directory — use lazy analysis (AI lists files on demand)
-          onLocalFilePath?.(path, {
-            session_file: path,
-            line_count: result.total_files ?? 0,
-            size_bytes: 0,
-            format_detected: 'directory',
-            is_gzip: false,
-            is_zip: false,
-          })
+          if (onLocalPathStream) {
+            onLocalPathStream(path, 'directory', result)
+          } else {
+            onLocalFilePath?.(path, {
+              session_file: path,
+              line_count: result.total_files ?? 0,
+              size_bytes: 0,
+              format_detected: 'directory',
+              is_gzip: false,
+              is_zip: false,
+            })
+          }
           setInputPath('')
         }
       } catch (err: unknown) {
@@ -216,7 +225,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         setInputLoading(false)
       }
     },
-    [onLocalFilePath, t],
+    [onLocalFilePath, onLocalPathStream, t],
   )
 
   const props: UploadProps = {
@@ -243,14 +252,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {/* Show currently loaded files above the dragger when in compact mode */}
       {compact && fileNames.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          {fileNames.map((name) => (
-            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
-              <FileOutlined style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 12 }} ellipsis title={name}>
-                {name}
-              </Text>
-            </div>
-          ))}
+          {fileNames.map((name, idx) => {
+            const displayName = name.replace(/\\/g, '/').split('/').pop() || name
+            return (
+              <div
+                key={`${name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+              >
+                <FileOutlined style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12 }} ellipsis title={name}>
+                  {displayName}
+                </Text>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -275,7 +290,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       </Dragger>
 
       {/* Local path input — auto-detects file vs directory */}
-      {!compact && onLocalFilePath && (
+      {!compact && (onLocalFilePath || onLocalPathStream) && (
         <>
           <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orEnterLocalFilePath')}</Divider>
           <Space.Compact style={{ width: '100%' }}>
@@ -309,24 +324,30 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       {!compact && fileNames.length > 0 && !loading && (
         <div style={{ marginTop: 8 }}>
-          {fileNames.map((name) => (
-            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
-              <FileOutlined style={{ marginRight: 6 }} />
-              <Text type="success" style={{ fontSize: 12 }}>
-                {name}
-              </Text>
-              {name.endsWith('.gz') && (
-                <Tag color="blue" style={{ marginLeft: 4, fontSize: 11 }}>
-                  gzip
-                </Tag>
-              )}
-              {name.endsWith('.zip') && (
-                <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
-                  zip
-                </Tag>
-              )}
-            </div>
-          ))}
+          {fileNames.map((name, idx) => {
+            const displayName = name.replace(/\\/g, '/').split('/').pop() || name
+            return (
+              <div
+                key={`${name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+              >
+                <FileOutlined style={{ marginRight: 6 }} />
+                <Text type="success" style={{ fontSize: 12 }}>
+                  {displayName}
+                </Text>
+                {name.endsWith('.gz') && (
+                  <Tag color="blue" style={{ marginLeft: 4, fontSize: 11 }}>
+                    gzip
+                  </Tag>
+                )}
+                {name.endsWith('.zip') && (
+                  <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
+                    zip
+                  </Tag>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

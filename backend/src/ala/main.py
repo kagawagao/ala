@@ -5,10 +5,10 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .api import chat, health, logs, models, pcap, projects, trace
 from .api import config as config_router
@@ -34,6 +34,47 @@ if _FROZEN:
             _FRONTEND_DIR = _candidate
 
 
+class _SPAStaticFiles(StaticFiles):
+    """StaticFiles that falls back to index.html for missing paths (SPA routing)."""
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+def _cleanup_temp_on_startup() -> None:
+    """Delete temp log session directories older than 24 hours on startup."""
+    import os
+    import shutil
+    import time
+    from pathlib import Path
+
+    try:
+        max_age_hours = int(os.environ.get("ALA_TEMP_MAX_AGE_HOURS", "24"))
+    except (TypeError, ValueError):
+        logger.warning("ALA_TEMP_MAX_AGE_HOURS is invalid, falling back to 24")
+        max_age_hours = 24
+    env_dir = os.environ.get("ALA_TEMP_DIR")
+    temp_dir = Path(env_dir) if env_dir else Path.home() / ".ala" / "temp_logs"
+
+    if not temp_dir.exists():
+        return
+
+    cutoff = time.time() - (max_age_hours * 3600)
+    for entry in temp_dir.iterdir():
+        if entry.is_dir():
+            try:
+                if entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry)
+                    logger.info("Cleaned up old temp session on startup: %s", entry.name)
+            except OSError:
+                logger.warning("Failed to clean up temp dir on startup: %s", entry)
+
+
 def create_app() -> FastAPI:
     # Build one MCP HTTP sub-application per FastAPI app instance so repeated
     # TestClient create/teardown cycles can safely create fresh app instances.
@@ -49,6 +90,10 @@ def create_app() -> FastAPI:
         )
         # Trigger DB initialization and migration
         get_db()
+
+        # Clean up old temp log files on startup
+        _cleanup_temp_on_startup()
+
         # Start the FastMCP session-manager task-group alongside the FastAPI app.
         # The mcp_http_app lifespan initialises StreamableHTTPSessionManager.run()
         # which is required before any MCP request can be handled.
@@ -59,7 +104,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="ALA Backend",
         description="Android Log Analyzer backend API",
-        version="2.2.0",
+        version="2.3.4",
         lifespan=lifespan,
     )
 
@@ -88,14 +133,15 @@ def create_app() -> FastAPI:
     # This must come AFTER all API routers and /mcp mount so that API paths
     # are matched first and only unrecognised paths fall through to the SPA.
     if _FRONTEND_DIR is not None:
-        # Serve static assets (JS/CSS/images etc.)
-        app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
-
-        @app.get("/{full_path:path}", include_in_schema=False)
-        async def serve_spa(full_path: str, request: Request) -> FileResponse:  # noqa: ARG001
-            """Return index.html for every non-API path (React client-side routing)."""
-            index = _FRONTEND_DIR / "index.html"  # type: ignore[operator]
-            return FileResponse(str(index))
+        # Serve the entire frontend dist directory; _SPAStaticFiles falls back
+        # to index.html for any path that doesn't resolve to an actual file,
+        # enabling React client-side routing while still serving static assets
+        # (e.g. /guide/zh.md, /assets/...) directly.
+        app.mount(
+            "/",
+            _SPAStaticFiles(directory=str(_FRONTEND_DIR), html=True),
+            name="spa",
+        )
 
     return app
 

@@ -76,6 +76,9 @@ jobs:
           # 5. Backend health endpoint (health.py) — version string
           sed -i "s/version=\"[^\"]*\"/version=\"$VERSION_NUM\"/" backend/src/ala/api/health.py
 
+      - name: Update changelog
+        run: npx --yes conventional-changelog-cli@5 -p conventionalcommits -i CHANGELOG.md -s -r 0
+
       - name: Commit and tag
         run: |
           git add \
@@ -83,7 +86,8 @@ jobs:
             frontend/package.json frontend/package-lock.json \
             backend/pyproject.toml \
             backend/src/ala/main.py \
-            backend/src/ala/api/health.py
+            backend/src/ala/api/health.py \
+            CHANGELOG.md
           HUSKY=0 git commit -m "chore(release): ${{ steps.bump.outputs.new_version }}"
           git tag ${{ steps.bump.outputs.new_version }}
 

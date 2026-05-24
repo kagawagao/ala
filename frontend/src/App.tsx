@@ -1,9 +1,10 @@
-import { UploadOutlined } from '@ant-design/icons'
+import { UploadOutlined, FileOutlined } from '@ant-design/icons'
 import {
   Alert,
   App as AntApp,
   Button,
   ConfigProvider,
+  Divider,
   Empty,
   Popover,
   Splitter,
@@ -18,7 +19,8 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import { parseLogStream } from './api/logs'
+import { uploadToTemp } from './api/logs'
+import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -32,12 +34,13 @@ import AppSider from './components/AppSider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import FilterDrawer from './components/FilterDrawer'
+import DirectoryFilePicker from './components/DirectoryFilePicker'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import PcapViewer from './components/PcapViewer'
 import TraceViewer from './components/TraceViewer'
 import { useDebouncedValue } from './hooks/useDebounce'
-import { useLogStream } from './hooks/useLogStream'
+import { useLazyLogStream } from './hooks/useLazyLogStream'
 import { usePcapStream } from './hooks/usePcapStream'
 import i18next from './i18n/config'
 import type {
@@ -50,7 +53,7 @@ import type {
   Project,
   TraceParseResult,
 } from './types'
-import { applyFiltersClient, computeStatistics, hasFilterConditions } from './utils/filters'
+import { hasFilterConditions } from './utils/filters'
 import {
   getActiveAIConfig,
   migrateFromLegacyConfig,
@@ -80,7 +83,7 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
-  const [siderCollapsed, setSiderCollapsed] = useState(false)
+  const [siderCollapsed, setSiderCollapsed] = useState(true)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
@@ -103,10 +106,19 @@ const AppContent: React.FC<{
     return localStorage.getItem('ala_last_project_id') || null
   })
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
-  const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
+
+  // Directory file picker modal state
+  const [pickerState, setPickerState] = useState<{
+    open: boolean
+    files: DirectoryFileInfo[]
+    dirPath: string
+  }>({ open: false, files: [], dirPath: '' })
+
+  // Upload popover: pending files staged for lazy load
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
   const location = useLocation()
-  const isFullPage = location.pathname === '/projects' || location.pathname === '/models'
+  const isFullPage = useMemo(() => location.pathname !== '/', [location.pathname])
 
   // Ref to avoid stale closure in the project-loading effect
   const selectedProjectIdRef = useRef(selectedProjectId)
@@ -141,19 +153,23 @@ const AppContent: React.FC<{
     }
   }, [selectedProjectId])
 
-  // File state
-  // allLogs is built incrementally as the stream arrives
+  // File state — lazy log streaming via agentic approach
+  // displayLogs is replaced (not accumulated) on each filter trigger
   const {
-    allLogs,
+    displayLogs,
     loading: loadingFile,
     error: fileError,
     fileNames,
     formatDetected,
-    parseProgress,
-    loadFromStream,
+    filterProgress,
+    sourceRef,
+    stats,
+    totalLines,
+    loadSource,
+    triggerFilter,
     abort: abortParse,
     reset: resetLogs,
-  } = useLogStream()
+  } = useLazyLogStream()
 
   // PCAP state
   const {
@@ -166,6 +182,7 @@ const AppContent: React.FC<{
     abort: abortPcap,
     reset: resetPcap,
   } = usePcapStream()
+
 
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
@@ -183,10 +200,12 @@ const AppContent: React.FC<{
     setFilteredPcapEntries([])
   }, [activeTab])
 
-  // Clear stale localFilePath when data source changes
+  // Clear stale sourceRef when trace data source changes
   useEffect(() => {
-    setLocalFilePath(null)
-  }, [traceResult, selectedProjectId, pcapEntries])
+    if (traceResult) {
+      resetLogs()
+    }
+  }, [traceResult, resetLogs])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -233,17 +252,16 @@ const AppContent: React.FC<{
 
   const debouncedFilters = useDebouncedValue(filters, 300)
 
-  const filteredLogs = useMemo(
-    () => applyFiltersClient(allLogs, debouncedFilters),
-    [allLogs, debouncedFilters],
-  )
+  // Trigger backend lazy filter whenever debounced filters change
+  useEffect(() => {
+    if (sourceRef) {
+      void triggerFilter(debouncedFilters)
+    }
+    // We intentionally only fire on debounced filter changes, not sourceRef changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilters])
 
   const hasActiveFilters = useMemo(() => hasFilterConditions(filters), [filters])
-
-  const statistics = useMemo(
-    () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
-    [allLogs, filteredLogs],
-  )
 
   // Check backend connectivity
   useEffect(() => {
@@ -317,6 +335,12 @@ const AppContent: React.FC<{
       })
   }, [backendConnected, allModels, modelsLoaded])
 
+  // Helper: close upload popover and clear pending files (avoids stale state)
+  const closeUploadPopover = useCallback(() => {
+    setUploadPopoverOpen(false)
+    setPendingFiles([])
+  }, [])
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -341,7 +365,7 @@ const AppContent: React.FC<{
       // Esc → close upload popover, then collapse sider, then collapse aiPanel
       if (e.key === 'Escape') {
         if (uploadPopoverOpen) {
-          setUploadPopoverOpen(false)
+          closeUploadPopover()
           return
         }
         if (!siderCollapsed) {
@@ -355,7 +379,7 @@ const AppContent: React.FC<{
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme])
+  }, [uploadPopoverOpen, siderCollapsed, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -377,7 +401,6 @@ const AppContent: React.FC<{
       // Abort any in-flight parsing before clearing state
       abortParse()
       abortPcap()
-      setLocalFilePath(null)
       // Reset all file / log / trace / pcap state so the new project starts clean
       resetLogs()
       resetPcap()
@@ -408,27 +431,35 @@ const AppContent: React.FC<{
     }
   }, [])
 
+  // --- Log file handlers (agentic lazy approach) ---
+
   const handleLogFiles = useCallback(
     async (files: File[]) => {
-      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
       // Clear stale filtered state from other tabs
       setFilteredTraceResult(null)
       setFilteredPcapEntries([])
+      setPendingFiles([])
 
-      const ok = await loadFromStream(
-        (signal) => parseLogStream(files, signal),
-        files.map((f) => f.name),
-      )
-      if (ok) void message.success(t('fileUploaded'))
+      try {
+        const result = await uploadToTemp(files)
+        if (result.files.length === 0) {
+          void message.error(t('parseError'))
+          return
+        }
+        const firstFile = result.files[0]
+        loadSource(firstFile.saved_path, [firstFile.original_name])
+        void message.success(t('fileUploaded'))
+      } catch {
+        void message.error(t('parseError'))
+      }
     },
-    [loadFromStream, t, message],
+    [loadSource, t, message],
   )
 
   const handlePcapFile = useCallback(
     async (file: File) => {
-      setLocalFilePath(null)
       resetLogs() // Clear any log data
       setTraceResult(null) // Clear any trace data
       // Clear stale filtered state
@@ -446,6 +477,7 @@ const AppContent: React.FC<{
 
   const handleTraceFile = useCallback(
     async (file: File) => {
+      resetLogs()
       setTraceLoading(true)
       setTraceError(undefined)
       // Clear stale filtered state
@@ -464,113 +496,187 @@ const AppContent: React.FC<{
         setTraceLoading(false)
       }
     },
-    [t, message],
+    [resetLogs, t, message],
   )
 
-  const showFileUpload =
-    allLogs.length === 0 && pcapEntries.length === 0 && !traceResult && !localFilePath
+  // Local file streaming handler — registers path and triggers lazy load
+  const handleLocalPathStream = useCallback(
+    async (path: string, type: 'file' | 'directory', _meta: unknown) => {
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+
+      if (type === 'file') {
+        const label = path.replace(/\\/g, '/').split('/').pop() || path
+        const meta = _meta as AutoPathResponse | undefined
+        loadSource(path, [label], meta?.line_count)
+        void message.success(t('fileUploaded'))
+      } else {
+        // Directory: pass server-provided files directly (preserves path, is_log)
+        const meta = _meta as AutoPathResponse | undefined
+        setPickerState({
+          open: true,
+          files: meta?.files || [],
+          dirPath: path,
+        })
+      }
+    },
+    [loadSource, t, message],
+  )
+
+  // Directory file picker — load first selected file as lazy source
+  const handlePickerConfirm = useCallback(
+    async (selectedFiles: string[]) => {
+      setPickerState((prev) => ({ ...prev, open: false }))
+      const dirPath = pickerState.dirPath
+      if (selectedFiles.length === 0) return
+
+      const fullPath = dirPath.replace(/\/$/, '') + '/' + selectedFiles[0].replace(/^\//, '')
+      const label = selectedFiles[0].split('/').pop() || selectedFiles[0]
+      loadSource(fullPath, [label])
+      void message.success(t('fileUploaded'))
+    },
+    [loadSource, pickerState.dirPath, t, message],
+  )
+
+  const handlePickerCancel = useCallback(() => {
+    setPickerState((prev) => ({ ...prev, open: false }))
+  }, [])
+
+  // Upload popover handlers — stage files and upload via temp
+  const handleUploadPopoverFiles = useCallback(
+    (files: File[], isTrace: boolean) => {
+      if (isTrace) {
+        void handleTraceFile(files[0])
+        closeUploadPopover()
+        return
+      }
+      setPendingFiles(files)
+    },
+    [handleTraceFile, closeUploadPopover],
+  )
+
+  const handleUploadPopoverLoad = useCallback(async () => {
+    await handleLogFiles(pendingFiles)
+    setPendingFiles([])
+    closeUploadPopover()
+  }, [handleLogFiles, pendingFiles, closeUploadPopover])
+
+  const showFileUpload = !sourceRef && !traceResult && pcapEntries.length === 0
 
   const isLoading = loadingFile || pcapLoading || traceLoading
   const errorMessage = fileError || pcapError || traceError
 
-  // Upload popover content – compact FileUpload dragger always accessible from
-  // the tab bar, even after files have already been loaded.
-  const uploadPopoverContent = (
-    <div style={{ width: 300 }}>
-      <FileUpload
-        onLogFiles={(files) => {
-          void handleLogFiles(files)
-          setUploadPopoverOpen(false)
-        }}
-        onTraceFile={(f) => {
-          void handleTraceFile(f)
-          setUploadPopoverOpen(false)
-        }}
-        onPcapFile={(f) => {
-          void handlePcapFile(f)
-          setUploadPopoverOpen(false)
-        }}
-        onLocalFilePath={(_path, ref) => {
-          setLocalFilePath(ref.session_file)
-          setUploadPopoverOpen(false)
-          void message.success(t('fileUploaded'))
-        }}
-        loading={isLoading}
-        error={errorMessage}
-        fileNames={fileNames}
-      />
-    </div>
-  )
+  // T6: Upload popover content — redesigned with mode selector when files loaded
+  const uploadPopoverContent =
+    fileNames.length > 0 || pcapFileNames.length > 0 ? (
+      <div style={{ width: 340 }}>
+        <div style={{ marginBottom: 8 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {t('currentlyLoaded')}:
+          </Typography.Text>
+          {(fileNames.length > 0 ? fileNames : pcapFileNames).map((name, idx) => (
+            <div
+              key={`${name}-${idx}`}
+              style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+            >
+              <FileOutlined style={{ marginRight: 6 }} />
+              <Typography.Text style={{ fontSize: 12 }} ellipsis title={name}>
+                {name}
+              </Typography.Text>
+            </div>
+          ))}
+        </div>
+        <FileUpload
+          compact={true}
+          onLogFiles={(files) => {
+            handleUploadPopoverFiles(files, false)
+          }}
+          onTraceFile={(f) => {
+            handleUploadPopoverFiles([f], true)
+          }}
+          onPcapFile={(f) => {
+            void handlePcapFile(f)
+            closeUploadPopover()
+          }}
+          onLocalPathStream={(path, type, result) => {
+            void handleLocalPathStream(path, type, result)
+            closeUploadPopover()
+          }}
+          loading={isLoading}
+          error={errorMessage}
+          fileNames={fileNames.length > 0 ? fileNames : pcapFileNames}
+        />
+        {pendingFiles.length > 0 && (
+          <>
+            <Divider style={{ margin: '8px 0' }} />
+            <Button
+              type="primary"
+              block
+              size="small"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                void handleUploadPopoverLoad()
+              }}
+            >
+              {t('updateFiles')}
+            </Button>
+          </>
+        )}
+      </div>
+    ) : (
+      <div style={{ width: 300 }}>
+        <FileUpload
+          compact={true}
+          onLogFiles={(files) => {
+            void handleLogFiles(files)
+            closeUploadPopover()
+          }}
+          onTraceFile={(f) => {
+            void handleTraceFile(f)
+            closeUploadPopover()
+          }}
+          onPcapFile={(f) => {
+            void handlePcapFile(f)
+            closeUploadPopover()
+          }}
+          onLocalPathStream={(path, type, result) => {
+            void handleLocalPathStream(path, type, result)
+            closeUploadPopover()
+          }}
+          loading={isLoading}
+          error={errorMessage}
+          fileNames={fileNames}
+        />
+      </div>
+    )
 
   const tabBarExtra = (
     <div style={{ paddingRight: 8 }}>
       <Popover
         content={uploadPopoverContent}
         open={uploadPopoverOpen}
-        onOpenChange={setUploadPopoverOpen}
+        onOpenChange={(open) => {
+          if (!open) setPendingFiles([])
+          setUploadPopoverOpen(open)
+        }}
         trigger="click"
         placement="bottomRight"
       >
-        <Tooltip title={fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}>
+        <Tooltip title={fileNames.length > 0 ? t('updateFiles') : t('uploadFiles')}>
           <Button size="small" icon={<UploadOutlined />} loading={isLoading}>
-            {fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}
+            {fileNames.length > 0 ? t('updateFiles') : t('uploadFiles')}
           </Button>
         </Tooltip>
       </Popover>
     </div>
   )
 
+  // T5: Simplified tabItems — no showFileUpload or localFilePath placeholder branches
   const tabItems = [
     {
       key: 'log',
       label: t('logAnalysis'),
-      children: showFileUpload ? (
-        <FileUpload
-          onLogFiles={(files) => {
-            void handleLogFiles(files)
-          }}
-          onTraceFile={(f) => {
-            void handleTraceFile(f)
-          }}
-          onPcapFile={(f) => {
-            void handlePcapFile(f)
-          }}
-          onLocalFilePath={(_path, ref) => {
-            setLocalFilePath(ref.session_file)
-            void message.success(t('fileUploaded'))
-          }}
-          loading={isLoading}
-          error={errorMessage}
-          fileNames={fileNames}
-        />
-      ) : localFilePath && allLogs.length === 0 ? (
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            padding: 32,
-          }}
-        >
-          <Typography.Text style={{ fontSize: 28 }}>📂</Typography.Text>
-          <Typography.Text strong style={{ fontSize: 14 }}>
-            {t('localFileLoaded')}
-          </Typography.Text>
-          <Typography.Text
-            type="secondary"
-            code
-            style={{ fontSize: 12, maxWidth: 480, textAlign: 'center', wordBreak: 'break-all' }}
-          >
-            {localFilePath}
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
-            {t('localFileHint')}
-          </Typography.Text>
-        </div>
-      ) : !hasActiveFilters ? (
+      children: !hasActiveFilters ? (
         <div
           style={{
             height: '100%',
@@ -589,38 +695,28 @@ const AppContent: React.FC<{
         </div>
       ) : (
         <LogViewer
-          logs={filteredLogs}
-          totalLogs={allLogs.length}
+          logs={displayLogs}
+          totalLogs={
+            totalLines ?? filterProgress?.total ?? filterProgress?.scanned ?? displayLogs.length
+          }
           highlights={highlights}
           wordWrap={wordWrap}
           formatDetected={formatDetected}
-          parseProgress={parseProgress}
+          parseProgress={
+            filterProgress
+              ? {
+                  current: filterProgress.scanned ?? filterProgress.matched,
+                  total: filterProgress.total ?? filterProgress.scanned,
+                }
+              : null
+          }
         />
       ),
     },
     {
       key: 'pcap',
       label: t('pcapAnalysis'),
-      children: showFileUpload ? (
-        <FileUpload
-          onLogFiles={(files) => {
-            void handleLogFiles(files)
-          }}
-          onTraceFile={(f) => {
-            void handleTraceFile(f)
-          }}
-          onPcapFile={(f) => {
-            void handlePcapFile(f)
-          }}
-          onLocalFilePath={(_path, ref) => {
-            setLocalFilePath(ref.session_file)
-            void message.success(t('fileUploaded'))
-          }}
-          loading={isLoading}
-          error={errorMessage}
-          fileNames={pcapFileNames}
-        />
-      ) : (
+      children: (
         <PcapViewer
           entries={filteredPcapEntries.length > 0 ? filteredPcapEntries : pcapEntries}
           totalPackets={pcapEntries.length}
@@ -739,7 +835,7 @@ const AppContent: React.FC<{
                           onFiltersChange={setFilters}
                           highlights={highlights}
                           onHighlightsChange={setHighlights}
-                          statistics={statistics}
+                          statistics={stats}
                           presets={presets}
                           onPresetsChange={handlePresetsChange}
                           wordWrap={wordWrap}
@@ -754,17 +850,37 @@ const AppContent: React.FC<{
                       {/* Center: Log/Trace viewer */}
                       <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                          <Tabs
-                            activeKey={activeTab}
-                            onChange={(k) => setActiveTab(k as 'log' | 'pcap' | 'trace')}
-                            items={tabItems}
-                            tabBarExtraContent={{ right: tabBarExtra }}
-                            style={{ height: '100%' }}
-                            tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                            renderTabBar={(props, DefaultTabBar) => (
-                              <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                            )}
-                          />
+                          {showFileUpload ? (
+                            <FileUpload
+                              onLogFiles={(files) => {
+                                void handleLogFiles(files)
+                              }}
+                              onTraceFile={(f) => {
+                                void handleTraceFile(f)
+                              }}
+                              onPcapFile={(f) => {
+                                void handlePcapFile(f)
+                              }}
+                              onLocalPathStream={(path, type, result) => {
+                                void handleLocalPathStream(path, type, result)
+                              }}
+                              loading={isLoading}
+                              error={errorMessage}
+                              fileNames={fileNames}
+                            />
+                          ) : (
+                            <Tabs
+                              activeKey={activeTab}
+                              onChange={(k) => setActiveTab(k as 'log' | 'pcap' | 'trace')}
+                              items={tabItems}
+                              tabBarExtraContent={{ right: tabBarExtra }}
+                              style={{ height: '100%' }}
+                              tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                              renderTabBar={(props, DefaultTabBar) => (
+                                <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                              )}
+                            />
+                          )}
                         </div>
                       </Splitter.Panel>
 
@@ -774,6 +890,7 @@ const AppContent: React.FC<{
                           size={aiPanelSize}
                           min={320}
                           max={'50%'}
+                          defaultSize={'50%'}
                           style={{
                             borderLeft: '1px solid var(--ant-color-border)',
                             overflow: 'hidden',
@@ -808,9 +925,14 @@ const AppContent: React.FC<{
                             </div>
                             <div style={{ flex: 1, overflow: 'hidden' }}>
                               <AiPanel
-                                logs={filteredLogs}
-                                allLogs={allLogs}
-                                totalLogs={allLogs.length}
+                                logs={displayLogs}
+                                allLogs={displayLogs}
+                                totalLogs={
+                                  totalLines ??
+                                  filterProgress?.total ??
+                                  filterProgress?.scanned ??
+                                  displayLogs.length
+                                }
                                 filters={filters}
                                 traceResult={traceResult}
                                 pcapEntries={pcapEntries}
@@ -818,7 +940,7 @@ const AppContent: React.FC<{
                                 selectedProjectId={selectedProjectId}
                                 projects={projects}
                                 contextDocs={contextDocs}
-                                localFilePath={localFilePath}
+                                localFilePath={sourceRef}
                                 aiConfig={aiConfig ?? undefined}
                                 allModels={allModels}
                               />
@@ -828,6 +950,15 @@ const AppContent: React.FC<{
                       )}
                     </Splitter>
                   </div>
+
+                  {/* Directory file picker modal */}
+                  <DirectoryFilePicker
+                    open={pickerState.open}
+                    files={pickerState.files}
+                    dirPath={pickerState.dirPath}
+                    onConfirm={handlePickerConfirm}
+                    onCancel={handlePickerCancel}
+                  />
 
                   {/* AI panel toggle when collapsed */}
                   {aiPanelCollapsed && (
@@ -857,7 +988,7 @@ const AppContent: React.FC<{
                     activeTab={activeTab}
                     logFilters={filters}
                     onLogFiltersChange={setFilters}
-                    logStatistics={statistics}
+                    logStatistics={stats}
                     highlights={highlights}
                     onHighlightsChange={setHighlights}
                     presets={presets}

@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v2.3.0). Required when not triggered from a tag.'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -17,10 +22,9 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: Lint & Test
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +34,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -39,33 +46,34 @@ jobs:
       - name: Install Poetry
         run: pip install poetry==2.3.2
 
-      - name: Install root dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: npm run install:all
 
-      - name: Install frontend dependencies
-        run: cd frontend && npm ci
-
-      - name: Frontend lint & type-check
-        run: npm run lint && npm run test:frontend
-
-      - name: Backend install & test
-        working-directory: backend
-        run: |
-          poetry install --no-interaction --no-ansi
-          poetry run ruff check src/
-          poetry run pytest tests/ -v
+      - name: Run lint and tests
+        run: npm run lint && npm test
 
   docker-release:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     permissions:
       contents: read
       packages: write
 
     steps:
+      - name: Resolve release ref
+        id: ref
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "tag=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -76,7 +84,11 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          INPUT_VERSION="${{ inputs.version }}"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${INPUT_VERSION:-$TAG_VERSION}"
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build & push backend image
         uses: docker/build-push-action@v6
@@ -100,20 +112,29 @@ jobs:
     name: Build Desktop Packages (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            asset_suffix: linux-x64
           - os: macos-latest
             asset_suffix: macos
           - os: windows-latest
             asset_suffix: windows-x64
 
     steps:
+      - name: Resolve release ref
+        id: ref
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "tag=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -147,14 +168,11 @@ jobs:
       - name: Extract version from tag
         id: version
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Package Linux archive
-        if: runner.os == 'Linux'
-        shell: bash
         run: |
-          mkdir -p release-assets
-          tar -C backend/dist -czf "release-assets/ALA-${{ steps.version.outputs.version }}-${{ matrix.asset_suffix }}.tar.gz" ala
+          INPUT_VERSION="${{ inputs.version }}"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${INPUT_VERSION:-$TAG_VERSION}"
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Package macOS DMG
         if: runner.os == 'macOS'
@@ -166,7 +184,7 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets dist/macos/ALA.app/Contents/MacOS dist/macos/ALA.app/Contents/Resources
           cp -R backend/dist/ala/. dist/macos/ALA.app/Contents/MacOS/
-          cat > dist/macos/ALA.app/Contents/Info.plist <<EOF
+          cat > dist/macos/ALA.app/Contents/Info.plist <<EOF2
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -189,7 +207,7 @@ jobs:
               <string>$MACOS_MIN_VERSION</string>
             </dict>
           </plist>
-          EOF
+          EOF2
           hdiutil create -volname "ALA" -srcfolder dist/macos -ov -format UDZO "release-assets/ALA-$VERSION-${{ matrix.asset_suffix }}.dmg"
 
       - name: Package Windows MSI
@@ -212,34 +230,95 @@ jobs:
           $WxsDir = Join-Path $env:RUNNER_TEMP "wix"
           New-Item -ItemType Directory -Force -Path $WxsDir | Out-Null
 
+          $IconDest = Join-Path $WxsDir "icon.ico"
+          Copy-Item -Path "assets\icons\icon.ico" -Destination $IconDest -Force
+
+          $LicenseRtf = Join-Path $WxsDir "License.rtf"
+          $licLines = Get-Content -Path "LICENSE" -Encoding UTF8
+          $rtfLines = $licLines | ForEach-Object {
+            $line = $_ -replace '\\', '\\\\' -replace '\{', '\{' -replace '\}', '\}'
+            if ([string]::IsNullOrWhiteSpace($line)) { '\par\par ' } else { "$line\par " }
+          }
+          $rtfBody = $rtfLines -join ' '
+          $rtfContent = "{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fcharset0 Arial;}}\f0\fs18 $rtfBody}"
+          [System.IO.File]::WriteAllText($LicenseRtf, $rtfContent, [System.Text.Encoding]::GetEncoding(1252))
+
           $ProductWxs = Join-Path $WxsDir "Product.wxs"
           @"
           <?xml version='1.0' encoding='UTF-8'?>
           <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
             <Product Id='*' Name='ALA' Language='1033' Version='$SafeVersion' Manufacturer='kagawagao' UpgradeCode='EC2F02F9-F9C5-4A31-8F0E-EF2A2B049A2D'>
-              <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine'/>
+              <Package InstallerVersion='500' Compressed='yes' InstallScope='perMachine' Platform='x64'/>
               <MajorUpgrade DowngradeErrorMessage='A newer version of ALA is already installed.'/>
               <MediaTemplate EmbedCab='yes'/>
+              <Icon Id='AlaIcon' SourceFile='$IconDest'/>
+              <Property Id='ARPPRODUCTICON' Value='AlaIcon'/>
+              <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+              <WixVariable Id='WixUILicenseRtf' Value='$LicenseRtf'/>
               <Feature Id='MainFeature' Title='ALA' Level='1'>
                 <ComponentGroupRef Id='AppFiles'/>
+                <ComponentRef Id='DesktopShortcutComp'/>
+                <ComponentRef Id='ProgramMenuShortcutComp'/>
               </Feature>
-              <UIRef Id='WixUI_Minimal'/>
-              <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+              <UIRef Id='WixUI_InstallDir'/>
             </Product>
             <Fragment>
               <Directory Id='TARGETDIR' Name='SourceDir'>
                 <Directory Id='ProgramFiles64Folder'>
                   <Directory Id='INSTALLDIR' Name='ALA'/>
                 </Directory>
+                <Directory Id='CommonProgramsFolder'>
+                  <Directory Id='ProgramMenuDir' Name='ALA'/>
+                </Directory>
               </Directory>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id='DesktopFolder'>
+                <Component Id='DesktopShortcutComp' Guid='B8F2A0C1-3D5E-4F7A-9B0C-1D2E3F4A5B6C'>
+                <Shortcut Id='DesktopShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
+                          WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
+                          Icon='AlaIcon' IconIndex='0'/>
+                <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='desktop_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+                </Component>
+              </DirectoryRef>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id='ProgramMenuDir'>
+                <Component Id='ProgramMenuShortcutComp' Guid='C9F3B1D2-4E6F-5A8B-0C1D-2E3F4A5B6C7D'>
+                <Shortcut Id='StartMenuShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
+                          WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
+                          Icon='AlaIcon' IconIndex='0'/>
+                <RemoveFolder Id='RemoveProgramMenuDir' Directory='ProgramMenuDir' On='uninstall'/>
+                <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='startmenu_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+                </Component>
+              </DirectoryRef>
             </Fragment>
           </Wix>
           "@ | Set-Content -Path $ProductWxs -Encoding utf8
 
           $BackendDist = Join-Path $PWD "backend\dist\ala"
-          heat.exe dir $BackendDist -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -out (Join-Path $WxsDir "Files.wxs")
-          candle.exe -ext WixUIExtension -out "$WxsDir\" $ProductWxs (Join-Path $WxsDir "Files.wxs")
+
+          $StageDir = Join-Path $env:RUNNER_TEMP "msi-stage"
+          if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
+          Copy-Item -Path "$BackendDist\*" -Destination $StageDir -Recurse -Force
+
+          $FilesWxs = Join-Path $WxsDir "Files.wxs"
+          heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -var var.StageDir -out $FilesWxs
+          [xml]$FilesDoc = Get-Content -Path $FilesWxs
+          $WixNs = New-Object System.Xml.XmlNamespaceManager($FilesDoc.NameTable)
+          $WixNs.AddNamespace("w", "http://schemas.microsoft.com/wix/2006/wi")
+          $FilesDoc.SelectNodes("//w:Component", $WixNs) | ForEach-Object {
+            $_.SetAttribute("Win64", "yes")
+          }
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $Writer = [System.IO.StreamWriter]::new($FilesWxs, $false, $Utf8NoBom)
+          $FilesDoc.Save($Writer)
+          $Writer.Close()
+          candle.exe -dStageDir="$StageDir" -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
           light.exe -ext WixUIExtension -out "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi" (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
+          if (-not (Test-Path "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.zip")) { throw "ZIP artifact was not created" }
+          if (-not (Test-Path "$ReleaseDir\ALA-$Version-${{ matrix.asset_suffix }}.msi")) { throw "MSI artifact was not created" }
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
@@ -255,9 +334,18 @@ jobs:
     needs:
       - docker-release
       - desktop-packages
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     permissions:
       contents: write
     steps:
+      - name: Resolve tag name
+        id: tag
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [[ -n "$V" && "$V" != v* ]]; then V="v$V"; fi
+          echo "name=${V:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4.1.3
         with:
@@ -268,6 +356,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.name }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ contains(steps.tag.outputs.name, 'alpha') || contains(steps.tag.outputs.name, 'beta') || contains(steps.tag.outputs.name, 'rc') }}
           files: release-assets/*

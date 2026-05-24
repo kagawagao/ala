@@ -1,6 +1,11 @@
 """MCP server for ALA using FastMCP."""
 
+import json
 import os
+import re
+import shutil
+import subprocess
+import time
 from collections import deque
 
 from fastmcp import FastMCP
@@ -535,6 +540,236 @@ def list_directory_logs(directory_path: str) -> dict:
     return {
         "total_files": len(files),
         "files": files,
+    }
+
+
+@mcp.tool()
+def search_all_local(
+    file_path: str,
+    keyword_log: str | None = None,
+    level: str | None = None,
+    tag: str | None = None,
+    pid: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    limit_log: int = 50,
+    code_pattern: str | None = None,
+    code_dir: str | None = None,
+    limit_code: int = 30,
+) -> dict:
+    """Composite search: search BOTH a local log file AND source code directory in one call.
+
+    For debugging workflows where you need log entries AND the code that produced them.
+
+    Args:
+        file_path: Path to the log file.
+        keyword_log: Keyword or regex to search in log messages.
+        level: Log level filter (V, D, I, W, E, F).
+        tag: Tag substring filter (case-insensitive).
+        pid: Process ID filter.
+        start_time: Only include entries after this timestamp.
+        end_time: Only include entries before this timestamp.
+        limit_log: Max log results (default 50, max 200).
+        code_pattern: Regex pattern to search in source code.
+        code_dir: Directory to search code in (required if code_pattern set).
+        limit_code: Max code results (default 30, max 100).
+
+    Returns:
+        Dict with 'logs' and 'code' sections.
+    """
+    t_start = time.monotonic()
+
+    # ── Validate log path ────────────────────────────────────────────────
+    try:
+        validated = LogAnalyzer._validate_path(file_path)
+    except (PathTraversalError, FileNotFoundError, PermissionError, ValueError) as e:
+        return {"error": str(e)}
+
+    # ── Log search ───────────────────────────────────────────────────────
+    log_result: dict | None = None
+    limit_log = min(max(int(limit_log), 1), 200)
+
+    rg_path = shutil.which("rg")
+    keyword = (keyword_log or "").strip()
+    use_rg = (
+        rg_path is not None
+        and keyword
+        and not level
+        and not tag
+        and not pid
+        and not start_time
+        and not end_time
+    )
+
+    if use_rg:
+        # Fast path: ripgrep
+        try:
+            proc = subprocess.run(
+                [
+                    rg_path,
+                    "--no-heading",
+                    "--no-filename",
+                    "--line-number",
+                    "--max-count",
+                    str(limit_log),
+                    "--regexp",
+                    keyword,
+                    validated,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            entries = []
+            for line in proc.stdout.splitlines():
+                if not line.strip():
+                    continue
+                # rg output with --no-filename: "line_num:content"
+                parts = line.split(":", 1)
+                if len(parts) >= 2:
+                    try:
+                        line_num = int(parts[0])
+                    except ValueError:
+                        line_num = 0
+                    content = parts[1].strip()
+                else:
+                    line_num = 0
+                    content = line.strip()
+                parsed = _log_analyzer._parse_single_line(
+                    content,
+                    line_num,
+                    _log_analyzer.detect_log_format(content),
+                    source_file=validated,
+                )
+                entries.append(
+                    {
+                        "line_number": line_num,
+                        "timestamp": parsed.timestamp,
+                        "level": parsed.level,
+                        "tag": parsed.tag,
+                        "pid": parsed.pid,
+                        "message": (parsed.message or content)[:500],
+                    }
+                )
+                if len(entries) >= limit_log:
+                    break
+            log_result = {
+                "total_matched": len(entries),
+                "returned": len(entries),
+                "entries": entries,
+                "method": "rg",
+            }
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    if log_result is None and (keyword or level or tag or pid or start_time or end_time):
+        # Streaming scan fallback
+        level_order = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
+        min_level = level_order.get((level or "").upper(), 0) if level else 0
+        try:
+            keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
+        except re.error:
+            keyword_re = None
+
+        matches: list[dict] = []
+        total_matched = 0
+        for entry in _log_analyzer.stream_file(validated):
+            if level and level_order.get(entry.level, -1) < min_level:
+                continue
+            if tag and (tag.lower() not in (entry.tag or "").lower()):
+                continue
+            if pid and str(pid) != str(entry.pid):
+                continue
+            if keyword_re:
+                text = f"{entry.tag or ''} {entry.message or ''}"
+                if not keyword_re.search(text):
+                    continue
+            if start_time and entry.timestamp and entry.timestamp < start_time:
+                continue
+            if end_time and entry.timestamp and entry.timestamp > end_time:
+                continue
+            total_matched += 1
+            if len(matches) >= limit_log:
+                continue
+            matches.append(
+                {
+                    "line_number": entry.line_number,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "tag": entry.tag,
+                    "pid": entry.pid,
+                    "tid": entry.tid,
+                    "message": (entry.message or "")[:500],
+                }
+            )
+        log_result = {
+            "total_matched": total_matched,
+            "returned": len(matches),
+            "entries": matches,
+            "method": "streaming",
+        }
+
+    # ── Code search ──────────────────────────────────────────────────────
+    code_result: dict | None = None
+    code_pattern = (code_pattern or "").strip()
+
+    if code_pattern and code_dir and os.path.isdir(code_dir):
+        limit_code = min(max(int(limit_code), 1), 100)
+        if rg_path:
+            try:
+                proc = subprocess.run(
+                    [
+                        rg_path,
+                        "--json",
+                        "--no-heading",
+                        "--line-number",
+                        "--max-count",
+                        str(limit_code),
+                        "--regexp",
+                        code_pattern,
+                        code_dir,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                code_matches = []
+                files_seen: set[str] = set()
+                for line in proc.stdout.splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if data.get("type") == "match":
+                        d = data.get("data", {})
+                        p = d.get("path", {}).get("text", "")
+                        rel = os.path.relpath(p, code_dir) if p.startswith(code_dir) else p
+                        files_seen.add(p)
+                        code_matches.append(
+                            {
+                                "path": rel,
+                                "line_number": d.get("line_number", 0),
+                                "line": d.get("lines", {}).get("text", "").rstrip("\n\r")[:500],
+                            }
+                        )
+                        if len(code_matches) >= limit_code:
+                            break
+                code_result = {
+                    "total_matches": len(code_matches),
+                    "files_searched": len(files_seen),
+                    "returned": len(code_matches),
+                    "matches": code_matches,
+                }
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+
+    elapsed = (time.monotonic() - t_start) * 1000
+    return {
+        "elapsed_ms": int(elapsed),
+        "logs": log_result,
+        "code": code_result,
     }
 
 

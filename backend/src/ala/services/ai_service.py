@@ -27,12 +27,12 @@ from .agent_tools import (
     LogIndex,
     execute_tool,
 )
-from .code_scanner import CodeScanner, ContextDoc
+from .code_scanner import ContextDoc, get_shared_scanner
 from .project_manager import Project
 
 MAX_TOOL_ROUNDS = settings.ai_max_tool_rounds
 MAX_TOKENS = 32768
-_scanner = CodeScanner()
+_scanner = get_shared_scanner()
 logger = logging.getLogger(__name__)
 
 

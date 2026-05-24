@@ -22,6 +22,27 @@ function isError(line: StreamLine): line is StreamError {
   return '_error' in line
 }
 
+/** Sentinel for POST /logs/filter/stream — includes stats. */
+export interface FilterStreamDone {
+  _done: true
+  matched: number
+  scanned: number
+  stats: LogStatistics
+}
+
+/** Response for POST /logs/upload/temp. */
+export interface TempFileInfo {
+  original_name: string
+  saved_path: string
+  size_bytes: number
+  format_detected: string
+}
+
+export interface TempUploadResponse {
+  session_uuid: string
+  files: TempFileInfo[]
+}
+
 /** Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG). */
 export async function parseLocalPath(path: string): Promise<LocalFileRef> {
   return apiFetch<LocalFileRef>('/logs/parse-local', {
@@ -148,6 +169,29 @@ export async function* parseDirectoryStream(
 }
 
 /**
+ * Stream-parse a single local log file on the server.
+ *
+ * Calls ``POST /api/logs/file/parse/stream`` and yields ``LogEntry`` objects
+ * as they arrive.  Also yields the final ``{_done, total}`` sentinel.
+ */
+export async function* parseLocalFileStream(
+  filePath: string,
+  signal?: AbortSignal,
+): AsyncGenerator<LogEntry | StreamDone> {
+  for await (const line of streamNDJSON<StreamLine>(
+    '/logs/file/parse/stream',
+    { path: filePath },
+    signal,
+  )) {
+    if (isError(line)) {
+      throw new Error(line._error)
+    }
+    yield line as LogEntry | StreamDone
+    if (isDone(line)) return
+  }
+}
+
+/**
  * Stream-parse only selected log files from a directory.
  */
 export async function* parseSelectedFilesStream(
@@ -166,4 +210,44 @@ export async function* parseSelectedFilesStream(
     yield line as LogEntry | StreamDone
     if (isDone(line)) return
   }
+}
+
+/**
+ * Stream filtered log entries from a local file via the backend.
+ *
+ * Calls ``POST /api/logs/filter/stream`` and yields only matching
+ * ``LogEntry`` objects.  The final sentinel ``{_done, matched, scanned, stats}``
+ * is yielded at end of stream.
+ */
+export async function* streamFilteredLogs(
+  filePath: string,
+  filters: LogFilters,
+  signal?: AbortSignal,
+): AsyncGenerator<LogEntry | FilterStreamDone> {
+  type FilterLine =
+    | LogEntry
+    | { _done: true; matched: number; scanned: number; stats: LogStatistics }
+    | { _error: string }
+
+  for await (const line of streamNDJSON<FilterLine>(
+    '/logs/filter/stream',
+    { path: filePath, filters },
+    signal,
+  )) {
+    if ('_error' in line) {
+      throw new Error(line._error)
+    }
+    yield line as LogEntry | FilterStreamDone
+    if ('_done' in line) return
+  }
+}
+
+/**
+ * Upload log files to a temp directory on the server.
+ *
+ * Calls ``POST /api/logs/upload/temp`` and returns the session UUID
+ * and saved file paths that can be used with ``streamFilteredLogs``.
+ */
+export async function uploadToTemp(files: File[]): Promise<TempUploadResponse> {
+  return apiUploadMulti<TempUploadResponse>('/logs/upload/temp', files)
 }
