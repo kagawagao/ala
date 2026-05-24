@@ -756,9 +756,10 @@ class LogAnalyzer:
             if has_kw or has_tag:
                 kw_match = True
                 if has_kw:
-                    text = f"{log.tag} {log.message}"
                     kw_match = bool(
-                        kw_regex.search(text) if kw_regex else kw_fallback in text.lower()
+                        (kw_regex.search(log.message) if kw_regex else kw_fallback in log.message.lower())
+                        or
+                        (kw_regex.search(log.raw_line) if kw_regex else kw_fallback in log.raw_line.lower())
                     )
 
                 tag_match = True
