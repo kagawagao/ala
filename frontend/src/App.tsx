@@ -22,6 +22,7 @@ import { getConfig } from './api/config'
 import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { uploadToTemp } from './api/logs'
 import { listModels } from './api/models'
+import { uploadPcapToTemp } from './api/pcap'
 import {
   getProjectPresets,
   listContextDocs,
@@ -40,7 +41,7 @@ import PcapViewer from './components/PcapViewer'
 import TraceViewer from './components/TraceViewer'
 import { useDebouncedValue } from './hooks/useDebounce'
 import { useLazyLogStream } from './hooks/useLazyLogStream'
-import { usePcapStream } from './hooks/usePcapStream'
+import { useLazyPcapStream } from './hooks/useLazyPcapStream'
 import i18next from './i18n/config'
 import type {
   AIConfig,
@@ -82,6 +83,7 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
@@ -169,17 +171,19 @@ const AppContent: React.FC<{
     reset: resetLogs,
   } = useLazyLogStream()
 
-  // PCAP state
+  // PCAP state (lazy — upload to temp, filter on demand)
   const {
-    allEntries: pcapEntries,
+    displayEntries: pcapEntries,
     loading: pcapLoading,
     error: pcapError,
     fileNames: pcapFileNames,
     formatDetected: pcapFormat,
-    loadPcapFile,
+    sourcePath: pcapSourcePath,
+    stats: pcapStats,
+    loadSource: loadPcapSource,
     abort: abortPcap,
     reset: resetPcap,
-  } = usePcapStream()
+  } = useLazyPcapStream()
 
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
@@ -338,13 +342,19 @@ const AppContent: React.FC<{
     setPendingFiles([])
   }, [])
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K → toggle filter drawer
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setFilterDrawerOpen((v) => !v)
+        return
+      }
       // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
         e.preventDefault()
-        document.getElementById('ala-keywords-input')?.focus()
+        setActiveTab('log')
+        setFilterDrawerOpen(true)
         return
       }
       // Ctrl+D / Cmd+D → toggle dark/light theme
@@ -353,10 +363,14 @@ const AppContent: React.FC<{
         onToggleTheme()
         return
       }
-      // Esc → close upload popover, then collapse sider, then collapse aiPanel
+      // Esc → close upload popover, then filter drawer, then aiPanel
       if (e.key === 'Escape') {
         if (uploadPopoverOpen) {
           closeUploadPopover()
+          return
+        }
+        if (filterDrawerOpen) {
+          setFilterDrawerOpen(false)
           return
         }
         if (!aiPanelCollapsed) {
@@ -366,7 +380,7 @@ const AppContent: React.FC<{
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
+  }, [uploadPopoverOpen, filterDrawerOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -392,6 +406,8 @@ const AppContent: React.FC<{
       resetLogs()
       resetPcap()
       setTraceResult(null)
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
       setSelectedProjectId(projectId)
@@ -445,23 +461,6 @@ const AppContent: React.FC<{
     [loadSource, t, message],
   )
 
-  const handlePcapFile = useCallback(
-    async (file: File) => {
-      resetLogs() // Clear any log data
-      setTraceResult(null) // Clear any trace data
-      // Clear stale filtered state
-      setFilteredTraceResult(null)
-      setFilteredPcapEntries([])
-
-      const ok = await loadPcapFile(file)
-      if (ok) {
-        setActiveTab('pcap')
-        void message.success(t('fileUploaded'))
-      }
-    },
-    [loadPcapFile, resetLogs, t, message],
-  )
-
   const handleTraceFile = useCallback(
     async (file: File) => {
       resetLogs()
@@ -484,6 +483,30 @@ const AppContent: React.FC<{
       }
     },
     [resetLogs, t, message],
+  )
+
+  const handlePcapFile = useCallback(
+    async (file: File) => {
+      resetLogs()
+      setTraceResult(null)
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
+
+      try {
+        const result = await uploadPcapToTemp([file])
+        if (result.files.length === 0) {
+          void message.error(t('parseError'))
+          return
+        }
+        const firstFile = result.files[0]
+        loadPcapSource(firstFile.saved_path, [firstFile.original_name], firstFile.format_detected)
+        setActiveTab('pcap')
+        void message.success(t('fileUploaded'))
+      } catch {
+        void message.error(t('parseError'))
+      }
+    },
+    [loadPcapSource, resetLogs, t, message],
   )
 
   // Local file streaming handler — registers path and triggers lazy load
@@ -548,7 +571,7 @@ const AppContent: React.FC<{
     closeUploadPopover()
   }, [handleLogFiles, pendingFiles, closeUploadPopover])
 
-  const showFileUpload = !sourceRef && !traceResult && pcapEntries.length === 0
+  const showFileUpload = !sourceRef && !traceResult && !pcapSourcePath
 
   const isLoading = loadingFile || pcapLoading || traceLoading
   const errorMessage = fileError || pcapError || traceError
@@ -632,7 +655,7 @@ const AppContent: React.FC<{
           }}
           loading={isLoading}
           error={errorMessage}
-          fileNames={fileNames}
+          fileNames={fileNames.length > 0 ? fileNames : pcapFileNames}
         />
       </div>
     )
@@ -708,6 +731,7 @@ const AppContent: React.FC<{
           entries={filteredPcapEntries.length > 0 ? filteredPcapEntries : pcapEntries}
           totalPackets={pcapEntries.length}
           formatDetected={pcapFormat}
+          statistics={filteredPcapEntries.length > 0 ? null : pcapStats}
         />
       ),
     },
@@ -940,8 +964,10 @@ const AppContent: React.FC<{
                     </button>
                   )}
 
-                  {/* FilterDrawer - keyboard shortcut Ctrl+Shift+F */}
+                  {/* FilterDrawer — right-side context-aware filter UI (Ctrl+K) */}
                   <FilterDrawer
+                    open={filterDrawerOpen}
+                    onOpenChange={setFilterDrawerOpen}
                     activeTab={activeTab}
                     logFilters={filters}
                     onLogFiltersChange={setFilters}

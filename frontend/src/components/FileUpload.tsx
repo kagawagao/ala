@@ -69,7 +69,7 @@ export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace
     // ── Magic bytes ────────────────────────────────────────────────────────
     // PCAP magic bytes (check first for network captures)
     if (bytes.length >= 4) {
-      const magic = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
+      const magic = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0
       // pcap little-endian: 0xD4C3B2A1, big-endian: 0xA1B2C3D4
       // pcapng: 0x0A0D0D0A
       if (

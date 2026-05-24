@@ -259,6 +259,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pcapSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)
 
@@ -382,13 +383,15 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }, [traceResult, activeSessionId])
 
-  // Keep the active session's PCAP data in sync when pcapEntries changes
+  // Debounced sync of PCAP data to the active session (500ms debounce)
   useEffect(() => {
-    if (!activeSessionId) return
-    if (pcapEntries.length > 0) {
+    if (!activeSessionId || pcapEntries.length === 0) return
+    if (pcapSyncTimerRef.current) clearTimeout(pcapSyncTimerRef.current)
+    pcapSyncTimerRef.current = setTimeout(() => {
       void setSessionPcap(activeSessionId, pcapEntries as unknown as Record<string, unknown>[])
-    } else {
-      void setSessionPcap(activeSessionId, [])
+    }, 500)
+    return () => {
+      if (pcapSyncTimerRef.current) clearTimeout(pcapSyncTimerRef.current)
     }
   }, [pcapEntries, activeSessionId])
 

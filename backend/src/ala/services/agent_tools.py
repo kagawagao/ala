@@ -971,7 +971,7 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
@@ -1345,10 +1345,10 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
             if "dst_ip" in entry:
                 ips.add(entry["dst_ip"])
 
-            # Unique ports
-            if "src_port" in entry and entry["src_port"]:
+            # Unique ports (use `is not None` so port 0 is not dropped)
+            if "src_port" in entry and entry["src_port"] is not None:
                 ports.add(entry["src_port"])
-            if "dst_port" in entry and entry["dst_port"]:
+            if "dst_port" in entry and entry["dst_port"] is not None:
                 ports.add(entry["dst_port"])
 
             # Time range
@@ -1407,9 +1407,15 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
             pattern = re.compile(re.escape(content), re.IGNORECASE)
             filtered = [e for e in filtered if pattern.search(e.get("info", ""))]
 
-        # Pagination
-        offset = int(args.get("offset", 0))
-        limit = min(int(args.get("limit", 50)), 500)
+        # Pagination (safe int parsing)
+        try:
+            offset = int(args.get("offset", 0))
+        except (ValueError, TypeError):
+            offset = 0
+        try:
+            limit = min(int(args.get("limit", 50)), 500)
+        except (ValueError, TypeError):
+            limit = 50
 
         return json.dumps(
             {
