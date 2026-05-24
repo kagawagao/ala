@@ -210,6 +210,39 @@ class TestLogParse:
         resp = client.post("/api/logs/directory/list", json={"path": "/tmp/nonexistent_dir_xyz"})
         assert resp.status_code == 400
 
+    def test_file_parse_stream_returns_ndjson(self, client):
+        """POST /api/logs/file/parse/stream returns NDJSON for a local file."""
+        import os
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            f.write(SAMPLE_LOGCAT)
+            path = f.name
+        try:
+            resp = client.post("/api/logs/file/parse/stream", json={"path": path})
+            assert resp.status_code == 200
+            assert resp.headers["content-type"].startswith("application/x-ndjson")
+            lines = resp.text.strip().split("\n")
+            parsed = [json.loads(line) for line in lines if line.strip()]
+            assert len(parsed) >= 6  # 5 entries + done sentinel
+            done = parsed[-1]
+            assert done.get("_done") is True
+            assert done.get("total") == 5
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_file_parse_stream_rejects_traversal(self, client):
+        """POST /api/logs/file/parse/stream rejects path traversal."""
+        resp = client.post("/api/logs/file/parse/stream", json={"path": "/etc/../etc/passwd"})
+        assert resp.status_code in (400, 403)
+
+    def test_file_parse_stream_rejects_nonexistent(self, client):
+        """POST /api/logs/file/parse/stream returns 400 for nonexistent files."""
+        resp = client.post(
+            "/api/logs/file/parse/stream", json={"path": "/tmp/nonexistent_log_xyz_abc"}
+        )
+        assert resp.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # Trace endpoints

@@ -465,7 +465,7 @@ const AppContent: React.FC<{
       const dirPath = pickerState.dirPath
       const ok = await loadFromStream(
         (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
-        selectedFiles.map((f) => f.split('/').pop() || f),
+        selectedFiles.map((f) => f.replace(/\\/g, '/').split('/').pop() || f),
         false,
       )
       if (ok) {
