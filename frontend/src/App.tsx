@@ -21,8 +21,8 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import { parseLogStream, parseLocalFileStream, parseSelectedFilesStream } from './api/logs'
-import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
+import { parseLogStream, parseLocalPath, uploadToTemp } from './api/logs'
+import type { DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -40,7 +40,7 @@ import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import TraceViewer from './components/TraceViewer'
 import { useDebouncedValue } from './hooks/useDebounce'
-import { useLogStream } from './hooks/useLogStream'
+import { useLazyLogStream } from './hooks/useLazyLogStream'
 import i18next from './i18n/config'
 import type {
   AIConfig,
@@ -52,7 +52,7 @@ import type {
   Project,
   TraceParseResult,
 } from './types'
-import { applyFiltersClient, computeStatistics, hasFilterConditions } from './utils/filters'
+import { hasFilterConditions } from './utils/filters'
 import {
   getActiveAIConfig,
   migrateFromLegacyConfig,
@@ -105,7 +105,6 @@ const AppContent: React.FC<{
     return localStorage.getItem('ala_last_project_id') || null
   })
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
-  const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
 
   // Directory file picker modal state
   const [pickerState, setPickerState] = useState<{
@@ -154,27 +153,32 @@ const AppContent: React.FC<{
     }
   }, [selectedProjectId])
 
-  // File state
-  // allLogs is built incrementally as the stream arrives
+  // File state — lazy log streaming via agentic approach
+  // displayLogs is replaced (not accumulated) on each filter trigger
   const {
-    allLogs,
+    displayLogs,
     loading: loadingFile,
     error: fileError,
     fileNames,
     formatDetected,
-    parseProgress,
-    loadFromStream,
+    filterProgress,
+    sourceRef,
+    stats,
+    loadSource,
+    triggerFilter,
     abort: abortParse,
     reset: resetLogs,
-  } = useLogStream()
+  } = useLazyLogStream()
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
 
-  // Clear stale localFilePath when data source changes
+  // Clear stale sourceRef when trace data source changes
   useEffect(() => {
-    setLocalFilePath(null)
-  }, [traceResult, selectedProjectId])
+    if (traceResult) {
+      resetLogs()
+    }
+  }, [traceResult])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -221,17 +225,16 @@ const AppContent: React.FC<{
 
   const debouncedFilters = useDebouncedValue(filters, 300)
 
-  const filteredLogs = useMemo(
-    () => applyFiltersClient(allLogs, debouncedFilters),
-    [allLogs, debouncedFilters],
-  )
+  // Trigger backend lazy filter whenever debounced filters change
+  useEffect(() => {
+    if (sourceRef) {
+      void triggerFilter(debouncedFilters)
+    }
+    // We intentionally only fire on debounced filter changes, not sourceRef changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilters])
 
   const hasActiveFilters = useMemo(() => hasFilterConditions(filters), [filters])
-
-  const statistics = useMemo(
-    () => (allLogs.length > 0 ? computeStatistics(filteredLogs) : null),
-    [allLogs, filteredLogs],
-  )
 
   // Check backend connectivity
   useEffect(() => {
@@ -400,23 +403,30 @@ const AppContent: React.FC<{
     }
   }, [])
 
+  // --- Log file handlers (agentic lazy approach) ---
+
   const handleLogFiles = useCallback(
     async (files: File[]) => {
-      setLocalFilePath(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
+      setPendingFiles([])
 
-      const ok = await loadFromStream(
-        (signal) => parseLogStream(files, signal),
-        files.map((f) => f.name),
-      )
-      if (ok) void message.success(t('fileUploaded'))
+      try {
+        const result = await uploadToTemp(files)
+        const firstFile = result.files[0]
+        const labels = result.files.map((f) => f.original_name)
+        loadSource(firstFile.saved_path, labels)
+        void message.success(t('fileUploaded'))
+      } catch {
+        void message.error(t('parseError'))
+      }
     },
-    [loadFromStream, t, message],
+    [loadSource, t, message],
   )
 
   const handleTraceFile = useCallback(
     async (file: File) => {
+      resetLogs()
       setTraceLoading(true)
       setTraceError(undefined)
       try {
@@ -432,61 +442,57 @@ const AppContent: React.FC<{
         setTraceLoading(false)
       }
     },
-    [t, message],
+    [resetLogs, t, message],
   )
 
-  // T4: Local file streaming handler
+  // Local file streaming handler — registers path and triggers lazy load
   const handleLocalPathStream = useCallback(
-    async (path: string, type: 'file' | 'directory', result: AutoPathResponse) => {
-      setLocalFilePath(null)
+    async (path: string, type: 'file' | 'directory', _meta: unknown) => {
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
 
       if (type === 'file') {
         const label = path.replace(/\\/g, '/').split('/').pop() || path
-        const ok = await loadFromStream(
-          (signal) => parseLocalFileStream(path, signal),
-          [label],
-          false,
-        )
-        if (ok) {
-          setLocalFilePath(result.session_file || path)
-          void message.success(t('fileUploaded'))
-        }
+        loadSource(path, [label])
+        void message.success(t('fileUploaded'))
       } else {
+        // Directory: let the picker resolve which files to use
+        const meta = _meta as { files?: { name: string; size: number }[] } | undefined
         setPickerState({
           open: true,
-          files: result.files || [],
+          files: (meta?.files || []).map((f) => ({
+            name: f.name,
+            path: f.name,
+            size: f.size,
+            is_log: true,
+          })),
           dirPath: path,
         })
       }
     },
-    [loadFromStream, t, message],
+    [loadSource, t, message],
   )
 
-  // T4: Directory file picker handlers
+  // Directory file picker — load first selected file as lazy source
   const handlePickerConfirm = useCallback(
     async (selectedFiles: string[]) => {
       setPickerState((prev) => ({ ...prev, open: false }))
       const dirPath = pickerState.dirPath
-      const ok = await loadFromStream(
-        (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
-        selectedFiles.map((f) => f.replace(/\\/g, '/').split('/').pop() || f),
-        false,
-      )
-      if (ok) {
-        setLocalFilePath(dirPath)
-        void message.success(t('fileUploaded'))
-      }
+      if (selectedFiles.length === 0) return
+
+      const fullPath = dirPath.replace(/\/$/, '') + '/' + selectedFiles[0].replace(/^\//, '')
+      const label = selectedFiles[0].split('/').pop() || selectedFiles[0]
+      loadSource(fullPath, [label])
+      void message.success(t('fileUploaded'))
     },
-    [loadFromStream, pickerState.dirPath, t, message],
+    [loadSource, pickerState.dirPath, t, message],
   )
 
   const handlePickerCancel = useCallback(() => {
     setPickerState((prev) => ({ ...prev, open: false }))
   }, [])
 
-  // T6: Upload popover handlers — stage files and execute load with mode
+  // Upload popover handlers — stage files and upload via temp
   const handleUploadPopoverFiles = useCallback(
     (files: File[], isTrace: boolean) => {
       if (isTrace) {
@@ -501,20 +507,13 @@ const AppContent: React.FC<{
   )
 
   const handleUploadPopoverLoad = useCallback(async () => {
-    const append = uploadMode === 'append'
-    const ok = await loadFromStream(
-      (signal) => parseLogStream(pendingFiles, signal),
-      pendingFiles.map((f) => f.name),
-      append,
-    )
-    if (ok) {
-      setLocalFilePath(null)
-      void message.success(t('fileUploaded'))
-    }
+    await handleLogFiles(pendingFiles)
+    setPendingFiles([])
     closeUploadPopover()
-  }, [loadFromStream, pendingFiles, uploadMode, t, message, closeUploadPopover])
+    void message.success(t('fileUploaded'))
+  }, [handleLogFiles, pendingFiles, closeUploadPopover, t, message])
 
-  const showFileUpload = allLogs.length === 0 && !traceResult && !localFilePath
+  const showFileUpload = !sourceRef && !traceResult
 
   const isLoading = loadingFile || traceLoading
   const errorMessage = fileError || traceError
@@ -650,12 +649,19 @@ const AppContent: React.FC<{
         </div>
       ) : (
         <LogViewer
-          logs={filteredLogs}
-          totalLogs={allLogs.length}
+          logs={displayLogs}
+          totalLogs={displayLogs.length}
           highlights={highlights}
           wordWrap={wordWrap}
           formatDetected={formatDetected}
-          parseProgress={parseProgress}
+          parseProgress={
+            filterProgress
+              ? {
+                  current: filterProgress.matched,
+                  total: filterProgress.total ?? filterProgress.scanned,
+                }
+              : null
+          }
         />
       ),
     },
@@ -770,7 +776,7 @@ const AppContent: React.FC<{
                           onFiltersChange={setFilters}
                           highlights={highlights}
                           onHighlightsChange={setHighlights}
-                          statistics={statistics}
+                          statistics={stats}
                           presets={presets}
                           onPresetsChange={handlePresetsChange}
                           wordWrap={wordWrap}
@@ -857,16 +863,16 @@ const AppContent: React.FC<{
                             </div>
                             <div style={{ flex: 1, overflow: 'hidden' }}>
                               <AiPanel
-                                logs={filteredLogs}
-                                allLogs={allLogs}
-                                totalLogs={allLogs.length}
+                                logs={displayLogs}
+                                allLogs={displayLogs}
+                                totalLogs={displayLogs.length}
                                 filters={filters}
                                 traceResult={traceResult}
                                 aiConfigured={aiConfigured}
                                 selectedProjectId={selectedProjectId}
                                 projects={projects}
                                 contextDocs={contextDocs}
-                                localFilePath={localFilePath}
+                                localFilePath={sourceRef}
                                 aiConfig={aiConfig ?? undefined}
                                 allModels={allModels}
                               />
