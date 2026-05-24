@@ -305,6 +305,12 @@ const AppContent: React.FC<{
       })
   }, [backendConnected, allModels, modelsLoaded])
 
+  // Helper: close upload popover and clear pending files (avoids stale state)
+  const closeUploadPopover = useCallback(() => {
+    setUploadPopoverOpen(false)
+    setPendingFiles([])
+  }, [])
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -478,12 +484,6 @@ const AppContent: React.FC<{
 
   const handlePickerCancel = useCallback(() => {
     setPickerState((prev) => ({ ...prev, open: false }))
-  }, [])
-
-  // Helper: close upload popover and clear pending files (avoids stale state)
-  const closeUploadPopover = useCallback(() => {
-    setUploadPopoverOpen(false)
-    setPendingFiles([])
   }, [])
 
   // T6: Upload popover handlers — stage files and execute load with mode
