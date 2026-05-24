@@ -122,7 +122,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       render: (_: unknown, record: PcapEntry) => (
         <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {record.src_ip}
-          {record.src_port ? `:${record.src_port}` : ''}
+          {record.src_port != null ? `:${record.src_port}` : ''}
         </Text>
       ),
     },
@@ -133,7 +133,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       render: (_: unknown, record: PcapEntry) => (
         <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {record.dst_ip}
-          {record.dst_port ? `:${record.dst_port}` : ''}
+          {record.dst_port != null ? `:${record.dst_port}` : ''}
         </Text>
       ),
     },
