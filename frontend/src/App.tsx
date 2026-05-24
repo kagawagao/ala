@@ -644,7 +644,7 @@ const AppContent: React.FC<{
           parseProgress={
             filterProgress
               ? {
-                  current: filterProgress.matched,
+                  current: filterProgress.scanned ?? filterProgress.matched,
                   total: filterProgress.total ?? filterProgress.scanned,
                 }
               : null
