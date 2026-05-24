@@ -342,8 +342,6 @@ const AppContent: React.FC<{
     setPendingFiles([])
   }, [])
 
-  // Global keyboard shortcuts
-  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Ctrl+K / Cmd+K → toggle filter drawer
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -351,8 +349,7 @@ const AppContent: React.FC<{
         setFilterDrawerOpen((v) => !v)
         return
       }
-      // Ctrl+Shift+F / Cmd+Shift+F → open filter drawer (log tab)
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
+      // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
         e.preventDefault()
         setActiveTab('log')
         setFilterDrawerOpen(true)

@@ -215,9 +215,9 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time, tz=UTC).strftime(
-                "%Y-%m-%d %H:%M:%S.%f"
-            )[:-3]
+            timestamp = datetime.fromtimestamp(pkt.time, tz=UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]
 
         # Extract network layer info
         protocol = "UNKNOWN"
