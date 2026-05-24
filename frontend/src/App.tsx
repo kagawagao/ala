@@ -77,7 +77,7 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
-  const [siderCollapsed, setSiderCollapsed] = useState(false)
+  const [siderCollapsed, setSiderCollapsed] = useState(true)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
