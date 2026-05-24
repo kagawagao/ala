@@ -342,6 +342,7 @@ const AppContent: React.FC<{
     setPendingFiles([])
   }, [])
 
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Ctrl+K / Cmd+K → toggle filter drawer
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -350,6 +351,7 @@ const AppContent: React.FC<{
         return
       }
       // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
         e.preventDefault()
         setActiveTab('log')
         setFilterDrawerOpen(true)
