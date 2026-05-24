@@ -329,7 +329,7 @@ const AppContent: React.FC<{
       // Esc → close upload popover, then collapse sider, then collapse aiPanel
       if (e.key === 'Escape') {
         if (uploadPopoverOpen) {
-          setUploadPopoverOpen(false)
+          closeUploadPopover()
           return
         }
         if (!siderCollapsed) {
@@ -437,7 +437,7 @@ const AppContent: React.FC<{
       setActiveTab('log')
 
       if (type === 'file') {
-        const label = path.split('/').pop() || path
+        const label = path.replace(/\\/g, '/').split('/').pop() || path
         const ok = await loadFromStream(
           (signal) => parseLocalFileStream(path, signal),
           [label],
@@ -480,12 +480,18 @@ const AppContent: React.FC<{
     setPickerState((prev) => ({ ...prev, open: false }))
   }, [])
 
+  // Helper: close upload popover and clear pending files (avoids stale state)
+  const closeUploadPopover = useCallback(() => {
+    setUploadPopoverOpen(false)
+    setPendingFiles([])
+  }, [])
+
   // T6: Upload popover handlers — stage files and execute load with mode
   const handleUploadPopoverFiles = useCallback(
     (files: File[], isTrace: boolean) => {
       if (isTrace) {
         void handleTraceFile(files[0])
-        setUploadPopoverOpen(false)
+        closeUploadPopover()
         return
       }
       setPendingFiles(files)
@@ -505,8 +511,7 @@ const AppContent: React.FC<{
       setLocalFilePath(null)
       void message.success(t('fileUploaded'))
     }
-    setPendingFiles([])
-    setUploadPopoverOpen(false)
+    closeUploadPopover()
   }, [loadFromStream, pendingFiles, uploadMode, t, message])
 
   const showFileUpload = allLogs.length === 0 && !traceResult && !localFilePath
@@ -522,8 +527,11 @@ const AppContent: React.FC<{
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {t('currentlyLoaded')}:
           </Typography.Text>
-          {fileNames.map((name) => (
-            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
+          {fileNames.map((name, idx) => (
+            <div
+              key={`${name}-${idx}`}
+              style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+            >
               <FileOutlined style={{ marginRight: 6 }} />
               <Typography.Text style={{ fontSize: 12 }} ellipsis title={name}>
                 {name}
@@ -541,7 +549,7 @@ const AppContent: React.FC<{
           }}
           onLocalPathStream={(path, type, result) => {
             void handleLocalPathStream(path, type, result)
-            setUploadPopoverOpen(false)
+            closeUploadPopover()
           }}
           loading={isLoading}
           error={errorMessage}
@@ -580,15 +588,15 @@ const AppContent: React.FC<{
           compact={true}
           onLogFiles={(files) => {
             void handleLogFiles(files)
-            setUploadPopoverOpen(false)
+            closeUploadPopover()
           }}
           onTraceFile={(f) => {
             void handleTraceFile(f)
-            setUploadPopoverOpen(false)
+            closeUploadPopover()
           }}
           onLocalPathStream={(path, type, result) => {
             void handleLocalPathStream(path, type, result)
-            setUploadPopoverOpen(false)
+            closeUploadPopover()
           }}
           loading={isLoading}
           error={errorMessage}

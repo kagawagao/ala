@@ -409,11 +409,17 @@ def _scan_directory(
 @router.post("/directory/list", response_model=DirectoryListResponse)
 async def list_directory_files(req: DirectoryRequest):
     """List log-like files in a local directory (recursive)."""
-    import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     try:
         files, has_subdirs, depth = _scan_directory(dir_path)
@@ -433,9 +439,16 @@ async def parse_directory_stream(req: DirectoryRequest):
     """Stream-parse all log files in a local directory using NDJSON."""
     import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     async def _generate():
         total = 0
@@ -471,9 +484,16 @@ async def parse_selected_files_stream(req: DirectorySelectedRequest):
     """Stream-parse only user-selected log files from a directory."""
     import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     async def _generate():
         total = 0

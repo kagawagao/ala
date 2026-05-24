@@ -251,7 +251,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       </Dragger>
 
       {/* Local path input — auto-detects file vs directory */}
-      {!compact && onLocalFilePath && (
+      {!compact && (onLocalFilePath || onLocalPathStream) && (
         <>
           <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orEnterLocalFilePath')}</Divider>
           <Space.Compact style={{ width: '100%' }}>
