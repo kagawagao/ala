@@ -109,7 +109,12 @@ export function useLazyPcapStream(): UseLazyPcapStreamReturn {
           if (controller.signal.aborted) break
 
           if ('_done' in line && line._done) {
-            const done = line as { _done: true; matched: number; scanned: number; stats: PcapStatistics }
+            const done = line as {
+              _done: true
+              matched: number
+              scanned: number
+              stats: PcapStatistics
+            }
             matchedCount = done.matched
             scannedCount = done.scanned
             if (done.stats && generationRef.current === gen) {

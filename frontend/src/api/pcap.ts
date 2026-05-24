@@ -71,8 +71,6 @@ export interface PcapFilterStreamResult {
   scanned: number
 }
 
-const BATCH_SIZE = 500
-
 export async function* streamFilteredPcap(
   path: string,
   filters: PcapFilters,

@@ -52,7 +52,12 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
   }
 }
 
-const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDetected, statistics: externalStats }) => {
+const PcapViewer: React.FC<PcapViewerProps> = ({
+  entries,
+  totalPackets,
+  formatDetected,
+  statistics: externalStats,
+}) => {
   const { t } = useTranslation()
 
   const statistics = useMemo(

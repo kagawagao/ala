@@ -215,7 +215,9 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time, tz=timezone.utc).strftime(  # noqa: UP017
+            timestamp = datetime.fromtimestamp(
+                pkt.time, tz=timezone.utc
+            ).strftime(  # noqa: UP017
                 "%Y-%m-%d %H:%M:%S.%f"
             )[:-3]
 

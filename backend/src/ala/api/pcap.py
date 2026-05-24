@@ -389,14 +389,17 @@ async def filter_pcap_stream(req: PcapFilterStreamRequest, request: Request):
 
             # Compute and send stats sentinel
             stats = _analyzer.compute_statistics(stats_entries)
-            yield json.dumps(
-                {
-                    "_done": True,
-                    "matched": matched,
-                    "scanned": scanned,
-                    "stats": _stats_to_model(stats).model_dump(),
-                }
-            ) + "\n"
+            yield (
+                json.dumps(
+                    {
+                        "_done": True,
+                        "matched": matched,
+                        "scanned": scanned,
+                        "stats": _stats_to_model(stats).model_dump(),
+                    }
+                )
+                + "\n"
+            )
 
         except FileNotFoundError as e:
             yield json.dumps({"_error": str(e)}) + "\n"

@@ -181,7 +181,6 @@ const AppContent: React.FC<{
     sourcePath: pcapSourcePath,
     stats: pcapStats,
     loadSource: loadPcapSource,
-    triggerFilter: triggerPcapFilter,
     abort: abortPcap,
     reset: resetPcap,
   } = useLazyPcapStream()
