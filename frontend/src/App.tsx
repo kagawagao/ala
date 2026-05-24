@@ -415,8 +415,7 @@ const AppContent: React.FC<{
           return
         }
         const firstFile = result.files[0]
-        const labels = result.files.map((f) => f.original_name)
-        loadSource(firstFile.saved_path, labels)
+        loadSource(firstFile.saved_path, [firstFile.original_name])
         void message.success(t('fileUploaded'))
       } catch {
         void message.error(t('parseError'))

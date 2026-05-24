@@ -146,7 +146,8 @@ describe('ProjectManager', () => {
     })
   })
 
-  it('navigates back to / on back button click', async () => {
+  // Back button removed from ProjectManager — navigation handled by app Header
+  it.skip('navigates back to / on back button click', async () => {
     render(
       <Wrapper>
         <ProjectManager />
