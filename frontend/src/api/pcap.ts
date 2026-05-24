@@ -130,31 +130,18 @@ export async function* streamFilteredPcap(
 // ── Legacy filter (kept for backward compat) ───────────────────────────
 
 export async function filterPcap(entries: PcapEntry[], filters: PcapFilters): Promise<PcapEntry[]> {
-  const response = await fetch('/api/pcap/filter', {
+  const body = JSON.stringify({ entries, filters })
+  return apiFetch<PcapEntry[]>('/pcap/filter', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ entries, filters }),
+    body,
   })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to filter PCAP: ${text}`)
-  }
-
-  return response.json()
 }
 
 export async function getPcapStatistics(entries: PcapEntry[]): Promise<PcapStatistics> {
-  const response = await fetch('/api/pcap/statistics', {
+  return apiFetch<PcapStatistics>('/pcap/statistics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(entries),
   })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to get PCAP statistics: ${text}`)
-  }
-
-  return response.json()
 }
