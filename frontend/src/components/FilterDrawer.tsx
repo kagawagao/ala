@@ -1,12 +1,17 @@
-import React, { useEffect, useState } from 'react'
 import { Drawer } from 'antd'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import LogFilterPanel from './LogFilterPanel'
-import TraceFilterPanel from './TraceFilterPanel'
-import PcapFilterPanel from './PcapFilterPanel'
-import type { LogFilters, LogStatistics, FilterPreset, HighlightItem } from '../types'
+import type {
+  FilterPreset,
+  HighlightItem,
+  LogFilters,
+  LogStatistics,
+  TraceParseResult,
+} from '../types'
 import type { PcapEntry } from '../types/pcap'
-import type { TraceParseResult } from '../types'
+import LogFilterPanel from './LogFilterPanel'
+import PcapFilterPanel from './PcapFilterPanel'
+import TraceFilterPanel from './TraceFilterPanel'
 
 interface FilterDrawerProps {
   activeTab: string
@@ -152,7 +157,8 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
     <Drawer
       title={getTitle()}
       placement="right"
-      width={320}
+      maxSize={800}
+      size={'50%'}
       open={open}
       onClose={() => setOpen(false)}
       styles={{ body: { padding: 0 } }}
