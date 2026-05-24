@@ -1,4 +1,4 @@
-import { UploadOutlined, FileOutlined } from '@ant-design/icons'
+import { FileOutlined, UploadOutlined } from '@ant-design/icons'
 import {
   Alert,
   App as AntApp,
@@ -19,8 +19,8 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import { uploadToTemp } from './api/logs'
 import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
+import { uploadToTemp } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -30,11 +30,10 @@ import {
 } from './api/projects'
 import { parseTrace } from './api/trace'
 import AiPanel from './components/AiPanel'
-import AppSider from './components/AppSider'
+import DirectoryFilePicker from './components/DirectoryFilePicker'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import FilterDrawer from './components/FilterDrawer'
-import DirectoryFilePicker from './components/DirectoryFilePicker'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import PcapViewer from './components/PcapViewer'
@@ -816,34 +815,6 @@ const AppContent: React.FC<{
                       display: 'flex',
                     }}
                   >
-                    {/* Left: AppSider */}
-                    <div
-                      style={{
-                        width: siderCollapsed ? 0 : 340,
-                        minWidth: siderCollapsed ? 0 : 240,
-                        maxWidth: 500,
-                        borderRight: siderCollapsed ? 'none' : '1px solid var(--ant-color-border)',
-                        overflow: 'hidden',
-                        transition: 'width 0.2s',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {!siderCollapsed && (
-                        <AppSider
-                          filters={filters}
-                          onFiltersChange={setFilters}
-                          highlights={highlights}
-                          onHighlightsChange={setHighlights}
-                          statistics={stats}
-                          presets={presets}
-                          onPresetsChange={handlePresetsChange}
-                          wordWrap={wordWrap}
-                          onWordWrapChange={setWordWrap}
-                          selectedProjectId={selectedProjectId}
-                        />
-                      )}
-                    </div>
-
                     {/* Center + Right: Splitter for Log viewer and AI panel */}
                     <Splitter style={{ flex: 1, height: '100%' }} onResize={handleSplitterResize}>
                       {/* Center: Log/Trace viewer */}
