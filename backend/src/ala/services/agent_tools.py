@@ -1345,10 +1345,10 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
             if "dst_ip" in entry:
                 ips.add(entry["dst_ip"])
 
-            # Unique ports
-            if "src_port" in entry and entry["src_port"]:
+            # Unique ports (use `is not None` so port 0 is not dropped)
+            if "src_port" in entry and entry["src_port"] is not None:
                 ports.add(entry["src_port"])
-            if "dst_port" in entry and entry["dst_port"]:
+            if "dst_port" in entry and entry["dst_port"] is not None:
                 ports.add(entry["dst_port"])
 
             # Time range
