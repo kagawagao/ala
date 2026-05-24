@@ -215,7 +215,7 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time, tz=timezone.utc).strftime(
+            timestamp = datetime.fromtimestamp(pkt.time, tz=timezone.utc).strftime(  # noqa: UP017
                 "%Y-%m-%d %H:%M:%S.%f"
             )[:-3]
 
@@ -271,7 +271,7 @@ class PcapAnalyzer:
 
         # Build info message
         summary = pkt.summary()
-        info = f"{src_ip}{':' + str(src_port) if src_port else ''} → {dst_ip}{':' + str(dst_port) if dst_port else ''}"
+        info = f"{src_ip}{':' + str(src_port) if src_port is not None else ''} → {dst_ip}{':' + str(dst_port) if dst_port is not None else ''}"
         if tcp_flags:
             info += f" [{tcp_flags}]"
 
@@ -365,7 +365,7 @@ class PcapAnalyzer:
             if entry.dst_ip != "?":
                 ips.add(entry.dst_ip)
 
-            if entry.src_port and entry.dst_port:
+            if entry.src_port is not None and entry.dst_port is not None:
                 connections.add((entry.src_ip, entry.src_port, entry.dst_ip, entry.dst_port))
 
         duration_seconds = None

@@ -10,7 +10,6 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..services.log_analyzer import PathTraversalError
 from ..services.pcap_analyzer import (
     PcapAnalyzer,
     PcapEntry,
@@ -265,7 +264,7 @@ async def filter_pcap(req: FilterPcapRequest):
         filtered = _analyzer.filter_pcap(service_entries, service_filters)
 
         return [_entry_to_model(e) for e in filtered]
-    except Exception as e:
+    except ValueError as e:
         logger.error("Failed to filter PCAP entries: %s", e)
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -280,7 +279,7 @@ async def get_pcap_statistics(entries: list[PcapEntryModel]):
         service_entries = [_model_to_entry(e) for e in entries]
         stats = _analyzer.compute_statistics(service_entries)
         return _stats_to_model(stats)
-    except Exception as e:
+    except ValueError as e:
         logger.error("Failed to compute PCAP statistics: %s", e)
         raise HTTPException(status_code=400, detail=str(e)) from e
 

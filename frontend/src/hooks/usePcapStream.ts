@@ -90,6 +90,8 @@ export function usePcapStream(): UsePcapStreamReturn {
       const decoder = new TextDecoder()
       let partialLine = ''
 
+      let streamDone = false
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -108,12 +110,14 @@ export function usePcapStream(): UsePcapStreamReturn {
               if ('total' in obj && typeof obj.total === 'number') {
                 setTotalExpected(obj.total)
               }
+              streamDone = true
               break
             }
 
             if ('_error' in obj) {
               streamError = obj._error
               setError(streamError)
+              streamDone = true
               break
             }
 
@@ -139,6 +143,7 @@ export function usePcapStream(): UsePcapStreamReturn {
             console.error('Failed to parse NDJSON line:', line, parseErr)
           }
         }
+        if (streamDone) break
       }
 
       flush()

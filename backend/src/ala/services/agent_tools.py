@@ -1407,9 +1407,15 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
             pattern = re.compile(re.escape(content), re.IGNORECASE)
             filtered = [e for e in filtered if pattern.search(e.get("info", ""))]
 
-        # Pagination
-        offset = int(args.get("offset", 0))
-        limit = min(int(args.get("limit", 50)), 500)
+        # Pagination (safe int parsing)
+        try:
+            offset = int(args.get("offset", 0))
+        except (ValueError, TypeError):
+            offset = 0
+        try:
+            limit = min(int(args.get("limit", 50)), 500)
+        except (ValueError, TypeError):
+            limit = 50
 
         return json.dumps(
             {
