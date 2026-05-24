@@ -46,6 +46,35 @@ class _SPAStaticFiles(StaticFiles):
             raise
 
 
+def _cleanup_temp_on_startup() -> None:
+    """Delete temp log session directories older than 24 hours on startup."""
+    import os
+    import shutil
+    import time
+    from pathlib import Path
+
+    try:
+        max_age_hours = int(os.environ.get("ALA_TEMP_MAX_AGE_HOURS", "24"))
+    except (TypeError, ValueError):
+        logger.warning("ALA_TEMP_MAX_AGE_HOURS is invalid, falling back to 24")
+        max_age_hours = 24
+    env_dir = os.environ.get("ALA_TEMP_DIR")
+    temp_dir = Path(env_dir) if env_dir else Path.home() / ".ala" / "temp_logs"
+
+    if not temp_dir.exists():
+        return
+
+    cutoff = time.time() - (max_age_hours * 3600)
+    for entry in temp_dir.iterdir():
+        if entry.is_dir():
+            try:
+                if entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry)
+                    logger.info("Cleaned up old temp session on startup: %s", entry.name)
+            except OSError:
+                logger.warning("Failed to clean up temp dir on startup: %s", entry)
+
+
 def create_app() -> FastAPI:
     # Build one MCP HTTP sub-application per FastAPI app instance so repeated
     # TestClient create/teardown cycles can safely create fresh app instances.
@@ -61,6 +90,10 @@ def create_app() -> FastAPI:
         )
         # Trigger DB initialization and migration
         get_db()
+
+        # Clean up old temp log files on startup
+        _cleanup_temp_on_startup()
+
         # Start the FastMCP session-manager task-group alongside the FastAPI app.
         # The mcp_http_app lifespan initialises StreamableHTTPSessionManager.run()
         # which is required before any MCP request can be handled.
