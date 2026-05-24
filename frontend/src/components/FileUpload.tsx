@@ -4,6 +4,7 @@ import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/ico
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
 import { autoPath } from '../api/logs'
+import type { AutoPathResponse } from '../api/logs'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -12,6 +13,7 @@ interface FileUploadProps {
   onLogFiles: (files: File[]) => void
   onTraceFile: (file: File) => void
   onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
+  onLocalPathStream?: (path: string, type: 'file' | 'directory', result: AutoPathResponse) => void
   loading: boolean
   error?: string
   fileNames?: string[]
@@ -115,6 +117,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onLogFiles,
   onTraceFile,
   onLocalFilePath,
+  onLocalPathStream,
   loading,
   error,
   fileNames = [],
@@ -154,26 +157,32 @@ const FileUpload: React.FC<FileUploadProps> = ({
         const result = await autoPath(path)
 
         if (result.type === 'file' && result.session_file) {
-          // File or directory: register for lazy analysis
-          onLocalFilePath?.(path, {
-            session_file: result.session_file,
-            line_count: result.line_count ?? 0,
-            size_bytes: result.size_bytes ?? 0,
-            format_detected: result.format_detected ?? 'unknown',
-            is_gzip: result.is_gzip ?? false,
-            is_zip: result.is_zip ?? false,
-          })
+          if (onLocalPathStream) {
+            onLocalPathStream(path, 'file', result)
+          } else {
+            onLocalFilePath?.(path, {
+              session_file: result.session_file,
+              line_count: result.line_count ?? 0,
+              size_bytes: result.size_bytes ?? 0,
+              format_detected: result.format_detected ?? 'unknown',
+              is_gzip: result.is_gzip ?? false,
+              is_zip: result.is_zip ?? false,
+            })
+          }
           setInputPath('')
         } else if (result.type === 'directory') {
-          // Directory — use lazy analysis (AI lists files on demand)
-          onLocalFilePath?.(path, {
-            session_file: path,
-            line_count: result.total_files ?? 0,
-            size_bytes: 0,
-            format_detected: 'directory',
-            is_gzip: false,
-            is_zip: false,
-          })
+          if (onLocalPathStream) {
+            onLocalPathStream(path, 'directory', result)
+          } else {
+            onLocalFilePath?.(path, {
+              session_file: path,
+              line_count: result.total_files ?? 0,
+              size_bytes: 0,
+              format_detected: 'directory',
+              is_gzip: false,
+              is_zip: false,
+            })
+          }
           setInputPath('')
         }
       } catch (err: unknown) {
@@ -183,7 +192,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         setInputLoading(false)
       }
     },
-    [onLocalFilePath, t],
+    [onLocalFilePath, onLocalPathStream, t],
   )
 
   const props: UploadProps = {

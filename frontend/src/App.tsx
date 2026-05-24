@@ -1,11 +1,14 @@
-import { UploadOutlined } from '@ant-design/icons'
+import { UploadOutlined, FileOutlined } from '@ant-design/icons'
 import {
   Alert,
   App as AntApp,
   Button,
   ConfigProvider,
+  Divider,
   Empty,
   Popover,
+  Radio,
+  Space,
   Splitter,
   Tabs,
   theme,
@@ -18,7 +21,13 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import { parseLogStream } from './api/logs'
+import {
+  parseLogStream,
+  parseLocalFileStream,
+  parseSelectedFilesStream,
+  autoPath,
+} from './api/logs'
+import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -31,6 +40,7 @@ import AiPanel from './components/AiPanel'
 import AppSider from './components/AppSider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
+import DirectoryFilePicker from './components/DirectoryFilePicker'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
 import TraceViewer from './components/TraceViewer'
@@ -101,6 +111,17 @@ const AppContent: React.FC<{
   })
   const [contextDocs, setContextDocs] = useState<ContextDoc[]>([])
   const [localFilePath, setLocalFilePath] = useState<string | null>(null) // FEAT-LAZY-LOG
+
+  // Directory file picker modal state
+  const [pickerState, setPickerState] = useState<{
+    open: boolean
+    files: DirectoryFileInfo[]
+    dirPath: string
+  }>({ open: false, files: [], dirPath: '' })
+
+  // Upload popover: mode selector state (T6)
+  const [uploadMode, setUploadMode] = useState<'replace' | 'append'>('replace')
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
   const location = useLocation()
   const isFullPage = useMemo(() => location.pathname !== '/', [location.pathname])
@@ -413,102 +434,201 @@ const AppContent: React.FC<{
     [t, message],
   )
 
+  // T4: Local file streaming handler
+  const handleLocalPathStream = useCallback(
+    async (path: string, type: 'file' | 'directory', result: AutoPathResponse) => {
+      setLocalFilePath(null)
+      setFilters(DEFAULT_FILTERS)
+      setActiveTab('log')
+
+      if (type === 'file') {
+        const label = path.split('/').pop() || path
+        const ok = await loadFromStream(
+          (signal) => parseLocalFileStream(path, signal),
+          [label],
+          false,
+        )
+        if (ok) {
+          setLocalFilePath(result.session_file || path)
+          void message.success(t('fileUploaded'))
+        }
+      } else {
+        setPickerState({
+          open: true,
+          files: result.files || [],
+          dirPath: path,
+        })
+      }
+    },
+    [loadFromStream, t, message],
+  )
+
+  // T4: Directory file picker handlers
+  const handlePickerConfirm = useCallback(
+    async (selectedFiles: string[]) => {
+      setPickerState((prev) => ({ ...prev, open: false }))
+      const dirPath = pickerState.dirPath
+      const ok = await loadFromStream(
+        (signal) => parseSelectedFilesStream(dirPath, selectedFiles, signal),
+        selectedFiles.map((f) => f.split('/').pop() || f),
+        false,
+      )
+      if (ok) {
+        setLocalFilePath(dirPath)
+        void message.success(t('fileUploaded'))
+      }
+    },
+    [loadFromStream, pickerState.dirPath, t, message],
+  )
+
+  const handlePickerCancel = useCallback(() => {
+    setPickerState((prev) => ({ ...prev, open: false }))
+  }, [])
+
+  // T6: Upload popover handlers — stage files and execute load with mode
+  const handleUploadPopoverFiles = useCallback(
+    (files: File[], isTrace: boolean) => {
+      if (isTrace) {
+        void handleTraceFile(files[0])
+        setUploadPopoverOpen(false)
+        return
+      }
+      setPendingFiles(files)
+      setUploadMode('replace')
+    },
+    [handleTraceFile],
+  )
+
+  const handleUploadPopoverLoad = useCallback(async () => {
+    const append = uploadMode === 'append'
+    const ok = await loadFromStream(
+      (signal) => parseLogStream(pendingFiles, signal),
+      pendingFiles.map((f) => f.name),
+      append,
+    )
+    if (ok) {
+      setLocalFilePath(null)
+      void message.success(t('fileUploaded'))
+    }
+    setPendingFiles([])
+    setUploadPopoverOpen(false)
+  }, [loadFromStream, pendingFiles, uploadMode, t, message])
+
   const showFileUpload = allLogs.length === 0 && !traceResult && !localFilePath
 
   const isLoading = loadingFile || traceLoading
   const errorMessage = fileError || traceError
 
-  // Upload popover content – compact FileUpload dragger always accessible from
-  // the tab bar, even after files have already been loaded.
-  const uploadPopoverContent = (
-    <div style={{ width: 300 }}>
-      <FileUpload
-        onLogFiles={(files) => {
-          void handleLogFiles(files)
-          setUploadPopoverOpen(false)
-        }}
-        onTraceFile={(f) => {
-          void handleTraceFile(f)
-          setUploadPopoverOpen(false)
-        }}
-        onLocalFilePath={(_path, ref) => {
-          setLocalFilePath(ref.session_file)
-          setUploadPopoverOpen(false)
-          void message.success(t('fileUploaded'))
-        }}
-        loading={isLoading}
-        error={errorMessage}
-        fileNames={fileNames}
-      />
-    </div>
-  )
+  // T6: Upload popover content — redesigned with mode selector when files loaded
+  const uploadPopoverContent =
+    fileNames.length > 0 ? (
+      <div style={{ width: 340 }}>
+        <div style={{ marginBottom: 8 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {t('currentlyLoaded')}:
+          </Typography.Text>
+          {fileNames.map((name) => (
+            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
+              <FileOutlined style={{ marginRight: 6 }} />
+              <Typography.Text style={{ fontSize: 12 }} ellipsis title={name}>
+                {name}
+              </Typography.Text>
+            </div>
+          ))}
+        </div>
+        <FileUpload
+          compact={true}
+          onLogFiles={(files) => {
+            handleUploadPopoverFiles(files, false)
+          }}
+          onTraceFile={(f) => {
+            handleUploadPopoverFiles([f], true)
+          }}
+          onLocalPathStream={(path, type, result) => {
+            void handleLocalPathStream(path, type, result)
+            setUploadPopoverOpen(false)
+          }}
+          loading={isLoading}
+          error={errorMessage}
+          fileNames={fileNames}
+        />
+        {pendingFiles.length > 0 && (
+          <>
+            <Divider style={{ margin: '8px 0' }} />
+            <Radio.Group
+              value={uploadMode}
+              onChange={(e) => setUploadMode(e.target.value)}
+              size="small"
+            >
+              <Space direction="vertical">
+                <Radio value="replace">{t('replaceMode')}</Radio>
+                <Radio value="append">{t('appendMode')}</Radio>
+              </Space>
+            </Radio.Group>
+            <Button
+              type="primary"
+              block
+              size="small"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                void handleUploadPopoverLoad()
+              }}
+            >
+              {uploadMode === 'append' ? t('appendFiles') : t('updateFiles')}
+            </Button>
+          </>
+        )}
+      </div>
+    ) : (
+      <div style={{ width: 300 }}>
+        <FileUpload
+          compact={true}
+          onLogFiles={(files) => {
+            void handleLogFiles(files)
+            setUploadPopoverOpen(false)
+          }}
+          onTraceFile={(f) => {
+            void handleTraceFile(f)
+            setUploadPopoverOpen(false)
+          }}
+          onLocalPathStream={(path, type, result) => {
+            void handleLocalPathStream(path, type, result)
+            setUploadPopoverOpen(false)
+          }}
+          loading={isLoading}
+          error={errorMessage}
+          fileNames={fileNames}
+        />
+      </div>
+    )
 
   const tabBarExtra = (
     <div style={{ paddingRight: 8 }}>
       <Popover
         content={uploadPopoverContent}
         open={uploadPopoverOpen}
-        onOpenChange={setUploadPopoverOpen}
+        onOpenChange={(open) => {
+          if (!open) setPendingFiles([])
+          setUploadPopoverOpen(open)
+        }}
         trigger="click"
         placement="bottomRight"
       >
-        <Tooltip title={fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}>
+        <Tooltip title={fileNames.length > 0 ? t('updateFiles') : t('uploadFiles')}>
           <Button size="small" icon={<UploadOutlined />} loading={isLoading}>
-            {fileNames.length > 0 ? t('changeFiles') : t('uploadFiles')}
+            {fileNames.length > 0 ? t('updateFiles') : t('uploadFiles')}
           </Button>
         </Tooltip>
       </Popover>
     </div>
   )
 
+  // T5: Simplified tabItems — no showFileUpload or localFilePath placeholder branches
   const tabItems = [
     {
       key: 'log',
       label: t('logAnalysis'),
-      children: showFileUpload ? (
-        <FileUpload
-          onLogFiles={(files) => {
-            void handleLogFiles(files)
-          }}
-          onTraceFile={(f) => {
-            void handleTraceFile(f)
-          }}
-          onLocalFilePath={(_path, ref) => {
-            setLocalFilePath(ref.session_file)
-            void message.success(t('fileUploaded'))
-          }}
-          loading={isLoading}
-          error={errorMessage}
-          fileNames={fileNames}
-        />
-      ) : localFilePath && allLogs.length === 0 ? (
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            padding: 32,
-          }}
-        >
-          <Typography.Text style={{ fontSize: 28 }}>📂</Typography.Text>
-          <Typography.Text strong style={{ fontSize: 14 }}>
-            {t('localFileLoaded')}
-          </Typography.Text>
-          <Typography.Text
-            type="secondary"
-            code
-            style={{ fontSize: 12, maxWidth: 480, textAlign: 'center', wordBreak: 'break-all' }}
-          >
-            {localFilePath}
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
-            {t('localFileHint')}
-          </Typography.Text>
-        </div>
-      ) : !hasActiveFilters ? (
+      children: !hasActiveFilters ? (
         <div
           style={{
             height: '100%',
@@ -662,17 +782,34 @@ const AppContent: React.FC<{
                       {/* Center: Log/Trace viewer */}
                       <Splitter.Panel style={{ overflow: 'hidden', minWidth: 300 }}>
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                          <Tabs
-                            activeKey={activeTab}
-                            onChange={(k) => setActiveTab(k as 'log' | 'trace')}
-                            items={tabItems}
-                            tabBarExtraContent={{ right: tabBarExtra }}
-                            style={{ height: '100%' }}
-                            tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
-                            renderTabBar={(props, DefaultTabBar) => (
-                              <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
-                            )}
-                          />
+                          {showFileUpload ? (
+                            <FileUpload
+                              onLogFiles={(files) => {
+                                void handleLogFiles(files)
+                              }}
+                              onTraceFile={(f) => {
+                                void handleTraceFile(f)
+                              }}
+                              onLocalPathStream={(path, type, result) => {
+                                void handleLocalPathStream(path, type, result)
+                              }}
+                              loading={isLoading}
+                              error={errorMessage}
+                              fileNames={fileNames}
+                            />
+                          ) : (
+                            <Tabs
+                              activeKey={activeTab}
+                              onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                              items={tabItems}
+                              tabBarExtraContent={{ right: tabBarExtra }}
+                              style={{ height: '100%' }}
+                              tabBarStyle={{ margin: 0, padding: '0 12px', flexShrink: 0 }}
+                              renderTabBar={(props, DefaultTabBar) => (
+                                <DefaultTabBar {...props} style={{ marginBottom: 0 }} />
+                              )}
+                            />
+                          )}
                         </div>
                       </Splitter.Panel>
 
@@ -736,6 +873,15 @@ const AppContent: React.FC<{
                       )}
                     </Splitter>
                   </div>
+
+                  {/* Directory file picker modal */}
+                  <DirectoryFilePicker
+                    open={pickerState.open}
+                    files={pickerState.files}
+                    dirPath={pickerState.dirPath}
+                    onConfirm={handlePickerConfirm}
+                    onCancel={handlePickerCancel}
+                  />
 
                   {/* AI panel toggle when collapsed */}
                   {aiPanelCollapsed && (
