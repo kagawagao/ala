@@ -148,6 +148,29 @@ export async function* parseDirectoryStream(
 }
 
 /**
+ * Stream-parse a single local log file on the server.
+ *
+ * Calls ``POST /api/logs/file/parse/stream`` and yields ``LogEntry`` objects
+ * as they arrive.  Also yields the final ``{_done, total}`` sentinel.
+ */
+export async function* parseLocalFileStream(
+  filePath: string,
+  signal?: AbortSignal,
+): AsyncGenerator<LogEntry | StreamDone> {
+  for await (const line of streamNDJSON<StreamLine>(
+    '/logs/file/parse/stream',
+    { path: filePath },
+    signal,
+  )) {
+    if (isError(line)) {
+      throw new Error(line._error)
+    }
+    yield line as LogEntry | StreamDone
+    if (isDone(line)) return
+  }
+}
+
+/**
  * Stream-parse only selected log files from a directory.
  */
 export async function* parseSelectedFilesStream(

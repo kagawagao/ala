@@ -409,11 +409,17 @@ def _scan_directory(
 @router.post("/directory/list", response_model=DirectoryListResponse)
 async def list_directory_files(req: DirectoryRequest):
     """List log-like files in a local directory (recursive)."""
-    import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     try:
         files, has_subdirs, depth = _scan_directory(dir_path)
@@ -433,9 +439,16 @@ async def parse_directory_stream(req: DirectoryRequest):
     """Stream-parse all log files in a local directory using NDJSON."""
     import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     async def _generate():
         total = 0
@@ -471,9 +484,16 @@ async def parse_selected_files_stream(req: DirectorySelectedRequest):
     """Stream-parse only user-selected log files from a directory."""
     import os
 
-    dir_path = req.path
-    if not os.path.isdir(dir_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {dir_path}")
+    try:
+        dir_path = LogAnalyzer._validate_path(req.path, allow_directory=True)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     async def _generate():
         total = 0
@@ -498,6 +518,49 @@ async def parse_selected_files_stream(req: DirectorySelectedRequest):
                     total += 1
             except (ValueError, OSError):
                 yield json.dumps({"_error": f"Failed to parse {rel_path}"}) + "\n"
+        yield json.dumps({"_done": True, "total": total}) + "\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"},
+    )
+
+
+class FileStreamRequest(BaseModel):
+    """Request body for POST /api/logs/file/parse/stream."""
+
+    path: str
+
+
+@router.post("/file/parse/stream")
+async def parse_file_stream(req: FileStreamRequest):
+    """Stream-parse a single local log file using NDJSON.
+
+    Uses ``LogAnalyzer.stream_file()`` to yield entries one at a time
+    without loading the entire file into memory.  Handles .gz, .zip,
+    and plain text files.
+    """
+    try:
+        validated = LogAnalyzer._validate_path(req.path)
+    except PathTraversalError as e:
+        raise HTTPException(status_code=400, detail=f"Path traversal rejected: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    async def _generate():
+        total = 0
+        try:
+            for entry in _analyzer.stream_file(validated):
+                line = _from_service_entry(entry)
+                yield json.dumps(line.model_dump()) + "\n"
+                total += 1
+        except (ValueError, OSError) as exc:
+            yield json.dumps({"_error": str(exc)}) + "\n"
         yield json.dumps({"_done": True, "total": total}) + "\n"
 
     return StreamingResponse(

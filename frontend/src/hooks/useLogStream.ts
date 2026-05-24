@@ -18,7 +18,11 @@ interface UseLogStreamReturn {
   formatDetected: string | undefined
   parsedCount: number
   parseProgress: ParseProgress | null
-  loadFromStream: (streamFactory: StreamFactory, fileLabels: string[]) => Promise<boolean>
+  loadFromStream: (
+    streamFactory: StreamFactory,
+    fileLabels: string[],
+    append?: boolean,
+  ) => Promise<boolean>
   abort: () => void
   reset: () => void
 }
@@ -51,15 +55,25 @@ export function useLogStream(): UseLogStreamReturn {
   }, [abort])
 
   const loadFromStream = useCallback(
-    async (streamFactory: StreamFactory, fileLabels: string[]): Promise<boolean> => {
+    async (
+      streamFactory: StreamFactory,
+      fileLabels: string[],
+      append = false,
+    ): Promise<boolean> => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
 
       setLoading(true)
       setError(undefined)
-      setFileNames(fileLabels)
-      setAllLogs([])
+
+      if (append) {
+        setFileNames((prev) => [...prev, ...fileLabels])
+      } else {
+        setFileNames(fileLabels)
+        setAllLogs([])
+      }
+
       setFormatDetected(undefined)
       setParsedCount(0)
       setTotalExpected(0)
