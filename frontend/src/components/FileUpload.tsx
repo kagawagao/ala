@@ -219,14 +219,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {/* Show currently loaded files above the dragger when in compact mode */}
       {compact && fileNames.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          {fileNames.map((name) => (
-            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
-              <FileOutlined style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 12 }} ellipsis title={name}>
-                {name}
-              </Text>
-            </div>
-          ))}
+          {fileNames.map((name, idx) => {
+            const displayName = name.replace(/\\/g, '/').split('/').pop() || name
+            return (
+              <div
+                key={`${name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+              >
+                <FileOutlined style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12 }} ellipsis title={name}>
+                  {displayName}
+                </Text>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -285,24 +291,30 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       {!compact && fileNames.length > 0 && !loading && (
         <div style={{ marginTop: 8 }}>
-          {fileNames.map((name) => (
-            <div key={name} style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}>
-              <FileOutlined style={{ marginRight: 6 }} />
-              <Text type="success" style={{ fontSize: 12 }}>
-                {name}
-              </Text>
-              {name.endsWith('.gz') && (
-                <Tag color="blue" style={{ marginLeft: 4, fontSize: 11 }}>
-                  gzip
-                </Tag>
-              )}
-              {name.endsWith('.zip') && (
-                <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
-                  zip
-                </Tag>
-              )}
-            </div>
-          ))}
+          {fileNames.map((name, idx) => {
+            const displayName = name.replace(/\\/g, '/').split('/').pop() || name
+            return (
+              <div
+                key={`${name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
+              >
+                <FileOutlined style={{ marginRight: 6 }} />
+                <Text type="success" style={{ fontSize: 12 }}>
+                  {displayName}
+                </Text>
+                {name.endsWith('.gz') && (
+                  <Tag color="blue" style={{ marginLeft: 4, fontSize: 11 }}>
+                    gzip
+                  </Tag>
+                )}
+                {name.endsWith('.zip') && (
+                  <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
+                    zip
+                  </Tag>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
