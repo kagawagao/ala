@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
 import { uploadToTemp } from './api/logs'
-import type { DirectoryFileInfo } from './api/logs'
+import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -454,19 +454,15 @@ const AppContent: React.FC<{
 
       if (type === 'file') {
         const label = path.replace(/\\/g, '/').split('/').pop() || path
-        loadSource(path, [label])
+        const meta = _meta as AutoPathResponse | undefined
+        loadSource(path, [label], meta?.line_count)
         void message.success(t('fileUploaded'))
       } else {
-        // Directory: let the picker resolve which files to use
-        const meta = _meta as { files?: { name: string; size: number }[] } | undefined
+        // Directory: pass server-provided files directly (preserves path, is_log)
+        const meta = _meta as AutoPathResponse | undefined
         setPickerState({
           open: true,
-          files: (meta?.files || []).map((f) => ({
-            name: f.name,
-            path: f.name,
-            size: f.size,
-            is_log: true,
-          })),
+          files: meta?.files || [],
           dirPath: path,
         })
       }
