@@ -317,7 +317,7 @@ class AIService:
         project: Project | None,
         trace_summary: dict | None,
         log_entries: list[dict] | None,
-        pcap_entries: list[dict] | None,
+        pcap_entries: list[dict] | None = None,
         file_path: str | None = None,
         language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:

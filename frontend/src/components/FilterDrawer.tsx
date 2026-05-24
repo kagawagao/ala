@@ -1,5 +1,5 @@
+import React, { useState } from 'react'
 import { Drawer } from 'antd'
-import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   FilterPreset,
@@ -13,8 +13,13 @@ import LogFilterPanel from './LogFilterPanel'
 import PcapFilterPanel from './PcapFilterPanel'
 import TraceFilterPanel from './TraceFilterPanel'
 
+type FilterTab = 'log' | 'trace' | 'pcap'
+
 interface FilterDrawerProps {
-  activeTab: string
+  activeTab: FilterTab
+  // Controlled open state (optional — falls back to internal state)
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   // Log filters
   logFilters?: LogFilters
   onLogFiltersChange?: (filters: LogFilters) => void
@@ -36,6 +41,8 @@ interface FilterDrawerProps {
 
 const FilterDrawer: React.FC<FilterDrawerProps> = ({
   activeTab,
+  open: controlledOpen,
+  onOpenChange,
   logFilters,
   onLogFiltersChange,
   logStatistics,
@@ -52,20 +59,17 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   onPcapFilteredEntries,
 }) => {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
 
-  // Keyboard shortcut: Ctrl+Shift+F
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') {
-        e.preventDefault()
-        setOpen((prev) => !prev)
-      }
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(v)
+    } else {
+      setInternalOpen(v)
     }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }
 
   const renderContent = () => {
     switch (activeTab) {

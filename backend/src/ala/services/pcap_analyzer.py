@@ -5,7 +5,7 @@ import io
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 try:
     from scapy.all import PcapReader
@@ -215,9 +215,9 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time, tz=datetime.UTC).strftime(
-                "%Y-%m-%d %H:%M:%S.%f"
-            )[:-3]
+            timestamp = datetime.fromtimestamp(pkt.time, tz=UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]
 
         # Extract network layer info
         protocol = "UNKNOWN"
@@ -271,7 +271,7 @@ class PcapAnalyzer:
 
         # Build info message
         summary = pkt.summary()
-        info = f"{src_ip}{':' + str(src_port) if src_port else ''} → {dst_ip}{':' + str(dst_port) if dst_port else ''}"
+        info = f"{src_ip}{':' + str(src_port) if src_port is not None else ''} → {dst_ip}{':' + str(dst_port) if dst_port is not None else ''}"
         if tcp_flags:
             info += f" [{tcp_flags}]"
 
@@ -358,20 +358,16 @@ class PcapAnalyzer:
         connections = set()
 
         for entry in entries:
-            # Count by protocol
             by_protocol[entry.protocol] = by_protocol.get(entry.protocol, 0) + 1
 
-            # Track unique IPs
             if entry.src_ip != "?":
                 ips.add(entry.src_ip)
             if entry.dst_ip != "?":
                 ips.add(entry.dst_ip)
 
-            # Track unique connections (src_ip:port -> dst_ip:port)
-            if entry.src_port and entry.dst_port:
+            if entry.src_port is not None and entry.dst_port is not None:
                 connections.add((entry.src_ip, entry.src_port, entry.dst_ip, entry.dst_port))
 
-        # Calculate duration using min/max timestamps for correctness
         duration_seconds = None
         timestamps = [e.timestamp for e in entries if e.timestamp]
         if len(timestamps) >= 2:
@@ -388,3 +384,125 @@ class PcapAnalyzer:
             unique_connections=len(connections),
             duration_seconds=duration_seconds,
         )
+
+    @staticmethod
+    def _match_entry(entry: PcapEntry, filters: PcapFilters) -> bool:
+        """Check if a single PcapEntry matches all given filters.
+
+        Returns True if the entry passes all filter criteria.
+        Empty/None filter fields are treated as 'match anything'.
+        """
+        if filters.protocol:
+            if entry.protocol.upper() != filters.protocol.upper():
+                return False
+
+        if filters.src_ip:
+            if filters.src_ip not in entry.src_ip:
+                return False
+
+        if filters.dst_ip:
+            if filters.dst_ip not in entry.dst_ip:
+                return False
+
+        if filters.src_port is not None:
+            if entry.src_port != filters.src_port:
+                return False
+
+        if filters.dst_port is not None:
+            if entry.dst_port != filters.dst_port:
+                return False
+
+        if filters.tcp_flags:
+            if not entry.tcp_flags or filters.tcp_flags.upper() not in entry.tcp_flags.upper():
+                return False
+
+        if filters.keywords:
+            kw = filters.keywords.lower()
+            if kw not in entry.info.lower() and kw not in entry.raw_summary.lower():
+                return False
+
+        if filters.start_time and entry.timestamp:
+            if entry.timestamp < filters.start_time:
+                return False
+
+        if filters.end_time and entry.timestamp:
+            if entry.timestamp > filters.end_time:
+                return False
+
+        return True
+
+    def stream_filter_from_path(
+        self, path: str, filters: PcapFilters | None = None
+    ) -> Iterator[PcapEntry]:
+        """Stream filtered packets from a PCAP file on disk.
+
+        Opens the file from the given path, decompresses (.gz/.zip) if
+        needed, then yields only packets that match the filter criteria
+        (or all packets if filters is None).
+
+        Args:
+            path: Absolute path to the PCAP file on disk.
+            filters: Filter criteria, or None to match all.
+
+        Yields:
+            PcapEntry objects that pass the filters.
+
+        Raises:
+            ValueError: If scapy is not available or the file is invalid.
+            FileNotFoundError: If the path does not exist.
+            PermissionError: If the path is not readable.
+        """
+        import os
+
+        if not SCAPY_AVAILABLE:
+            raise ValueError(
+                "Cannot parse pcap file: scapy library not installed. "
+                "Install with: pip install scapy"
+            )
+
+        real_path = os.path.realpath(path)
+        if not os.path.isfile(real_path):
+            raise FileNotFoundError(f"PCAP file not found: {real_path}")
+
+        lower = real_path.lower()
+
+        # Handle .gz
+        if lower.endswith(".gz"):
+            import gzip as gz
+
+            with gz.open(real_path, "rb") as fh:
+                data = fh.read()
+            yield from self.stream_pcap(data, os.path.basename(real_path))
+            return
+
+        # Handle .zip
+        if lower.endswith(".zip"):
+            with open(real_path, "rb") as fh:
+                data = fh.read()
+            yield from self.stream_pcap(data, os.path.basename(real_path))
+            return
+
+        # Raw .pcap / .pcapng
+        with open(real_path, "rb") as fh:
+            magic = fh.read(4)
+        if not self._is_pcap_data(magic):
+            raise ValueError("File does not appear to be a valid PCAP or PCAPNG file")
+
+        pcap_io = io.BytesIO()
+        with open(real_path, "rb") as fh:
+            pcap_io.write(fh.read())
+        pcap_io.seek(0)
+
+        source_file = os.path.basename(real_path)
+        try:
+            reader = PcapReader(pcap_io)
+            packet_number = 0
+            for pkt in reader:
+                packet_number += 1
+                entry = self._packet_to_entry(pkt, packet_number, source_file)
+                if filters is None or self._match_entry(entry, filters):
+                    yield entry
+        except Exception as e:
+            raise ValueError(f"Failed to parse pcap file: {e}") from e
+        finally:
+            pcap_io.close()

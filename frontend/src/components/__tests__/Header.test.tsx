@@ -11,8 +11,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const map: Record<string, string> = {
-        showSidebar: 'Show sidebar',
-        hideSidebar: 'Hide sidebar',
         connected: 'Connected',
         disconnected: 'Disconnected',
         selectProject: 'Select project',
@@ -63,8 +61,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -83,8 +79,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -103,8 +97,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={false}
           projects={[]}
           selectedProjectId={null}
@@ -124,8 +116,6 @@ describe('Header', () => {
           onToggleTheme={onToggleTheme}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -147,8 +137,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -168,8 +156,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={onToggleLanguage}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -180,49 +166,6 @@ describe('Header', () => {
     const langBtn = screen.getByRole('button', { name: /switch language/i })
     await userEvent.click(langBtn)
     expect(onToggleLanguage).toHaveBeenCalled()
-  })
-
-  it('calls onToggleSider when sidebar button clicked', async () => {
-    const onToggleSider = vi.fn()
-    render(
-      <MemoryRouter>
-        <Header
-          isDark={false}
-          onToggleTheme={vi.fn()}
-          language="en"
-          onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={onToggleSider}
-          backendConnected={true}
-          projects={[]}
-          selectedProjectId={null}
-          onProjectChange={vi.fn()}
-        />
-      </MemoryRouter>,
-    )
-    const siderBtn = screen.getByRole('button', { name: /hide sidebar/i })
-    await userEvent.click(siderBtn)
-    expect(onToggleSider).toHaveBeenCalled()
-  })
-
-  it('shows unfold icon when sidebar is collapsed', () => {
-    render(
-      <MemoryRouter>
-        <Header
-          isDark={false}
-          onToggleTheme={vi.fn()}
-          language="en"
-          onToggleLanguage={vi.fn()}
-          siderCollapsed={true}
-          onToggleSider={vi.fn()}
-          backendConnected={true}
-          projects={[]}
-          selectedProjectId={null}
-          onProjectChange={vi.fn()}
-        />
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('button', { name: /show sidebar/i })).toBeInTheDocument()
   })
 
   it('renders project selector when projects exist', () => {
@@ -237,8 +180,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={projects}
           selectedProjectId={null}
@@ -257,8 +198,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}
@@ -279,8 +218,6 @@ describe('Header', () => {
           onToggleTheme={vi.fn()}
           language="en"
           onToggleLanguage={vi.fn()}
-          siderCollapsed={false}
-          onToggleSider={vi.fn()}
           backendConnected={true}
           projects={[]}
           selectedProjectId={null}

@@ -57,7 +57,7 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
       const result = await filterPcap(entries, filters)
       onFilteredEntries(result)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Filter failed'
+      const msg = err instanceof Error ? err.message : t('pcapFilterFailed')
       void message.error(msg)
     } finally {
       setFiltering(false)

@@ -9,6 +9,8 @@ interface PcapViewerProps {
   entries: PcapEntry[]
   totalPackets: number
   formatDetected?: string
+  /** Pre-computed statistics from server (lazy mode). Falls back to client-side compute. */
+  statistics?: PcapStatistics | null
 }
 
 /** Compute PCAP statistics client-side to avoid re-uploading the full packet list. */
@@ -23,7 +25,7 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
     byProtocol[e.protocol] = (byProtocol[e.protocol] ?? 0) + 1
     if (e.src_ip && e.src_ip !== '?') ips.add(e.src_ip)
     if (e.dst_ip && e.dst_ip !== '?') ips.add(e.dst_ip)
-    if (e.src_port && e.dst_port) {
+    if (e.src_port != null && e.dst_port != null) {
       connections.add(`${e.src_ip}:${e.src_port}->${e.dst_ip}:${e.dst_port}`)
     }
   }
@@ -50,10 +52,18 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
   }
 }
 
-const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDetected }) => {
+const PcapViewer: React.FC<PcapViewerProps> = ({
+  entries,
+  totalPackets,
+  formatDetected,
+  statistics: externalStats,
+}) => {
   const { t } = useTranslation()
 
-  const statistics = useMemo(() => computeStatistics(entries), [entries])
+  const statistics = useMemo(
+    () => externalStats ?? computeStatistics(entries),
+    [externalStats, entries],
+  )
 
   const packetTableWrapperRef = useRef<HTMLDivElement>(null)
   const [packetTableHeight, setPacketTableHeight] = useState(400)
@@ -83,7 +93,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
 
   const packetColumns = [
     {
-      title: '#',
+      title: t('pcapPacketNumber'),
       dataIndex: 'packet_number',
       key: 'packet_number',
       width: 70,
@@ -112,7 +122,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
       render: (_: unknown, record: PcapEntry) => (
         <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {record.src_ip}
-          {record.src_port ? `:${record.src_port}` : ''}
+          {record.src_port != null ? `:${record.src_port}` : ''}
         </Text>
       ),
     },
@@ -123,7 +133,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
       render: (_: unknown, record: PcapEntry) => (
         <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {record.dst_ip}
-          {record.dst_port ? `:${record.dst_port}` : ''}
+          {record.dst_port != null ? `:${record.dst_port}` : ''}
         </Text>
       ),
     },
@@ -134,7 +144,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
       width: 80,
     },
     {
-      title: 'Flags',
+      title: t('tcpFlags'),
       dataIndex: 'tcp_flags',
       key: 'tcp_flags',
       width: 120,
@@ -191,7 +201,13 @@ const PcapViewer: React.FC<PcapViewerProps> = ({ entries, totalPackets, formatDe
       </Row>
 
       <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col>{formatDetected && <Tag>Format: {formatDetected}</Tag>}</Col>
+        <Col>
+          {formatDetected && (
+            <Tag>
+              {t('pcapFormat')}: {formatDetected}
+            </Tag>
+          )}
+        </Col>
       </Row>
 
       {/* Protocol Distribution */}
