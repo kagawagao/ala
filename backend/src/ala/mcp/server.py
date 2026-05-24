@@ -211,7 +211,7 @@ def filter_perfetto_trace(
 # ──────────────────────────────────────────────────────────────────────────────
 
 _LEVEL_ORDER: dict[str, int] = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
-_LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
+_LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
 
 
 def _entry_to_dict(entry) -> dict:

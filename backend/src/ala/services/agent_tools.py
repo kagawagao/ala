@@ -971,7 +971,7 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
