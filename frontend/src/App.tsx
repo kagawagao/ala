@@ -31,6 +31,7 @@ import {
 } from './api/projects'
 import { parseTrace } from './api/trace'
 import AiPanel from './components/AiPanel'
+import DirectoryFilePicker from './components/DirectoryFilePicker'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import FilterDrawer from './components/FilterDrawer'
@@ -82,7 +83,6 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
-  const [siderCollapsed, setSiderCollapsed] = useState(true)
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {

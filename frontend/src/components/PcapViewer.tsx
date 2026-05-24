@@ -201,7 +201,13 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       </Row>
 
       <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col>{formatDetected && <Tag>{t('pcapFormat')}: {formatDetected}</Tag>}</Col>
+        <Col>
+          {formatDetected && (
+            <Tag>
+              {t('pcapFormat')}: {formatDetected}
+            </Tag>
+          )}
+        </Col>
       </Row>
 
       {/* Protocol Distribution */}
