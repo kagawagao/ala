@@ -1,5 +1,5 @@
 import type { PcapEntry, PcapFilters, PcapParseResult, PcapStatistics } from '../types/pcap'
-import { apiFetch, apiUploadMulti } from './client'
+import { apiFetch, apiUploadMulti, streamNDJSON } from './client'
 
 // ── Temp upload / status ──────────────────────────────────────────────
 
@@ -76,54 +76,13 @@ export async function* streamFilteredPcap(
   filters: PcapFilters,
   signal?: AbortSignal,
 ): AsyncGenerator<PcapEntry | StreamDone | StreamError> {
-  const response = await fetch('/api/pcap/filter/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, filters }),
-    signal,
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(text || `${response.status}`)
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('No response body')
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-
-      // Process complete lines from buffer
-      let newlineIdx: number
-      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
-        const line = buffer.slice(0, newlineIdx).trim()
-        buffer = buffer.slice(newlineIdx + 1)
-
-        if (!line) continue
-
-        try {
-          const parsed: StreamLine = JSON.parse(line)
-          if (isError(parsed)) {
-            throw new Error(parsed._error)
-          }
-          yield parsed
-          if (isDone(parsed)) return
-        } catch (e) {
-          if (e instanceof SyntaxError) continue
-          throw e
-        }
-      }
+  const generator = streamNDJSON<StreamLine>('/pcap/filter/stream', { path, filters }, signal)
+  for await (const line of generator) {
+    if (isError(line)) {
+      throw new Error(line._error)
     }
-  } finally {
-    reader.releaseLock()
+    yield line
+    if (isDone(line)) return
   }
 }
 
