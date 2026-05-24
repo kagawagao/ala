@@ -497,7 +497,7 @@ const AppContent: React.FC<{
       setPendingFiles(files)
       setUploadMode('replace')
     },
-    [handleTraceFile],
+    [handleTraceFile, closeUploadPopover],
   )
 
   const handleUploadPopoverLoad = useCallback(async () => {

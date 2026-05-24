@@ -131,7 +131,6 @@
   "pidCommaList": "PID（如 1234, 5678）",
   "applyFilter": "应用过滤",
   "uploadFiles": "上传文件",
-  "changeFiles": "更新文件",
   "updateFiles": "更新文件",
   "appendFiles": "追加文件",
   "replaceMode": "替换当前日志",
