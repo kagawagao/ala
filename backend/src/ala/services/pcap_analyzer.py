@@ -5,7 +5,7 @@ import io
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 try:
     from scapy.all import PcapReader
@@ -216,8 +216,8 @@ class PcapAnalyzer:
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
             timestamp = datetime.fromtimestamp(
-                pkt.time, tz=timezone.utc
-            ).strftime(  # noqa: UP017
+                pkt.time, tz=datetime.UTC
+            ).strftime(
                 "%Y-%m-%d %H:%M:%S.%f"
             )[:-3]
 
