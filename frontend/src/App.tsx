@@ -21,11 +21,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import {
-  parseLogStream,
-  parseLocalFileStream,
-  parseSelectedFilesStream,
-} from './api/logs'
+import { parseLogStream, parseLocalFileStream, parseSelectedFilesStream } from './api/logs'
 import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
