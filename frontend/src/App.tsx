@@ -164,6 +164,7 @@ const AppContent: React.FC<{
     filterProgress,
     sourceRef,
     stats,
+    totalLines,
     loadSource,
     triggerFilter,
     abort: abortParse,
@@ -178,7 +179,7 @@ const AppContent: React.FC<{
     if (traceResult) {
       resetLogs()
     }
-  }, [traceResult])
+  }, [traceResult, resetLogs])
 
   // Filter/display state
   const [filters, setFilters] = useState<LogFilters>(DEFAULT_FILTERS)
@@ -412,6 +413,10 @@ const AppContent: React.FC<{
 
       try {
         const result = await uploadToTemp(files)
+        if (result.files.length === 0) {
+          void message.error(t('parseError'))
+          return
+        }
         const firstFile = result.files[0]
         const labels = result.files.map((f) => f.original_name)
         loadSource(firstFile.saved_path, labels)
@@ -509,8 +514,7 @@ const AppContent: React.FC<{
     await handleLogFiles(pendingFiles)
     setPendingFiles([])
     closeUploadPopover()
-    void message.success(t('fileUploaded'))
-  }, [handleLogFiles, pendingFiles, closeUploadPopover, t, message])
+  }, [handleLogFiles, pendingFiles, closeUploadPopover])
 
   const showFileUpload = !sourceRef && !traceResult
 
@@ -649,7 +653,9 @@ const AppContent: React.FC<{
       ) : (
         <LogViewer
           logs={displayLogs}
-          totalLogs={displayLogs.length}
+          totalLogs={
+            totalLines ?? filterProgress?.total ?? filterProgress?.scanned ?? displayLogs.length
+          }
           highlights={highlights}
           wordWrap={wordWrap}
           formatDetected={formatDetected}
@@ -864,7 +870,12 @@ const AppContent: React.FC<{
                               <AiPanel
                                 logs={displayLogs}
                                 allLogs={displayLogs}
-                                totalLogs={displayLogs.length}
+                                totalLogs={
+                                  totalLines ??
+                                  filterProgress?.total ??
+                                  filterProgress?.scanned ??
+                                  displayLogs.length
+                                }
                                 filters={filters}
                                 traceResult={traceResult}
                                 aiConfigured={aiConfigured}

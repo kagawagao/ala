@@ -18,6 +18,7 @@ interface UseLazyLogStreamReturn {
   filterProgress: FilterProgress | null
   sourceRef: string | null
   stats: LogStatistics | null
+  totalLines: number | undefined
   loadSource: (ref: string, labels: string[], lineCount?: number) => void
   triggerFilter: (filters: LogFilters) => Promise<void>
   abort: () => void
@@ -165,6 +166,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
     filterProgress,
     sourceRef,
     stats,
+    totalLines,
     loadSource,
     triggerFilter,
     abort,
