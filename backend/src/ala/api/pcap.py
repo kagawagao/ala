@@ -247,6 +247,9 @@ async def parse_pcap_stream(file: UploadFile = File(...)):
         except ValueError as e:
             logger.error("Failed to stream PCAP file %r: %s", file.filename, e)
             yield json.dumps({"_error": str(e)}) + "\n"
+        except Exception as e:
+            logger.exception("Unexpected error streaming PCAP file %r", file.filename)
+            yield json.dumps({"_error": f"Internal server error: {e}"}) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
@@ -406,6 +409,9 @@ async def filter_pcap_stream(req: PcapFilterStreamRequest, request: Request):
         except ValueError as e:
             logger.error("PCAP filter stream error: %s", e)
             yield json.dumps({"_error": str(e)}) + "\n"
+        except Exception as e:
+            logger.exception("Unexpected error in PCAP filter stream")
+            yield json.dumps({"_error": f"Internal server error: {e}"}) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
