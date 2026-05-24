@@ -173,7 +173,7 @@ class LogAnalyzer:
     def parse_log_bytes(self, data: bytes, filename: str) -> list[ParseResult]:
         """Parse one or more log files from *data*.
 
-        Handles plain text, ``.zip`` archives and ``.gz`` single-file gzip.
+        Handles plain text, ``.zip`` archives, and ``.gz`` single-file gzip.
         Returns one :class:`ParseResult` per extracted text file.
         """
         text_files = extract_text_files(data, filename)
@@ -186,7 +186,7 @@ class LogAnalyzer:
     def stream_log_bytes(self, data: bytes, filename: str) -> Iterator[LogEntry]:
         """Yield :class:`LogEntry` objects one by one.
 
-        Handles plain text, ``.zip`` and ``.gz`` files, yielding entries
+        Handles plain text, ``.zip``, and ``.gz`` files, yielding entries
         across all extracted members in order so callers can stream them
         without buffering the full result.
         """

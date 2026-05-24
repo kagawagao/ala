@@ -36,7 +36,7 @@ class Session(BaseModel):
     title: str
     messages: list[ChatMessage]
     created_at: str
-    context_type: str  # "log" | "trace" | "general"
+    context_type: str  # "log" | "trace" | "pcap" | "general"
     project_id: str | None = None
 
 
@@ -75,6 +75,10 @@ class SetFilePathRequest(BaseModel):
 
 
 class SetLogsRequest(BaseModel):
+    entries: list[dict]
+
+
+class SetPcapRequest(BaseModel):
     entries: list[dict]
 
 
@@ -197,6 +201,16 @@ async def set_session_logs(session_id: str, req: SetLogsRequest):
     return {"success": True, "stored": len(entries)}
 
 
+@router.put("/sessions/{session_id}/pcap")
+async def set_session_pcap(session_id: str, req: SetPcapRequest):
+    """Store PCAP entries in the session for agentic tool access."""
+    entries = req.entries
+    ok = _session_manager.set_pcap_entries(session_id, entries)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "stored": len(entries)}
+
+
 @router.post("/sessions/{session_id}/messages")
 async def send_message(session_id: str, req: SendMessageRequest, request: Request):
     session = _session_manager.get_session(session_id)
@@ -248,13 +262,14 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
 
     trace_summary = session.trace_summary
     log_entries = session.log_entries
+    pcap_entries = session.pcap_entries
     file_path = session.file_path
 
     logger.debug(
         "send_message — session=%s model=%s agentic=%s",
         session_id,
         ov.model if ov else ai_config.model,
-        bool(project or trace_summary or log_entries is not None),
+        bool(project or trace_summary or log_entries is not None or pcap_entries is not None),
     )
 
     async def event_stream():
@@ -262,14 +277,21 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
         api_messages_out: list[dict] = []
         current_provider = "anthropic" if ai_service._use_anthropic else "openai"
         try:
-            if project or trace_summary or log_entries is not None or file_path is not None:
-                # Agentic mode: project, trace, log, or lazy local file tools.
+            if (
+                project
+                or trace_summary
+                or log_entries is not None
+                or pcap_entries is not None
+                or file_path is not None
+            ):
+                # Agentic mode: project, trace, log, pcap, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
                     messages,
                     project=project,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    pcap_entries=pcap_entries,
                     log_index=session.log_index,
                     file_path=file_path,
                     api_messages_out=api_messages_out,

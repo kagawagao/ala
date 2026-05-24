@@ -20,6 +20,7 @@ httpx = ">=0.27.0"
 perfetto = ">=0.16.0"
 anthropic = "^0.96.0"
 openai = ">=1.0.0"
+scapy = ">=2.5.0"
 # Pin transitive dependency to fix ReDoS (Dependabot #94)
 pygments = ">=2.20.0"
 

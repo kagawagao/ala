@@ -33,12 +33,15 @@ import AiPanel from './components/AiPanel'
 import AppSider from './components/AppSider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
+import FilterDrawer from './components/FilterDrawer'
 import DirectoryFilePicker from './components/DirectoryFilePicker'
 import Header from './components/Header'
 import LogViewer from './components/LogViewer'
+import PcapViewer from './components/PcapViewer'
 import TraceViewer from './components/TraceViewer'
 import { useDebouncedValue } from './hooks/useDebounce'
 import { useLazyLogStream } from './hooks/useLazyLogStream'
+import { usePcapStream } from './hooks/usePcapStream'
 import i18next from './i18n/config'
 import type {
   AIConfig,
@@ -94,7 +97,7 @@ const AppContent: React.FC<{
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [allModels, setAllModels] = useState<ModelPreset[]>([])
-  const [activeTab, setActiveTab] = useState<'log' | 'trace'>('log')
+  const [activeTab, setActiveTab] = useState<'log' | 'pcap' | 'trace'>('log')
 
   // Project state (lifted here so Header and AiPanel share it)
   const [projects, setProjects] = useState<Project[]>([])
@@ -167,9 +170,35 @@ const AppContent: React.FC<{
     abort: abortParse,
     reset: resetLogs,
   } = useLazyLogStream()
+
+  // PCAP state
+  const {
+    allEntries: pcapEntries,
+    loading: pcapLoading,
+    error: pcapError,
+    fileNames: pcapFileNames,
+    formatDetected: pcapFormat,
+    loadPcapFile,
+    abort: abortPcap,
+    reset: resetPcap,
+  } = usePcapStream()
+
+
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
+  const [filteredTraceResult, setFilteredTraceResult] = useState<TraceParseResult | null>(null)
+
+  // PCAP filtered state
+  const [filteredPcapEntries, setFilteredPcapEntries] = useState<
+    import('./types/pcap').PcapEntry[]
+  >([])
+
+  // Reset filtered state when switching tabs
+  useEffect(() => {
+    setFilteredTraceResult(null)
+    setFilteredPcapEntries([])
+  }, [activeTab])
 
   // Clear stale sourceRef when trace data source changes
   useEffect(() => {
@@ -369,16 +398,18 @@ const AppContent: React.FC<{
       } else {
         localStorage.removeItem('ala_last_project_id')
       }
-      // Abort any in-flight log parse before clearing state
+      // Abort any in-flight parsing before clearing state
       abortParse()
-      // Reset all file / log / trace state so the new project starts clean
+      abortPcap()
+      // Reset all file / log / trace / pcap state so the new project starts clean
       resetLogs()
+      resetPcap()
       setTraceResult(null)
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
       setSelectedProjectId(projectId)
     },
-    [abortParse, resetLogs],
+    [abortParse, abortPcap, resetLogs, resetPcap],
   )
 
   const handleRegisterRefreshModels = useCallback((fn: () => void) => {
@@ -406,6 +437,9 @@ const AppContent: React.FC<{
     async (files: File[]) => {
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
+      // Clear stale filtered state from other tabs
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
       setPendingFiles([])
 
       try {
@@ -424,11 +458,31 @@ const AppContent: React.FC<{
     [loadSource, t, message],
   )
 
+  const handlePcapFile = useCallback(
+    async (file: File) => {
+      resetLogs() // Clear any log data
+      setTraceResult(null) // Clear any trace data
+      // Clear stale filtered state
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
+
+      const ok = await loadPcapFile(file)
+      if (ok) {
+        setActiveTab('pcap')
+        void message.success(t('fileUploaded'))
+      }
+    },
+    [loadPcapFile, resetLogs, t, message],
+  )
+
   const handleTraceFile = useCallback(
     async (file: File) => {
       resetLogs()
       setTraceLoading(true)
       setTraceError(undefined)
+      // Clear stale filtered state
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
       try {
         const result = await parseTrace(file)
         setTraceResult(result)
@@ -507,20 +561,20 @@ const AppContent: React.FC<{
     closeUploadPopover()
   }, [handleLogFiles, pendingFiles, closeUploadPopover])
 
-  const showFileUpload = !sourceRef && !traceResult
+  const showFileUpload = !sourceRef && !traceResult && pcapEntries.length === 0
 
-  const isLoading = loadingFile || traceLoading
-  const errorMessage = fileError || traceError
+  const isLoading = loadingFile || pcapLoading || traceLoading
+  const errorMessage = fileError || pcapError || traceError
 
   // T6: Upload popover content — redesigned with mode selector when files loaded
   const uploadPopoverContent =
-    fileNames.length > 0 ? (
+    fileNames.length > 0 || pcapFileNames.length > 0 ? (
       <div style={{ width: 340 }}>
         <div style={{ marginBottom: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {t('currentlyLoaded')}:
           </Typography.Text>
-          {fileNames.map((name, idx) => (
+          {(fileNames.length > 0 ? fileNames : pcapFileNames).map((name, idx) => (
             <div
               key={`${name}-${idx}`}
               style={{ padding: '2px 0', display: 'flex', alignItems: 'center' }}
@@ -540,13 +594,17 @@ const AppContent: React.FC<{
           onTraceFile={(f) => {
             handleUploadPopoverFiles([f], true)
           }}
+          onPcapFile={(f) => {
+            void handlePcapFile(f)
+            closeUploadPopover()
+          }}
           onLocalPathStream={(path, type, result) => {
             void handleLocalPathStream(path, type, result)
             closeUploadPopover()
           }}
           loading={isLoading}
           error={errorMessage}
-          fileNames={fileNames}
+          fileNames={fileNames.length > 0 ? fileNames : pcapFileNames}
         />
         {pendingFiles.length > 0 && (
           <>
@@ -575,6 +633,10 @@ const AppContent: React.FC<{
           }}
           onTraceFile={(f) => {
             void handleTraceFile(f)
+            closeUploadPopover()
+          }}
+          onPcapFile={(f) => {
+            void handlePcapFile(f)
             closeUploadPopover()
           }}
           onLocalPathStream={(path, type, result) => {
@@ -652,9 +714,20 @@ const AppContent: React.FC<{
       ),
     },
     {
+      key: 'pcap',
+      label: t('pcapAnalysis'),
+      children: (
+        <PcapViewer
+          entries={filteredPcapEntries.length > 0 ? filteredPcapEntries : pcapEntries}
+          totalPackets={pcapEntries.length}
+          formatDetected={pcapFormat}
+        />
+      ),
+    },
+    {
       key: 'trace',
       label: t('traceAnalysis'),
-      children: <TraceViewer traceResult={traceResult} />,
+      children: <TraceViewer traceResult={filteredTraceResult || traceResult} />,
     },
   ]
 
@@ -785,6 +858,9 @@ const AppContent: React.FC<{
                               onTraceFile={(f) => {
                                 void handleTraceFile(f)
                               }}
+                              onPcapFile={(f) => {
+                                void handlePcapFile(f)
+                              }}
                               onLocalPathStream={(path, type, result) => {
                                 void handleLocalPathStream(path, type, result)
                               }}
@@ -795,7 +871,7 @@ const AppContent: React.FC<{
                           ) : (
                             <Tabs
                               activeKey={activeTab}
-                              onChange={(k) => setActiveTab(k as 'log' | 'trace')}
+                              onChange={(k) => setActiveTab(k as 'log' | 'pcap' | 'trace')}
                               items={tabItems}
                               tabBarExtraContent={{ right: tabBarExtra }}
                               style={{ height: '100%' }}
@@ -859,6 +935,7 @@ const AppContent: React.FC<{
                                 }
                                 filters={filters}
                                 traceResult={traceResult}
+                                pcapEntries={pcapEntries}
                                 aiConfigured={aiConfigured}
                                 selectedProjectId={selectedProjectId}
                                 projects={projects}
@@ -905,6 +982,25 @@ const AppContent: React.FC<{
                       {t('aiAssistant')}
                     </button>
                   )}
+
+                  {/* FilterDrawer - keyboard shortcut Ctrl+Shift+F */}
+                  <FilterDrawer
+                    activeTab={activeTab}
+                    logFilters={filters}
+                    onLogFiltersChange={setFilters}
+                    logStatistics={stats}
+                    highlights={highlights}
+                    onHighlightsChange={setHighlights}
+                    presets={presets}
+                    onPresetsChange={handlePresetsChange}
+                    wordWrap={wordWrap}
+                    onWordWrapChange={setWordWrap}
+                    selectedProjectId={selectedProjectId}
+                    traceResult={traceResult}
+                    onTraceFilteredResult={setFilteredTraceResult}
+                    pcapEntries={pcapEntries}
+                    onPcapFilteredEntries={setFilteredPcapEntries}
+                  />
                 </>
               }
             />

@@ -32,7 +32,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
             log_entries TEXT,
             file_path TEXT,
             raw_api_messages TEXT,
-            raw_api_messages_provider TEXT
+            raw_api_messages_provider TEXT,
+            pcap_entries TEXT
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -82,6 +83,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if cur.fetchone()[0] == 0:
         conn.execute("INSERT INTO _ala_schema_version (version) VALUES (1)")
         conn.commit()
+
+    # Schema migration: add pcap_entries column if it doesn't exist
+    try:
+        cur = conn.execute("PRAGMA table_info(sessions)")
+        columns = [row[1] for row in cur.fetchall()]
+        if "pcap_entries" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN pcap_entries TEXT")
+            conn.commit()
+            logger.info("Added pcap_entries column to sessions table")
+    except sqlite3.Error:
+        logger.warning("Failed to add pcap_entries column", exc_info=True)
 
 
 def _import_projects_json(conn: sqlite3.Connection) -> None:

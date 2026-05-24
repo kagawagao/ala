@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import chat, health, logs, models, projects, trace
+from .api import chat, health, logs, models, pcap, projects, trace
 from .api import config as config_router
 from .config import settings
 from .logging_config import setup_logging
@@ -118,6 +118,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
+    app.include_router(pcap.router, prefix="/api/pcap", tags=["pcap"])
     app.include_router(trace.router, prefix="/api/trace", tags=["trace"])
     app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
     app.include_router(config_router.router, prefix="/api/config", tags=["config"])
