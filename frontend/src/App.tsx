@@ -183,7 +183,6 @@ const AppContent: React.FC<{
     reset: resetPcap,
   } = usePcapStream()
 
-
   const [traceResult, setTraceResult] = useState<TraceParseResult | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | undefined>()
