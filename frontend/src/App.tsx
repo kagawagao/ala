@@ -21,7 +21,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
-import { parseLogStream, parseLocalPath, uploadToTemp } from './api/logs'
+import { uploadToTemp } from './api/logs'
 import type { DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
@@ -373,7 +373,6 @@ const AppContent: React.FC<{
       }
       // Abort any in-flight log parse before clearing state
       abortParse()
-      setLocalFilePath(null)
       // Reset all file / log / trace state so the new project starts clean
       resetLogs()
       setTraceResult(null)
