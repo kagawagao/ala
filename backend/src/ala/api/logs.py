@@ -619,8 +619,12 @@ def _precompile_filters(filters: LogFilters) -> CompiledFilters:
             tag_fallback = filters.tag.lower()
 
     return CompiledFilters(
-        start_time=filters.start_time.strip() if filters.start_time and filters.start_time.strip() else None,
-        end_time=filters.end_time.strip() if filters.end_time and filters.end_time.strip() else None,
+        start_time=filters.start_time.strip()
+        if filters.start_time and filters.start_time.strip()
+        else None,
+        end_time=filters.end_time.strip()
+        if filters.end_time and filters.end_time.strip()
+        else None,
         level=filters.level.strip()
         if filters.level and filters.level.strip() and filters.level.strip() != "ALL"
         else None,
@@ -767,18 +771,24 @@ async def filter_log_stream(req: FileFilterRequest, request: Request):
                 import io as io_mod
                 import zipfile as zf_mod
 
+                # File extensions treated as log text files (mirrors log_analyzer._LOG_TEXT_EXTS)
+                _log_text_exts = {".log", ".txt", ".logcat", ""}
+
                 with zf_mod.ZipFile(validated, "r") as zf:
+                    line_num = 0
                     for info in zf.infolist():
                         if info.is_dir():
                             continue
                         if info.filename.lower().endswith("/"):
+                            continue
+                        ext = os.path.splitext(info.filename.lower())[1]
+                        if ext not in _log_text_exts:
                             continue
                         source = info.filename
                         with zf.open(info) as member_fh:
                             wrapper = io_mod.TextIOWrapper(
                                 member_fh, encoding="utf-8", errors="replace"
                             )
-                            line_num = 0
                             for raw_line in wrapper:
                                 line_num += 1
                                 scanned += 1
@@ -820,19 +830,23 @@ async def filter_log_stream(req: FileFilterRequest, request: Request):
             yield json.dumps({"_error": str(exc)}) + "\n"
             return
 
-        yield json.dumps(
-            {
-                "_done": True,
-                "matched": matched,
-                "scanned": scanned,
-                "stats": {
+        yield (
+            json.dumps(
+                {
+                    "_done": True,
                     "total": matched,
-                    "by_level": by_level,
-                    "tags": tags,
-                    "pids": pids,
-                },
-            }
-        ) + "\n"
+                    "matched": matched,
+                    "scanned": scanned,
+                    "stats": {
+                        "total": matched,
+                        "by_level": by_level,
+                        "tags": tags,
+                        "pids": pids,
+                    },
+                }
+            )
+            + "\n"
+        )
 
     return StreamingResponse(
         _generate(),
@@ -868,10 +882,19 @@ async def upload_to_temp(files: list[UploadFile] = File(...)):
     for upload in files:
         safe_name = Path(upload.filename or "log").name
         dest_path = session_dir / safe_name
+        # Avoid overwriting duplicate uploads
+        counter = 1
+        stem, ext = os.path.splitext(safe_name)
+        while dest_path.exists():
+            dest_path = session_dir / f"{stem}_{counter}{ext}"
+            counter += 1
 
-        content = await upload.read()
+        # Stream chunks to disk instead of buffering entire file in memory
+        total_bytes = 0
         with open(dest_path, "wb") as f:
-            f.write(content)
+            while chunk := await upload.read(64 * 1024):
+                f.write(chunk)
+                total_bytes += len(chunk)
 
         fmt = "unknown"
         try:
@@ -886,7 +909,7 @@ async def upload_to_temp(files: list[UploadFile] = File(...)):
             TempFileInfo(
                 original_name=safe_name,
                 saved_path=str(dest_path),
-                size_bytes=len(content),
+                size_bytes=total_bytes,
                 format_detected=fmt,
             )
         )

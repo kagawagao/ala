@@ -38,6 +38,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
   const [totalLines, setTotalLines] = useState<number | undefined>()
 
   const abortRef = useRef<AbortController | null>(null)
+  const generationRef = useRef(0)
 
   const abort = useCallback(() => {
     abortRef.current?.abort()
@@ -70,6 +71,8 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
       setLoading(false)
       if (lineCount !== undefined) {
         setTotalLines(lineCount)
+      } else {
+        setTotalLines(undefined)
       }
     },
     [abort],
@@ -86,20 +89,24 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
       const controller = new AbortController()
       abortRef.current = controller
 
+      const gen = ++generationRef.current
+
       setLoading(true)
       setError(undefined)
       setDisplayLogs([])
+      setStats(null)
       setFilterProgress({ matched: 0, scanned: 0, total: totalLines })
 
       const buffer: LogEntry[] = []
       let matchedCount = 0
       let scannedCount = 0
-      let detectedFormat: string | undefined
 
       const flush = () => {
         if (buffer.length === 0) return
         const toAdd = buffer.splice(0)
-        setDisplayLogs((prev) => [...prev, ...toAdd])
+        if (generationRef.current === gen) {
+          setDisplayLogs((prev) => [...prev, ...toAdd])
+        }
       }
 
       try {
@@ -111,7 +118,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
             const done = line as FilterStreamDone
             matchedCount = done.matched
             scannedCount = done.scanned
-            if (done.stats) {
+            if (done.stats && generationRef.current === gen) {
               setStats(done.stats)
             }
             break
@@ -121,26 +128,27 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
           buffer.push(entry)
           matchedCount++
 
-          if (entry.source_file && !detectedFormat) {
-            detectedFormat = entry.source_file
-            setFormatDetected(entry.source_file)
-          }
-
           if (buffer.length >= BATCH_SIZE) flush()
         }
         flush()
 
-        setFilterProgress({
-          matched: matchedCount,
-          scanned: scannedCount,
-          total: totalLines,
-        })
+        if (generationRef.current === gen) {
+          setFilterProgress({
+            matched: matchedCount,
+            scanned: scannedCount,
+            total: totalLines,
+          })
+        }
       } catch (err: unknown) {
         if ((err as Error).name === 'AbortError') return
-        const msg = err instanceof Error ? err.message : 'Filter stream error'
-        setError(msg)
+        if (generationRef.current === gen) {
+          const msg = err instanceof Error ? err.message : 'Filter stream error'
+          setError(msg)
+        }
       } finally {
-        setLoading(false)
+        if (generationRef.current === gen) {
+          setLoading(false)
+        }
       }
 
       return

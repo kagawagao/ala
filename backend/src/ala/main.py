@@ -53,7 +53,11 @@ def _cleanup_temp_on_startup() -> None:
     import time
     from pathlib import Path
 
-    max_age_hours = int(os.environ.get("ALA_TEMP_MAX_AGE_HOURS", "24"))
+    try:
+        max_age_hours = int(os.environ.get("ALA_TEMP_MAX_AGE_HOURS", "24"))
+    except (TypeError, ValueError):
+        logger.warning("ALA_TEMP_MAX_AGE_HOURS is invalid, falling back to 24")
+        max_age_hours = 24
     env_dir = os.environ.get("ALA_TEMP_DIR")
     temp_dir = Path(env_dir) if env_dir else Path.home() / ".ala" / "temp_logs"
 
