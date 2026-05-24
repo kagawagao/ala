@@ -226,9 +226,10 @@ LAZY_LOG_TOOLS: list[dict] = [
     {
         "name": "overview_local_log",
         "description": (
-            "Get statistics about a local Android log file or directory. "
+            "Get statistics about a local Android log file, network capture (pcap), or directory. "
             "Streams through file(s) to compute level distribution, "
             "unique tags/PIDs, time range, and line count. "
+            "For pcap files: reports protocols (TCP/UDP/etc) instead of tags. "
             "Does NOT load all entries into memory. "
             "Use this FIRST before search_local_log or read_log_range. "
             "For directories: pass file_path to target a specific file. "
@@ -260,9 +261,10 @@ LAZY_LOG_TOOLS: list[dict] = [
     {
         "name": "search_local_log",
         "description": (
-            "Search and filter a local Android log file. "
+            "Search and filter a local Android log or network capture (pcap) file. "
             "Streams through the file line-by-line, applying filters. "
             "Returns matching entries with pagination support. "
+            "For pcap files: tag filter matches protocol (TCP/UDP/etc). "
             "Use overview_local_log first to see what's available. "
             "**file_path is required when the log source is a directory.**"
         ),
@@ -651,13 +653,93 @@ TRACE_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+# Anthropic tool schemas – PCAP-specific tools
+PCAP_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "query_pcap_overview",
+        "description": (
+            "Get statistics about the loaded network capture (PCAP/PCAPNG): "
+            "total packet count, protocol distribution, time range, unique IPs and ports."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "search_pcap_packets",
+        "description": (
+            "Search and filter network packets in the loaded PCAP file. "
+            "Filter by protocol, source/destination IP, source/destination port, "
+            "TCP flags, or packet content. Returns up to `limit` matching packets "
+            "starting at `offset`."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "protocol": {
+                    "type": "string",
+                    "description": "Filter by protocol (e.g., TCP, UDP, ICMP, DNS, HTTP)",
+                },
+                "src_ip": {
+                    "type": "string",
+                    "description": "Filter by source IP address (supports partial match)",
+                },
+                "dst_ip": {
+                    "type": "string",
+                    "description": "Filter by destination IP address (supports partial match)",
+                },
+                "src_port": {
+                    "type": "integer",
+                    "description": "Filter by source port number",
+                },
+                "dst_port": {
+                    "type": "integer",
+                    "description": "Filter by destination port number",
+                },
+                "tcp_flags": {
+                    "type": "string",
+                    "description": "Filter by TCP flags (e.g., SYN, ACK, FIN, RST)",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Search for text pattern in packet payload",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Skip this many matching packets (for pagination)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of packets to return (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "list_pcap_files",
+        "description": (
+            "List the PCAP files currently loaded in this session. "
+            "Returns the unique source file names that were uploaded. "
+            "Use this to discover what network capture data is available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+]
+
 # Anthropic tool schemas – log-specific tools
 LOG_TOOLS: list[dict[str, Any]] = [
     {
         "name": "query_log_overview",
         "description": (
-            "Get statistics about the loaded Android logs: total count, "
-            "level distribution, time range, unique tags and PIDs. "
+            "Get statistics about the loaded Android logs or network captures: total count, "
+            "level distribution, time range, unique tags/protocols and PIDs. "
             "Note: may reflect a capped subset if the log file is very large."
         ),
         "input_schema": {
@@ -669,8 +751,9 @@ LOG_TOOLS: list[dict[str, Any]] = [
     {
         "name": "search_logs",
         "description": (
-            "Search and filter the loaded Android log entries. "
+            "Search and filter the loaded Android log or network capture entries. "
             "Start with query_log_overview first, then use targeted search_logs with limit=50. "
+            "For pcap files: tag filter matches protocol (TCP/UDP/etc). "
             "**Time-filtering strategy**: when the user mentions a specific time "
             "(e.g. 'around 14:30', 'at 3pm'), use start_time/end_time with a narrow "
             "±2 minute window first. If that yields fewer than 20 results, expand "
@@ -727,6 +810,7 @@ def execute_tool(
     arguments: str,
     trace_summary: dict | None = None,
     log_entries: list[dict] | None = None,
+    pcap_entries: list[dict] | None = None,
     log_index: "LogIndex | None" = None,
     file_path: str | None = None,
 ) -> str:
@@ -758,6 +842,12 @@ def execute_tool(
         except Exception as e:
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Trace SQL tool failed: {e}"})
+
+    # PCAP tools
+    if tool_name in ("query_pcap_overview", "search_pcap_packets", "list_pcap_files"):
+        if pcap_entries is None:
+            return json.dumps({"error": "No PCAP data loaded in this session"})
+        return _execute_pcap_tool(tool_name, args, pcap_entries)
 
     # Lazy log tools (operate on local file/directory path, not in-memory entries)
     if tool_name in (
@@ -881,7 +971,7 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".pcap", ".pcapng"}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
@@ -1232,6 +1322,113 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
     logger.error("Unknown lazy tool: %s", tool_name)
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
+
+
+def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> str:
+    """Handle PCAP-query tools against stored PCAP entries."""
+    if tool_name == "query_pcap_overview":
+        # Calculate statistics
+        protocols = {}
+        ips = set()
+        ports = set()
+        min_time = None
+        max_time = None
+
+        for entry in pcap_entries:
+            # Protocol distribution
+            protocol = entry.get("protocol", "Unknown")
+            protocols[protocol] = protocols.get(protocol, 0) + 1
+
+            # Unique IPs
+            if "src_ip" in entry:
+                ips.add(entry["src_ip"])
+            if "dst_ip" in entry:
+                ips.add(entry["dst_ip"])
+
+            # Unique ports
+            if "src_port" in entry and entry["src_port"]:
+                ports.add(entry["src_port"])
+            if "dst_port" in entry and entry["dst_port"]:
+                ports.add(entry["dst_port"])
+
+            # Time range
+            timestamp = entry.get("timestamp")
+            if timestamp:
+                if min_time is None or timestamp < min_time:
+                    min_time = timestamp
+                if max_time is None or timestamp > max_time:
+                    max_time = timestamp
+
+        return json.dumps(
+            {
+                "total_packets": len(pcap_entries),
+                "protocols": protocols,
+                "unique_ips": len(ips),
+                "unique_ports": len(ports),
+                "time_range": {
+                    "start": min_time,
+                    "end": max_time,
+                }
+                if min_time and max_time
+                else None,
+            }
+        )
+
+    if tool_name == "search_pcap_packets":
+        # Apply filters
+        filtered = pcap_entries
+
+        protocol = args.get("protocol", "").upper()
+        if protocol:
+            filtered = [e for e in filtered if e.get("protocol", "").upper() == protocol]
+
+        src_ip = args.get("src_ip", "")
+        if src_ip:
+            filtered = [e for e in filtered if src_ip in e.get("src_ip", "")]
+
+        dst_ip = args.get("dst_ip", "")
+        if dst_ip:
+            filtered = [e for e in filtered if dst_ip in e.get("dst_ip", "")]
+
+        src_port = args.get("src_port")
+        if src_port is not None:
+            filtered = [e for e in filtered if e.get("src_port") == src_port]
+
+        dst_port = args.get("dst_port")
+        if dst_port is not None:
+            filtered = [e for e in filtered if e.get("dst_port") == dst_port]
+
+        tcp_flags = args.get("tcp_flags", "").upper()
+        if tcp_flags:
+            filtered = [e for e in filtered if tcp_flags in e.get("tcp_flags", "").upper()]
+
+        content = args.get("content", "")
+        if content:
+            pattern = re.compile(re.escape(content), re.IGNORECASE)
+            filtered = [e for e in filtered if pattern.search(e.get("info", ""))]
+
+        # Pagination
+        offset = int(args.get("offset", 0))
+        limit = min(int(args.get("limit", 50)), 500)
+
+        return json.dumps(
+            {
+                "total": len(filtered),
+                "packets": filtered[offset : offset + limit],
+            }
+        )
+
+    if tool_name == "list_pcap_files":
+        # Get unique source files
+        source_files = sorted(set(e.get("source_file", "unknown") for e in pcap_entries))
+        return json.dumps(
+            {
+                "total": len(source_files),
+                "files": source_files,
+            }
+        )
+
+    return json.dumps({"error": f"Unknown PCAP tool: {tool_name}"})
 
 
 def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:

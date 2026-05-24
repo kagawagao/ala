@@ -18,7 +18,15 @@ import anthropic
 import openai
 
 from ..config import settings
-from .agent_tools import AGENT_TOOLS, LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, LogIndex, execute_tool
+from .agent_tools import (
+    AGENT_TOOLS,
+    LAZY_LOG_TOOLS,
+    LOG_TOOLS,
+    PCAP_TOOLS,
+    TRACE_TOOLS,
+    LogIndex,
+    execute_tool,
+)
 from .code_scanner import ContextDoc, get_shared_scanner
 from .project_manager import Project
 
@@ -236,6 +244,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        pcap_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -268,6 +277,7 @@ class AIService:
                 project=project,
                 trace_summary=trace_summary,
                 log_entries=log_entries,
+                pcap_entries=pcap_entries,
                 log_index=log_index,
                 file_path=file_path,
                 api_messages_out=api_messages_out,
@@ -281,6 +291,7 @@ class AIService:
                 project=project,
                 trace_summary=trace_summary,
                 log_entries=log_entries,
+                pcap_entries=pcap_entries,
                 log_index=log_index,
                 file_path=file_path,
                 api_messages_out=api_messages_out,
@@ -306,6 +317,7 @@ class AIService:
         project: Project | None,
         trace_summary: dict | None,
         log_entries: list[dict] | None,
+        pcap_entries: list[dict] | None,
         file_path: str | None = None,
         language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
@@ -395,6 +407,18 @@ class AIService:
                     "Complete the full analysis before responding; never stop mid-analysis."
                 )
             parts.append(lazy_hint)
+
+        if pcap_entries is not None:
+            tools.extend(PCAP_TOOLS)
+            n_packets = len(pcap_entries)
+            pcap_hint = (
+                f"{n_packets} network packets (PCAP) are loaded in this session. "
+                f"Always start with query_pcap_overview to get statistics. "
+                f"Then use search_pcap_packets with specific filters to find relevant traffic. "
+                f"Filter by protocol (TCP/UDP/ICMP/DNS/HTTP), IPs, ports, TCP flags, or content. "
+                f"Complete the full analysis before responding; never stop mid-analysis."
+            )
+            parts.append(pcap_hint)
 
         if log_entries is not None:
             tools.extend(LOG_TOOLS)
@@ -537,6 +561,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        pcap_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -552,7 +577,12 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, file_path=file_path, language=language
+            project,
+            trace_summary,
+            log_entries,
+            pcap_entries,
+            file_path=file_path,
+            language=language,
         )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
@@ -719,6 +749,7 @@ class AIService:
                     arguments_str,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    pcap_entries=pcap_entries,
                     log_index=log_index,
                     file_path=file_path,
                 )
@@ -810,6 +841,7 @@ class AIService:
         project: Project | None = None,
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
+        pcap_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -825,7 +857,12 @@ class AIService:
         - Tool results: JSON with type="tool_result"
         """
         anthropic_tools, system_text = self._build_agentic_context(
-            project, trace_summary, log_entries, file_path=file_path, language=language
+            project,
+            trace_summary,
+            log_entries,
+            pcap_entries,
+            file_path=file_path,
+            language=language,
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
 
@@ -994,6 +1031,7 @@ class AIService:
                     arguments_str,
                     trace_summary=trace_summary,
                     log_entries=log_entries,
+                    pcap_entries=pcap_entries,
                     log_index=log_index,
                     file_path=file_path,
                 )

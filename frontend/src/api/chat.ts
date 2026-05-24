@@ -51,6 +51,16 @@ export async function setSessionLogs(
   })
 }
 
+export async function setSessionPcap(
+  sessionId: string,
+  entries: Record<string, unknown>[],
+): Promise<void> {
+  await apiFetch(`/chat/sessions/${sessionId}/pcap`, {
+    method: 'PUT',
+    body: JSON.stringify({ entries }),
+  })
+}
+
 export async function* sendMessage(
   sessionId: string,
   message: string,
