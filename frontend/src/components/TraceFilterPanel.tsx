@@ -44,7 +44,7 @@ const TraceFilterPanel: React.FC<TraceFilterPanelProps> = ({ traceResult, onFilt
       })
       onFilteredResult(result)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Filter failed'
+      const msg = err instanceof Error ? err.message : t('traceFilterFailed')
       void message.error(msg)
     } finally {
       setFiltering(false)

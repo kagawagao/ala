@@ -1,5 +1,5 @@
+import React, { useState } from 'react'
 import { Drawer } from 'antd'
-import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   FilterPreset,
@@ -13,8 +13,10 @@ import LogFilterPanel from './LogFilterPanel'
 import PcapFilterPanel from './PcapFilterPanel'
 import TraceFilterPanel from './TraceFilterPanel'
 
+type FilterTab = 'log' | 'trace' | 'pcap'
+
 interface FilterDrawerProps {
-  activeTab: string
+  activeTab: FilterTab
   // Controlled open state (optional — falls back to internal state)
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -68,20 +70,6 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
       setInternalOpen(v)
     }
   }
-
-  // Keyboard shortcut: Ctrl+K / Cmd+K → toggle
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen(!open)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
 
   const renderContent = () => {
     switch (activeTab) {

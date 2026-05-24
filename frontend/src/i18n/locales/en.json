@@ -88,7 +88,7 @@
   "connected": "Connected",
   "disconnected": "Disconnected",
   "dropFileHere": "Drop a file here or click to upload",
-  "supportedFormats": "Supported formats: .log, .txt, .gz, .zip (logcat), .pb, .json (Perfetto trace), .pcap, .pcapng (network capture)",
+  "supportedFormats": "Formats: .log, .txt, .gz, .zip (logs), .pb, .json (trace), .pcap, .pcapng (packets)",
   "fileUploaded": "File uploaded successfully",
   "traceSummary": "Trace Summary",
   "duration": "Duration",
@@ -260,6 +260,8 @@
   "uniqueIPs": "Unique IPs",
   "connections": "Connections",
   "pcapFilters": "PCAP Filters",
+  "pcapFilterFailed": "Filter failed",
+  "pcapPacketNumber": "#",
   "protocol": "Protocol",
   "sourceIP": "Source IP",
   "destinationIP": "Destination IP",
@@ -274,5 +276,10 @@
   "filters": "Filters",
   "logFilters": "Log Filters",
   "traceFilters": "Trace Filters",
-  "noFiltersAvailable": "No filters available for this view"
+  "traceFilterFailed": "Filter failed",
+  "noFiltersAvailable": "No filters available for this view",
+  "logFilterTimestampPlaceholder": "MM-DD HH:mm:ss.SSS",
+  "logFilterOperatorAnd": "AND",
+  "logFilterOperatorOr": "OR",
+  "logFilterTopTags": "Top Tags"
 }

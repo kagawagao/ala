@@ -381,7 +381,7 @@ const AppContent: React.FC<{
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
+  }, [uploadPopoverOpen, filterDrawerOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {

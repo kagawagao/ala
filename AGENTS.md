@@ -273,8 +273,7 @@ Initialised in `main.py` via `setup_logging()` from `logging_config.py`:
 ### Logs Pipeline
 
 - Backend: `ala.api.logs` → `ala.services.log_analyzer.LogAnalyzer`
-- Upload supports plain text, `.gz`, `.zip` (ZIPs expand to multiple log files), and network capture files (`.pcap`, `.pcapng`)
-- **PCAP support**: requires `scapy` library; packets are converted to log entries with protocol tags (TCP/UDP/etc.), timestamps, and summary messages
+- Upload supports plain text, `.gz`, `.zip` (ZIPs expand to multiple log files)
 - **Streaming parse**: `POST /api/logs/parse/stream` returns NDJSON — each line is a `LogEntry`, final line is `{ "_done": true, "total": N }` sentinel
 - Frontend consumes via `parseLogStream()` in `frontend/src/api/logs.ts`
 - Parsed entries carry `source_file` — **always preserve this field** when changing log models
@@ -287,6 +286,17 @@ Initialised in `main.py` via `setup_logging()` from `logging_config.py`:
 - Backend: `ala.api.trace` → `ala.services.trace_analyzer`
 - Frontend: first `parseTrace()` (upload), then `filterTrace()` (filter by PID/process name) on the parsed result
 - Process-name filtering is **regex-based and case-insensitive**
+
+### PCAP Pipeline
+
+- Backend: `ala.api.pcap` → `ala.services.pcap_analyzer.PcapAnalyzer`
+- Requires `scapy` library (≥ 2.5.0)
+- Parses `.pcap` and `.pcapng` (tcpdump) network capture files — extracts protocol, IPs, ports, TCP flags
+- **Temp upload**: `POST /api/pcap/upload/temp` stores file to temp dir, returns `saved_path`
+- **Lazy filter**: `POST /api/pcap/filter/stream` filters on-disk without loading all packets into memory
+- Frontend: `PcapViewer` displays packet statistics (protocol distribution, unique IPs, connections) and virtualized packet table
+- Filters: protocol, source/destination IP, source/destination port, TCP flags, keywords
+- Agent tools: `query_pcap_overview`, `search_pcap_packets`, `list_pcap_files` via `PCAP_TOOLS`
 
 ### AI Chat & Config
 

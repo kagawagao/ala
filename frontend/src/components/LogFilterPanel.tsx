@@ -336,7 +336,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                   </Text>
                   <Input
                     size="small"
-                    placeholder="MM-DD HH:mm:ss.SSS"
+                    placeholder={t('logFilterTimestampPlaceholder')}
                     value={pendingFilters.start_time}
                     onChange={(e) => updatePending({ start_time: e.target.value })}
                   />
@@ -347,7 +347,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                   </Text>
                   <Input
                     size="small"
-                    placeholder="MM-DD HH:mm:ss.SSS"
+                    placeholder={t('logFilterTimestampPlaceholder')}
                     value={pendingFilters.end_time}
                     onChange={(e) => updatePending({ end_time: e.target.value })}
                   />
@@ -429,10 +429,10 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                     style={{ display: 'flex' }}
                   >
                     <Radio.Button value="AND" style={{ flex: 1, textAlign: 'center' }}>
-                      AND
+                      {t('logFilterOperatorAnd')}
                     </Radio.Button>
                     <Radio.Button value="OR" style={{ flex: 1, textAlign: 'center' }}>
-                      OR
+                      {t('logFilterOperatorOr')}
                     </Radio.Button>
                   </Radio.Group>
                 </div>
@@ -635,7 +635,7 @@ const LogFilterPanel: React.FC<LogFilterPanelProps> = ({
                         <>
                           <Divider style={{ margin: '6px 0' }} />
                           <Text type="secondary" style={{ fontSize: 11 }}>
-                            Top Tags
+                            {t('logFilterTopTags')}
                           </Text>
                           <div style={{ marginTop: 4 }}>
                             {topTags.map(([tag, cnt]) => (

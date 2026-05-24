@@ -25,7 +25,7 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
     byProtocol[e.protocol] = (byProtocol[e.protocol] ?? 0) + 1
     if (e.src_ip && e.src_ip !== '?') ips.add(e.src_ip)
     if (e.dst_ip && e.dst_ip !== '?') ips.add(e.dst_ip)
-    if (e.src_port && e.dst_port) {
+    if (e.src_port != null && e.dst_port != null) {
       connections.add(`${e.src_ip}:${e.src_port}->${e.dst_ip}:${e.dst_port}`)
     }
   }
@@ -93,7 +93,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
 
   const packetColumns = [
     {
-      title: '#',
+      title: t('pcapPacketNumber'),
       dataIndex: 'packet_number',
       key: 'packet_number',
       width: 70,

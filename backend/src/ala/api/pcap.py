@@ -321,7 +321,7 @@ async def upload_pcap_to_temp(files: list[UploadFile] = File(...)):
                 magic = f.read(4)
             if _analyzer._is_pcap_data(magic):
                 fmt = "pcapng" if magic[:4] == b"\x0a\x0d\x0d\x0a" else "pcap"
-        except Exception:
+        except OSError:
             pass
 
         saved.append(
