@@ -7,8 +7,6 @@ import {
   Divider,
   Empty,
   Popover,
-  Radio,
-  Space,
   Splitter,
   Tabs,
   theme,
@@ -113,8 +111,7 @@ const AppContent: React.FC<{
     dirPath: string
   }>({ open: false, files: [], dirPath: '' })
 
-  // Upload popover: mode selector state (T6)
-  const [uploadMode, setUploadMode] = useState<'replace' | 'append'>('replace')
+  // Upload popover: pending files staged for lazy load
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
   const location = useLocation()
@@ -505,7 +502,6 @@ const AppContent: React.FC<{
         return
       }
       setPendingFiles(files)
-      setUploadMode('replace')
     },
     [handleTraceFile, closeUploadPopover],
   )
@@ -560,16 +556,6 @@ const AppContent: React.FC<{
         {pendingFiles.length > 0 && (
           <>
             <Divider style={{ margin: '8px 0' }} />
-            <Radio.Group
-              value={uploadMode}
-              onChange={(e) => setUploadMode(e.target.value)}
-              size="small"
-            >
-              <Space direction="vertical">
-                <Radio value="replace">{t('replaceMode')}</Radio>
-                <Radio value="append">{t('appendMode')}</Radio>
-              </Space>
-            </Radio.Group>
             <Button
               type="primary"
               block
@@ -579,7 +565,7 @@ const AppContent: React.FC<{
                 void handleUploadPopoverLoad()
               }}
             >
-              {uploadMode === 'append' ? t('appendFiles') : t('updateFiles')}
+              {t('updateFiles')}
             </Button>
           </>
         )}
