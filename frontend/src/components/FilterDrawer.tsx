@@ -15,6 +15,9 @@ import TraceFilterPanel from './TraceFilterPanel'
 
 interface FilterDrawerProps {
   activeTab: string
+  // Controlled open state (optional — falls back to internal state)
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   // Log filters
   logFilters?: LogFilters
   onLogFiltersChange?: (filters: LogFilters) => void
@@ -36,6 +39,8 @@ interface FilterDrawerProps {
 
 const FilterDrawer: React.FC<FilterDrawerProps> = ({
   activeTab,
+  open: controlledOpen,
+  onOpenChange,
   logFilters,
   onLogFiltersChange,
   logStatistics,
@@ -52,20 +57,31 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   onPcapFilteredEntries,
 }) => {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
 
-  // Keyboard shortcut: Ctrl+Shift+F
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(v)
+    } else {
+      setInternalOpen(v)
+    }
+  }
+
+  // Keyboard shortcut: Ctrl+K / Cmd+K → toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
-        setOpen((prev) => !prev)
+        setOpen(!open)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const renderContent = () => {
     switch (activeTab) {

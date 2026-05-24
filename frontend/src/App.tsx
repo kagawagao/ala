@@ -30,7 +30,6 @@ import {
 } from './api/projects'
 import { parseTrace } from './api/trace'
 import AiPanel from './components/AiPanel'
-import DirectoryFilePicker from './components/DirectoryFilePicker'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import FileUpload from './components/FileUpload'
 import FilterDrawer from './components/FilterDrawer'
@@ -82,6 +81,8 @@ const AppContent: React.FC<{
   const { message } = AntApp.useApp()
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
+  const [siderCollapsed, setSiderCollapsed] = useState(true)
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
@@ -341,10 +342,17 @@ const AppContent: React.FC<{
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ctrl+Shift+F / Cmd+Shift+F → focus keywords input in sidebar
+      // Ctrl+K / Cmd+K → toggle filter drawer
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setFilterDrawerOpen((v) => !v)
+        return
+      }
+      // Ctrl+Shift+F / Cmd+Shift+F → open filter drawer (log tab)
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
         e.preventDefault()
-        document.getElementById('ala-keywords-input')?.focus()
+        setActiveTab('log')
+        setFilterDrawerOpen(true)
         return
       }
       // Ctrl+D / Cmd+D → toggle dark/light theme
@@ -353,10 +361,14 @@ const AppContent: React.FC<{
         onToggleTheme()
         return
       }
-      // Esc → close upload popover, then collapse sider, then collapse aiPanel
+      // Esc → close upload popover, then filter drawer, then aiPanel
       if (e.key === 'Escape') {
         if (uploadPopoverOpen) {
           closeUploadPopover()
+          return
+        }
+        if (filterDrawerOpen) {
+          setFilterDrawerOpen(false)
           return
         }
         if (!aiPanelCollapsed) {
@@ -392,6 +404,8 @@ const AppContent: React.FC<{
       resetLogs()
       resetPcap()
       setTraceResult(null)
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
       setSelectedProjectId(projectId)
@@ -484,6 +498,22 @@ const AppContent: React.FC<{
       }
     },
     [resetLogs, t, message],
+  )
+
+  const handlePcapFile = useCallback(
+    async (file: File) => {
+      resetLogs()
+      setTraceResult(null)
+      setFilteredTraceResult(null)
+      setFilteredPcapEntries([])
+
+      const ok = await loadPcapFile(file)
+      if (ok) {
+        setActiveTab('pcap')
+        void message.success(t('fileUploaded'))
+      }
+    },
+    [loadPcapFile, resetLogs, t, message],
   )
 
   // Local file streaming handler — registers path and triggers lazy load
@@ -632,7 +662,7 @@ const AppContent: React.FC<{
           }}
           loading={isLoading}
           error={errorMessage}
-          fileNames={fileNames}
+          fileNames={fileNames.length > 0 ? fileNames : pcapFileNames}
         />
       </div>
     )
@@ -940,8 +970,10 @@ const AppContent: React.FC<{
                     </button>
                   )}
 
-                  {/* FilterDrawer - keyboard shortcut Ctrl+Shift+F */}
+                  {/* FilterDrawer — right-side context-aware filter UI (Ctrl+K) */}
                   <FilterDrawer
+                    open={filterDrawerOpen}
+                    onOpenChange={setFilterDrawerOpen}
                     activeTab={activeTab}
                     logFilters={filters}
                     onLogFiltersChange={setFilters}
