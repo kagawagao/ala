@@ -25,7 +25,6 @@ import {
   parseLogStream,
   parseLocalFileStream,
   parseSelectedFilesStream,
-  autoPath,
 } from './api/logs'
 import type { AutoPathResponse, DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
