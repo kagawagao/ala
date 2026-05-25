@@ -61,6 +61,16 @@ export async function setSessionPcap(
   })
 }
 
+export async function setSessionHci(
+  sessionId: string,
+  entries: Record<string, unknown>[],
+): Promise<void> {
+  await apiFetch(`/chat/sessions/${sessionId}/hci`, {
+    method: 'PUT',
+    body: JSON.stringify({ entries }),
+  })
+}
+
 export async function* sendMessage(
   sessionId: string,
   message: string,

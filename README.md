@@ -28,6 +28,7 @@ ala/
 ## Features
 
 ### Log Analysis
+
 - Parse, filter, and search Android logcat files
   - Support for `android_logcat`, `generic_timestamped`, and unknown formats
   - **Multi-file upload**: select or drag multiple `.log` / `.txt` files at once
@@ -42,6 +43,7 @@ ala/
 - **Export**: download filtered log entries as CSV (RFC 4180, BOM) or JSON
 
 ### PCAP Analysis
+
 - Upload and analyze network captures (`.pcap`, `.pcapng`)
   - **Lazy-loading architecture**: files uploaded to temporary storage, filtered on-demand via streaming — large captures load progressively
   - **Packet-level view**: number, timestamp, protocol, source/destination IP and port, TCP flags, payload length
@@ -51,6 +53,7 @@ ala/
   - Protocol, Source IP, Destination IP, Source Port, Destination Port, TCP Flags
 
 ### Trace Analysis
+
 - Analyze Perfetto `.pb` and JSON trace files
   - Extract process/thread/event summary (all slices, not just top 20)
   - Top slices by duration with virtualized rendering
@@ -59,6 +62,7 @@ ala/
 - **SQL Query** — run custom SQL against the trace via Python Perfetto API
 
 ### AI Assistant
+
 - Multi-turn conversation with streaming responses
   - Analysis presets: General, Crash, Performance, Security
   - Attach log/trace/PCAP data or local file/directory paths as conversation context
@@ -76,6 +80,7 @@ ala/
   - Session management (create, rename, delete, export chat)
 
 ### Projects
+
 - Group source code paths for AI-assisted analysis
   - Scan project files to discover logging patterns
   - **Ripgrep-backed code scanner**: 265× faster than pure-Python pattern discovery
@@ -84,12 +89,14 @@ ala/
   - Project-level filter preset storage
 
 ### MCP Server
+
 - Expose log and trace analysis tools via Model Context Protocol
   - `parse_android_log`, `filter_android_logs`, `get_log_statistics`
   - `parse_perfetto_trace`, `filter_perfetto_trace`, `query_perfetto_trace_sql`
 - In-App User Guide — Markdown-based guide (English / 中文) rendered with react-markdown, accessible via header button
 
 ### General
+
 - **i18n** — English and Chinese (中文) UI; language auto-detected from browser locale
 - **Dark/light theme** — toggle with `Ctrl+D`
 - **Keyboard shortcuts**: `Ctrl+K` filter drawer, `Ctrl+Shift+F` log tab + drawer, `Ctrl+D` theme, `Esc` dismiss
@@ -338,66 +345,66 @@ Git hooks (via Husky):
 
 ### PCAP
 
-| Method | Path                       | Description                              |
-| ------ | -------------------------- | ---------------------------------------- |
-| `POST` | `/api/pcap/parse`          | Parse PCAP files (multipart)             |
-| `POST` | `/api/pcap/parse/stream`   | Stream-parse PCAP files as NDJSON        |
-| `POST` | `/api/pcap/filter`         | Filter PCAP entries                      |
-| `POST` | `/api/pcap/filter/stream`  | Stream-filter PCAP entries (lazy mode)   |
-| `POST` | `/api/pcap/statistics`     | Get PCAP statistics                      |
-| `POST` | `/api/pcap/upload/temp`    | Upload PCAP files to temporary storage   |
-| `GET`  | `/api/pcap/temp/status`    | Get temp file status                     |
-| `POST` | `/api/pcap/temp/cleanup`   | Clean up temp files                      |
+| Method | Path                      | Description                            |
+| ------ | ------------------------- | -------------------------------------- |
+| `POST` | `/api/pcap/parse`         | Parse PCAP files (multipart)           |
+| `POST` | `/api/pcap/parse/stream`  | Stream-parse PCAP files as NDJSON      |
+| `POST` | `/api/pcap/filter`        | Filter PCAP entries                    |
+| `POST` | `/api/pcap/filter/stream` | Stream-filter PCAP entries (lazy mode) |
+| `POST` | `/api/pcap/statistics`    | Get PCAP statistics                    |
+| `POST` | `/api/pcap/upload/temp`   | Upload PCAP files to temporary storage |
+| `GET`  | `/api/pcap/temp/status`   | Get temp file status                   |
+| `POST` | `/api/pcap/temp/cleanup`  | Clean up temp files                    |
 
 ### Trace
 
-| Method | Path               | Description                                     |
-| ------ | ------------------ | ----------------------------------------------- |
-| `POST` | `/api/trace/parse` | Parse Perfetto trace (multipart)                |
-| `POST` | `/api/trace/filter` | Filter trace by process PID(s) / name regex    |
+| Method | Path                | Description                                 |
+| ------ | ------------------- | ------------------------------------------- |
+| `POST` | `/api/trace/parse`  | Parse Perfetto trace (multipart)            |
+| `POST` | `/api/trace/filter` | Filter trace by process PID(s) / name regex |
 
 ### Chat
 
-| Method   | Path                                      | Description                              |
-| -------- | ----------------------------------------- | ---------------------------------------- |
-| `POST`   | `/api/chat/sessions`                      | Create chat session                      |
-| `GET`    | `/api/chat/sessions`                      | List chat sessions                       |
-| `GET`    | `/api/chat/sessions/:id`                  | Get session with messages                |
-| `GET`    | `/api/chat/sessions/:id/export`           | Export session as JSON                   |
-| `DELETE` | `/api/chat/sessions/:id`                  | Delete session                           |
-| `POST`   | `/api/chat/sessions/:id/messages`         | Send message (SSE stream)                |
-| `PUT`    | `/api/chat/sessions/:id/trace`            | Bind parsed trace data to a session      |
-| `PUT`    | `/api/chat/sessions/:id/logs`             | Bind parsed log data to a session        |
-| `PUT`    | `/api/chat/sessions/:id/file-path`        | Bind a local file path to a session      |
+| Method   | Path                               | Description                         |
+| -------- | ---------------------------------- | ----------------------------------- |
+| `POST`   | `/api/chat/sessions`               | Create chat session                 |
+| `GET`    | `/api/chat/sessions`               | List chat sessions                  |
+| `GET`    | `/api/chat/sessions/:id`           | Get session with messages           |
+| `GET`    | `/api/chat/sessions/:id/export`    | Export session as JSON              |
+| `DELETE` | `/api/chat/sessions/:id`           | Delete session                      |
+| `POST`   | `/api/chat/sessions/:id/messages`  | Send message (SSE stream)           |
+| `PUT`    | `/api/chat/sessions/:id/trace`     | Bind parsed trace data to a session |
+| `PUT`    | `/api/chat/sessions/:id/logs`      | Bind parsed log data to a session   |
+| `PUT`    | `/api/chat/sessions/:id/file-path` | Bind a local file path to a session |
 
 ### Projects
 
-| Method   | Path                                 | Description                             |
-| -------- | ------------------------------------ | --------------------------------------- |
-| `POST`   | `/api/projects`                      | Create project                          |
-| `GET`    | `/api/projects`                      | List projects                           |
-| `GET`    | `/api/projects/:id`                  | Get project                             |
-| `PUT`    | `/api/projects/:id`                  | Update project                          |
-| `DELETE` | `/api/projects/:id`                  | Delete project                          |
-| `GET`    | `/api/projects/:id/files`            | List project source files               |
-| `GET`    | `/api/projects/:id/context-docs`     | List AI context documents in project    |
-| `POST`   | `/api/projects/:id/generate-filters` | AI-generate log filter presets (SSE)    |
-| `GET`    | `/api/projects/:id/presets`          | List project-level filter presets       |
-| `PUT`    | `/api/projects/:id/presets`          | Save project-level filter presets       |
+| Method   | Path                                 | Description                          |
+| -------- | ------------------------------------ | ------------------------------------ |
+| `POST`   | `/api/projects`                      | Create project                       |
+| `GET`    | `/api/projects`                      | List projects                        |
+| `GET`    | `/api/projects/:id`                  | Get project                          |
+| `PUT`    | `/api/projects/:id`                  | Update project                       |
+| `DELETE` | `/api/projects/:id`                  | Delete project                       |
+| `GET`    | `/api/projects/:id/files`            | List project source files            |
+| `GET`    | `/api/projects/:id/context-docs`     | List AI context documents in project |
+| `POST`   | `/api/projects/:id/generate-filters` | AI-generate log filter presets (SSE) |
+| `GET`    | `/api/projects/:id/presets`          | List project-level filter presets    |
+| `PUT`    | `/api/projects/:id/presets`          | Save project-level filter presets    |
 
 ### Config & Models
 
-| Method  | Path                        | Description                               |
-| ------- | --------------------------- | ----------------------------------------- |
-| `GET`   | `/health`                   | Health check                              |
-| `GET`   | `/api/config`               | Get AI configuration                      |
-| `PUT`   | `/api/config`               | Update AI configuration                   |
-| `GET`   | `/api/models`               | List model presets (built-in + custom)    |
-| `POST`  | `/api/models`               | Create custom model preset                |
-| `PUT`   | `/api/models/:id`           | Update model preset                       |
-| `DELETE`| `/api/models/:id`           | Delete model preset                       |
-| `PATCH` | `/api/models/:id/enabled`   | Toggle model preset enabled/disabled      |
-| `POST`  | `/api/models/reload`        | Reload built-in models from on-disk cache |
+| Method   | Path                      | Description                               |
+| -------- | ------------------------- | ----------------------------------------- |
+| `GET`    | `/health`                 | Health check                              |
+| `GET`    | `/api/config`             | Get AI configuration                      |
+| `PUT`    | `/api/config`             | Update AI configuration                   |
+| `GET`    | `/api/models`             | List model presets (built-in + custom)    |
+| `POST`   | `/api/models`             | Create custom model preset                |
+| `PUT`    | `/api/models/:id`         | Update model preset                       |
+| `DELETE` | `/api/models/:id`         | Delete model preset                       |
+| `PATCH`  | `/api/models/:id/enabled` | Toggle model preset enabled/disabled      |
+| `POST`   | `/api/models/reload`      | Reload built-in models from on-disk cache |
 
 ## License
 

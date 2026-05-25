@@ -620,7 +620,7 @@ const AppSider: React.FC<AppSiderProps> = ({
                           <Statistic
                             title={t('totalLogs')}
                             value={statistics.total}
-                            valueStyle={{ fontSize: 16 }}
+                            styles={{ content: { fontSize: 16 } }}
                           />
                         </Col>
                       </Row>

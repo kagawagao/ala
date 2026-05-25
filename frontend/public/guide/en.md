@@ -1,15 +1,20 @@
 # ALA User Guide
 
-ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat output, Perfetto traces, and network captures (PCAP).
+ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat
+output, Perfetto traces, network captures (PCAP), and Bluetooth HCI logs.
 
 ---
 
 ## Quick Start
 
-1. **Open a file** – Click the upload panel, drag and drop a file into the main area, or type a local file/directory path in the path input below the upload area.
-   Supported formats: `.log`, `.txt`, `.gz`, `.zip` (logcat), `.pb`, `.json` (Perfetto trace), `.pcap`, `.pcapng` (network capture).
-2. **Apply filters** – Press `Ctrl+K` (or `Cmd+K` on macOS) to open the filter drawer on the right side, set your criteria, and click **Apply Filters** to update the view.
-3. **Switch views** – Toggle between the **Log Analysis**, **Trace Analysis**, and **PCAP Analysis** tabs to inspect results.
+1. **Open a file** – Click the upload panel, drag and drop a file into the main area,
+   or type a local file/directory path in the path input below the upload area.
+   Supported formats: `.log`, `.txt`, `.gz`, `.zip` (logcat), `.pb`, `.json`
+   (Perfetto trace), `.pcap`, `.pcapng` (network capture), `.hci`, `.btsnoop`,
+   `.cfa` (Bluetooth HCI).
+2. **Apply filters** – Press `Ctrl+K` (or `Cmd+K` on macOS) to open the filter drawer
+   on the right side, set your criteria, and click **Apply Filters** to update the view.
+3. **Switch views** – Toggle between the **Log Analysis**, **Trace Analysis**, **PCAP Analysis**, and **Bluetooth HCI** tabs to inspect results.
 4. **Select a project** – Optionally pick a project from the header dropdown to supply source code context to the AI assistant.
 
 ---
@@ -54,6 +59,23 @@ ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android
 
 ---
 
+## Bluetooth HCI Analysis
+
+- Upload one or more Bluetooth HCI log files (`.hci`, `.btsnoop`, `.cfa`), also supports `.gz` and `.zip` compressed archives.
+- View **packet-level details**: packet number, timestamp, direction (Host→Controller or Controller→Host), HCI type (Command, Event, ACL Data, SCO Data, ISO Data), opcode/event code with decoded names, and data length.
+- Browse **summary statistics**: total packets, direction distribution (Host→Controller vs Controller→Host), HCI type distribution, unique opcodes, and capture duration.
+- Apply **HCI Filters**:
+  - **Direction** – Host→Controller or Controller→Host.
+  - **HCI Type** – Command, Event, ACL Data, SCO Data, or ISO Data.
+  - **Opcode / Opcode Name** – Filter by HCI command opcode (hex or decimal) or decoded name.
+  - **Event Code / Event Name** – Filter by HCI event code (hex or decimal) or decoded name.
+  - **Keywords** – Full-text search across packet summaries.
+- **Lazy loading** — HCI files are uploaded to temporary storage and filtered on-demand via streaming. Large capture files load progressively without blocking the UI.
+- **Opcode/event decoding** — HCI command opcodes and event codes are automatically decoded to human-readable names (e.g., `0x0C01` → "LE Set Advertising Data", `0x3E` → "LE Meta Event").
+- **Statistics** — Direction distribution, HCI type breakdown, and unique opcode counts are computed server-side.
+
+---
+
 ## AI Assistant
 
 1. **Configure AI** – Go to **Model Management** (grid icon in the header) and enter your API endpoint, key, and model.
@@ -95,6 +117,6 @@ Projects register a local source code directory so the AI assistant can read cod
 - The **backend must be running** before the frontend connects. If the status tag shows "Disconnected", start the Python backend.
 - API keys are stored **locally in your browser** (`localStorage`) and are sent to the ALA backend only to forward requests to the configured AI provider. They are never sent to any third-party service other than the one you configured.
 - Log files are streamed to the backend incrementally; very large files will appear progressively.
-- PCAP files use lazy-loading: they are uploaded to a temporary path and filtered on-demand — no full-file parsing until you apply filters.
+- PCAP and HCI files use lazy-loading: they are uploaded to a temporary path and filtered on-demand — no full-file parsing until you apply filters.
 - Use the **Export** button (CSV or JSON) to download filtered log entries for further processing.
 - The version number is displayed in the header — useful when reporting issues.
