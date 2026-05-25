@@ -401,7 +401,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   // Debounced sync of HCI data to the active session (500ms debounce)
   useEffect(() => {
-    if (!activeSessionId || hciEntries.length === 0) return
+    if (!activeSessionId) return
     if (hciSyncTimerRef.current) clearTimeout(hciSyncTimerRef.current)
     hciSyncTimerRef.current = setTimeout(() => {
       void setSessionHci(activeSessionId, hciEntries as unknown as Record<string, unknown>[])

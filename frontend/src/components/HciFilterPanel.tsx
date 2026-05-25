@@ -11,16 +11,16 @@ interface HciFilterPanelProps {
 }
 
 const DIRECTION_OPTIONS = [
-  { label: 'HOST_TO_CONTROLLER', value: 'HOST_TO_CONTROLLER' },
-  { label: 'CONTROLLER_TO_HOST', value: 'CONTROLLER_TO_HOST' },
+  { labelKey: 'hciHostToController', value: 'HOST_TO_CONTROLLER' },
+  { labelKey: 'hciControllerToHost', value: 'CONTROLLER_TO_HOST' },
 ]
 
 const HCI_TYPE_OPTIONS = [
-  { label: 'COMMAND', value: 'COMMAND' },
-  { label: 'EVENT', value: 'EVENT' },
-  { label: 'ACL_DATA', value: 'ACL_DATA' },
-  { label: 'SCO_DATA', value: 'SCO_DATA' },
-  { label: 'ISO_DATA', value: 'ISO_DATA' },
+  { labelKey: 'hciTypeCommand', value: 'COMMAND' },
+  { labelKey: 'hciTypeEvent', value: 'EVENT' },
+  { labelKey: 'hciTypeAclData', value: 'ACL_DATA' },
+  { labelKey: 'hciTypeScoData', value: 'SCO_DATA' },
+  { labelKey: 'hciTypeIsoData', value: 'ISO_DATA' },
 ]
 
 const HciFilterPanel: React.FC<HciFilterPanelProps> = ({ entries, onFilteredEntries }) => {
@@ -114,7 +114,7 @@ const HciFilterPanel: React.FC<HciFilterPanelProps> = ({ entries, onFilteredEntr
         <Select
           style={{ width: '100%' }}
           placeholder={t('hciDirection')}
-          options={DIRECTION_OPTIONS}
+          options={DIRECTION_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           value={directionFilter || undefined}
           onChange={(val) => setDirectionFilter(val || '')}
           allowClear
@@ -122,7 +122,7 @@ const HciFilterPanel: React.FC<HciFilterPanelProps> = ({ entries, onFilteredEntr
         <Select
           style={{ width: '100%' }}
           placeholder={t('hciType')}
-          options={HCI_TYPE_OPTIONS}
+          options={HCI_TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           value={hciTypeFilter || undefined}
           onChange={(val) => setHciTypeFilter(val || '')}
           allowClear

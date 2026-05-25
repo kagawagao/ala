@@ -45,6 +45,7 @@ export function useLazyHciStream(): UseLazyHciStreamReturn {
 
   const reset = useCallback(() => {
     abort()
+    generationRef.current += 1
     setDisplayEntries([])
     setError(undefined)
     setFileNames([])
