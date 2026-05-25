@@ -80,12 +80,12 @@ Projects register a local source code directory so the AI assistant can read cod
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+K` / `Cmd+K` | Toggle filter drawer |
-| `Ctrl+Shift+F` / `Cmd+Shift+F` | Switch to Log Analysis tab and open filter drawer |
-| `Ctrl+D` / `Cmd+D` | Toggle dark/light theme |
-| `Esc` | Close upload popover → close filter drawer → collapse AI panel |
+| Shortcut                       | Action                                                         |
+| ------------------------------ | -------------------------------------------------------------- |
+| `Ctrl+K` / `Cmd+K`             | Toggle filter drawer                                           |
+| `Ctrl+Shift+F` / `Cmd+Shift+F` | Switch to Log Analysis tab and open filter drawer              |
+| `Ctrl+D` / `Cmd+D`             | Toggle dark/light theme                                        |
+| `Esc`                          | Close upload popover → close filter drawer → collapse AI panel |
 
 ---
 

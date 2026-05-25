@@ -147,6 +147,17 @@ hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswi
 # ---------------------------------------------------------------------------
 binaries = []
 
+# Collect OpenSSL DLLs required by the _ssl module on Windows.
+# These live in the Python installation's DLLs directory but PyInstaller
+# does not always pick them up automatically.
+if sys.platform == "win32":
+    _dlls_dir = Path(sys.prefix) / "DLLs"
+    for _dll_name in ("libcrypto-3.dll", "libssl-3.dll"):
+        _dll_path = _dlls_dir / _dll_name
+        if _dll_path.is_file():
+            binaries.append((str(_dll_path), "."))
+            print(f"  Bundled {_dll_name}")
+
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
