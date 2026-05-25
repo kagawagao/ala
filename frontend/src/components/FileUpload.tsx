@@ -27,7 +27,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const { t } = useTranslation()
   const [dragOver, setDragOver] = useState(false)
   const [inputPath, setInputPath] = useState('')
-  const [inputLoading, setInputLoading] = useState(false)
   const [scanError, setScanError] = useState<string>()
 
   const handlePathSubmit = useCallback(
