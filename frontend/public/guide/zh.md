@@ -1,7 +1,6 @@
 # ALA 使用指南
 
 ALA（Android Log Analyzer）是一款 AI 驱动的全栈工具，用于分析 Android logcat 输出、Perfetto Trace 以及网络抓包（PCAP）。
-**版本 2.3.3**
 
 ---
 
