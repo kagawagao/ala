@@ -59,6 +59,7 @@ export function useLazyHciStream(): UseLazyHciStreamReturn {
   const loadSource = useCallback(
     (path: string, labels: string[], format?: string) => {
       abort()
+      generationRef.current += 1
       setSourcePath(path)
       setFileNames(labels)
       setDisplayEntries([])

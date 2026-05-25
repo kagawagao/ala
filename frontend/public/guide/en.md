@@ -1,14 +1,19 @@
 # ALA User Guide
 
-ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat output, Perfetto traces, network captures (PCAP), and Bluetooth HCI logs.
+ALA (Android Log Analyzer) is a full-stack AI-powered tool for analyzing Android logcat
+output, Perfetto traces, network captures (PCAP), and Bluetooth HCI logs.
 
 ---
 
 ## Quick Start
 
-1. **Open a file** – Click the upload panel, drag and drop a file into the main area, or type a local file/directory path in the path input below the upload area.
-   Supported formats: `.log`, `.txt`, `.gz`, `.zip` (logcat), `.pb`, `.json` (Perfetto trace), `.pcap`, `.pcapng` (network capture), `.hci`, `.btsnoop`, `.cfa` (Bluetooth HCI).
-2. **Apply filters** – Press `Ctrl+K` (or `Cmd+K` on macOS) to open the filter drawer on the right side, set your criteria, and click **Apply Filters** to update the view.
+1. **Open a file** – Click the upload panel, drag and drop a file into the main area,
+   or type a local file/directory path in the path input below the upload area.
+   Supported formats: `.log`, `.txt`, `.gz`, `.zip` (logcat), `.pb`, `.json`
+   (Perfetto trace), `.pcap`, `.pcapng` (network capture), `.hci`, `.btsnoop`,
+   `.cfa` (Bluetooth HCI).
+2. **Apply filters** – Press `Ctrl+K` (or `Cmd+K` on macOS) to open the filter drawer
+   on the right side, set your criteria, and click **Apply Filters** to update the view.
 3. **Switch views** – Toggle between the **Log Analysis**, **Trace Analysis**, **PCAP Analysis**, and **Bluetooth HCI** tabs to inspect results.
 4. **Select a project** – Optionally pick a project from the header dropdown to supply source code context to the AI assistant.
 

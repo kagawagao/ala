@@ -695,7 +695,13 @@ const AppContent: React.FC<{
           }
           break
       }
-      setPendingFiles((prev) => prev.filter((f) => f.saved_path !== file.saved_path))
+      setPendingFiles((prev) =>
+        prev.filter((f) =>
+          file.saved_path
+            ? f.saved_path !== file.saved_path
+            : f.original_name !== file.original_name,
+        ),
+      )
     },
     [loadSource, loadPcapSource, loadHciSource],
   )

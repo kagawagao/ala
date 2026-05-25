@@ -1479,7 +1479,7 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
                     "start": min_time,
                     "end": max_time,
                 }
-                if min_time and max_time
+                if min_time is not None and max_time is not None
                 else None,
             }
         )
@@ -1584,7 +1584,7 @@ def _execute_hci_tool(tool_name: str, args: dict, hci_entries: list[dict]) -> st
                     "start": min_time,
                     "end": max_time,
                 }
-                if min_time and max_time
+                if min_time is not None and max_time is not None
                 else None,
             }
         )
@@ -1602,7 +1602,11 @@ def _execute_hci_tool(tool_name: str, args: dict, hci_entries: list[dict]) -> st
 
         opcode = args.get("opcode")
         if opcode is not None:
-            filtered = [e for e in filtered if e.get("opcode") == opcode]
+            try:
+                opcode_int = int(opcode) if isinstance(opcode, str) else opcode
+            except (ValueError, TypeError):
+                opcode_int = opcode
+            filtered = [e for e in filtered if e.get("opcode") == opcode_int]
 
         opcode_name = args.get("opcode_name", "")
         if opcode_name:
@@ -1615,7 +1619,11 @@ def _execute_hci_tool(tool_name: str, args: dict, hci_entries: list[dict]) -> st
 
         event_code = args.get("event_code")
         if event_code is not None:
-            filtered = [e for e in filtered if e.get("event_code") == event_code]
+            try:
+                event_code_int = int(event_code) if isinstance(event_code, str) else event_code
+            except (ValueError, TypeError):
+                event_code_int = event_code
+            filtered = [e for e in filtered if e.get("event_code") == event_code_int]
 
         event_name = args.get("event_name", "")
         if event_name:

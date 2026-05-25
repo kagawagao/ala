@@ -58,9 +58,19 @@ const HciFilterPanel: React.FC<HciFilterPanelProps> = ({ entries, onFilteredEntr
       end_time: null,
       direction: directionFilter.trim() || null,
       hci_type: hciTypeFilter.trim() || null,
-      opcode: opcodeFilter.trim() ? parseInt(opcodeFilter.trim(), 0) : null,
+      opcode: opcodeFilter.trim()
+        ? (() => {
+            const v = parseInt(opcodeFilter.trim(), 0)
+            return isNaN(v) ? null : v
+          })()
+        : null,
       opcode_name: opcodeNameFilter.trim() || null,
-      event_code: eventCodeFilter.trim() ? parseInt(eventCodeFilter.trim(), 0) : null,
+      event_code: eventCodeFilter.trim()
+        ? (() => {
+            const v = parseInt(eventCodeFilter.trim(), 0)
+            return isNaN(v) ? null : v
+          })()
+        : null,
       event_name: eventNameFilter.trim() || null,
       keywords: keywordsFilter.trim() || null,
     }

@@ -193,11 +193,7 @@ const HciViewer: React.FC<HciViewerProps> = ({
           <Card size="small">
             <Statistic
               title={t('hciDirectionDistribution')}
-              value={
-                statistics
-                  ? `${(statistics.by_direction?.['HOST_TO_CONTROLLER'] ?? 0) + (statistics.by_direction?.['CONTROLLER_TO_HOST'] ?? 0)}`
-                  : 0
-              }
+              value={statistics ? statistics.total : 0}
               suffix={t('hciPacketCount')}
             />
           </Card>
