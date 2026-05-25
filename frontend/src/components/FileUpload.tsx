@@ -3,145 +3,22 @@ import { Upload, Typography, Spin, Alert, Tag, Input, Button, Space, Divider } f
 import { InboxOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { UploadProps } from 'antd'
-import { autoPath } from '../api/logs'
-import type { AutoPathResponse } from '../api/logs'
 
 const { Dragger } = Upload
 const { Text } = Typography
 
 interface FileUploadProps {
-  onLogFiles: (files: File[]) => void
-  onTraceFile: (file: File) => void
-  onPcapFile?: (file: File) => void
-  onLocalFilePath?: (path: string, fileRef: import('../types').LocalFileRef) => void
-  onLocalPathStream?: (path: string, type: 'file' | 'directory', result: AutoPathResponse) => void
+  onFiles: (files: File[]) => void
+  onLocalPath?: (path: string) => void
   loading: boolean
   error?: string
   fileNames?: string[]
   compact?: boolean
 }
 
-/**
- * Detect file type by reading the first bytes (magic bytes / header) of the
- * file.  Falls back to extension-based heuristics when the content is
- * inconclusive.
- *
- * Design decisions
- * ─────────────────
- * 1. GZ / ZIP magic bytes are checked first so that compressed log archives
- *    are never mistaken for binary trace files.
- *
- * 2. PCAP magic bytes are checked to detect network capture files.
- *
- * 3. "Binary" detection counts only ASCII control bytes (0x00–0x1F, excluding
- *    TAB / LF / CR).  We deliberately do NOT count high bytes (0x80–0xFF)
- *    because those are valid UTF-8 continuation bytes and appear in every
- *    logcat file that contains CJK characters.  Protobuf field-tag bytes
- *    (e.g. 0x08, 0x12, 0x18 …) are below 0x20 and accumulate quickly, so a
- *    threshold of > 4 reliably separates binary proto traces from text logs.
- *
- * 4. The JSON-signature search window is 8 KB (not 512 B) so that trace files
- *    whose `traceEvents` key is preceded by a long metadata object are still
- *    correctly identified.
- *
- * 5. If content analysis is inconclusive, the file extension is used as a
- *    tiebreaker, preserving the original backward-compatible behaviour.
- */
-export async function detectFileTypeByHeader(file: File): Promise<'log' | 'trace' | 'pcap'> {
-  const name = file.name.toLowerCase()
-  const lastDot = name.lastIndexOf('.')
-  const ext = lastDot !== -1 ? name.slice(lastDot) : ''
-
-  const TRACE_EXTS = new Set(['.pb', '.json', '.perfetto-trace', '.perfetto'])
-  const LOG_EXTS = new Set(['.log', '.txt', '.logcat', '.gz', '.zip'])
-  const PCAP_EXTS = new Set(['.pcap', '.pcapng'])
-
-  try {
-    const slice = file.slice(0, 8 * 1024) // Read up to 8 KB
-    const buf = await slice.arrayBuffer()
-    const bytes = new Uint8Array(buf)
-
-    if (bytes.length === 0) {
-      if (PCAP_EXTS.has(ext)) return 'pcap'
-      return TRACE_EXTS.has(ext) ? 'trace' : 'log'
-    }
-
-    // ── Magic bytes ────────────────────────────────────────────────────────
-    // PCAP magic bytes (check first for network captures)
-    if (bytes.length >= 4) {
-      const magic = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0
-      // pcap little-endian: 0xD4C3B2A1, big-endian: 0xA1B2C3D4
-      // pcapng: 0x0A0D0D0A
-      if (
-        magic === 0xd4c3b2a1 ||
-        magic === 0xa1b2c3d4 ||
-        magic === 0x4d3cb2a1 ||
-        magic === 0xa1b23c4d ||
-        magic === 0x0a0d0d0a
-      ) {
-        return 'pcap'
-      }
-    }
-
-    // GZ: 1F 8B  →  gzip-compressed → log (gzipped logcat / ZIP of logs)
-    if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'log'
-    // ZIP: 50 4B  →  zip archive → log
-    if (bytes[0] === 0x50 && bytes[1] === 0x4b) return 'log'
-
-    // ── Binary detection ───────────────────────────────────────────────────
-    // Count ASCII control bytes (< 0x20) excluding the three common
-    // whitespace controls: TAB (0x09), LF (0x0A), CR (0x0D).
-    // High bytes (0x80–0xFF) are NOT counted – they are valid UTF-8.
-    let controlBytes = 0
-    const scanLen = Math.min(bytes.length, 256)
-    for (let i = 0; i < scanLen; i++) {
-      const b = bytes[i]
-      if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0d) {
-        controlBytes++
-      }
-    }
-    if (controlBytes > 4) {
-      // Binary file – very likely a Perfetto proto trace
-      return 'trace'
-    }
-
-    // ── Text file: JSON trace signature scan ───────────────────────────────
-    const text = new TextDecoder().decode(bytes)
-    const trimmed = text.trimStart()
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      if (
-        text.includes('"traceEvents"') ||
-        text.includes('"systemTraceEvents"') ||
-        text.includes('"displayTimeUnit"') ||
-        text.includes('"ph"') // Chrome Trace Event Format
-      ) {
-        return 'trace'
-      }
-    }
-
-    // ── Extension fallback ─────────────────────────────────────────────────
-    // If the content analysis is inconclusive, trust the file extension so
-    // that known trace / log / pcap file types are always routed correctly.
-    if (PCAP_EXTS.has(ext)) return 'pcap'
-    if (TRACE_EXTS.has(ext)) return 'trace'
-    if (LOG_EXTS.has(ext)) return 'log'
-
-    // Unknown extension with text content → treat as log
-    return 'log'
-  } catch {
-    // Unable to read the file – pure extension fallback
-    if (PCAP_EXTS.has(ext)) return 'pcap'
-    if (TRACE_EXTS.has(ext)) return 'trace'
-    return 'log'
-  }
-}
-
 const FileUpload: React.FC<FileUploadProps> = ({
-  onLogFiles,
-  onTraceFile,
-  onPcapFile,
-  onLocalFilePath,
-  onLocalPathStream,
+  onFiles,
+  onLocalPath,
   loading,
   error,
   fileNames = [],
@@ -153,79 +30,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [inputLoading, setInputLoading] = useState(false)
   const [scanError, setScanError] = useState<string>()
 
-  const handleFiles = useCallback(
-    async (files: File[]) => {
-      const logFiles: File[] = []
-      let traceFile: File | null = null
-      let pcapFile: File | null = null
-
-      for (const file of files) {
-        const type = await detectFileTypeByHeader(file)
-        if (type === 'trace') {
-          traceFile = file
-        } else if (type === 'pcap') {
-          pcapFile = file
-        } else {
-          logFiles.push(file)
-        }
-      }
-
-      // Route files to appropriate handlers
-      if (pcapFile && onPcapFile) {
-        onPcapFile(pcapFile)
-      } else if (traceFile) {
-        onTraceFile(traceFile)
-      } else if (logFiles.length > 0) {
-        onLogFiles(logFiles)
-      }
-    },
-    [onLogFiles, onTraceFile, onPcapFile],
-  )
-
   const handlePathSubmit = useCallback(
-    async (path: string) => {
+    (path: string) => {
       setScanError(undefined)
-      setInputLoading(true)
-      try {
-        const result = await autoPath(path)
-
-        if (result.type === 'file' && result.session_file) {
-          if (onLocalPathStream) {
-            onLocalPathStream(path, 'file', result)
-          } else {
-            onLocalFilePath?.(path, {
-              session_file: result.session_file,
-              line_count: result.line_count ?? 0,
-              size_bytes: result.size_bytes ?? 0,
-              format_detected: result.format_detected ?? 'unknown',
-              is_gzip: result.is_gzip ?? false,
-              is_zip: result.is_zip ?? false,
-            })
-          }
-          setInputPath('')
-        } else if (result.type === 'directory') {
-          if (onLocalPathStream) {
-            onLocalPathStream(path, 'directory', result)
-          } else {
-            onLocalFilePath?.(path, {
-              session_file: path,
-              line_count: result.total_files ?? 0,
-              size_bytes: 0,
-              format_detected: 'directory',
-              is_gzip: false,
-              is_zip: false,
-            })
-          }
-          setInputPath('')
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : t('parseError')
-        setScanError(msg)
-      } finally {
-        setInputLoading(false)
-      }
+      onLocalPath?.(path)
+      setInputPath('')
     },
-    [onLocalFilePath, onLocalPathStream, t],
+    [onLocalPath],
   )
 
   const props: UploadProps = {
@@ -234,7 +45,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     showUploadList: false,
     beforeUpload: (_file, fileList) => {
       if (fileList[0] === _file) {
-        void handleFiles(fileList as File[])
+        onFiles(fileList as File[])
       }
       return false
     },
@@ -289,8 +100,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
         {!compact && <div className="ant-upload-hint">{t('supportedFormats')}</div>}
       </Dragger>
 
-      {/* Local path input — auto-detects file vs directory */}
-      {!compact && (onLocalFilePath || onLocalPathStream) && (
+      {/* Local path input — path passed directly to agent for autonomous file discovery */}
+      {!compact && onLocalPath && (
         <>
           <Divider style={{ margin: '12px 0', fontSize: 12 }}>{t('orEnterLocalFilePath')}</Divider>
           <Space.Compact style={{ width: '100%' }}>
@@ -301,20 +112,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
               onChange={(e) => setInputPath(e.target.value)}
               onPressEnter={() => {
                 if (inputPath.trim()) {
-                  void handlePathSubmit(inputPath.trim())
+                  handlePathSubmit(inputPath.trim())
                 }
               }}
-              disabled={loading || inputLoading}
+              disabled={loading}
             />
             <Button
               type="primary"
               onClick={() => {
                 if (inputPath.trim()) {
-                  void handlePathSubmit(inputPath.trim())
+                  handlePathSubmit(inputPath.trim())
                 }
               }}
-              disabled={!inputPath.trim() || loading || inputLoading}
-              loading={inputLoading}
+              disabled={!inputPath.trim() || loading}
             >
               {t('loadLogs')}
             </Button>

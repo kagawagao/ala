@@ -82,6 +82,10 @@ class SetPcapRequest(BaseModel):
     entries: list[dict]
 
 
+class SetHciRequest(BaseModel):
+    entries: list[dict]
+
+
 def _session_to_response(session) -> Session:
     return Session(
         id=session.id,
@@ -211,6 +215,16 @@ async def set_session_pcap(session_id: str, req: SetPcapRequest):
     return {"success": True, "stored": len(entries)}
 
 
+@router.put("/sessions/{session_id}/hci")
+async def set_session_hci(session_id: str, req: SetHciRequest):
+    """Store HCI entries in the session for agentic tool access."""
+    entries = req.entries
+    ok = _session_manager.set_hci_entries(session_id, entries)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True, "stored": len(entries)}
+
+
 @router.post("/sessions/{session_id}/messages")
 async def send_message(session_id: str, req: SendMessageRequest, request: Request):
     session = _session_manager.get_session(session_id)
@@ -263,13 +277,20 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
     trace_summary = session.trace_summary
     log_entries = session.log_entries
     pcap_entries = session.pcap_entries
+    hci_entries = session.hci_entries
     file_path = session.file_path
 
     logger.debug(
         "send_message — session=%s model=%s agentic=%s",
         session_id,
         ov.model if ov else ai_config.model,
-        bool(project or trace_summary or log_entries is not None or pcap_entries is not None),
+        bool(
+            project
+            or trace_summary
+            or log_entries is not None
+            or pcap_entries is not None
+            or hci_entries is not None
+        ),
     )
 
     async def event_stream():
@@ -282,9 +303,10 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 or trace_summary
                 or log_entries is not None
                 or pcap_entries is not None
+                or hci_entries is not None
                 or file_path is not None
             ):
-                # Agentic mode: project, trace, log, pcap, or lazy local file tools.
+                # Agentic mode: project, trace, log, pcap, hci, or lazy local file tools.
                 # Resume from stored raw API messages if available and provider matches.
                 async for chunk in ai_service.stream_chat_agentic(
                     messages,
@@ -292,6 +314,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     pcap_entries=pcap_entries,
+                    hci_entries=hci_entries,
                     log_index=session.log_index,
                     file_path=file_path,
                     api_messages_out=api_messages_out,

@@ -1,33 +1,36 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { Card, Table, Tag, Typography, Empty, Row, Col, Statistic, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { PcapEntry, PcapStatistics } from '../types/pcap'
+import type { HciEntry, HciStatistics } from '../types/hci'
 
 const { Text } = Typography
 
-interface PcapViewerProps {
-  entries: PcapEntry[]
+interface HciViewerProps {
+  entries: HciEntry[]
   totalPackets: number
   formatDetected?: string
-  /** Pre-computed statistics from server (lazy mode). Falls back to client-side compute. */
-  statistics?: PcapStatistics | null
+  statistics?: HciStatistics | null
 }
 
-/** Compute PCAP statistics client-side to avoid re-uploading the full packet list. */
-function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
+const TYPE_COLORS: Record<string, string> = {
+  COMMAND: 'blue',
+  EVENT: 'green',
+  ACL_DATA: 'orange',
+  SCO_DATA: 'purple',
+  ISO_DATA: 'cyan',
+}
+
+function computeStatistics(entries: HciEntry[]): HciStatistics | null {
   if (entries.length === 0) return null
 
-  const byProtocol: Record<string, number> = {}
-  const ips = new Set<string>()
-  const connections = new Set<string>()
+  const byDirection: Record<string, number> = {}
+  const byType: Record<string, number> = {}
+  const opcodes = new Set<number>()
 
   for (const e of entries) {
-    byProtocol[e.protocol] = (byProtocol[e.protocol] ?? 0) + 1
-    if (e.src_ip && e.src_ip !== '?') ips.add(e.src_ip)
-    if (e.dst_ip && e.dst_ip !== '?') ips.add(e.dst_ip)
-    if (e.src_port != null && e.dst_port != null) {
-      connections.add(`${e.src_ip}:${e.src_port}->${e.dst_ip}:${e.dst_port}`)
-    }
+    byDirection[e.direction] = (byDirection[e.direction] ?? 0) + 1
+    byType[e.hci_type] = (byType[e.hci_type] ?? 0) + 1
+    if (e.opcode != null) opcodes.add(e.opcode)
   }
 
   const timestamps = entries
@@ -45,14 +48,14 @@ function computeStatistics(entries: PcapEntry[]): PcapStatistics | null {
 
   return {
     total: entries.length,
-    by_protocol: byProtocol,
-    unique_ips: ips.size,
-    unique_connections: connections.size,
+    by_direction: byDirection,
+    by_type: byType,
     duration_seconds,
+    unique_opcodes: opcodes.size,
   }
 }
 
-const PcapViewer: React.FC<PcapViewerProps> = ({
+const HciViewer: React.FC<HciViewerProps> = ({
   entries,
   totalPackets,
   formatDetected,
@@ -68,7 +71,6 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
   const packetTableWrapperRef = useRef<HTMLDivElement>(null)
   const [packetTableHeight, setPacketTableHeight] = useState(400)
 
-  // Auto-resize table based on container
   React.useEffect(() => {
     const el = packetTableWrapperRef.current
     if (!el) return
@@ -93,7 +95,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
 
   const packetColumns = [
     {
-      title: t('pcapPacketNumber'),
+      title: '#',
       dataIndex: 'packet_number',
       key: 'packet_number',
       width: 70,
@@ -109,51 +111,59 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
       ),
     },
     {
-      title: t('protocol'),
-      dataIndex: 'protocol',
-      key: 'protocol',
-      width: 90,
-      render: (proto: string) => <Tag color="blue">{proto}</Tag>,
+      title: t('hciDirection'),
+      dataIndex: 'direction',
+      key: 'direction',
+      width: 100,
+      render: (dir: string) => {
+        const isHostToCtrl = dir === 'HOST_TO_CONTROLLER'
+        return (
+          <Tag color={isHostToCtrl ? 'blue' : 'green'}>
+            {isHostToCtrl ? t('hciDirectionHostToController') : t('hciDirectionControllerToHost')}
+          </Tag>
+        )
+      },
     },
     {
-      title: t('source'),
-      key: 'source',
-      width: 180,
-      render: (_: unknown, record: PcapEntry) => (
-        <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
-          {record.src_ip}
-          {record.src_port != null ? `:${record.src_port}` : ''}
-        </Text>
-      ),
+      title: t('hciType'),
+      dataIndex: 'hci_type',
+      key: 'hci_type',
+      width: 100,
+      render: (hciType: string) => <Tag color={TYPE_COLORS[hciType] || 'default'}>{hciType}</Tag>,
     },
     {
-      title: t('destination'),
-      key: 'destination',
-      width: 180,
-      render: (_: unknown, record: PcapEntry) => (
-        <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
-          {record.dst_ip}
-          {record.dst_port != null ? `:${record.dst_port}` : ''}
-        </Text>
-      ),
+      title: t('hciOpcode'),
+      key: 'opcode',
+      width: 200,
+      render: (_: unknown, record: HciEntry) => {
+        if (record.opcode_name) {
+          return (
+            <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
+              0x{record.opcode?.toString(16).toUpperCase().padStart(4, '0')} ({record.opcode_name})
+            </Text>
+          )
+        }
+        if (record.event_name) {
+          return (
+            <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>
+              Evt 0x{record.event_code?.toString(16).toUpperCase().padStart(2, '0')} (
+              {record.event_name})
+            </Text>
+          )
+        }
+        return '—'
+      },
     },
     {
       title: t('length'),
-      dataIndex: 'length',
-      key: 'length',
+      dataIndex: 'data_length',
+      key: 'data_length',
       width: 80,
     },
     {
-      title: t('tcpFlags'),
-      dataIndex: 'tcp_flags',
-      key: 'tcp_flags',
-      width: 120,
-      render: (flags: string | null) => (flags ? <Tag color="orange">{flags}</Tag> : '—'),
-    },
-    {
       title: t('info'),
-      dataIndex: 'info',
-      key: 'info',
+      dataIndex: 'raw_summary',
+      key: 'raw_summary',
       ellipsis: true,
       render: (info: string) => (
         <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>{info}</Text>
@@ -168,7 +178,7 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
         <Col span={6}>
           <Card size="small">
             <Statistic
-              title={t('totalPackets')}
+              title={t('totalHciPackets')}
               value={entries.length}
               suffix={totalPackets !== entries.length ? `/ ${totalPackets}` : ''}
               styles={
@@ -181,12 +191,20 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title={t('uniqueIPs')} value={statistics?.unique_ips ?? 0} />
+            <Statistic
+              title={t('hciDirectionDistribution')}
+              value={
+                statistics
+                  ? `${(statistics.by_direction?.['HOST_TO_CONTROLLER'] ?? 0) + (statistics.by_direction?.['CONTROLLER_TO_HOST'] ?? 0)}`
+                  : 0
+              }
+              suffix={t('hciPacketCount')}
+            />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title={t('connections')} value={statistics?.unique_connections ?? 0} />
+            <Statistic title={t('hciUniqueOpcodes')} value={statistics?.unique_opcodes ?? 0} />
           </Card>
         </Col>
         <Col span={6}>
@@ -206,21 +224,39 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
         <Col>
           {formatDetected && (
             <Tag>
-              {t('pcapFormat')}: {formatDetected}
+              {t('hciFormat')}: {formatDetected}
             </Tag>
           )}
         </Col>
       </Row>
 
-      {/* Protocol Distribution */}
-      {statistics && statistics.by_protocol && Object.keys(statistics.by_protocol).length > 0 && (
-        <Card size="small" title={t('protocolDistribution')} style={{ marginBottom: 12 }}>
+      {/* Direction Distribution */}
+      {statistics && statistics.by_direction && Object.keys(statistics.by_direction).length > 0 && (
+        <Card size="small" title={t('hciDirectionDistribution')} style={{ marginBottom: 12 }}>
           <Space wrap>
-            {Object.entries(statistics.by_protocol)
+            {Object.entries(statistics.by_direction)
               .sort((a, b) => b[1] - a[1])
-              .map(([proto, count]) => (
-                <Tag key={proto} color="blue">
-                  {proto}: {count}
+              .map(([dir, count]) => (
+                <Tag key={dir} color={dir === 'HOST_TO_CONTROLLER' ? 'blue' : 'green'}>
+                  {dir === 'HOST_TO_CONTROLLER'
+                    ? t('hciHostToController')
+                    : t('hciControllerToHost')}
+                  : {count}
+                </Tag>
+              ))}
+          </Space>
+        </Card>
+      )}
+
+      {/* HCI Type Distribution */}
+      {statistics && statistics.by_type && Object.keys(statistics.by_type).length > 0 && (
+        <Card size="small" title={t('hciTypeDistribution')} style={{ marginBottom: 12 }}>
+          <Space wrap>
+            {Object.entries(statistics.by_type)
+              .sort((a, b) => b[1] - a[1])
+              .map(([hciType, count]) => (
+                <Tag key={hciType} color={TYPE_COLORS[hciType] || 'default'}>
+                  {hciType}: {count}
                 </Tag>
               ))}
           </Space>
@@ -245,4 +281,4 @@ const PcapViewer: React.FC<PcapViewerProps> = ({
   )
 }
 
-export default PcapViewer
+export default HciViewer

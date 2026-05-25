@@ -95,6 +95,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     except sqlite3.Error:
         logger.warning("Failed to add pcap_entries column", exc_info=True)
 
+    # Schema migration: add hci_entries column if it doesn't exist
+    try:
+        cur = conn.execute("PRAGMA table_info(sessions)")
+        columns = [row[1] for row in cur.fetchall()]
+        if "hci_entries" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN hci_entries TEXT")
+            conn.commit()
+            logger.info("Added hci_entries column to sessions table")
+    except sqlite3.Error:
+        logger.warning("Failed to add hci_entries column", exc_info=True)
+
 
 def _import_projects_json(conn: sqlite3.Connection) -> None:
     """If DB has no projects and ~/.ala/projects.json exists, import it."""

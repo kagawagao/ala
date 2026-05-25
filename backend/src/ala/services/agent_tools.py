@@ -733,6 +733,104 @@ PCAP_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+# Anthropic tool schemas – HCI Bluetooth tools
+HCI_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "query_hci_overview",
+        "description": (
+            "Get statistics about the loaded Bluetooth HCI (BTSnoop) log: "
+            "total packet count, direction distribution (host-to-controller vs "
+            "controller-to-host), HCI type distribution (command, event, ACL, "
+            "SCO, ISO), time range, and unique opcode count."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "search_hci_packets",
+        "description": (
+            "Search and filter HCI packets in the loaded BTSnoop log. "
+            "Filter by direction, HCI type, opcode, event code, or keywords. "
+            "Returns up to `limit` matching packets starting at `offset`."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string",
+                    "description": "HOST_TO_CONTROLLER or CONTROLLER_TO_HOST",
+                },
+                "hci_type": {
+                    "type": "string",
+                    "description": "COMMAND, EVENT, ACL_DATA, SCO_DATA, ISO_DATA",
+                },
+                "opcode": {
+                    "type": "integer",
+                    "description": "Numeric HCI command opcode (OGF<<10 | OCF), e.g. 0x200D",
+                },
+                "opcode_name": {
+                    "type": "string",
+                    "description": "Substring match on human-readable opcode name",
+                },
+                "event_code": {
+                    "type": "integer",
+                    "description": "Numeric HCI event code (e.g. 0x07 for COMMAND_COMPLETE)",
+                },
+                "event_name": {
+                    "type": "string",
+                    "description": "Substring match on human-readable event name",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Search for text or hex pattern in packet raw_summary",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Skip this many matching packets (for pagination)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of packets to return (default: 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "list_hci_files",
+        "description": (
+            "List the Bluetooth HCI (BTSnoop) files currently loaded in this session. "
+            "Returns the unique source file names. "
+            "Use this to discover what HCI log data is available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "decode_hci_opcode",
+        "description": (
+            "Decode a numeric HCI command opcode to its human-readable name. "
+            "The opcode is OGF<<10 | OCF. Returns the OGF group, OCF, and standard name."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "opcode": {
+                    "type": "integer",
+                    "description": "HCI command opcode (e.g. 0x200D for LE_CREATE_CONNECTION)",
+                },
+            },
+            "required": ["opcode"],
+        },
+    },
+]
+
 # Anthropic tool schemas – log-specific tools
 LOG_TOOLS: list[dict[str, Any]] = [
     {
@@ -811,6 +909,7 @@ def execute_tool(
     trace_summary: dict | None = None,
     log_entries: list[dict] | None = None,
     pcap_entries: list[dict] | None = None,
+    hci_entries: list[dict] | None = None,
     log_index: "LogIndex | None" = None,
     file_path: str | None = None,
 ) -> str:
@@ -848,6 +947,17 @@ def execute_tool(
         if pcap_entries is None:
             return json.dumps({"error": "No PCAP data loaded in this session"})
         return _execute_pcap_tool(tool_name, args, pcap_entries)
+
+    # HCI tools
+    if tool_name in (
+        "query_hci_overview",
+        "search_hci_packets",
+        "list_hci_files",
+        "decode_hci_opcode",
+    ):
+        if hci_entries is None:
+            return json.dumps({"error": "No HCI data loaded in this session"})
+        return _execute_hci_tool(tool_name, args, hci_entries)
 
     # Lazy log tools (operate on local file/directory path, not in-memory entries)
     if tool_name in (
@@ -1435,6 +1545,140 @@ def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> 
         )
 
     return json.dumps({"error": f"Unknown PCAP tool: {tool_name}"})
+
+
+def _execute_hci_tool(tool_name: str, args: dict, hci_entries: list[dict]) -> str:
+    """Handle HCI-query tools against stored HCI entries."""
+    if tool_name == "query_hci_overview":
+        directions: dict[str, int] = {}
+        types: dict[str, int] = {}
+        opcodes: set[int] = set()
+        min_time = None
+        max_time = None
+
+        for entry in hci_entries:
+            direction = entry.get("direction", "Unknown")
+            directions[direction] = directions.get(direction, 0) + 1
+
+            hci_type = entry.get("hci_type", "Unknown")
+            types[hci_type] = types.get(hci_type, 0) + 1
+
+            opcode = entry.get("opcode")
+            if opcode is not None:
+                opcodes.add(opcode)
+
+            timestamp = entry.get("timestamp")
+            if timestamp:
+                if min_time is None or timestamp < min_time:
+                    min_time = timestamp
+                if max_time is None or timestamp > max_time:
+                    max_time = timestamp
+
+        return json.dumps(
+            {
+                "total_packets": len(hci_entries),
+                "by_direction": directions,
+                "by_type": types,
+                "unique_opcodes": len(opcodes),
+                "time_range": {
+                    "start": min_time,
+                    "end": max_time,
+                }
+                if min_time and max_time
+                else None,
+            }
+        )
+
+    if tool_name == "search_hci_packets":
+        filtered = hci_entries
+
+        direction = args.get("direction", "")
+        if direction:
+            filtered = [e for e in filtered if e.get("direction") == direction]
+
+        hci_type = args.get("hci_type", "")
+        if hci_type:
+            filtered = [e for e in filtered if e.get("hci_type") == hci_type]
+
+        opcode = args.get("opcode")
+        if opcode is not None:
+            filtered = [e for e in filtered if e.get("opcode") == opcode]
+
+        opcode_name = args.get("opcode_name", "")
+        if opcode_name:
+            opcode_name_upper = opcode_name.upper()
+            filtered = [
+                e
+                for e in filtered
+                if e.get("opcode_name") and opcode_name_upper in e["opcode_name"].upper()
+            ]
+
+        event_code = args.get("event_code")
+        if event_code is not None:
+            filtered = [e for e in filtered if e.get("event_code") == event_code]
+
+        event_name = args.get("event_name", "")
+        if event_name:
+            event_name_upper = event_name.upper()
+            filtered = [
+                e
+                for e in filtered
+                if e.get("event_name") and event_name_upper in e["event_name"].upper()
+            ]
+
+        content = args.get("content", "")
+        if content:
+            pattern = re.compile(re.escape(content), re.IGNORECASE)
+            filtered = [e for e in filtered if pattern.search(e.get("raw_summary", ""))]
+
+        # Pagination
+        try:
+            offset = int(args.get("offset", 0))
+        except (ValueError, TypeError):
+            offset = 0
+        try:
+            limit = min(int(args.get("limit", 50)), 500)
+        except (ValueError, TypeError):
+            limit = 50
+
+        return json.dumps(
+            {
+                "total": len(filtered),
+                "packets": filtered[offset : offset + limit],
+            }
+        )
+
+    if tool_name == "list_hci_files":
+        source_files = sorted(set(e.get("source_file", "unknown") for e in hci_entries))
+        return json.dumps(
+            {
+                "total": len(source_files),
+                "files": source_files,
+            }
+        )
+
+    if tool_name == "decode_hci_opcode":
+        from .hci_analyzer import _decode_opcode
+
+        try:
+            opcode_val = int(args.get("opcode", 0))
+        except (ValueError, TypeError):
+            return json.dumps({"error": "opcode must be an integer"})
+
+        ogf, ocf, name = _decode_opcode(opcode_val)
+        return json.dumps(
+            {
+                "opcode": opcode_val,
+                "opcode_hex": f"0x{opcode_val:04X}",
+                "ogf": ogf,
+                "ogf_hex": f"0x{ogf:02X}",
+                "ocf": ocf,
+                "ocf_hex": f"0x{ocf:03X}",
+                "name": name,
+            }
+        )
+
+    return json.dumps({"error": f"Unknown HCI tool: {tool_name}"})
 
 
 def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
