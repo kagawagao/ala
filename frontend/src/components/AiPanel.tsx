@@ -40,6 +40,7 @@ import {
   setSessionFilePath,
   setSessionLogs,
   setSessionPcap,
+  setSessionHci,
   setSessionTrace,
 } from '../api/chat'
 import { listModels } from '../api/models'
@@ -91,6 +92,7 @@ interface AiPanelProps {
   filters: LogFilters
   traceResult: TraceParseResult | null
   pcapEntries: import('../types/pcap').PcapEntry[]
+  hciEntries: import('../types/hci').HciEntry[]
   aiConfigured: boolean
   selectedProjectId: string | null
   projects: Project[]
@@ -229,6 +231,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   filters: _filters,
   traceResult,
   pcapEntries,
+  hciEntries,
   aiConfigured,
   selectedProjectId,
   projects,
@@ -260,6 +263,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const textAreaRef = useRef<TextAreaRef>(null)
   const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pcapSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hciSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)
 
@@ -395,6 +399,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }, [pcapEntries, activeSessionId])
 
+  // Debounced sync of HCI data to the active session (500ms debounce)
+  useEffect(() => {
+    if (!activeSessionId) return
+    if (hciSyncTimerRef.current) clearTimeout(hciSyncTimerRef.current)
+    hciSyncTimerRef.current = setTimeout(() => {
+      void setSessionHci(activeSessionId, hciEntries as unknown as Record<string, unknown>[])
+    }, 500)
+    return () => {
+      if (hciSyncTimerRef.current) clearTimeout(hciSyncTimerRef.current)
+    }
+  }, [hciEntries, activeSessionId])
+
   // Sync local file path to the active session (FEAT-LAZY-LOG)
   useEffect(() => {
     if (!activeSessionId) return
@@ -434,11 +450,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
       const contextType =
         pcapEntries.length > 0
           ? 'pcap'
-          : allLogs.length > 0
-            ? 'log'
-            : traceResult
-              ? 'trace'
-              : 'general'
+          : hciEntries.length > 0
+            ? 'hci'
+            : allLogs.length > 0
+              ? 'log'
+              : traceResult
+                ? 'trace'
+                : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
         contextType,
@@ -452,6 +470,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
       }
       if (pcapEntries.length > 0) {
         await setSessionPcap(session.id, pcapEntries as unknown as Record<string, unknown>[])
+      }
+      if (hciEntries.length > 0) {
+        await setSessionHci(session.id, hciEntries as unknown as Record<string, unknown>[])
       }
       if (allLogs.length > 0) {
         await setSessionLogs(session.id, allLogs as unknown as Record<string, unknown>[])

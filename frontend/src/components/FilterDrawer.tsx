@@ -9,11 +9,13 @@ import type {
   TraceParseResult,
 } from '../types'
 import type { PcapEntry } from '../types/pcap'
+import type { HciEntry } from '../types/hci'
 import LogFilterPanel from './LogFilterPanel'
 import PcapFilterPanel from './PcapFilterPanel'
+import HciFilterPanel from './HciFilterPanel'
 import TraceFilterPanel from './TraceFilterPanel'
 
-type FilterTab = 'log' | 'trace' | 'pcap'
+type FilterTab = 'log' | 'trace' | 'pcap' | 'hci'
 
 interface FilterDrawerProps {
   activeTab: FilterTab
@@ -37,6 +39,9 @@ interface FilterDrawerProps {
   // PCAP filters
   pcapEntries?: PcapEntry[]
   onPcapFilteredEntries?: (entries: PcapEntry[]) => void
+  // HCI filters
+  hciEntries?: HciEntry[]
+  onHciFilteredEntries?: (entries: HciEntry[]) => void
 }
 
 const FilterDrawer: React.FC<FilterDrawerProps> = ({
@@ -57,6 +62,8 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   onTraceFilteredResult,
   pcapEntries,
   onPcapFilteredEntries,
+  hciEntries,
+  onHciFilteredEntries,
 }) => {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -133,6 +140,18 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
         }
         return <PcapFilterPanel entries={pcapEntries} onFilteredEntries={onPcapFilteredEntries} />
 
+      case 'hci':
+        if (!hciEntries || !onHciFilteredEntries) {
+          return (
+            <div
+              style={{ padding: 16, textAlign: 'center', color: 'var(--ant-color-text-secondary)' }}
+            >
+              {t('noFiltersAvailable')}
+            </div>
+          )
+        }
+        return <HciFilterPanel entries={hciEntries} onFilteredEntries={onHciFilteredEntries} />
+
       default:
         return (
           <div
@@ -152,6 +171,8 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
         return t('traceFilters')
       case 'pcap':
         return t('pcapFilters')
+      case 'hci':
+        return t('hciFilters')
       default:
         return t('filters')
     }

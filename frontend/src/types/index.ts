@@ -72,7 +72,7 @@ export interface Session {
   title: string
   messages: ChatMessage[]
   created_at: string
-  context_type: 'log' | 'trace' | 'pcap' | 'general'
+  context_type: 'log' | 'trace' | 'pcap' | 'hci' | 'general'
   project_id: string | null
 }
 

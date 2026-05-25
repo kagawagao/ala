@@ -20,6 +20,7 @@ import openai
 from ..config import settings
 from .agent_tools import (
     AGENT_TOOLS,
+    HCI_TOOLS,
     LAZY_LOG_TOOLS,
     LOG_TOOLS,
     PCAP_TOOLS,
@@ -245,6 +246,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         pcap_entries: list[dict] | None = None,
+        hci_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -278,6 +280,7 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 pcap_entries=pcap_entries,
+                hci_entries=hci_entries,
                 log_index=log_index,
                 file_path=file_path,
                 api_messages_out=api_messages_out,
@@ -292,6 +295,7 @@ class AIService:
                 trace_summary=trace_summary,
                 log_entries=log_entries,
                 pcap_entries=pcap_entries,
+                hci_entries=hci_entries,
                 log_index=log_index,
                 file_path=file_path,
                 api_messages_out=api_messages_out,
@@ -318,6 +322,7 @@ class AIService:
         trace_summary: dict | None,
         log_entries: list[dict] | None,
         pcap_entries: list[dict] | None = None,
+        hci_entries: list[dict] | None = None,
         file_path: str | None = None,
         language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
@@ -419,6 +424,22 @@ class AIService:
                 f"Complete the full analysis before responding; never stop mid-analysis."
             )
             parts.append(pcap_hint)
+
+        if hci_entries is not None:
+            tools.extend(HCI_TOOLS)
+            n_packets = len(hci_entries)
+            hci_hint = (
+                f"{n_packets} Bluetooth HCI packets (BTSnoop) are loaded in this session. "
+                f"Always start with query_hci_overview to get statistics "
+                f"(direction distribution, HCI type distribution, time range). "
+                f"Then use search_hci_packets with specific filters to find relevant packets. "
+                f"Filter by direction (HOST_TO_CONTROLLER/CONTROLLER_TO_HOST), "
+                f"HCI type (COMMAND/EVENT/ACL_DATA/SCO_DATA/ISO_DATA), opcode, or event code. "
+                f"Use decode_hci_opcode to look up command names from numeric opcodes. "
+                f"Use list_hci_files to see which source files are loaded. "
+                f"Complete the full analysis before responding; never stop mid-analysis."
+            )
+            parts.append(hci_hint)
 
         if log_entries is not None:
             tools.extend(LOG_TOOLS)
@@ -562,6 +583,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         pcap_entries: list[dict] | None = None,
+        hci_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -581,6 +603,7 @@ class AIService:
             trace_summary,
             log_entries,
             pcap_entries,
+            hci_entries=hci_entries,
             file_path=file_path,
             language=language,
         )
@@ -750,6 +773,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     pcap_entries=pcap_entries,
+                    hci_entries=hci_entries,
                     log_index=log_index,
                     file_path=file_path,
                 )
@@ -842,6 +866,7 @@ class AIService:
         trace_summary: dict | None = None,
         log_entries: list[dict] | None = None,
         pcap_entries: list[dict] | None = None,
+        hci_entries: list[dict] | None = None,
         log_index: LogIndex | None = None,
         file_path: str | None = None,
         api_messages_out: list | None = None,
@@ -861,6 +886,7 @@ class AIService:
             trace_summary,
             log_entries,
             pcap_entries,
+            hci_entries=hci_entries,
             file_path=file_path,
             language=language,
         )
@@ -1032,6 +1058,7 @@ class AIService:
                     trace_summary=trace_summary,
                     log_entries=log_entries,
                     pcap_entries=pcap_entries,
+                    hci_entries=hci_entries,
                     log_index=log_index,
                     file_path=file_path,
                 )

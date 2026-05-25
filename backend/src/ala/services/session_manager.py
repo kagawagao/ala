@@ -32,6 +32,7 @@ class Session:
     trace_summary: dict | None = None
     log_entries: list[dict[str, Any]] | None = None
     pcap_entries: list[dict[str, Any]] | None = None  # Network capture packets
+    hci_entries: list[dict[str, Any]] | None = None  # Bluetooth HCI packets
     file_path: str | None = None  # FEAT-LAZY-LOG: local file path for lazy analysis
     log_index: LogIndex | None = None
     # Raw provider-specific API message history (including tool-call blocks).
@@ -60,6 +61,7 @@ class SessionManager:
             trace_summary=json.loads(row["trace_summary"]) if row["trace_summary"] else None,
             log_entries=json.loads(row["log_entries"]) if row["log_entries"] else None,
             pcap_entries=json.loads(row["pcap_entries"]) if row["pcap_entries"] else None,
+            hci_entries=json.loads(row["hci_entries"]) if row["hci_entries"] else None,
             file_path=row["file_path"],
             log_index=self._log_index_cache.get(sid),
             raw_api_messages=json.loads(row["raw_api_messages"])
@@ -206,6 +208,18 @@ class SessionManager:
             return False
         self._db.execute(
             "UPDATE sessions SET pcap_entries = ? WHERE id = ?",
+            (json.dumps(entries), session_id),
+        )
+        self._db.commit()
+        return True
+
+    def set_hci_entries(self, session_id: str, entries: list[dict[str, Any]]) -> bool:
+        """Store HCI entries in the session for agentic tool access."""
+        exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if not exists:
+            return False
+        self._db.execute(
+            "UPDATE sessions SET hci_entries = ? WHERE id = ?",
             (json.dumps(entries), session_id),
         )
         self._db.commit()

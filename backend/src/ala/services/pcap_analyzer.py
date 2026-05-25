@@ -208,6 +208,16 @@ class PcapAnalyzer:
         finally:
             pcap_io.close()
 
+    @staticmethod
+    def _safe_int(value) -> int:
+        """Convert scapy field values to native int (handles EDecimal, Decimal, etc.)."""
+        return int(value)
+
+    @staticmethod
+    def _safe_float(value) -> float:
+        """Convert scapy field values to native float (handles EDecimal, Decimal, etc.)."""
+        return float(value)
+
     def _packet_to_entry(
         self, pkt: "Packet", packet_number: int, source_file: str | None = None
     ) -> PcapEntry:
@@ -215,9 +225,9 @@ class PcapAnalyzer:
         # Extract timestamp
         timestamp = None
         if hasattr(pkt, "time") and pkt.time:
-            timestamp = datetime.fromtimestamp(pkt.time, tz=UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[
-                :-3
-            ]
+            timestamp = datetime.fromtimestamp(self._safe_float(pkt.time), tz=UTC).strftime(
+                "%Y-%m-%d %H:%M:%S.%f"
+            )[:-3]
 
         # Extract network layer info
         protocol = "UNKNOWN"
@@ -242,28 +252,28 @@ class PcapAnalyzer:
         # Check for TCP/UDP
         if TCP in pkt:
             tcp_layer = pkt[TCP]
-            src_port = tcp_layer.sport
-            dst_port = tcp_layer.dport
+            src_port = self._safe_int(tcp_layer.sport)
+            dst_port = self._safe_int(tcp_layer.dport)
             protocol = "TCP"
-            # Build TCP flags string
+            flags_val = self._safe_int(tcp_layer.flags)
             flags = []
-            if tcp_layer.flags & 0x02:
+            if flags_val & 0x02:
                 flags.append("SYN")
-            if tcp_layer.flags & 0x10:
+            if flags_val & 0x10:
                 flags.append("ACK")
-            if tcp_layer.flags & 0x01:
+            if flags_val & 0x01:
                 flags.append("FIN")
-            if tcp_layer.flags & 0x04:
+            if flags_val & 0x04:
                 flags.append("RST")
-            if tcp_layer.flags & 0x08:
+            if flags_val & 0x08:
                 flags.append("PSH")
-            if tcp_layer.flags & 0x20:
+            if flags_val & 0x20:
                 flags.append("URG")
             tcp_flags = ",".join(flags) if flags else None
         elif UDP in pkt:
             udp_layer = pkt[UDP]
-            src_port = udp_layer.sport
-            dst_port = udp_layer.dport
+            src_port = self._safe_int(udp_layer.sport)
+            dst_port = self._safe_int(udp_layer.dport)
             protocol = "UDP"
 
         # Get packet length

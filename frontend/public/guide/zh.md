@@ -1,15 +1,19 @@
 # ALA 使用指南
 
-ALA（Android Log Analyzer）是一款 AI 驱动的全栈工具，用于分析 Android logcat 输出、Perfetto Trace 以及网络抓包（PCAP）。
+ALA（Android Log Analyzer）是一款 AI 驱动的全栈工具，用于分析 Android logcat 输出、Perfetto Trace、网络抓包（PCAP）以及蓝牙 HCI 日志。
 
 ---
 
 ## 快速开始
 
-1. **打开文件** – 点击上传面板、将文件拖放到主区域，或在上传区域下方的路径输入框中直接输入本地文件或目录路径。
-   支持格式：`.log`、`.txt`、`.gz`、`.zip`（logcat），`.pb`、`.json`（Perfetto Trace），`.pcap`、`.pcapng`（网络抓包）。
-2. **应用过滤器** – 按 `Ctrl+K`（macOS 按 `Cmd+K`）打开右侧过滤抽屉，设置条件后点击**应用过滤器**更新视图。
-3. **切换视图** – 在**日志分析**、**Trace 分析**与 **PCAP 分析**标签之间切换查看结果。
+1. **打开文件** – 点击上传面板、将文件拖放到主区域，或在上传区域下方的
+   路径输入框中直接输入本地文件或目录路径。
+   支持格式：`.log`、`.txt`、`.gz`、`.zip`（logcat），`.pb`、`.json`
+   （Perfetto Trace），`.pcap`、`.pcapng`（网络抓包），`.hci`、`.btsnoop`、
+   `.cfa`（蓝牙 HCI）。
+2. **应用过滤器** – 按 `Ctrl+K`（macOS 按 `Cmd+K`）打开右侧过滤抽屉，
+   设置条件后点击**应用过滤器**更新视图。
+3. **切换视图** – 在**日志分析**、**Trace 分析**、**PCAP 分析**与**蓝牙 HCI** 标签之间切换查看结果。
 4. **选择项目** – 可在顶栏下拉框中选择项目，为 AI 助手提供源码上下文。
 
 ---
@@ -54,6 +58,23 @@ ALA（Android Log Analyzer）是一款 AI 驱动的全栈工具，用于分析 A
 
 ---
 
+## 蓝牙 HCI 分析
+
+- 上传一个或多个蓝牙 HCI 日志文件（`.hci`、`.btsnoop`、`.cfa`），同时支持 `.gz` 和 `.zip` 压缩包。
+- 查看**数据包详情**：包序号、时间戳、方向（Host→Controller 或 Controller→Host）、HCI 类型（Command、Event、ACL Data、SCO Data、ISO Data）、操作码/事件码及解码名称、数据长度。
+- 浏览**摘要统计**：总包数、方向分布（Host→Controller vs Controller→Host）、HCI 类型分布、唯一操作码数、捕获时长。
+- 应用 **HCI 过滤器**：
+  - **方向** – Host→Controller 或 Controller→Host。
+  - **HCI 类型** – Command、Event、ACL Data、SCO Data、ISO Data。
+  - **操作码 / 操作码名称** – 按 HCI 命令操作码（十六进制或十进制）或解码名称筛选。
+  - **事件码 / 事件名称** – 按 HCI 事件码（十六进制或十进制）或解码名称筛选。
+  - **关键词** – 对数据包摘要进行全文搜索。
+- **惰性加载** — HCI 文件上传至临时存储，按需流式过滤。大型日志文件逐步加载，不阻塞界面。
+- **操作码/事件解码** — HCI 命令操作码和事件码自动解码为可读名称（如 `0x0C01` → "LE Set Advertising Data"，`0x3E` → "LE Meta Event"）。
+- **统计信息** — 方向分布、HCI 类型占比及唯一操作码统计由服务端计算。
+
+---
+
 ## AI 助手
 
 1. **配置 AI** – 点击顶栏的**模型管理**（方格图标），输入 API 端点、密钥和模型名称。
@@ -95,6 +116,6 @@ ALA（Android Log Analyzer）是一款 AI 驱动的全栈工具，用于分析 A
 - **后端必须运行**，前端才能连接。若状态标签显示「未连接」，请先启动 Python 后端。
 - API Key **存储在浏览器本地**（`localStorage`），并在发送 AI 请求时传输至 ALA 后端以转发给所配置的 AI 服务商。除您配置的服务商外，Key 不会发送给任何第三方。
 - 日志文件以流式方式传输至后端，超大文件内容将逐步显示。
-- PCAP 文件采用惰性加载：上传至临时路径后按需过滤，应用过滤器前不会完整解析整个文件。
+- PCAP 与 HCI 文件均采用惰性加载：上传至临时路径后按需过滤，应用过滤器前不会完整解析整个文件。
 - 使用**导出**按钮（CSV 或 JSON）将过滤后的日志条目下载以供进一步处理。
 - 版本号显示在顶栏中 — 反馈问题时便于提供。
