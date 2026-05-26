@@ -86,6 +86,10 @@ for _pkg in (
 # Hidden imports that PyInstaller's static analysis misses
 # ---------------------------------------------------------------------------
 hiddenimports = [
+    # Python stdlib C extensions sometimes missed on Windows
+    "socket",          # ensures _socket.pyd is bundled (fixes pyi_rth_multiprocessing crash)
+    "_ssl",            # also a C extension; belt-and-suspenders
+
     # uvicorn internals loaded dynamically
     "uvicorn.logging",
     "uvicorn.loops",
