@@ -1,3 +1,9 @@
+## [2.4.1](https://github.com/kagawagao/ala/compare/v2.4.0...v2.4.1) (2026-05-26)
+
+### Bug Fixes
+
+* add socket and _ssl to PyInstaller hidden imports for Windows ([#94](https://github.com/kagawagao/ala/issues/94)) ([47c8163](https://github.com/kagawagao/ala/commit/47c8163c95e3c55271637e7694d49af33c3e7195))
+
 ## [2.4.0](https://github.com/kagawagao/ala/compare/v2.3.4...v2.4.0) (2026-05-25)
 
 ### Features
