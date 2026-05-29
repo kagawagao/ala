@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from ..file_detector import detect_file_type_from_path
 from ..services.log_analyzer import LogAnalyzer
 from . import code_scanner
 from .code_scanner import get_shared_scanner
@@ -1081,7 +1082,7 @@ def execute_tool(
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".hci", ".btsnoop", ".cfa"}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
@@ -1123,6 +1124,7 @@ def _list_directory(session_path: str) -> list[dict]:
             ext = os.path.splitext(entry.name)[1].lower()
             if ext not in LOG_EXTENSIONS and ext:
                 continue
+            file_type = detect_file_type_from_path(entry.path)
             try:
                 stat = entry.stat()
                 # Quick line count (first 64KB)
@@ -1140,6 +1142,7 @@ def _list_directory(session_path: str) -> list[dict]:
                     "path": entry.path,
                     "size": stat.st_size if stat else 0,
                     "line_count": line_count,
+                    "file_type": file_type,
                 }
             )
     except PermissionError:
@@ -2458,10 +2461,6 @@ _WINDOWS_BLOCKED_COMMANDS = frozenset(
         # WSL escape
         "wsl",
         "bash",
-        # Nested shells
-        "powershell",
-        "pwsh",
-        "cmd",
     }
 )
 

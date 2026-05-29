@@ -139,6 +139,13 @@ class SessionManager:
         self._log_index_cache.pop(session_id, None)
         return cur.rowcount > 0
 
+    def delete_all_sessions(self) -> int:
+        cur = self._db.execute("DELETE FROM sessions")
+        self._db.execute("DELETE FROM messages")
+        self._db.commit()
+        self._log_index_cache.clear()
+        return cur.rowcount
+
     def add_message(self, session_id: str, role: str, content: str) -> Message | None:
         # Verify session exists
         exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()

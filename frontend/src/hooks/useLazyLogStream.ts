@@ -1,7 +1,12 @@
 import { useState, useCallback, useRef } from 'react'
 import type { LogEntry, LogFilters, LogStatistics } from '../types'
-import { streamFilteredLogs } from '../api/logs'
-import type { FilterStreamDone } from '../api/logs'
+import {
+  filterLogs,
+  parseDirectoryStream,
+  parseSelectedFilesStream,
+  streamFilteredLogs,
+} from '../api/logs'
+import type { FilterStreamDone, StreamDone } from '../api/logs'
 
 export interface FilterProgress {
   matched: number
@@ -21,6 +26,7 @@ interface UseLazyLogStreamReturn {
   stats: LogStatistics | null
   totalLines: number | undefined
   loadSource: (ref: string, labels: string[], lineCount?: number, isDirectory?: boolean) => void
+  loadDirectory: (dirPath: string, selectedFiles?: string[]) => Promise<void>
   triggerFilter: (filters: LogFilters) => Promise<void>
   abort: () => void
   reset: () => void
@@ -39,6 +45,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
   const [isDirectory, setIsDirectory] = useState(false)
   const [stats, setStats] = useState<LogStatistics | null>(null)
   const [totalLines, setTotalLines] = useState<number | undefined>()
+  const [directoryEntries, setDirectoryEntries] = useState<LogEntry[]>([])
 
   const abortRef = useRef<AbortController | null>(null)
   const generationRef = useRef(0)
@@ -59,6 +66,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
     setIsDirectory(false)
     setStats(null)
     setTotalLines(undefined)
+    setDirectoryEntries([])
     setLoading(false)
   }, [abort])
 
@@ -83,6 +91,68 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
     [abort],
   )
 
+  const loadDirectory = useCallback(
+    async (dirPath: string, selectedFiles?: string[]) => {
+      abort()
+      setSourceRef(dirPath)
+      setIsDirectory(true)
+      const label = dirPath.replace(/\\/g, '/').split('/').pop() || dirPath
+      setFileNames(selectedFiles && selectedFiles.length > 0 ? selectedFiles : [label])
+      setDisplayLogs([])
+      setStats(null)
+      setFilterProgress(null)
+      setError(undefined)
+      setFormatDetected('directory')
+      setTotalLines(undefined)
+      setLoading(true)
+
+      const controller = new AbortController()
+      abortRef.current = controller
+      const gen = ++generationRef.current
+
+      const allEntries: LogEntry[] = []
+
+      try {
+        const generator =
+          selectedFiles && selectedFiles.length > 0
+            ? parseSelectedFilesStream(dirPath, selectedFiles, controller.signal)
+            : parseDirectoryStream(dirPath, controller.signal)
+        for await (const line of generator) {
+          if (controller.signal.aborted) break
+          if ('_done' in line && line._done) {
+            const done = line as StreamDone
+            if (generationRef.current === gen) {
+              setTotalLines(done.total)
+            }
+            break
+          }
+          allEntries.push(line as LogEntry)
+        }
+
+        if (generationRef.current === gen) {
+          setDirectoryEntries(allEntries)
+          setDisplayLogs(allEntries)
+          setFilterProgress({
+            matched: allEntries.length,
+            scanned: allEntries.length,
+            total: allEntries.length,
+          })
+        }
+      } catch (err: unknown) {
+        if ((err as Error).name === 'AbortError') return
+        if (generationRef.current === gen) {
+          const msg = err instanceof Error ? err.message : 'Directory parse error'
+          setError(msg)
+        }
+      } finally {
+        if (generationRef.current === gen) {
+          setLoading(false)
+        }
+      }
+    },
+    [abort],
+  )
+
   const triggerFilter = useCallback(
     async (filters: LogFilters) => {
       if (!sourceRef) {
@@ -95,6 +165,38 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
       abortRef.current = controller
 
       const gen = ++generationRef.current
+
+      // ── Directory mode: filter pre-loaded entries ────────
+      if (isDirectory) {
+        if (directoryEntries.length === 0) return // still loading, wait for next filter change
+        setLoading(true)
+        setError(undefined)
+        setDisplayLogs([])
+        setStats(null)
+        setFilterProgress({ matched: 0, scanned: directoryEntries.length })
+
+        try {
+          const filtered = await filterLogs(directoryEntries, filters)
+          if (generationRef.current === gen) {
+            setDisplayLogs(filtered)
+            setFilterProgress({
+              matched: filtered.length,
+              scanned: directoryEntries.length,
+              total: directoryEntries.length,
+            })
+          }
+        } catch (err: unknown) {
+          if ((err as Error).name === 'AbortError') return
+          if (generationRef.current === gen) {
+            setError(err instanceof Error ? err.message : 'Filter error')
+          }
+        } finally {
+          if (generationRef.current === gen) {
+            setLoading(false)
+          }
+        }
+        return
+      }
 
       setLoading(true)
       setError(undefined)
@@ -148,13 +250,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
         if ((err as Error).name === 'AbortError') return
         if (generationRef.current === gen) {
           const msg = err instanceof Error ? err.message : 'Filter stream error'
-          // Detect directory paths — set flag instead of showing error
-          if (/is a directory/i.test(msg)) {
-            setIsDirectory(true)
-            setError(undefined)
-          } else {
-            setError(msg)
-          }
+          setError(msg)
         }
       } finally {
         if (generationRef.current === gen) {
@@ -164,7 +260,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
 
       return
     },
-    [sourceRef, totalLines],
+    [sourceRef, totalLines, isDirectory, directoryEntries],
   )
 
   return {
@@ -179,6 +275,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
     stats,
     totalLines,
     loadSource,
+    loadDirectory,
     triggerFilter,
     abort,
     reset,

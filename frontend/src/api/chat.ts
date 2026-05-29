@@ -24,6 +24,10 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await apiFetch(`/chat/sessions/${sessionId}`, { method: 'DELETE' })
 }
 
+export async function deleteAllSessions(): Promise<{ success: boolean; deleted: number }> {
+  return apiFetch<{ success: boolean; deleted: number }>('/chat/sessions', { method: 'DELETE' })
+}
+
 export async function setSessionTrace(
   sessionId: string,
   summary: Record<string, unknown>,
