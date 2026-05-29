@@ -373,27 +373,27 @@ class TestOpenLogPath:
     def test_opens_plain_text(self, analyzer):
         path = _write_temp_file(SAMPLE_LOGCAT)
         try:
-            fh = analyzer._open_log_path(path)
-            content = fh.read()
-            assert "AndroidRuntime" in content
+            with analyzer._open_log_path(path) as fh:
+                content = fh.read()
+                assert "AndroidRuntime" in content
         finally:
             os.unlink(path)
 
     def test_opens_gzip(self, analyzer):
         path = _write_temp_gz(SAMPLE_LOGCAT)
         try:
-            fh = analyzer._open_log_path(path)
-            content = fh.read()
-            assert "AndroidRuntime" in content
+            with analyzer._open_log_path(path) as fh:
+                content = fh.read()
+                assert "AndroidRuntime" in content
         finally:
             os.unlink(path)
 
     def test_opens_zip(self, analyzer):
         path = _write_temp_zip({"mylog.txt": SAMPLE_LOGCAT})
         try:
-            fh = analyzer._open_log_path(path)
-            content = fh.read()
-            assert "AndroidRuntime" in content
+            with analyzer._open_log_path(path) as fh:
+                content = fh.read()
+                assert "AndroidRuntime" in content
         finally:
             os.unlink(path)
 
