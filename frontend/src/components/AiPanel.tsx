@@ -34,6 +34,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   createSession,
+  deleteAllSessions,
   deleteSession,
   listSessions,
   sendMessage,
@@ -495,6 +496,18 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }
 
+  const handleDeleteAllSessions = async () => {
+    try {
+      await deleteAllSessions()
+      setSessions([])
+      setActiveSessionId(null)
+      setMessages([])
+      void messageApi.success(t('deleteAllSessionsSuccess'))
+    } catch {
+      void messageApi.error(t('deleteSessionFailed'))
+    }
+  }
+
   const handleSelectSession = (id: string) => {
     const session = sessions.find((s) => s.id === id)
     if (session) {
@@ -827,6 +840,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
             display: 'flex',
             gap: 4,
             flexWrap: 'wrap',
+            alignItems: 'center',
             flexShrink: 0,
           }}
         >
@@ -852,6 +866,20 @@ const AiPanel: React.FC<AiPanelProps> = ({
               </Popconfirm>
             </div>
           ))}
+          {sessions.length > 1 && (
+            <Popconfirm
+              title={t('deleteAllSessionsConfirm')}
+              onConfirm={() => {
+                void handleDeleteAllSessions()
+              }}
+              okText={t('delete')}
+              cancelText={t('cancel')}
+            >
+              <Button size="small" danger type="text" style={{ fontSize: 11, marginLeft: 'auto' }}>
+                {t('deleteAllSessions')}
+              </Button>
+            </Popconfirm>
+          )}
         </div>
       )}
 

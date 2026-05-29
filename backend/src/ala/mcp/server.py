@@ -10,6 +10,7 @@ from collections import deque
 
 from fastmcp import FastMCP
 
+from ..file_detector import detect_file_type_from_path
 from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.trace_analyzer import TraceAnalyzer, TraceFilters
 
@@ -211,7 +212,7 @@ def filter_perfetto_trace(
 # ──────────────────────────────────────────────────────────────────────────────
 
 _LEVEL_ORDER: dict[str, int] = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5}
-_LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+_LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".hci", ".btsnoop", ".cfa"}
 
 
 def _entry_to_dict(entry) -> dict:
@@ -515,6 +516,7 @@ def list_directory_logs(directory_path: str) -> dict:
             ext = os.path.splitext(entry.name)[1].lower()
             if ext not in _LOG_EXTENSIONS and ext:
                 continue
+            file_type = detect_file_type_from_path(entry.path)
             try:
                 stat = entry.stat()
                 # Quick line count (first 64KB)
@@ -532,6 +534,7 @@ def list_directory_logs(directory_path: str) -> dict:
                     "path": entry.path,
                     "size": stat.st_size if stat else 0,
                     "line_count": line_count,
+                    "file_type": file_type,
                 }
             )
     except PermissionError:

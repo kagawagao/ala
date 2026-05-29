@@ -34,6 +34,7 @@ function makeFile(overrides: Partial<DirectoryFileInfo> = {}): DirectoryFileInfo
     path: overrides.path ?? '/logs/test.log',
     size: overrides.size ?? 1024,
     is_log: overrides.is_log ?? true,
+    file_type: overrides.file_type ?? 'log',
   }
 }
 

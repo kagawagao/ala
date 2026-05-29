@@ -168,6 +168,11 @@ const DirectoryFilePicker: React.FC<DirectoryFilePickerProps> = ({
                       {file.name}
                     </Text>
                     <Tag style={{ marginLeft: 8, fontSize: 11 }}>{formatFileSize(file.size)}</Tag>
+                    {file.file_type !== 'log' && (
+                      <Tag color="purple" style={{ fontSize: 11 }}>
+                        {file.file_type.toUpperCase()}
+                      </Tag>
+                    )}
                     {file.name.endsWith('.gz') && (
                       <Tag color="blue" style={{ fontSize: 11 }}>
                         gzip

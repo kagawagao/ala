@@ -23,6 +23,8 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { getConfig } from './api/config'
 import { uploadFiles } from './api/files'
 import type { UnifiedFileInfo } from './api/files'
+import { autoPath } from './api/logs'
+import type { DirectoryFileInfo } from './api/logs'
 import { listModels } from './api/models'
 import {
   getProjectPresets,
@@ -32,6 +34,7 @@ import {
 } from './api/projects'
 import AiPanel from './components/AiPanel'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import DirectoryFilePicker from './components/DirectoryFilePicker'
 import FileUpload from './components/FileUpload'
 import FilterDrawer from './components/FilterDrawer'
 import Header from './components/Header'
@@ -234,7 +237,6 @@ const AppContent: React.FC<{
 
   const [language, setLanguage] = useState(() => localStorage.getItem('ala_language') || 'en')
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
-  const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false)
   const [aiPanelSize, setAiPanelSize] = useState<number>(() => {
     const saved = localStorage.getItem('ala_splitter_ai_size')
     return saved ? Number(saved) : 520
@@ -259,6 +261,11 @@ const AppContent: React.FC<{
 
   // Pending uploaded files — stored but not yet parsed (agent decides when to load)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+
+  // Directory listing — populated by autoPath when isDirectory is detected
+  const [directoryFiles, setDirectoryFiles] = useState<DirectoryFileInfo[]>([])
+  const [dirPickerVisible, setDirPickerVisible] = useState(false)
+  const [dirPath, setDirPath] = useState('')
 
   const location = useLocation()
   const isFullPage = useMemo(() => location.pathname !== '/', [location.pathname])
@@ -310,6 +317,7 @@ const AppContent: React.FC<{
     stats,
     totalLines,
     loadSource,
+    loadDirectory,
     triggerFilter,
     abort: abortParse,
     reset: resetLogs,
@@ -419,12 +427,33 @@ const AppContent: React.FC<{
 
   const debouncedFilters = useDebouncedValue(filters, 300)
 
-  // Trigger backend lazy filter whenever debounced filters or source changes
+  // Trigger lazy filter whenever debounced filters or source changes
   useEffect(() => {
-    if (sourceRef && !isDirectory) {
+    if (sourceRef) {
       void triggerFilter(debouncedFilters)
     }
-  }, [debouncedFilters, sourceRef, isDirectory])
+  }, [debouncedFilters, sourceRef])
+
+  // When a directory is detected reactively (via old filter-stream error path),
+  // fetch the file list but don't auto-show the picker — entries load via loadDirectory.
+  useEffect(() => {
+    if (!isDirectory || !sourceRef || directoryFiles.length > 0) return
+    let cancelled = false
+    autoPath(sourceRef)
+      .then((res) => {
+        if (cancelled) return
+        if (res.type === 'directory' && res.files) {
+          setDirectoryFiles(res.files)
+          setDirPath(sourceRef)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDirectoryFiles([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isDirectory, sourceRef, directoryFiles.length])
 
   // Trigger PCAP lazy filter when source path changes (initial load — all packets)
   useEffect(() => {
@@ -542,7 +571,7 @@ const AppContent: React.FC<{
         onToggleTheme()
         return
       }
-      // Esc → close upload popover, then filter drawer, then aiPanel
+      // Esc → close upload popover, then filter drawer
       if (e.key === 'Escape') {
         if (uploadPopoverOpen) {
           closeUploadPopover()
@@ -552,14 +581,11 @@ const AppContent: React.FC<{
           setFilterDrawerOpen(false)
           return
         }
-        if (!aiPanelCollapsed) {
-          setAiPanelCollapsed(true)
-        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [uploadPopoverOpen, filterDrawerOpen, aiPanelCollapsed, onToggleTheme, closeUploadPopover])
+  }, [uploadPopoverOpen, filterDrawerOpen, onToggleTheme, closeUploadPopover])
 
   const handleToggleLanguage = useCallback(() => {
     setLanguage((lang) => {
@@ -706,17 +732,105 @@ const AppContent: React.FC<{
     [loadSource, loadPcapSource, loadHciSource],
   )
 
-  // Local path handler — passes path directly to lazy source (agent decides what to load)
+  // Local path handler — detects file vs directory, routes accordingly
   const handleLocalPath = useCallback(
     (path: string) => {
-      setFilters(DEFAULT_FILTERS)
-      setActiveTab('log')
       setPendingFiles([])
-      const label = path.replace(/\\/g, '/').split('/').pop() || path
-      loadSource(path, [label])
+      resetLogs()
+      // First detect whether path is a file or directory
+      autoPath(path)
+        .then((res) => {
+          if (res.type === 'directory' && res.files) {
+            setDirectoryFiles(res.files)
+            setDirPath(path)
+            // Auto-load all log-type files; route non-log types to their viewers
+            const logFiles = res.files.filter((f) => f.file_type === 'log')
+            const pcapFiles = res.files.filter((f) => f.file_type === 'pcap')
+            const hciFiles = res.files.filter((f) => f.file_type === 'hci')
+            const sep = path.includes('\\') ? '\\' : '/'
+            if (logFiles.length > 0) {
+              setActiveTab('log')
+              void loadDirectory(path)
+            }
+            if (hciFiles.length > 0) {
+              loadHciSource(path + sep + hciFiles[0].path, [hciFiles[0].name], undefined)
+              if (logFiles.length === 0) setActiveTab('hci')
+            }
+            if (pcapFiles.length > 0) {
+              loadPcapSource(path + sep + pcapFiles[0].path, [pcapFiles[0].name], undefined)
+              if (logFiles.length === 0 && hciFiles.length === 0) setActiveTab('pcap')
+            }
+            void message.success(t('fileUploaded'))
+          } else {
+            setFilters(DEFAULT_FILTERS)
+            setActiveTab('log')
+            const label = path.replace(/\\/g, '/').split('/').pop() || path
+            loadSource(path, [label])
+            void message.success(t('fileUploaded'))
+          }
+        })
+        .catch(() => {
+          // Fallback: try as a file
+          setFilters(DEFAULT_FILTERS)
+          setActiveTab('log')
+          const label = path.replace(/\\/g, '/').split('/').pop() || path
+          loadSource(path, [label])
+          void message.success(t('fileUploaded'))
+        })
+    },
+    [loadSource, loadDirectory, loadHciSource, loadPcapSource, resetLogs, t, message],
+  )
+
+  // Directory file selection handler — batch-loads by type to avoid overwrite
+  const handleDirFileConfirm = useCallback(
+    (selectedPaths: string[]) => {
+      setDirPickerVisible(false)
+      if (selectedPaths.length === 0) return
+      resetLogs()
+      const sep = dirPath.includes('\\') ? '\\' : '/'
+      // Separate by type for correct batch routing
+      const logFilePaths: string[] = []
+      let firstHci: string | null = null
+      let firstHciLabel = ''
+      let firstPcap: string | null = null
+      let firstPcapLabel = ''
+      for (const relPath of selectedPaths) {
+        const file = directoryFiles.find((f) => f.path === relPath)
+        const label = relPath.replace(/\\/g, '/').split('/').pop() || relPath
+        switch (file?.file_type) {
+          case 'hci':
+            if (!firstHci) {
+              firstHci = dirPath + sep + relPath
+              firstHciLabel = label
+            }
+            break
+          case 'pcap':
+            if (!firstPcap) {
+              firstPcap = dirPath + sep + relPath
+              firstPcapLabel = label
+            }
+            break
+          default:
+            logFilePaths.push(relPath)
+        }
+      }
+      // Batch-load log files in a single directory stream
+      if (logFilePaths.length > 0) {
+        setFilters(DEFAULT_FILTERS)
+        setActiveTab('log')
+        void loadDirectory(dirPath, logFilePaths)
+      }
+      if (firstHci) {
+        loadHciSource(firstHci, [firstHciLabel], undefined)
+        if (logFilePaths.length === 0) setActiveTab('hci')
+      }
+      if (firstPcap) {
+        loadPcapSource(firstPcap, [firstPcapLabel], undefined)
+        if (logFilePaths.length === 0 && !firstHci) setActiveTab('pcap')
+      }
       void message.success(t('fileUploaded'))
     },
-    [loadSource, t, message],
+    [dirPath, directoryFiles, resetLogs, loadDirectory, loadHciSource, loadPcapSource, t, message],
   )
 
   const showFileUpload =
@@ -839,16 +953,60 @@ const AppContent: React.FC<{
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            padding: 32,
+            gap: 0,
           }}
         >
-          <Empty description={t('directoryLoaded')} />
-          <Typography.Text type="secondary" style={{ fontSize: 13, textAlign: 'center' }}>
-            {t('directoryHint')}
-          </Typography.Text>
+          <div
+            style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border-color, #e8e8e8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Typography.Text style={{ fontSize: 13 }}>
+              {dirPath
+                ? t('directoryTooManyFiles', { count: directoryFiles.length })
+                : t('directoryLoaded')}
+            </Typography.Text>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px' }}>
+            {directoryFiles.length === 0 ? (
+              <Empty description={t('noFilesFound')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              directoryFiles.map((file) => (
+                <div
+                  key={file.path}
+                  style={{
+                    padding: '6px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    borderBottom: '1px solid var(--border-color, #f0f0f0)',
+                  }}
+                >
+                  <FileOutlined style={{ fontSize: 13, color: '#888' }} />
+                  <Typography.Text style={{ flex: 1, fontSize: 13 }} ellipsis title={file.path}>
+                    {file.name}
+                  </Typography.Text>
+                  <Tag style={{ fontSize: 10 }}>
+                    {file.size < 1024 * 1024
+                      ? `${(file.size / 1024).toFixed(1)} KB`
+                      : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                  </Tag>
+                  {file.file_type !== 'log' && (
+                    <Tag
+                      color={FILE_TYPE_COLORS[file.file_type] || 'purple'}
+                      style={{ fontSize: 10 }}
+                    >
+                      {file.file_type.toUpperCase()}
+                    </Tag>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       ) : !hasActiveFilters ? (
         <div
@@ -1043,96 +1201,50 @@ const AppContent: React.FC<{
                       </Splitter.Panel>
 
                       {/* Right: AI Panel */}
-                      {!aiPanelCollapsed && (
-                        <Splitter.Panel
-                          size={aiPanelSize}
-                          min={320}
-                          max={'50%'}
-                          defaultSize={'50%'}
+                      <Splitter.Panel
+                        size={aiPanelSize}
+                        min={320}
+                        max={'50%'}
+                        defaultSize={'50%'}
+                        style={{
+                          borderLeft: '1px solid var(--ant-color-border)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
                           style={{
-                            borderLeft: '1px solid var(--ant-color-border)',
-                            overflow: 'hidden',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
                           }}
                         >
-                          <div
-                            style={{
-                              height: '100%',
-                              display: 'flex',
-                              flexDirection: 'column',
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                padding: '2px 6px',
-                                borderBottom: '1px solid var(--ant-color-border)',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  cursor: 'pointer',
-                                  fontSize: 11,
-                                  color: 'var(--ant-color-text-secondary)',
-                                }}
-                                onClick={() => setAiPanelCollapsed(true)}
-                              >
-                                ✕
-                              </span>
-                            </div>
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                              <AiPanel
-                                logs={displayLogs}
-                                allLogs={displayLogs}
-                                totalLogs={
-                                  totalLines ??
-                                  filterProgress?.total ??
-                                  filterProgress?.scanned ??
-                                  displayLogs.length
-                                }
-                                filters={filters}
-                                traceResult={traceResult}
-                                pcapEntries={pcapEntries}
-                                hciEntries={hciEntries}
-                                aiConfigured={aiConfigured}
-                                selectedProjectId={selectedProjectId}
-                                projects={projects}
-                                contextDocs={contextDocs}
-                                localFilePath={sourceRef}
-                                aiConfig={aiConfig ?? undefined}
-                                allModels={allModels}
-                              />
-                            </div>
+                          <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <AiPanel
+                              logs={displayLogs}
+                              allLogs={displayLogs}
+                              totalLogs={
+                                totalLines ??
+                                filterProgress?.total ??
+                                filterProgress?.scanned ??
+                                displayLogs.length
+                              }
+                              filters={filters}
+                              traceResult={traceResult}
+                              pcapEntries={pcapEntries}
+                              hciEntries={hciEntries}
+                              aiConfigured={aiConfigured}
+                              selectedProjectId={selectedProjectId}
+                              projects={projects}
+                              contextDocs={contextDocs}
+                              localFilePath={sourceRef}
+                              aiConfig={aiConfig ?? undefined}
+                              allModels={allModels}
+                            />
                           </div>
-                        </Splitter.Panel>
-                      )}
+                        </div>
+                      </Splitter.Panel>
                     </Splitter>
                   </div>
-
-                  {/* AI panel toggle when collapsed */}
-                  {aiPanelCollapsed && (
-                    <button
-                      onClick={() => setAiPanelCollapsed(false)}
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        writingMode: 'vertical-rl',
-                        padding: '8px 4px',
-                        border: '1px solid var(--ant-color-border)',
-                        borderRight: 'none',
-                        borderRadius: '6px 0 0 6px',
-                        background: 'var(--ant-color-bg-container)',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                      }}
-                    >
-                      {t('aiAssistant')}
-                    </button>
-                  )}
-
                   {/* FilterDrawer — right-side context-aware filter UI (Ctrl+K) */}
                   <FilterDrawer
                     open={filterDrawerOpen}
@@ -1161,6 +1273,15 @@ const AppContent: React.FC<{
           </Routes>
         </div>
       </div>
+
+      {/* Directory file picker modal */}
+      <DirectoryFilePicker
+        open={dirPickerVisible}
+        files={directoryFiles}
+        dirPath={dirPath}
+        onConfirm={handleDirFileConfirm}
+        onCancel={() => setDirPickerVisible(false)}
+      />
     </ConfigProvider>
   )
 }

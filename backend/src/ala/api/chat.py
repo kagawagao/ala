@@ -124,6 +124,12 @@ async def delete_session(session_id: str):
     return {"success": True}
 
 
+@router.delete("/sessions")
+async def delete_all_sessions():
+    count = _session_manager.delete_all_sessions()
+    return {"success": True, "deleted": count}
+
+
 @router.get("/sessions/{session_id}/export")
 async def export_session(session_id: str):
     """Export a session and its messages as a downloadable JSON file."""

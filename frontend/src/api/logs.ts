@@ -3,7 +3,7 @@ import type { LocalFileRef } from '../types'
 import type { LogEntry, LogFilters, LogStatistics, ParseResult } from '../types'
 
 /** Sentinel line emitted by the backend at the end of a stream. */
-interface StreamDone {
+export interface StreamDone {
   _done: true
   total: number
 }
@@ -105,6 +105,7 @@ export interface DirectoryFileInfo {
   path: string
   size: number
   is_log: boolean
+  file_type: string // "log" | "hci" | "pcap" | "trace"
 }
 
 export interface DirectoryListResponse {

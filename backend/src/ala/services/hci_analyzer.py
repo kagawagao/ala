@@ -31,6 +31,15 @@ HCI_TYPE_NAMES: dict[int, str] = {
 DIRECTION_HOST_TO_CONTROLLER = "HOST_TO_CONTROLLER"
 DIRECTION_CONTROLLER_TO_HOST = "CONTROLLER_TO_HOST"
 
+# HCI UART transport layer indicators (first byte of BTSnoop payload on some captures)
+_HCI_UART_INDICATOR: dict[int, str] = {
+    0x01: "COMMAND",
+    0x02: "ACL_DATA",
+    0x03: "SCO_DATA",
+    0x04: "EVENT",
+    0x05: "ISO_DATA",
+}
+
 # ── HCI OGF Group Names ────────────────────────────────────────────────
 OGF_NAMES: dict[int, str] = {
     0x01: "Link Control",
@@ -613,17 +622,32 @@ class HciAnalyzer:
             DIRECTION_CONTROLLER_TO_HOST if (packet_flags & 0x01) else DIRECTION_HOST_TO_CONTROLLER
         )
 
-        # HCI type: bits 2-3 for standard types, bit 4 for ISO
-        if packet_flags & 0x10:  # Bit 4 set = ISO data (Bluetooth 5.2+)
-            hci_type = HCI_TYPE_ISO
-        else:
-            hci_type = (packet_flags >> 2) & 0x03
-
-        hci_type_name = HCI_TYPE_NAMES.get(hci_type, f"UNKNOWN_{hci_type}")
-
+        # HCI type: prefer the UART transport indicator (first payload byte)
+        # when present, falling back to flags bits 2-3.
+        # BTSnoop spec defines the type in the flags, but many implementations
+        # (including Android) embed the HCI UART indicator as the first payload
+        # byte — Wireshark trusts the indicator over the flags.
         payload_start = offset + 24
         payload_end = payload_start + min(included_length, len(data) - payload_start)
         payload = data[payload_start:payload_end]
+
+        hci_type_name = "UNKNOWN"
+        uart_indicator = 0
+        if len(payload) > 0:
+            uart_indicator = payload[0]
+            hci_type_name = _HCI_UART_INDICATOR.get(uart_indicator, "")
+
+        if not hci_type_name:
+            # Fall back to flags-based detection
+            if packet_flags & 0x10:  # Bit 4 set = ISO data (Bluetooth 5.2+)
+                hci_type = HCI_TYPE_ISO
+            else:
+                hci_type = (packet_flags >> 2) & 0x03
+            hci_type_name = HCI_TYPE_NAMES.get(hci_type, f"UNKNOWN_{hci_type}")
+
+        # Strip UART transport indicator from payload when present
+        if uart_indicator in _HCI_UART_INDICATOR:
+            payload = payload[1:]
 
         return {
             "original_length": original_length,
@@ -634,25 +658,26 @@ class HciAnalyzer:
             "direction": direction,
             "hci_type": hci_type_name,
             "payload": payload,
-            "next_offset": offset + 24 + original_length,
+            "next_offset": offset + 24 + included_length,
         }, offset
+
+    # Microseconds between Jan 1, 0 AD and Jan 1, 1970 (Unix epoch).
+    # BTSnoop spec stores timestamps as microseconds since Jan 1, 0 AD nominal.
+    # Wireshark always treats the raw value as AD-0 epoch; we match that behaviour.
+    _BTSNOOP_EPOCH_OFFSET_US = 62135596800000000
 
     @staticmethod
     def _us_to_timestamp(timestamp_us: int) -> str:
         """Convert BTSnoop microseconds timestamp to ISO-format string.
 
-        Uses Unix epoch (Android convention). Filters out clearly invalid
-        timestamps from the epoch-0 convention used by some tools.
+        BTSnoop spec defines timestamps as microseconds since Jan 1, 0 AD.
+        We follow Wireshark's approach: if the raw value exceeds the 0 AD →
+        Unix epoch offset, assume it is truly AD‑0 epoch and correct to Unix.
+        Otherwise (boot‑relative or already Unix‑epoch values from Android)
+        we use the raw value directly.
         """
-        # BTSnoop spec says microseconds since Jan 1, 0 AD, but Android
-        # uses Unix epoch. If the value is larger than the year 2500 in
-        # Unix microseconds, it's likely using the AD 0 epoch — apply a
-        # correction to convert to Unix epoch.
-        max_unix_us = 17000000000000000  # ~ year 2508
-
-        if timestamp_us > max_unix_us:
-            # Likely epoch-0; offset to Unix epoch (Jan 1 1970)
-            timestamp_us -= 62135596800000000
+        if timestamp_us > HciAnalyzer._BTSNOOP_EPOCH_OFFSET_US:
+            timestamp_us -= HciAnalyzer._BTSNOOP_EPOCH_OFFSET_US
 
         try:
             ts_sec = timestamp_us / 1_000_000.0

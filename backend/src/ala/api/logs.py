@@ -14,6 +14,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ..file_detector import detect_file_type_from_path
 from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.log_analyzer import LogEntry as ServiceLogEntry
 from ..services.log_analyzer import LogFilters as ServiceLogFilters
@@ -345,6 +346,7 @@ class DirectoryFileInfo(BaseModel):
     path: str  # relative path from the scanned root directory
     size: int
     is_log: bool
+    file_type: str = "log"  # "log" | "hci" | "pcap" | "trace"
 
 
 class DirectoryListResponse(BaseModel):
@@ -359,7 +361,89 @@ class DirectorySelectedRequest(BaseModel):
     selected_files: list[str]  # relative file paths to parse
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip"}
+LOG_EXTENSIONS = {
+    ".log",
+    ".txt",
+    ".logcat",
+    ".gz",
+    ".zip",
+    ".hci",
+    ".btsnoop",
+    ".cfa",
+    ".out",
+    ".dmesg",
+    ".kmsg",
+    ".dump",
+    ".trace",
+}
+
+# Extensions unlikely to contain log content — skipped when content detection
+# returns "log" for a file with one of these extensions.
+_NON_LOG_EXTENSIONS = {
+    ".py",
+    ".pyc",
+    ".pyo",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".cjs",
+    ".c",
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".hxx",
+    ".java",
+    ".kt",
+    ".kts",
+    ".scala",
+    ".rs",
+    ".go",
+    ".rb",
+    ".php",
+    ".swift",
+    ".cs",
+    ".vb",
+    ".html",
+    ".htm",
+    ".css",
+    ".scss",
+    ".less",
+    ".sass",
+    ".md",
+    ".mdx",
+    ".rst",
+    ".tex",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".env",
+    ".xml",
+    ".svg",
+    ".sql",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".psm1",
+    ".psd1",
+    ".bat",
+    ".cmd",
+    ".mk",
+    ".cmake",
+    ".gitignore",
+    ".dockerignore",
+    ".lock",
+    ".sum",
+    ".sig",
+}
 
 MAX_SCAN_DEPTH = 5
 MAX_SCAN_FILES = 500
@@ -395,19 +479,25 @@ def _scan_directory(
                 has_subdirs = True
                 _walk(entry.path, depth + 1)
             elif entry.is_file():
+                if len(files) >= MAX_SCAN_FILES:
+                    continue
                 ext = os.path.splitext(entry.name)[1].lower()
-                is_log = ext in LOG_EXTENSIONS or not ext
-                if is_log and len(files) < MAX_SCAN_FILES:
-                    rel = os.path.relpath(entry.path, root)
-                    stat = entry.stat()
-                    files.append(
-                        DirectoryFileInfo(
-                            name=entry.name,
-                            path=rel,
-                            size=stat.st_size,
-                            is_log=True,
-                        )
+                file_type = detect_file_type_from_path(entry.path)
+                # pcap / hci / trace are always included regardless of extension
+                # For "log" type, skip files with clearly non-log extensions
+                if file_type == "log" and ext and ext in _NON_LOG_EXTENSIONS:
+                    continue
+                rel = os.path.relpath(entry.path, root)
+                stat = entry.stat()
+                files.append(
+                    DirectoryFileInfo(
+                        name=entry.name,
+                        path=rel,
+                        size=stat.st_size,
+                        is_log=(file_type == "log"),
+                        file_type=file_type,
                     )
+                )
 
     _walk(root, 0)
     return files, has_subdirs, deepest
@@ -464,7 +554,18 @@ async def parse_directory_stream(req: DirectoryRequest):
                 if not entry.is_file():
                     continue
                 ext = os.path.splitext(entry.name)[1].lower()
-                if ext not in LOG_EXTENSIONS and ext:
+                if ext and ext in _NON_LOG_EXTENSIONS:
+                    continue
+                file_type = detect_file_type_from_path(entry.path)
+                if file_type != "log":
+                    yield (
+                        json.dumps(
+                            {
+                                "_info": f"Skipping {file_type} file: {entry.name} (use /{file_type} endpoints)"
+                            }
+                        )
+                        + "\n"
+                    )
                     continue
                 try:
                     with open(entry.path, "rb") as f:
@@ -514,6 +615,17 @@ async def parse_selected_files_stream(req: DirectorySelectedRequest):
                 continue
             if not os.path.isfile(full_path):
                 yield json.dumps({"_error": f"File not found: {rel_path}"}) + "\n"
+                continue
+            file_type = detect_file_type_from_path(full_path)
+            if file_type != "log":
+                yield (
+                    json.dumps(
+                        {
+                            "_info": f"Skipping {file_type} file: {rel_path} (use /{file_type} endpoints)"
+                        }
+                    )
+                    + "\n"
+                )
                 continue
             try:
                 with open(full_path, "rb") as f:
