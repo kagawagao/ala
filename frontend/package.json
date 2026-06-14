@@ -23,7 +23,7 @@
     "react-dom": "^19.1.0",
     "react-i18next": "^15.5.2",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.14.1",
+    "react-router-dom": "^7.17.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
@@ -33,7 +33,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.5.2",
+    "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^9.29.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -41,8 +41,8 @@
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.34.0",
-    "vite": "^6.4.2",
-    "vitest": "^3.2.4"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "uuid": "^14.0.0"
