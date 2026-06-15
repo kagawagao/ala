@@ -1208,9 +1208,21 @@ def execute_tool(
 
 #: Dangerous command patterns blocked in execute_command (substring match)
 _CODING_BLOCKED_PATTERNS = [
-    "rm ", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
-    "curl ", "wget ", "nc ", "telnet ", "ssh ",
-    "shutdown", "reboot", "halt", "poweroff",
+    "rm ",
+    "sudo ",
+    "chmod ",
+    "chown ",
+    "mkfs",
+    "dd if=",
+    "curl ",
+    "wget ",
+    "nc ",
+    "telnet ",
+    "ssh ",
+    "shutdown",
+    "reboot",
+    "halt",
+    "poweroff",
 ]
 
 #: Maximum output size for execute_command
@@ -1257,32 +1269,38 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
             if count == 0:
                 return json.dumps({"error": f"old_string not found in {file_path}"})
             if count > 1 and not replace_all:
-                return json.dumps({
-                    "error": (
-                        f"old_string found {count} times in {file_path}. "
-                        "Set replace_all=true to replace all occurrences, "
-                        "or make old_string more specific."
-                    )
-                })
+                return json.dumps(
+                    {
+                        "error": (
+                            f"old_string found {count} times in {file_path}. "
+                            "Set replace_all=true to replace all occurrences, "
+                            "or make old_string more specific."
+                        )
+                    }
+                )
 
             new_content = content.replace(old_string, new_string)
             Path(file_path).write_text(new_content, encoding="utf-8")
-            return json.dumps({
-                "success": True,
-                "path": file_path,
-                "replacements": count if replace_all else 1,
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "path": file_path,
+                    "replacements": count if replace_all else 1,
+                }
+            )
 
         elif tool_name == "write_file":
             file_path = _resolve_project_path(args.get("file_path", ""), project)
             content = args.get("content", "")
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             Path(file_path).write_text(content, encoding="utf-8")
-            return json.dumps({
-                "success": True,
-                "path": file_path,
-                "size": len(content),
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "path": file_path,
+                    "size": len(content),
+                }
+            )
 
         elif tool_name == "search_files":
             pattern = args.get("pattern", "")
@@ -1294,6 +1312,7 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
             if target == "files":
                 # Find files by name pattern
                 import fnmatch
+
                 results = []
                 for root, _dirs, files in Path(search_path).walk():
                     for f in files:
@@ -1307,13 +1326,23 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
 
             # Content search via ripgrep or fallback to Python
             try:
-                cmd = ["rg", "--no-heading", "--with-filename", "--line-number",
-                       "--ignore-case", "-e", pattern]
+                cmd = [
+                    "rg",
+                    "--no-heading",
+                    "--with-filename",
+                    "--line-number",
+                    "--ignore-case",
+                    "-e",
+                    pattern,
+                ]
                 if file_glob:
                     cmd.extend(["--glob", file_glob])
                 cmd.append(search_path)
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=15,
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
                     cwd=project.paths[0],
                 )
                 lines = result.stdout.strip().split("\n")[:limit]
@@ -1323,30 +1352,39 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
                         continue
                     idx = line.index(":")
                     idx2 = line.index(":", idx + 1)
-                    matches.append({
-                        "path": line[:idx],
-                        "line_number": int(line[idx + 1:idx2]),
-                        "line": line[idx2 + 1:],
-                    })
+                    matches.append(
+                        {
+                            "path": line[:idx],
+                            "line_number": int(line[idx + 1 : idx2]),
+                            "line": line[idx2 + 1 :],
+                        }
+                    )
                 return json.dumps({"matches": matches, "total": len(matches)})
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 # Fallback: pure Python search
                 import re as _re
+
                 pat = _re.compile(pattern, _re.IGNORECASE)
                 results = []
                 for root, _dirs, files in Path(search_path).walk():
                     for f in files:
-                        if file_glob and not f.endswith(tuple(file_glob.replace("*", "").split(","))):
+                        if file_glob and not f.endswith(
+                            tuple(file_glob.replace("*", "").split(","))
+                        ):
                             continue
                         fpath = Path(root) / f
                         try:
-                            for i, line in enumerate(fpath.read_text(errors="replace").split("\n"), 1):
+                            for i, line in enumerate(
+                                fpath.read_text(errors="replace").split("\n"), 1
+                            ):
                                 if pat.search(line):
-                                    results.append({
-                                        "path": str(fpath),
-                                        "line_number": i,
-                                        "line": line[:200],
-                                    })
+                                    results.append(
+                                        {
+                                            "path": str(fpath),
+                                            "line_number": i,
+                                            "line": line[:200],
+                                        }
+                                    )
                                     if len(results) >= limit:
                                         break
                         except (OSError, UnicodeDecodeError):
@@ -1365,9 +1403,9 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
             cmd_lower = command.lower()
             for blocked in _CODING_BLOCKED_PATTERNS:
                 if blocked in cmd_lower:
-                    return json.dumps({
-                        "error": f"Blocked command pattern: '{blocked.strip()}' is not allowed"
-                    })
+                    return json.dumps(
+                        {"error": f"Blocked command pattern: '{blocked.strip()}' is not allowed"}
+                    )
 
             try:
                 result = subprocess.run(
@@ -1381,10 +1419,12 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
                 output = result.stdout + result.stderr
                 if len(output) > _MAX_CMD_OUTPUT:
                     output = output[:_MAX_CMD_OUTPUT] + "\n... (truncated)"
-                return json.dumps({
-                    "exit_code": result.returncode,
-                    "output": output,
-                })
+                return json.dumps(
+                    {
+                        "exit_code": result.returncode,
+                        "output": output,
+                    }
+                )
             except subprocess.TimeoutExpired:
                 return json.dumps({"error": "Command timed out after 30 seconds"})
 
