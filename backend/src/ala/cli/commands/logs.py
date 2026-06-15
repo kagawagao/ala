@@ -20,9 +20,7 @@ logs_app = typer.Typer(
 
 @logs_app.command()
 def overview(
-    logfile: Annotated[
-        str, typer.Argument(help="Path to the Android log file (.log, .txt)")
-    ],
+    logfile: Annotated[str, typer.Argument(help="Path to the Android log file (.log, .txt)")],
 ) -> None:
     """Show log file overview: counts, levels, top tags, time range."""
     entries = load_entries(logfile)
