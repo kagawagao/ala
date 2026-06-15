@@ -214,10 +214,8 @@ _ALA_MARKERS: list[str] = [
 
 def _is_ala_root(path: Path) -> bool:
     """Return True when *path* looks like an ALA project root."""
-    # Must have pyproject.toml
-    if not (
-        path / "pyproject.toml" if not (path / "backend" / "pyproject.toml").exists() else True
-    ):
+    # Must have pyproject.toml (at root or inside backend/)
+    if not (path / "pyproject.toml").exists() and not (path / "backend" / "pyproject.toml").exists():
         return False
     # At least one ALA marker must exist
     for marker in _ALA_MARKERS:

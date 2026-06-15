@@ -1247,8 +1247,15 @@ def _resolve_project_path(file_path: str, project: Project) -> str:
         candidate = Path(base) / file_path
         if candidate.exists():
             return str(candidate)
-    # Default to first project path
-    return str(Path(project.paths[0]) / file_path)
+    # Default to first project path, but resolve and validate boundaries
+    candidate = (Path(project.paths[0]) / file_path).resolve()
+    for base in project.paths:
+        try:
+            candidate.relative_to(Path(base).resolve())
+            return str(candidate)
+        except ValueError:
+            continue
+    raise ValueError(f"Path '{file_path}' resolves outside project boundaries")
 
 
 def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
@@ -1305,6 +1312,20 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
         elif tool_name == "search_files":
             pattern = args.get("pattern", "")
             search_path = args.get("path") or project.paths[0]
+            # Validate search_path is within project boundaries
+            resolved_sp = Path(search_path).resolve()
+            in_project = False
+            for base in project.paths:
+                try:
+                    resolved_sp.relative_to(Path(base).resolve())
+                    in_project = True
+                    break
+                except ValueError:
+                    continue
+            if not in_project:
+                search_path = project.paths[0]  # Fall back to project root
+            else:
+                search_path = str(resolved_sp)
             file_glob = args.get("file_glob")
             target = args.get("target", "content")
             limit = min(args.get("limit", 50), 200)
