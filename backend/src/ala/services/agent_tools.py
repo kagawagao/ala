@@ -1207,9 +1207,9 @@ def execute_tool(
 # ---------------------------------------------------------------------------
 
 #: Dangerous commands blocked in execute_command (exact executable name match).
-#: Aligned with the shell-search blocked commands (see _UNIX_BLOCKED_COMMANDS /
-#: _WINDOWS_BLOCKED_COMMANDS below) — any new dangerous command added there should
-#: also be added here to prevent security bypass via the coding-tools code path.
+#: This is a SUPERSET of _UNIX_BLOCKED_COMMANDS | _WINDOWS_BLOCKED_COMMANDS
+#: (defined later in this module). Keep both in sync — any command added to
+#: one must be added to the other.
 _CODING_BLOCKED_COMMANDS: frozenset[str] = frozenset(
     {
         # File destruction / modification
@@ -1496,8 +1496,9 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
                 return json.dumps({"error": "Empty command"})
 
             # Block dangerous commands (check the executable name, not just substring)
-            cmd_base = Path(cmd_parts[0]).stem.lower()
-            if cmd_base in _CODING_BLOCKED_COMMANDS:
+            cmd_name = Path(cmd_parts[0]).name.lower()
+            cmd_stem = Path(cmd_parts[0]).stem.lower()
+            if cmd_name in _CODING_BLOCKED_COMMANDS or cmd_stem in _CODING_BLOCKED_COMMANDS:
                 return json.dumps({"error": f"Blocked command: '{cmd_parts[0]}' is not allowed"})
 
             try:

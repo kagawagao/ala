@@ -18,6 +18,9 @@ def load_entries(filepath: str) -> list[LogEntry]:
     if not path.exists():
         console.print(f"[red]Error:[/] file not found — {filepath}")
         raise typer.Exit(code=1)
+    if path.is_dir():
+        console.print(f"[red]Error:[/] path is a directory, not a file — {filepath}")
+        raise typer.Exit(code=1)
     if not path.is_file():
         console.print(f"[red]Error:[/] not a regular file — {filepath}")
         raise typer.Exit(code=1)
