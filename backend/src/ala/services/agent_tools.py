@@ -1206,25 +1206,65 @@ def execute_tool(
 # Coding tool executors
 # ---------------------------------------------------------------------------
 
-#: Dangerous commands blocked in execute_command (exact executable name match)
+#: Dangerous commands blocked in execute_command (exact executable name match).
+#: Aligned with the shell-search blocked commands (see _UNIX_BLOCKED_COMMANDS /
+#: _WINDOWS_BLOCKED_COMMANDS below) — any new dangerous command added there should
+#: also be added here to prevent security bypass via the coding-tools code path.
 _CODING_BLOCKED_COMMANDS: frozenset[str] = frozenset(
     {
+        # File destruction / modification
         "rm",
-        "sudo",
+        "rmdir",
+        "mv",
+        "cp",
         "chmod",
         "chown",
-        "mkfs",
         "dd",
+        "mkfs",
+        "format",
+        "mount",
+        "umount",
+        # Privilege escalation / system admin
+        "sudo",
+        "su",
+        "systemctl",
+        "shutdown",
+        "reboot",
+        "halt",
+        "poweroff",
+        "kill",
+        "pkill",
+        "taskkill",
+        "tskill",
+        # Network / remote access
         "curl",
         "wget",
         "nc",
         "ncat",
         "telnet",
         "ssh",
-        "shutdown",
-        "reboot",
-        "halt",
-        "poweroff",
+        "scp",
+        "ftp",
+        # Interpreters / package managers (can execute arbitrary code)
+        "python",
+        "python3",
+        "pip",
+        "node",
+        "npm",
+        "npx",
+        # Windows-specific dangerous commands
+        "del",
+        "erase",
+        "rd",
+        "cacls",
+        "icacls",
+        "takeown",
+        "reg",
+        "regedit",
+        "net",
+        "logoff",
+        "wsl",
+        "bash",
     }
 )
 
