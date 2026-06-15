@@ -9,6 +9,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from ..file_detector import detect_file_type_from_path
@@ -903,6 +904,124 @@ LOG_TOOLS: list[dict[str, Any]] = [
 ]
 
 
+# Anthropic tool schemas – coding/editing tools (available when project is loaded)
+CODING_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "edit_file",
+        "description": (
+            "Edit a file in the project by replacing a specific string with new content. "
+            "Provide the old_string to find and new_string to replace it with. "
+            "The old_string must be unique in the file (or set replace_all=true). "
+            "Use this for targeted, safe edits without rewriting entire files."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Relative or absolute path to the file within the project",
+                },
+                "old_string": {
+                    "type": "string",
+                    "description": "The exact text to find and replace. Must be unique unless replace_all=true.",
+                },
+                "new_string": {
+                    "type": "string",
+                    "description": "The replacement text. Pass empty string to delete the matched text.",
+                },
+                "replace_all": {
+                    "type": "boolean",
+                    "description": "If true, replace all occurrences of old_string. Default: false.",
+                },
+            },
+            "required": ["file_path", "old_string", "new_string"],
+        },
+    },
+    {
+        "name": "write_file",
+        "description": (
+            "Create a new file or completely overwrite an existing file in the project. "
+            "Use this for creating new files or when you need to replace the entire content. "
+            "For targeted edits, use edit_file instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Relative or absolute path to the file within the project",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The complete new content to write to the file",
+                },
+            },
+            "required": ["file_path", "content"],
+        },
+    },
+    {
+        "name": "search_files",
+        "description": (
+            "Search for a regex pattern across project source files. "
+            "Returns matching lines with file paths and line numbers. "
+            "Use ripgrep when available for fast searching. "
+            "For finding file names (not content), use the pattern with target='files'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern to search for (case-insensitive by default)",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Directory or file to search in (defaults to project root)",
+                },
+                "file_glob": {
+                    "type": "string",
+                    "description": "Filter files by glob pattern (e.g., '*.py', '*.java')",
+                },
+                "target": {
+                    "type": "string",
+                    "enum": ["content", "files"],
+                    "description": "'content' searches inside files, 'files' finds files by name (default: content)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default: 50, max: 200)",
+                },
+            },
+            "required": ["pattern"],
+        },
+    },
+    {
+        "name": "execute_command",
+        "description": (
+            "Execute a shell command within the project directory. "
+            "Runs commands in a sandboxed environment with a 30-second timeout. "
+            "Use this for running tests, builds, linters, or other development commands. "
+            "Commands that modify files (rm, chmod, sudo) or access the network (curl, wget) are blocked. "
+            "Output is limited to 64KB."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The shell command to execute",
+                },
+                "workdir": {
+                    "type": "string",
+                    "description": "Working directory for the command (defaults to first project path)",
+                },
+            },
+            "required": ["command"],
+        },
+    },
+]
+
+
 def execute_tool(
     project: Project | None,
     tool_name: str,
@@ -1075,8 +1194,197 @@ def execute_tool(
     elif tool_name == "filter_logs":
         return _execute_filter_logs(args)
 
+    # Coding tools — edit/write/search/execute within project
+    elif tool_name in ("edit_file", "write_file", "search_files", "execute_command"):
+        return _execute_coding_tool(tool_name, args, project)
+
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+# ---------------------------------------------------------------------------
+# Coding tool executors
+# ---------------------------------------------------------------------------
+
+#: Dangerous command patterns blocked in execute_command
+_BLOCKED_COMMANDS = [
+    "rm ", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
+    "curl ", "wget ", "nc ", "telnet ", "ssh ",
+    "shutdown", "reboot", "halt", "poweroff",
+]
+
+#: Maximum output size for execute_command
+_MAX_CMD_OUTPUT = 64 * 1024  # 64 KB
+
+
+def _resolve_project_path(file_path: str, project: Project) -> str:
+    """Resolve a relative path against project paths. Returns absolute path."""
+    p = Path(file_path)
+    if p.is_absolute():
+        return str(p)
+    # Try each project path as base
+    for base in project.paths:
+        candidate = Path(base) / file_path
+        if candidate.exists():
+            return str(candidate)
+    # Default to first project path
+    return str(Path(project.paths[0]) / file_path)
+
+
+def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
+    """Execute a coding tool within the project context."""
+    try:
+        if tool_name == "edit_file":
+            file_path = _resolve_project_path(args.get("file_path", ""), project)
+            old_string = args.get("old_string", "")
+            new_string = args.get("new_string", "")
+            replace_all = args.get("replace_all", False)
+
+            try:
+                content = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            except FileNotFoundError:
+                return json.dumps({"error": f"File not found: {file_path}"})
+
+            count = content.count(old_string)
+            if count == 0:
+                return json.dumps({"error": f"old_string not found in {file_path}"})
+            if count > 1 and not replace_all:
+                return json.dumps({
+                    "error": (
+                        f"old_string found {count} times in {file_path}. "
+                        "Set replace_all=true to replace all occurrences, "
+                        "or make old_string more specific."
+                    )
+                })
+
+            new_content = content.replace(old_string, new_string)
+            Path(file_path).write_text(new_content, encoding="utf-8")
+            return json.dumps({
+                "success": True,
+                "path": file_path,
+                "replacements": count if replace_all else 1,
+            })
+
+        elif tool_name == "write_file":
+            file_path = _resolve_project_path(args.get("file_path", ""), project)
+            content = args.get("content", "")
+            Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(file_path).write_text(content, encoding="utf-8")
+            return json.dumps({
+                "success": True,
+                "path": file_path,
+                "size": len(content),
+            })
+
+        elif tool_name == "search_files":
+            pattern = args.get("pattern", "")
+            search_path = args.get("path") or project.paths[0]
+            file_glob = args.get("file_glob")
+            target = args.get("target", "content")
+            limit = min(args.get("limit", 50), 200)
+
+            if target == "files":
+                # Find files by name pattern
+                import fnmatch
+                results = []
+                for root, _dirs, files in Path(search_path).walk():
+                    for f in files:
+                        if fnmatch.fnmatch(f, pattern):
+                            results.append(str(Path(root) / f))
+                            if len(results) >= limit:
+                                break
+                    if len(results) >= limit:
+                        break
+                return json.dumps({"matches": results})
+
+            # Content search via ripgrep or fallback to Python
+            try:
+                cmd = ["rg", "--no-heading", "--with-filename", "--line-number",
+                       "--ignore-case", "-e", pattern]
+                if file_glob:
+                    cmd.extend(["--glob", file_glob])
+                cmd.append(search_path)
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=15,
+                    cwd=project.paths[0],
+                )
+                lines = result.stdout.strip().split("\n")[:limit]
+                matches = []
+                for line in lines:
+                    if ":" not in line:
+                        continue
+                    idx = line.index(":")
+                    idx2 = line.index(":", idx + 1)
+                    matches.append({
+                        "path": line[:idx],
+                        "line_number": int(line[idx + 1:idx2]),
+                        "line": line[idx2 + 1:],
+                    })
+                return json.dumps({"matches": matches, "total": len(matches)})
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                # Fallback: pure Python search
+                import re as _re
+                pat = _re.compile(pattern, _re.IGNORECASE)
+                results = []
+                for root, _dirs, files in Path(search_path).walk():
+                    for f in files:
+                        if file_glob and not f.endswith(tuple(file_glob.replace("*", "").split(","))):
+                            continue
+                        fpath = Path(root) / f
+                        try:
+                            for i, line in enumerate(fpath.read_text(errors="replace").split("\n"), 1):
+                                if pat.search(line):
+                                    results.append({
+                                        "path": str(fpath),
+                                        "line_number": i,
+                                        "line": line[:200],
+                                    })
+                                    if len(results) >= limit:
+                                        break
+                        except (OSError, UnicodeDecodeError):
+                            continue
+                        if len(results) >= limit:
+                            break
+                    if len(results) >= limit:
+                        break
+                return json.dumps({"matches": results, "total": len(results)})
+
+        elif tool_name == "execute_command":
+            command = args.get("command", "")
+            workdir = args.get("workdir") or project.paths[0]
+
+            # Security: block dangerous commands
+            cmd_lower = command.lower()
+            for blocked in _BLOCKED_COMMANDS:
+                if blocked in cmd_lower:
+                    return json.dumps({
+                        "error": f"Blocked command pattern: '{blocked.strip()}' is not allowed"
+                    })
+
+            try:
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=workdir,
+                )
+                output = result.stdout + result.stderr
+                if len(output) > _MAX_CMD_OUTPUT:
+                    output = output[:_MAX_CMD_OUTPUT] + "\n... (truncated)"
+                return json.dumps({
+                    "exit_code": result.returncode,
+                    "output": output,
+                })
+            except subprocess.TimeoutExpired:
+                return json.dumps({"error": "Command timed out after 30 seconds"})
+
+        return json.dumps({"error": f"Unknown coding tool: {tool_name}"})
+
+    except Exception as e:
+        logger.warning("coding_tool=%s failed: %s", tool_name, e, exc_info=True)
+        return json.dumps({"error": f"Coding tool '{tool_name}' failed: {e}"})
 
 
 _analyzer = LogAnalyzer()

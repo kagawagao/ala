@@ -16,6 +16,7 @@ from .config import settings
 from .logging_config import setup_logging
 from .mcp.server import mcp
 from .services.database import get_db
+from .services.project_manager import discover_project
 
 # Initialise logging as early as possible so every subsequent import can log.
 setup_logging(log_level=settings.log_level, log_dir=settings.log_dir)
@@ -90,6 +91,13 @@ def create_app() -> FastAPI:
         )
         # Trigger DB initialization and migration
         get_db()
+
+        # Auto-discover project from cwd
+        discovered = discover_project()
+        if discovered:
+            logger.info("Auto-discovered project: %s (%s)", discovered.name, discovered.id)
+        else:
+            logger.info("No ALA project found in cwd — skipping auto-discovery")
 
         # Clean up old temp log files on startup
         _cleanup_temp_on_startup()
