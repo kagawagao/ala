@@ -1206,24 +1206,27 @@ def execute_tool(
 # Coding tool executors
 # ---------------------------------------------------------------------------
 
-#: Dangerous command patterns blocked in execute_command (substring match)
-_CODING_BLOCKED_PATTERNS = [
-    "rm ",
-    "sudo ",
-    "chmod ",
-    "chown ",
-    "mkfs",
-    "dd if=",
-    "curl ",
-    "wget ",
-    "nc ",
-    "telnet ",
-    "ssh ",
-    "shutdown",
-    "reboot",
-    "halt",
-    "poweroff",
-]
+#: Dangerous commands blocked in execute_command (exact executable name match)
+_CODING_BLOCKED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "rm",
+        "sudo",
+        "chmod",
+        "chown",
+        "mkfs",
+        "dd",
+        "curl",
+        "wget",
+        "nc",
+        "ncat",
+        "telnet",
+        "ssh",
+        "shutdown",
+        "reboot",
+        "halt",
+        "poweroff",
+    }
+)
 
 #: Maximum output size for execute_command
 _MAX_CMD_OUTPUT = 64 * 1024  # 64 KB
@@ -1242,12 +1245,17 @@ def _resolve_project_path(file_path: str, project: Project) -> str:
             except ValueError:
                 continue
         raise ValueError(f"Path '{file_path}' is outside project boundaries")
-    # Try each project path as base
+    # Try each project path as base (with boundary validation)
     for base in project.paths:
-        candidate = Path(base) / file_path
+        candidate = (Path(base) / file_path).resolve()
+        base_resolved = Path(base).resolve()
+        try:
+            candidate.relative_to(base_resolved)
+        except ValueError:
+            continue
         if candidate.exists():
             return str(candidate)
-    # Default to first project path, but resolve and validate boundaries
+    # Default to first project path if file doesn't exist yet (e.g. write_file)
     candidate = (Path(project.paths[0]) / file_path).resolve()
     for base in project.paths:
         try:
@@ -1417,25 +1425,49 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
                 return json.dumps({"matches": results, "total": len(results)})
 
         elif tool_name == "execute_command":
+            import shlex as _shlex
+
             command = args.get("command", "")
             workdir = args.get("workdir") or project.paths[0]
 
-            # Security: block dangerous commands
-            cmd_lower = command.lower()
-            for blocked in _CODING_BLOCKED_PATTERNS:
-                if blocked in cmd_lower:
-                    return json.dumps(
-                        {"error": f"Blocked command pattern: '{blocked.strip()}' is not allowed"}
-                    )
+            # Validate workdir is within project boundaries
+            try:
+                workdir_resolved = str(Path(workdir).resolve())
+            except (OSError, RuntimeError):
+                return json.dumps({"error": f"Invalid workdir path: {workdir}"})
+            in_boundary = False
+            for base in project.paths:
+                try:
+                    Path(workdir_resolved).relative_to(Path(base).resolve())
+                    in_boundary = True
+                    break
+                except ValueError:
+                    continue
+            if not in_boundary:
+                return json.dumps({"error": f"workdir '{workdir}' is outside project boundaries"})
+
+            # Security: use shlex.split to safely parse the command and avoid shell injection
+            try:
+                cmd_parts = _shlex.split(command)
+            except ValueError as e:
+                return json.dumps({"error": f"Invalid command syntax: {e}"})
+
+            if not cmd_parts:
+                return json.dumps({"error": "Empty command"})
+
+            # Block dangerous commands (check the executable name, not just substring)
+            cmd_base = Path(cmd_parts[0]).name.lower()
+            if cmd_base in _CODING_BLOCKED_COMMANDS:
+                return json.dumps({"error": f"Blocked command: '{cmd_parts[0]}' is not allowed"})
 
             try:
                 result = subprocess.run(
-                    command,
-                    shell=True,
+                    cmd_parts,
+                    shell=False,
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=workdir,
+                    cwd=workdir_resolved,
                 )
                 output = result.stdout + result.stderr
                 if len(output) > _MAX_CMD_OUTPUT:
