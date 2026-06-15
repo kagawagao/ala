@@ -1206,8 +1206,8 @@ def execute_tool(
 # Coding tool executors
 # ---------------------------------------------------------------------------
 
-#: Dangerous command patterns blocked in execute_command
-_BLOCKED_COMMANDS = [
+#: Dangerous command patterns blocked in execute_command (substring match)
+_CODING_BLOCKED_PATTERNS = [
     "rm ", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
     "curl ", "wget ", "nc ", "telnet ", "ssh ",
     "shutdown", "reboot", "halt", "poweroff",
@@ -1221,7 +1221,15 @@ def _resolve_project_path(file_path: str, project: Project) -> str:
     """Resolve a relative path against project paths. Returns absolute path."""
     p = Path(file_path)
     if p.is_absolute():
-        return str(p)
+        # Ensure absolute path is within at least one project root
+        resolved = p.resolve()
+        for base in project.paths:
+            try:
+                resolved.relative_to(Path(base).resolve())
+                return str(resolved)
+            except ValueError:
+                continue
+        raise ValueError(f"Path '{file_path}' is outside project boundaries")
     # Try each project path as base
     for base in project.paths:
         candidate = Path(base) / file_path
@@ -1355,7 +1363,7 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
 
             # Security: block dangerous commands
             cmd_lower = command.lower()
-            for blocked in _BLOCKED_COMMANDS:
+            for blocked in _CODING_BLOCKED_PATTERNS:
                 if blocked in cmd_lower:
                     return json.dumps({
                         "error": f"Blocked command pattern: '{blocked.strip()}' is not allowed"

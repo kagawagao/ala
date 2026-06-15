@@ -187,7 +187,11 @@ def search(
     min_priority = level_order.get(level.upper(), -1) if level else -1
     tag_lower = tag.lower() if tag else None
     pid_str = pid.strip() if pid else None
-    pat = re.compile(pattern, re.IGNORECASE) if pattern else None
+    try:
+        pat = re.compile(pattern, re.IGNORECASE) if pattern else None
+    except re.error as e:
+        console.print(f"[red]Error:[/] invalid regex pattern — {e}")
+        raise typer.Exit(code=1)
 
     matched = 0
     for entry in entries:
@@ -238,6 +242,9 @@ def tail(
     ] = 100,
 ) -> None:
     """Show the last N lines of a log file with color-coded levels."""
+    if lines < 1:
+        console.print("[red]Error:[/] --lines must be a positive integer")
+        raise typer.Exit(code=1)
     entries = _load_entries(logfile)
     tail_entries = entries[-lines:]
 
