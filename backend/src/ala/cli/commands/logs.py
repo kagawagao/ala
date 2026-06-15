@@ -100,10 +100,22 @@ def search(
     ] = 200,
 ) -> None:
     """Search and filter log entries. Results are color-coded by severity."""
+    if limit < 1:
+        console.print("[red]Error:[/] --limit must be a positive integer")
+        raise typer.Exit(code=1)
     entries = load_entries(logfile)
 
     level_order = {"V": 0, "D": 1, "I": 2, "W": 3, "E": 4, "F": 5, "U": -1}
-    min_priority = level_order.get(level.upper(), -1) if level else -1
+    if level:
+        level_upper = level.upper()
+        if level_upper not in level_order or level_upper == "U":
+            console.print(
+                f"[red]Error:[/] invalid log level '{level}'; expected one of: V, D, I, W, E, F"
+            )
+            raise typer.Exit(code=1)
+        min_priority = level_order[level_upper]
+    else:
+        min_priority = -1
     tag_lower = tag.lower() if tag else None
     pid_str = pid.strip() if pid else None
     try:

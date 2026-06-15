@@ -18,6 +18,9 @@ def load_entries(filepath: str) -> list[LogEntry]:
     if not path.exists():
         console.print(f"[red]Error:[/] file not found — {filepath}")
         raise typer.Exit(code=1)
+    if not path.is_file():
+        console.print(f"[red]Error:[/] not a regular file — {filepath}")
+        raise typer.Exit(code=1)
 
     text = path.read_text(encoding="utf-8", errors="replace")
     result = _analyzer.parse_log(text, source_file=path.name)
