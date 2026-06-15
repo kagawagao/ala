@@ -1496,7 +1496,7 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
                 return json.dumps({"error": "Empty command"})
 
             # Block dangerous commands (check the executable name, not just substring)
-            cmd_base = Path(cmd_parts[0]).name.lower()
+            cmd_base = Path(cmd_parts[0]).stem.lower()
             if cmd_base in _CODING_BLOCKED_COMMANDS:
                 return json.dumps({"error": f"Blocked command: '{cmd_parts[0]}' is not allowed"})
 
