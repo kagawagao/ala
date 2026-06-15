@@ -1249,10 +1249,18 @@ _CODING_BLOCKED_COMMANDS: frozenset[str] = frozenset(
         "python",
         "python3",
         "pip",
+        "pip3",
         "node",
         "npm",
         "npx",
-        # Windows-specific dangerous commands
+        # Shells — can be used to bypass command blocks
+        "sh",
+        "bash",
+        "zsh",
+        "csh",
+        "dash",
+        "fish",
+        # Windows-specific dangerous commands & shells
         "del",
         "erase",
         "rd",
@@ -1264,7 +1272,9 @@ _CODING_BLOCKED_COMMANDS: frozenset[str] = frozenset(
         "net",
         "logoff",
         "wsl",
-        "bash",
+        "cmd",
+        "powershell",
+        "pwsh",
     }
 )
 
@@ -2866,11 +2876,19 @@ _UNIX_BLOCKED_COMMANDS = frozenset(
         "mkfs",
         "mount",
         "umount",
+        # Interpreters / shells
         "python",
         "python3",
         "pip",
+        "pip3",
         "npm",
         "node",
+        "sh",
+        "bash",
+        "zsh",
+        "csh",
+        "dash",
+        "fish",
     }
 )
 
@@ -2901,16 +2919,21 @@ _WINDOWS_BLOCKED_COMMANDS = frozenset(
         "telnet",
         "ftp",
         "ssh",
-        # Interpreters
+        # Interpreters / shells
         "python",
         "python3",
         "pip",
+        "pip3",
         "npm",
         "node",
         "npx",
         # WSL escape
         "wsl",
         "bash",
+        "sh",
+        "cmd",
+        "powershell",
+        "pwsh",
     }
 )
 
