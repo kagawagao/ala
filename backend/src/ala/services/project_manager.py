@@ -1,6 +1,7 @@
 """SQLite-backed project manager."""
 
 import json
+import logging
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -8,6 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .database import get_db
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> str:
@@ -276,9 +279,12 @@ def discover_project(cwd: Path | None = None) -> Project | None:
         # Try to get a better name from AGENTS.md title
         agents_md = candidate / "AGENTS.md"
         if agents_md.exists():
-            first_line = agents_md.read_text(encoding="utf-8", errors="replace").split("\n")[0]
-            if first_line.startswith("# "):
-                name = first_line[2:].split(" — ")[-1].strip()
+            try:
+                first_line = agents_md.read_text(encoding="utf-8", errors="replace").split("\n")[0]
+                if first_line.startswith("# "):
+                    name = first_line[2:].split(" — ")[-1].strip()
+            except OSError:
+                logger.warning("Cannot read AGENTS.md at %s, using directory name", agents_md)
 
         # Auto-register
         return pm.create_project(
