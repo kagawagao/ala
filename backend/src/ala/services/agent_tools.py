@@ -1160,8 +1160,8 @@ def execute_tool(
             target = file_path
             requested = args.get("file_path")
             if requested:
-                target = os.path.join(file_path, requested)
-                if not os.path.exists(target):
+                target = _resolve_within_base(file_path, requested, allow_directory=True)
+                if not target or not os.path.exists(target):
                     return json.dumps({"error": f"File not found: {requested}"})
             decompressed = decompress_nested(
                 Path(target) if os.path.isdir(target) else Path(target).parent
@@ -1212,6 +1212,23 @@ def execute_tool(
             # ── Fallback: use file-based tools when no log_entries ─────
             if file_path:
                 if tool_name == "list_log_files":
+                    import os as _os
+
+                    if _os.path.isfile(file_path):
+                        return json.dumps(
+                            {
+                                "total_files": 1,
+                                "files": [
+                                    {
+                                        "name": _os.path.basename(file_path),
+                                        "path": file_path,
+                                        "is_dir": False,
+                                        "size": _os.path.getsize(file_path),
+                                    }
+                                ],
+                                "_hint": "File listing from disk (log_entries not in memory).",
+                            }
+                        )
                     files = _list_directory(file_path)
                     return json.dumps(
                         {
@@ -1240,7 +1257,11 @@ def execute_tool(
                                     "results": rg_results[: args.get("limit", 50)],
                                 }
                             )
-                    return json.dumps({"error": "No log_entries loaded in this session."})
+                    # Fall back to lazy log tool for structured filters or when rg unavailable
+                    try:
+                        return _execute_lazy_log_tool("search_local_log", args, file_path)
+                    except Exception:
+                        return json.dumps({"error": "No log_entries loaded in this session."})
             return json.dumps({"error": "No logs loaded in this session"})
         return _execute_log_tool(tool_name, args, log_entries, log_index=log_index)
 
@@ -1287,8 +1308,8 @@ def execute_tool(
         import os as _os
 
         if file_path:
-            cand = _os.path.join(file_path, requested_path)
-            if _os.path.isfile(cand):
+            cand = _resolve_within_base(file_path, requested_path)
+            if cand and _os.path.isfile(cand):
                 try:
                     content = open(cand, encoding="utf-8", errors="replace").read()
                     size = _os.path.getsize(cand)
@@ -1304,34 +1325,6 @@ def execute_tool(
                     )
                 except Exception as e:
                     return json.dumps({"error": f"Cannot read {cand}: {e}"})
-        # ── Fallback 2: try as absolute path directly ──────────────────
-        if _os.path.isabs(requested_path):
-            if _os.path.isfile(requested_path):
-                try:
-                    content = open(requested_path, encoding="utf-8", errors="replace").read()
-                    size = _os.path.getsize(requested_path)
-                    max_read = 200_000
-                    truncated = len(content) > max_read
-                    return json.dumps(
-                        {
-                            "path": requested_path,
-                            "size": size,
-                            "truncated": truncated,
-                            "content": content[:max_read] if truncated else content,
-                        }
-                    )
-                except Exception as e:
-                    return json.dumps({"error": f"Cannot read {requested_path}: {e}"})
-            if _os.path.isdir(requested_path):
-                return json.dumps(
-                    {
-                        "error": (
-                            f"'{requested_path}' is a directory, not a source file. "
-                            f"Use list_directory_logs to browse, or read_log_file to read "
-                            f"individual log files. read_project_file is for source code only."
-                        )
-                    }
-                )
         return json.dumps({"error": f"File not found or unreadable: {requested_path}"})
 
     elif tool_name == "search_project_code":
@@ -1728,11 +1721,35 @@ LOG_EXTENSIONS = {
 }
 
 
+def _resolve_within_base(
+    base_path: str, requested_path: str, *, allow_directory: bool = False
+) -> str | None:
+    """Resolve *requested_path* relative to *base_path*, rejecting traversal escapes.
+
+    - If *base_path* is a file, the base root is its parent directory.
+    - Rejects absolute paths, ``../`` escapes, and symlink escapes.
+    - Returns the resolved absolute path, or ``None`` if invalid/not found.
+    """
+    from pathlib import Path as _Path
+
+    base = _Path(base_path)
+    root = (base if base.is_dir() else base.parent).resolve()
+    target = (root / requested_path).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    if target.is_file() or (allow_directory and target.is_dir()):
+        return str(target)
+    return None
+
+
 def _resolve_log_path(session_path: str, args: dict) -> str:
     """Resolve the actual file or directory path from session path and optional args.
 
     - If session_path is a file: return it directly (ignore args.file_path).
     - If session_path is a directory: require args.file_path, resolve relative to dir.
+      Absolute path escapes are rejected; paths are constrained to the session root.
     - Accepts both files AND directories as targets (caller decides how to use).
     """
     import os
@@ -1744,14 +1761,9 @@ def _resolve_log_path(session_path: str, args: dict) -> str:
         target = args.get("file_path", "").strip()
         if not target:
             return ""  # caller should return an error
-        # If target is already absolute and exists, use it directly
-        if os.path.isabs(target) and (os.path.isfile(target) or os.path.isdir(target)):
-            return target
-        # Otherwise resolve relative to the session directory
-        resolved = os.path.join(session_path, target)
-        if os.path.isfile(resolved) or os.path.isdir(resolved):
-            return resolved
-        return ""  # not found
+        # Resolve via helper that validates the path stays within the session root
+        resolved = _resolve_within_base(session_path, target, allow_directory=True)
+        return resolved or ""
 
     return session_path  # fallback
 
@@ -2662,8 +2674,9 @@ def _execute_read_log_file(args: dict, session_file_path: str | None = None) -> 
     """Read a log/diagnostic file and return its raw text content.
 
     Resolves ``file_path`` relative to *session_file_path* when it's a directory.
-    Accepts absolute paths directly.  Returns raw text — ideal for ANR traces,
-    tombstones, dropbox files, and other non-logcat diagnostic text.
+    Paths are constrained to the session root — absolute path escapes are rejected.
+    Returns raw text — ideal for ANR traces, tombstones, dropbox files, and other
+    non-logcat diagnostic text.
     """
     import os as _os
 
@@ -2673,39 +2686,11 @@ def _execute_read_log_file(args: dict, session_file_path: str | None = None) -> 
 
     # ── Resolve the actual path ────────────────────────────────────────
     resolved: str | None = None
-    if _os.path.isabs(requested):
-        if _os.path.isfile(requested):
-            resolved = requested
-        elif _os.path.isdir(requested):
-            # Absolute directory path — auto-list its files
-            files = _list_directory(requested)
-            return json.dumps(
-                {
-                    "path": requested,
-                    "is_dir": True,
-                    "total_files": len(files),
-                    "files": files,
-                    "_hint": "This is a directory. Use read_log_file with a specific file name, or select a file from the list above.",
-                }
-            )
-    elif session_file_path:
+    if session_file_path:
         if _os.path.isfile(session_file_path):
             resolved = session_file_path
         elif _os.path.isdir(session_file_path):
-            cand = _os.path.join(session_file_path, requested)
-            if _os.path.isfile(cand):
-                resolved = cand
-            elif _os.path.isdir(cand):
-                files = _list_directory(cand)
-                return json.dumps(
-                    {
-                        "path": cand,
-                        "is_dir": True,
-                        "total_files": len(files),
-                        "files": files,
-                        "_hint": "This is a directory. Use read_log_file with a specific file name to read its content.",
-                    }
-                )
+            resolved = _resolve_within_base(session_file_path, requested, allow_directory=True)
 
     if not resolved:
         return json.dumps(
@@ -2997,11 +2982,9 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
     # Resolve the log search path (file or directory)
     resolved_log = file_path
     if os.path.isdir(file_path) and log_file:
-        candidate = os.path.join(file_path, log_file)
-        if os.path.isfile(candidate) or os.path.isdir(candidate):
+        candidate = _resolve_within_base(file_path, log_file, allow_directory=True)
+        if candidate and (os.path.isfile(candidate) or os.path.isdir(candidate)):
             resolved_log = candidate
-        elif os.path.isabs(log_file) and (os.path.isfile(log_file) or os.path.isdir(log_file)):
-            resolved_log = log_file
     if not os.path.isfile(resolved_log) and not os.path.isdir(resolved_log):
         elapsed = (time.monotonic() - t_start) * 1000
         return json.dumps(

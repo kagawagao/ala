@@ -336,7 +336,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 full_response += chunk
                 yield _sse_encode(chunk)
 
-            yield "data: [DONE]\n\n"
+            yield _sse_encode(json.dumps({"_done": True}))
         except Exception as e:
             # ── Build rich error context for diagnosis ──────────────────────────
             exc_type = type(e).__name__

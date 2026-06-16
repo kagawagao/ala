@@ -112,17 +112,19 @@ def _extract_archive_to_disk(archive_path: str, filename: str) -> Path:
     extract_dir = Path(archive_path + "_extracted")
     lower = filename.lower()
 
-    # Reuse existing extraction if already done (only if it has actual files)
+    # Reuse existing extraction if already done and the source hasn't changed
+    source_mtime = Path(archive_path).stat().st_mtime_ns
+    marker = extract_dir / ".ala_source_mtime"
     if extract_dir.exists():
         existing_files = [p for p in extract_dir.rglob("*") if p.is_file()]
-        if existing_files:
+        if existing_files and marker.exists() and marker.read_text() == str(source_mtime):
             _logger.info(
                 "Reusing existing extraction: %s (%d files)", extract_dir, len(existing_files)
             )
             return extract_dir
         else:
-            # Previous extraction left empty directories — clean up and re-extract
-            _logger.info("Existing extraction has no files — cleaning up: %s", extract_dir)
+            # Previous extraction is stale or empty — clean up and re-extract
+            _logger.info("Existing extraction is stale or empty — cleaning up: %s", extract_dir)
             shutil.rmtree(extract_dir)
 
     extract_dir.mkdir(parents=True, exist_ok=True)
@@ -232,6 +234,8 @@ def _extract_archive_to_disk(archive_path: str, filename: str) -> Path:
         # Not a recognised archive — just return the directory
         _logger.debug("Not an archive: %s", filename)
 
+    # Write marker AFTER successful extraction so next reuse check passes
+    marker.write_text(str(source_mtime))
     return extract_dir
 
 
@@ -283,10 +287,25 @@ def decompress_nested(root: Path) -> list[str]:
                 if lower.endswith(".gz") and not lower.endswith(".tar.gz"):
                     inner = f.with_suffix("")  # remove .gz
                     _logger.info("Decompressing nested: %s → %s", f.name, inner.name)
-                    with gzip.open(f, "rb") as gz_f:
-                        inner.write_bytes(gz_f.read())
+                    # Stream decompress with size limit
+                    total = 0
+                    too_large = False
+                    with gzip.open(f, "rb") as gz_f, open(inner, "wb") as out_f:
+                        while True:
+                            chunk = gz_f.read(64 * 1024)
+                            if not chunk:
+                                break
+                            total += len(chunk)
+                            if total > _MAX_DECODE_BYTES:
+                                _logger.warning("Nested gzip too large, skipping: %s", f.name)
+                                too_large = True
+                                break
+                            out_f.write(chunk)
+                    if too_large:
+                        inner.unlink(missing_ok=True)
+                    else:
+                        decompressed.append(str(inner.relative_to(root)))
                     f.unlink()  # remove .gz after decompression
-                    decompressed.append(str(inner.relative_to(root)))
                     changed = True
                 elif lower.endswith(".zip"):
                     _logger.info("Extracting nested ZIP: %s", f.name)
@@ -383,6 +402,8 @@ def _collect_log_files(root: Path) -> list[tuple[str, bytes]]:
     results: list[tuple[str, bytes]] = []
     for f in root.rglob("*"):
         if f.is_file() and _is_log_name(f.name):
+            if f.stat().st_size > _MAX_DECODE_BYTES:
+                continue
             content = f.read_bytes()
             if len(content) <= _MAX_DECODE_BYTES:
                 # Use relative path from root as display name
@@ -453,6 +474,13 @@ def extract_text_files(
                     if info.is_dir():
                         continue
                     member_name = info.filename
+                    if info.file_size > _MAX_DECODE_BYTES:
+                        _logger.warning(
+                            "ZIP member too large, skipping: %s (%d bytes)",
+                            member_name,
+                            info.file_size,
+                        )
+                        continue
                     member_data = zf.read(info.filename)
                     if len(member_data) > _MAX_DECODE_BYTES:
                         _logger.warning("ZIP member too large, skipping: %s", member_name)
@@ -477,7 +505,23 @@ def extract_text_files(
             "Decompressing GZ from memory: %s (%.1f MB, depth=%d)", filename, data_mb, _depth
         )
         try:
-            decompressed = gzip.decompress(data)
+            # Stream decompress with size limit to avoid unbounded allocation
+            import io as _io
+
+            buf = _io.BytesIO()
+            total = 0
+            with gzip.GzipFile(fileobj=_io.BytesIO(data)) as gz_f:
+                while True:
+                    chunk = gz_f.read(64 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > _MAX_DECODE_BYTES:
+                        raise ValueError(
+                            f"Decompressed size exceeds {_MAX_DECODE_BYTES:,} byte limit"
+                        )
+                    buf.write(chunk)
+            decompressed = buf.getvalue()
         except gzip.BadGzipFile as exc:
             raise ValueError(f"Invalid gzip file: {exc}") from exc
         inner_name = filename[:-3] if len(filename) > 3 else filename
