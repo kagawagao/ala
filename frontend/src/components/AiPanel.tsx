@@ -44,6 +44,7 @@ import {
 } from '../api/chat'
 import type {
   AIConfig,
+  ChatMessage,
   ContextDoc,
   LogEntry,
   LogFilters,
@@ -510,6 +511,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
         })
       }
 
+      const historyPayload: ChatMessage[] = messages.map((m) => ({
+        role: m.role as ChatMessage['role'],
+        content: m.content,
+      }))
+
       for await (const chunk of sendMessage(
         activeSessionId,
         sentInput,
@@ -527,6 +533,9 @@ const AiPanel: React.FC<AiPanelProps> = ({
             }
           : undefined,
         i18n.language,
+        historyPayload,
+        null, // rawApiMessages — persisted tool-call state (future)
+        null, // rawApiMessagesProvider
       )) {
         if (chunk === '[DONE]') break
 

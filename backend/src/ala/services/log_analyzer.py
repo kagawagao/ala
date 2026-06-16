@@ -322,7 +322,11 @@ def decompress_nested(root: Path) -> list[str]:
                 elif lower.endswith(".zip"):
                     _logger.info("Extracting nested ZIP: %s", f.name)
                     with zipfile.ZipFile(f) as zf:
-                        zf.extractall(str(f.parent))
+                        for member in zf.namelist():
+                            if ".." in member or member.startswith("/"):
+                                _logger.warning("Skipping suspicious ZIP member: %s", member)
+                                continue
+                            zf.extract(member, str(f.parent))
                     f.unlink()
                     decompressed.append(f"{f.name} → extracted")
                     changed = True
