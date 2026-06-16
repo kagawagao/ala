@@ -1244,7 +1244,12 @@ def execute_tool(
                     except Exception:
                         return json.dumps({"error": "Failed to query overview from files"})
                 elif tool_name == "search_logs":
-                    if args.get("keyword"):
+                    # Only use ripgrep fast-path when keyword is the sole filter.
+                    # If structured filters (level/tag/pid/time) are present,
+                    # fall through to search_local_log which handles them all.
+                    _structured_filters = {"level", "tag", "pid", "start_time", "end_time"}
+                    _has_structured = any(args.get(k) for k in _structured_filters)
+                    if args.get("keyword") and not _has_structured:
                         rg_results = _search_log_with_rg(
                             file_path,
                             args["keyword"],
