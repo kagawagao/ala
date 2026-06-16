@@ -109,6 +109,20 @@ def _extract_archive_to_disk(archive_path: str, filename: str) -> Path:
 
     _logger = logging.getLogger(__name__)
 
+    # ── Path traversal guard ────────────────────────────────────────────
+    _sep = os.sep
+    # Normalize alternate separators before checking
+    _check = archive_path
+    if os.altsep:
+        _check = _check.replace(os.altsep, _sep)
+    if ".." in _check.split(_sep) or _check.startswith(".."):
+        raise PathTraversalError(f"Path traversal detected: {archive_path}")
+    _norm = os.path.normpath(_check)
+    if ".." in _norm.split(_sep):
+        raise PathTraversalError(
+            f"Path traversal detected (after normalization): {_norm}" + f" (from {archive_path})"
+        )
+
     extract_dir = Path(archive_path + "_extracted")
     lower = filename.lower()
 

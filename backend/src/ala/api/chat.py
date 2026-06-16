@@ -26,19 +26,6 @@ def _sse_encode(chunk: str) -> str:
     return "\n".join(f"data: {line}" for line in lines) + "\n\n"
 
 
-def _format_size(size_bytes: int) -> str:
-    """Format file size in human-readable form."""
-    size_bytes = int(size_bytes)
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
-
-
 class ChatMessage(BaseModel):
     role: str
     content: str
