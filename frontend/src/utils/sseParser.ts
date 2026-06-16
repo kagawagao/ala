@@ -1,6 +1,7 @@
 import type {
   AgentEvent,
   LogEntry,
+  SessionStateEvent,
   ToolCallEvent,
   ToolResultEvent,
   ThinkingEvent,
@@ -27,6 +28,12 @@ export interface SSEParseState {
   round: number
   maxRounds: number
   toolCallCount: number
+  /** Session state emitted at end of stream for localStorage persistence. */
+  sessionState: {
+    assistantMessage?: { role: string; content: string; parts: string | null }
+    rawApiMessages?: Record<string, unknown>[]
+    rawApiMessagesProvider?: string
+  } | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -135,6 +142,19 @@ export function processSSEChunk(chunk: string, state: SSEParseState): SSEParseSt
       }
     }
 
+    // session_state — emitted at end of stream for frontend persistence
+    if ('type' in data && data.type === 'session_state') {
+      const event = data as SessionStateEvent
+      return {
+        ...state,
+        sessionState: {
+          assistantMessage: event.assistant_message,
+          rawApiMessages: event.raw_api_messages,
+          rawApiMessagesProvider: event.raw_api_messages_provider,
+        },
+      }
+    }
+
     // ── OpenAI-compatible delta extraction ────────────────────────────────
     const delta =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,5 +189,6 @@ export function createSSEState(): SSEParseState {
     round: 0,
     maxRounds: 0,
     toolCallCount: 0,
+    sessionState: null,
   }
 }

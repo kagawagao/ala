@@ -16,10 +16,6 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/health': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
     },
   },
   build: {
@@ -28,7 +24,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id: string) => {
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom')
+          ) {
             return 'vendor-react'
           }
           if (id.includes('node_modules/antd') || id.includes('node_modules/@ant-design')) {

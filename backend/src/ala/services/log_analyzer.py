@@ -78,8 +78,9 @@ class PathTraversalError(ValueError):
 # Archive / multi-file extraction helpers
 # ---------------------------------------------------------------------------
 
-#: File extensions treated as log text files
-_LOG_TEXT_EXTS = {".log", ".txt", ".logcat", ""}
+#: File extensions treated as log text files (includes extensionless files
+#: for ANR traces, tombstones, and other non-standard Android diagnostic text)
+_LOG_TEXT_EXTS = {".log", ".txt", ".logcat", ".trace", ".anr", ""}
 
 #: Maximum size (bytes) for a single decoded text file to prevent OOM
 _MAX_DECODE_BYTES = 256 * 1024 * 1024  # 256 MB
@@ -95,44 +96,406 @@ def _is_log_name(name: str) -> bool:
     return ext in _LOG_TEXT_EXTS
 
 
-def extract_text_files(data: bytes, filename: str) -> list[tuple[str, bytes]]:
-    """Extract text file contents from *data*.
+def _extract_archive_to_disk(archive_path: str, filename: str) -> Path:
+    """Extract an archive to ``{archive_path}_extracted/`` on disk.
+
+    Returns the extraction directory path.  Nested archives are left as-is
+    so the AI can decide whether to decompress them.
+    """
+    import logging
+    import shutil
+    import subprocess
+    import sys
+
+    _logger = logging.getLogger(__name__)
+
+    extract_dir = Path(archive_path + "_extracted")
+    lower = filename.lower()
+
+    # Reuse existing extraction if already done (only if it has actual files)
+    if extract_dir.exists():
+        existing_files = [p for p in extract_dir.rglob("*") if p.is_file()]
+        if existing_files:
+            _logger.info(
+                "Reusing existing extraction: %s (%d files)", extract_dir, len(existing_files)
+            )
+            return extract_dir
+        else:
+            # Previous extraction left empty directories — clean up and re-extract
+            _logger.info("Existing extraction has no files — cleaning up: %s", extract_dir)
+            shutil.rmtree(extract_dir)
+
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    _logger.info("Extracting to: %s", extract_dir)
+
+    if lower.endswith(".rar"):
+        # ── Find a RAR extractor (system tools first — they are the gold standard) ─
+        def _has_extracted_files(dir_: Path) -> bool:
+            return any(p.is_file() for p in dir_.rglob("*"))
+
+        extractor: str | None = None
+        # 1) Search for system tools (7z, 7za, unrar) — correct & complete extraction
+        extractor = shutil.which("7z") or shutil.which("7za") or shutil.which("unrar")
+        if not extractor and sys.platform == "win32":
+            for candidate in (
+                r"C:\Program Files\7-Zip\7z.exe",
+                r"C:\Program Files (x86)\7-Zip\7z.exe",
+            ):
+                if Path(candidate).exists():
+                    extractor = candidate
+                    break
+
+        if extractor:
+            # ── System tool available → use it directly ─
+            _logger.info("Using system extractor: %s", extractor)
+            if "7z" in extractor.lower():
+                cmd = [extractor, "x", "-y", f"-o{extract_dir}", archive_path]
+            else:
+                cmd = [extractor, "x", "-y", archive_path, str(extract_dir) + "/"]
+            try:
+                subprocess.run(cmd, capture_output=True, check=True, timeout=300)
+                _logger.info("Archive extraction complete via %s", extractor)
+            except subprocess.CalledProcessError as e:
+                stderr_text = e.stderr.decode(errors="replace") if e.stderr else ""
+                _logger.warning("Extraction failed: %s", stderr_text[:500])
+                # Detect split-archive "missing volume" errors
+                if any(
+                    keyword in stderr_text.lower()
+                    for keyword in (
+                        "cannot find volume",
+                        "missing volume",
+                        "need the following volume",
+                        "next volume",
+                        "can not open file",
+                    )
+                ):
+                    raise ValueError(
+                        f"Split archive extraction failed — missing parts. "
+                        f"Ensure all parts of this split archive are downloaded "
+                        f"to the same directory before extraction. Error: {stderr_text[:300]}"
+                    ) from e
+                raise ValueError(f"Archive extraction failed: {e}") from e
+        else:
+            # ── No system tool — fall back to rarfile library ─
+            _logger.info("No system extractor found, trying rarfile library")
+            try:
+                import rarfile
+
+                rf = rarfile.RarFile(archive_path)
+                _logger.info("rarfile opened archive with %d members", len(rf.infolist()))
+                rf.extractall(str(extract_dir))
+                _logger.info("rarfile extraction complete")
+            except ImportError:
+                raise ValueError(
+                    "Cannot extract RAR: install 7-Zip (https://7-zip.org) "
+                    "or 'pip install rarfile' and ensure unrar is on your PATH."
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Cannot extract RAR: rarfile failed ({e}). "
+                    "Install 7-Zip (https://7-zip.org) for reliable RAR extraction."
+                ) from e
+
+            # Verify rarfile actually produced files
+            if not _has_extracted_files(extract_dir):
+                raise ValueError(
+                    "rarfile created directories but no files — the 'unrar' system tool "
+                    "is required for RAR extraction. Install 7-Zip (https://7-zip.org) "
+                    "or 'sudo apt install unrar'."
+                )
+
+    elif lower.endswith(".zip"):
+        import zipfile
+
+        with zipfile.ZipFile(archive_path) as zf:
+            zf.extractall(str(extract_dir))
+        _logger.info("ZIP extracted to: %s", extract_dir)
+
+    elif lower.endswith(".gz") and not lower.endswith(".tar.gz"):
+        import gzip
+
+        inner_name = filename[:-3] if len(filename) > 3 else "log"
+        dest = extract_dir / inner_name
+        with gzip.open(archive_path, "rb") as gz_f, open(dest, "wb") as out_f:
+            out_f.write(gz_f.read())
+        _logger.info("GZ decompressed to: %s", dest)
+
+    else:
+        # Not a recognised archive — just return the directory
+        _logger.debug("Not an archive: %s", filename)
+
+    return extract_dir
+
+
+def decompress_nested(root: Path) -> list[str]:
+    """Recursively decompress ``.gz`` / ``.zip`` / ``.rar`` files found inside *root*.
+
+    Called after initial archive extraction to flatten nested archives, and
+    exposed as an AI agent tool for manual use.  Returns the names of files
+    that were decompressed.
+    """
+    import gzip
+    import logging
+    import shutil
+    import subprocess
+    import sys
+    import zipfile
+
+    _logger = logging.getLogger(__name__)
+
+    # ── Resolve RAR extractor once ──────────────────────────────────────
+    _rar_extractor: str | None = None
+    _rar_extractor_checked = False
+
+    def _get_rar_extractor() -> str | None:
+        nonlocal _rar_extractor, _rar_extractor_checked
+        if _rar_extractor_checked:
+            return _rar_extractor
+        _rar_extractor_checked = True
+        _rar_extractor = shutil.which("7z") or shutil.which("7za") or shutil.which("unrar")
+        if not _rar_extractor and sys.platform == "win32":
+            for candidate in (
+                r"C:\Program Files\7-Zip\7z.exe",
+                r"C:\Program Files (x86)\7-Zip\7z.exe",
+            ):
+                if Path(candidate).exists():
+                    _rar_extractor = candidate
+                    break
+        return _rar_extractor
+
+    decompressed: list[str] = []
+    changed = True
+    while changed:
+        changed = False
+        for f in sorted(root.rglob("*")):
+            if not f.is_file():
+                continue
+            lower = f.name.lower()
+            try:
+                if lower.endswith(".gz") and not lower.endswith(".tar.gz"):
+                    inner = f.with_suffix("")  # remove .gz
+                    _logger.info("Decompressing nested: %s → %s", f.name, inner.name)
+                    with gzip.open(f, "rb") as gz_f:
+                        inner.write_bytes(gz_f.read())
+                    f.unlink()  # remove .gz after decompression
+                    decompressed.append(str(inner.relative_to(root)))
+                    changed = True
+                elif lower.endswith(".zip"):
+                    _logger.info("Extracting nested ZIP: %s", f.name)
+                    with zipfile.ZipFile(f) as zf:
+                        zf.extractall(str(f.parent))
+                    f.unlink()
+                    decompressed.append(f"{f.name} → extracted")
+                    changed = True
+                elif lower.endswith(".rar"):
+                    _logger.info("Extracting nested RAR: %s", f.name)
+                    extractor = _get_rar_extractor()
+                    if extractor:
+                        if "7z" in extractor.lower():
+                            cmd = [extractor, "x", "-y", f"-o{f.parent}", str(f)]
+                        else:
+                            cmd = [extractor, "x", "-y", str(f), str(f.parent) + "/"]
+                        subprocess.run(cmd, capture_output=True, check=True, timeout=300)
+                        f.unlink()
+                        decompressed.append(f"{f.name} → extracted")
+                        changed = True
+                    else:
+                        try:
+                            import rarfile
+
+                            rf = rarfile.RarFile(str(f))
+                            rf.extractall(str(f.parent))
+                            f.unlink()
+                            decompressed.append(f"{f.name} → extracted")
+                            changed = True
+                        except ImportError:
+                            _logger.warning(
+                                "Cannot extract nested RAR %s: no extractor available", f.name
+                            )
+                        except Exception as e:
+                            _logger.warning("rarfile extraction failed for %s: %s", f.name, e)
+            except Exception as e:
+                _logger.warning("Failed to decompress nested file %s: %s", f, e)
+    return decompressed
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format file size in human-readable form."""
+    size_bytes = int(size_bytes)
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+def _build_file_tree(root: Path, top_name: str | None = None) -> str:
+    """Build a human-readable directory tree for the AI to browse.
+
+    Limits to 200 entries; directories come first, then files sorted by size
+    descending.  Compressed files and media files are tagged.
+    """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+    all_items = sorted(root.rglob("*"), key=lambda p: (not p.is_dir(), p.as_posix().lower()))
+
+    lines: list[str] = []
+    max_items = 200
+    for item in all_items[:max_items]:
+        if item.name.startswith("."):
+            continue
+        try:
+            size = item.stat().st_size if item.is_file() else 0
+        except OSError:
+            size = 0
+        indent = "  " * (len(item.relative_to(root).parts) - 1)
+        prefix = "📁" if item.is_dir() else "📄"
+        tag = ""
+        if item.is_file():
+            lower = item.name.lower()
+            if lower.endswith((".gz", ".zip", ".rar", ".7z", ".tar", ".tgz")):
+                tag = " [compressed]"
+            elif lower.endswith((".mp4", ".avi", ".mov", ".jpg", ".png", ".bmp", ".gif")):
+                tag = " [media]"
+            elif not _is_log_name(item.name):
+                tag = " [other]"
+        size_str = _format_size(size) if item.is_file() else ""
+        lines.append(f"{indent}{prefix} {item.name}  {size_str}{tag}")
+    if len(all_items) > max_items:
+        lines.append(f"... and {len(all_items) - max_items} more items")
+    return "\n".join(lines)
+
+
+def _collect_log_files(root: Path) -> list[tuple[str, bytes]]:
+    """Recursively collect log files from a directory tree."""
+    results: list[tuple[str, bytes]] = []
+    for f in root.rglob("*"):
+        if f.is_file() and _is_log_name(f.name):
+            content = f.read_bytes()
+            if len(content) <= _MAX_DECODE_BYTES:
+                # Use relative path from root as display name
+                rel_name = str(f.relative_to(root))
+                results.append((rel_name, content))
+    if not results:
+        results.append(("(empty archive)", b""))
+    return results
+
+
+#: Maximum recursion depth for nested archive decompression to prevent zip-bomb DoS
+_MAX_DECOMPRESS_DEPTH = 5
+
+
+def _is_compressed_name(name: str) -> bool:
+    """Return True when *name* looks like a compressed/archive file."""
+    lower = name.lower()
+    if lower.endswith(".tar.gz") or lower.endswith(".tgz"):
+        return True
+    ext = os.path.splitext(lower)[1]
+    return ext in {".gz", ".zip", ".rar", ".7z"}
+
+
+def extract_text_files(
+    data: bytes, filename: str, source_path: str | None = None, _depth: int = 0
+) -> list[tuple[str, bytes]]:
+    """Extract text file contents from *data* or from a file on disk.
 
     Returns a list of ``(member_name, raw_bytes)`` pairs.
+
+    Nested archives (e.g. ``.zip`` containing ``.gz``, ``.rar`` containing
+    ``.gz`` files) are decompressed recursively until plain-text files are
+    reached.  *source_path* triggers on-disk extraction (essential for large
+    archives that would exhaust memory).
 
     Supports:
     * ``.zip`` archives (may contain multiple log files)
     * ``.gz`` single-file gzip (e.g. ``logcat.log.gz``)
+    * ``.rar`` archives
     * Plain text files (returned as-is)
     """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+
+    if _depth > _MAX_DECOMPRESS_DEPTH:
+        _logger.warning("Max decompress depth reached for %s — returning as plain text", filename)
+        return [(filename, data[:_MAX_DECODE_BYTES])]
+
     lower = filename.lower()
 
+    # For disk-based archives, extract next to the source file, then collect.
+    # Nested archives are left as-is — the AI decides on-demand via decompress_file tool.
+    if source_path and (lower.endswith((".rar", ".zip", ".gz"))):
+        extract_dir = _extract_archive_to_disk(source_path, filename)
+        return _collect_log_files(extract_dir)
+
+    data_mb = len(data) / (1024 * 1024)
+
     if lower.endswith(".zip"):
+        _logger.info(
+            "Extracting ZIP from memory: %s (%.1f MB, depth=%d)", filename, data_mb, _depth
+        )
         results: list[tuple[str, bytes]] = []
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
                 for info in zf.infolist():
                     if info.is_dir():
                         continue
-                    if not _is_log_name(info.filename):
-                        continue
+                    member_name = info.filename
                     member_data = zf.read(info.filename)
-                    if len(member_data) <= _MAX_DECODE_BYTES:
-                        results.append((info.filename, member_data))
+                    if len(member_data) > _MAX_DECODE_BYTES:
+                        _logger.warning("ZIP member too large, skipping: %s", member_name)
+                        continue
+                    if _is_compressed_name(member_name):
+                        # Nested archive → recurse
+                        _logger.info("ZIP member is compressed, recursing: %s", member_name)
+                        results.extend(
+                            extract_text_files(member_data, member_name, _depth=_depth + 1)
+                        )
+                    elif _is_log_name(member_name):
+                        results.append((member_name, member_data))
+                    else:
+                        _logger.debug("Skipping non-log ZIP member: %s", member_name)
         except zipfile.BadZipFile as exc:
             raise ValueError(f"Invalid ZIP file: {exc}") from exc
+        _logger.info("ZIP extracted %d log files from memory", len(results))
         return results if results else [("(empty zip)", b"")]
 
     if lower.endswith(".gz") and not lower.endswith(".tar.gz"):
+        _logger.info(
+            "Decompressing GZ from memory: %s (%.1f MB, depth=%d)", filename, data_mb, _depth
+        )
         try:
             decompressed = gzip.decompress(data)
         except gzip.BadGzipFile as exc:
             raise ValueError(f"Invalid gzip file: {exc}") from exc
-        # Strip the .gz extension to get the inner filename
         inner_name = filename[:-3] if len(filename) > 3 else filename
+        decomp_mb = len(decompressed) / (1024 * 1024)
+        _logger.info("GZ decompressed: %s → %s (%.1f MB)", filename, inner_name, decomp_mb)
+
+        # If the decompressed content is itself an archive, recurse
+        if _is_compressed_name(inner_name):
+            _logger.info("GZ inner file is compressed, recursing: %s", inner_name)
+            return extract_text_files(decompressed, inner_name, _depth=_depth + 1)
+
         return [(inner_name, decompressed[:_MAX_DECODE_BYTES])]
 
+    if lower.endswith(".rar"):
+        # In-memory RAR (no source_path) — write to temp dir, extract, collect.
+        # Nested archives are left as-is — the AI decides on-demand.
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="ala_rar_") as tmpdir:
+            rar_path = Path(tmpdir) / filename
+            rar_path.write_bytes(data)
+            extract_dir = _extract_archive_to_disk(str(rar_path), filename)
+            return _collect_log_files(extract_dir)
+
     # Plain text – return as-is
+    _logger.debug("Treating as plain text: %s (%.1f MB)", filename, data_mb)
     return [(filename, data[:_MAX_DECODE_BYTES])]
 
 
@@ -170,13 +533,18 @@ class LogAnalyzer:
             logs = self._parse_unknown(content, source_file)
         return ParseResult(logs=logs, total_lines=len(logs), format_detected=fmt.value)
 
-    def parse_log_bytes(self, data: bytes, filename: str) -> list[ParseResult]:
+    def parse_log_bytes(
+        self, data: bytes, filename: str, source_path: str | None = None
+    ) -> list[ParseResult]:
         """Parse one or more log files from *data*.
 
-        Handles plain text, ``.zip`` archives, and ``.gz`` single-file gzip.
+        Handles plain text, ``.zip`` archives, ``.gz`` single-file gzip, and ``.rar``.
         Returns one :class:`ParseResult` per extracted text file.
+
+        When *source_path* is given, archives are extracted on disk next to
+        the source file so large archives don't consume memory.
         """
-        text_files = extract_text_files(data, filename)
+        text_files = extract_text_files(data, filename, source_path=source_path)
         results: list[ParseResult] = []
         for name, raw_bytes in text_files:
             text = raw_bytes.decode("utf-8", errors="replace")

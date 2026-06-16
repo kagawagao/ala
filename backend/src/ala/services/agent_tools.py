@@ -428,6 +428,57 @@ LAZY_LOG_TOOLS: list[dict] = [
             "required": ["command"],
         },
     },
+    {
+        "name": "decompress_file",
+        "description": (
+            "Decompress a specific compressed file (.gz, .zip, .rar) or "
+            "recursively decompress all nested archives in a directory. "
+            "Use this when you encounter a compressed file inside an extracted "
+            "archive directory. After decompression, use list_directory_logs "
+            "to see the new files. "
+            "If file_path is not specified, scans the entire session directory "
+            "for nested archives and decompresses them all."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "Optional: specific compressed file to decompress. "
+                        "If omitted, recursively decompresses all nested "
+                        "archives in the session directory."
+                    ),
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "read_log_file",
+        "description": (
+            "Read the raw content of a log file (ANR trace, dropbox, tombstone, etc.) "
+            "directly from disk. Returns the file text as-is, without parsing it as "
+            "logcat entries — perfect for reading ANR traces, stack dumps, and other "
+            "diagnostic text files that aren't standard Android logcat format. "
+            "Use list_directory_logs first to find available files, then pass the "
+            "file name or path to this tool. "
+            "For standard Android logcat, use search_local_log or overview_local_log."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "File name or relative path to read. Resolved relative to "
+                        "the session log directory. Can also be an absolute path."
+                    ),
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
 ]
 
 # Anthropic tool schemas – project (code/log) tools
@@ -452,15 +503,16 @@ AGENT_TOOLS: list[dict[str, Any]] = [
     {
         "name": "read_project_file",
         "description": (
-            "Read the content of a specific source file from the project. "
-            "Use after listing files to read relevant code."
+            "Read a source code file from the PROJECT source tree (e.g. Kotlin, Java, Python). "
+            "NOT for log/diagnostic files — use read_log_file for ANR traces, dropbox, etc. "
+            "Use after list_project_files to find and read relevant source code."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Relative path to the file within the project",
+                    "description": "Relative path to the source file within the project",
                 },
             },
             "required": ["file_path"],
@@ -1095,6 +1147,39 @@ def execute_tool(
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
 
+    # decompress_file — manually decompress nested archives in a directory
+    if tool_name == "decompress_file":
+        if file_path is None:
+            return json.dumps({"error": "No local log path set in this session"})
+        try:
+            import os
+            from pathlib import Path
+
+            from .log_analyzer import decompress_nested
+
+            target = file_path
+            requested = args.get("file_path")
+            if requested:
+                target = os.path.join(file_path, requested)
+                if not os.path.exists(target):
+                    return json.dumps({"error": f"File not found: {requested}"})
+            decompressed = decompress_nested(
+                Path(target) if os.path.isdir(target) else Path(target).parent
+            )
+            return json.dumps(
+                {
+                    "decompressed": decompressed,
+                    "message": (
+                        f"Decompressed {len(decompressed)} nested archive(s)"
+                        if decompressed
+                        else "No nested archives found to decompress"
+                    ),
+                }
+            )
+        except Exception as e:
+            logger.warning("tool=decompress_file failed: %s", e, exc_info=True)
+            return json.dumps({"error": f"decompress_file failed: {e}"})
+
     # search_all_local — composite: logs + code in one call
     if tool_name == "search_all_local":
         if file_path is None:
@@ -1118,6 +1203,38 @@ def execute_tool(
     # Log tools (work standalone or alongside project tools)
     if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
         if log_entries is None:
+            # ── Fallback: use file-based tools when no log_entries ─────
+            if file_path:
+                if tool_name == "list_log_files":
+                    files = _list_directory(file_path)
+                    return json.dumps(
+                        {
+                            "total_files": len(files),
+                            "files": files,
+                            "_hint": "File listing from disk (log_entries not in memory).",
+                        }
+                    )
+                elif tool_name == "query_log_overview":
+                    # Use overview_local_log internally
+                    try:
+                        return _execute_lazy_log_tool("overview_local_log", {}, file_path)
+                    except Exception:
+                        return json.dumps({"error": "Failed to query overview from files"})
+                elif tool_name == "search_logs":
+                    if args.get("keyword"):
+                        rg_results = _search_log_with_rg(
+                            file_path,
+                            args["keyword"],
+                            limit=args.get("limit", 50),
+                        )
+                        if rg_results is not None:
+                            return json.dumps(
+                                {
+                                    "total": len(rg_results),
+                                    "results": rg_results[: args.get("limit", 50)],
+                                }
+                            )
+                    return json.dumps({"error": "No log_entries loaded in this session."})
             return json.dumps({"error": "No logs loaded in this session"})
         return _execute_log_tool(tool_name, args, log_entries, log_index=log_index)
 
@@ -1147,15 +1264,66 @@ def execute_tool(
 
     elif tool_name == "read_project_file":
         requested_path = args.get("file_path", "")
-        for path in project.paths:
-            result = _scanner.read_file(path, requested_path)
-            if result:
+        # ── Try project paths first ────────────────────────────────────
+        if project is not None:
+            for path in project.paths:
+                result = _scanner.read_file(path, requested_path)
+                if result:
+                    return json.dumps(
+                        {
+                            "path": result.path,
+                            "size": result.size,
+                            "truncated": result.truncated,
+                            "content": result.content,
+                        }
+                    )
+        # ── Fallback 1: resolve relative to session file_path ──────────
+        import os as _os
+
+        if file_path:
+            cand = _os.path.join(file_path, requested_path)
+            if _os.path.isfile(cand):
+                try:
+                    content = open(cand, encoding="utf-8", errors="replace").read()
+                    size = _os.path.getsize(cand)
+                    max_read = 200_000
+                    truncated = len(content) > max_read
+                    return json.dumps(
+                        {
+                            "path": cand,
+                            "size": size,
+                            "truncated": truncated,
+                            "content": content[:max_read] if truncated else content,
+                        }
+                    )
+                except Exception as e:
+                    return json.dumps({"error": f"Cannot read {cand}: {e}"})
+        # ── Fallback 2: try as absolute path directly ──────────────────
+        if _os.path.isabs(requested_path):
+            if _os.path.isfile(requested_path):
+                try:
+                    content = open(requested_path, encoding="utf-8", errors="replace").read()
+                    size = _os.path.getsize(requested_path)
+                    max_read = 200_000
+                    truncated = len(content) > max_read
+                    return json.dumps(
+                        {
+                            "path": requested_path,
+                            "size": size,
+                            "truncated": truncated,
+                            "content": content[:max_read] if truncated else content,
+                        }
+                    )
+                except Exception as e:
+                    return json.dumps({"error": f"Cannot read {requested_path}: {e}"})
+            if _os.path.isdir(requested_path):
                 return json.dumps(
                     {
-                        "path": result.path,
-                        "size": result.size,
-                        "truncated": result.truncated,
-                        "content": result.content,
+                        "error": (
+                            f"'{requested_path}' is a directory, not a source file. "
+                            f"Use list_directory_logs to browse, or read_log_file to read "
+                            f"individual log files. read_project_file is for source code only."
+                        )
                     }
                 )
         return json.dumps({"error": f"File not found or unreadable: {requested_path}"})
@@ -1189,7 +1357,7 @@ def execute_tool(
         )
 
     elif tool_name == "read_log_file":
-        return _execute_read_log_file(args)
+        return _execute_read_log_file(args, file_path)
 
     elif tool_name == "filter_logs":
         return _execute_filter_logs(args)
@@ -1542,14 +1710,27 @@ def _execute_coding_tool(tool_name: str, args: dict, project: Project) -> str:
 _analyzer = LogAnalyzer()
 
 
-LOG_EXTENSIONS = {".log", ".txt", ".logcat", ".gz", ".zip", ".hci", ".btsnoop", ".cfa"}
+LOG_EXTENSIONS = {
+    ".log",
+    ".txt",
+    ".logcat",
+    ".gz",
+    ".zip",
+    ".hci",
+    ".btsnoop",
+    ".cfa",
+    ".trace",
+    ".anr",
+    "",
+}
 
 
 def _resolve_log_path(session_path: str, args: dict) -> str:
-    """Resolve the actual file path from session path and optional args.
+    """Resolve the actual file or directory path from session path and optional args.
 
     - If session_path is a file: return it directly (ignore args.file_path).
     - If session_path is a directory: require args.file_path, resolve relative to dir.
+    - Accepts both files AND directories as targets (caller decides how to use).
     """
     import os
 
@@ -1561,11 +1742,11 @@ def _resolve_log_path(session_path: str, args: dict) -> str:
         if not target:
             return ""  # caller should return an error
         # If target is already absolute and exists, use it directly
-        if os.path.isabs(target) and os.path.isfile(target):
+        if os.path.isabs(target) and (os.path.isfile(target) or os.path.isdir(target)):
             return target
         # Otherwise resolve relative to the session directory
         resolved = os.path.join(session_path, target)
-        if os.path.isfile(resolved):
+        if os.path.isfile(resolved) or os.path.isdir(resolved):
             return resolved
         return ""  # not found
 
@@ -1573,13 +1754,32 @@ def _resolve_log_path(session_path: str, args: dict) -> str:
 
 
 def _list_directory(session_path: str) -> list[dict]:
-    """Scan a directory for log-like files, returning name/size/line_count."""
+    """Scan a directory for log-like files AND subdirectories.
+
+    Directories are listed first (marked with ``is_dir: true``) so the AI
+    can navigate into extracted archive subdirectories.  Files are filtered
+    by :data:`LOG_EXTENSIONS`.
+    """
     import os
 
-    files = []
+    items: list[dict] = []
+    subdirs: list[dict] = []
     try:
-        for entry in sorted(os.scandir(session_path), key=lambda e: e.name.lower()):
-            if not entry.is_file():
+        for entry in sorted(
+            os.scandir(session_path), key=lambda e: (not e.is_dir(), e.name.lower())
+        ):
+            if entry.is_dir():
+                # Show subdirectories so the AI can navigate into them
+                subdirs.append(
+                    {
+                        "name": entry.name,
+                        "path": entry.path,
+                        "is_dir": True,
+                        "size": 0,
+                        "line_count": 0,
+                        "file_type": "directory",
+                    }
+                )
                 continue
             ext = os.path.splitext(entry.name)[1].lower()
             if ext not in LOG_EXTENSIONS and ext:
@@ -1596,10 +1796,11 @@ def _list_directory(session_path: str) -> list[dict]:
             except OSError:
                 stat = None
                 line_count = 0
-            files.append(
+            items.append(
                 {
                     "name": entry.name,
                     "path": entry.path,
+                    "is_dir": False,
                     "size": stat.st_size if stat else 0,
                     "line_count": line_count,
                     "file_type": file_type,
@@ -1607,7 +1808,7 @@ def _list_directory(session_path: str) -> list[dict]:
             )
     except PermissionError:
         pass
-    return files
+    return subdirs + items
 
 
 def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
@@ -2454,51 +2655,82 @@ def _execute_list_log_files(args: dict) -> str:
     return json.dumps({"total": len(files), "files": files[:100]})
 
 
-def _execute_read_log_file(args: dict) -> str:
-    """Read and parse a log file."""
-    from .log_analyzer import LogAnalyzer
+def _execute_read_log_file(args: dict, session_file_path: str | None = None) -> str:
+    """Read a log/diagnostic file and return its raw text content.
 
-    file_path = args.get("file_path", "")
-    max_lines = args.get("max_lines", 500)
+    Resolves ``file_path`` relative to *session_file_path* when it's a directory.
+    Accepts absolute paths directly.  Returns raw text — ideal for ANR traces,
+    tombstones, dropbox files, and other non-logcat diagnostic text.
+    """
+    import os as _os
 
-    if not file_path:
+    requested = (args.get("file_path") or "").strip()
+    if not requested:
         return json.dumps({"error": "file_path is required"})
 
-    try:
-        analyzer = LogAnalyzer()
-        with open(file_path, "rb") as f:
-            content = f.read()
+    # ── Resolve the actual path ────────────────────────────────────────
+    resolved: str | None = None
+    if _os.path.isabs(requested):
+        if _os.path.isfile(requested):
+            resolved = requested
+        elif _os.path.isdir(requested):
+            # Absolute directory path — auto-list its files
+            files = _list_directory(requested)
+            return json.dumps(
+                {
+                    "path": requested,
+                    "is_dir": True,
+                    "total_files": len(files),
+                    "files": files,
+                    "_hint": "This is a directory. Use read_log_file with a specific file name, or select a file from the list above.",
+                }
+            )
+    elif session_file_path:
+        if _os.path.isfile(session_file_path):
+            resolved = session_file_path
+        elif _os.path.isdir(session_file_path):
+            cand = _os.path.join(session_file_path, requested)
+            if _os.path.isfile(cand):
+                resolved = cand
+            elif _os.path.isdir(cand):
+                files = _list_directory(cand)
+                return json.dumps(
+                    {
+                        "path": cand,
+                        "is_dir": True,
+                        "total_files": len(files),
+                        "files": files,
+                        "_hint": "This is a directory. Use read_log_file with a specific file name to read its content.",
+                    }
+                )
 
-        import os
-
-        results = analyzer.parse_log_bytes(content, os.path.basename(file_path))
-        all_entries = []
-        format_detected = "unknown"
-        for result in results:
-            format_detected = result.format_detected
-            all_entries.extend(result.logs)
-
-        entries = all_entries[:max_lines]
+    if not resolved:
         return json.dumps(
             {
-                "total_lines": len(all_entries),
-                "format_detected": format_detected,
-                "entries_returned": len(entries),
-                "entries": [
-                    {
-                        "line_number": e.line_number,
-                        "timestamp": e.timestamp,
-                        "level": e.level,
-                        "tag": e.tag,
-                        "pid": e.pid,
-                        "message": e.message[:500],
-                    }
-                    for e in entries
-                ],
+                "error": f"File not found: {requested}",
+                "session_path": session_file_path,
+            }
+        )
+
+    # ── Read the file ──────────────────────────────────────────────────
+    try:
+        max_read = 200_000  # 200KB limit for raw read
+        size = _os.path.getsize(resolved)
+        with open(resolved, encoding="utf-8", errors="replace") as f:
+            content = f.read(max_read)
+        truncated = len(content) >= max_read or size > max_read
+        lines = content.split("\n")
+        return json.dumps(
+            {
+                "path": resolved,
+                "size": size,
+                "total_lines": len(lines),
+                "truncated": truncated,
+                "content": content,
             }
         )
     except Exception as e:
-        return json.dumps({"error": f"Failed to read log: {str(e)}"})
+        return json.dumps({"error": f"Failed to read {resolved}: {str(e)}"})
 
 
 def _execute_filter_logs(args: dict) -> str:
@@ -2564,22 +2796,71 @@ def _search_log_with_rg(
     limit: int = 50,
     case_sensitive: bool = False,
 ) -> list[dict] | None:
-    """Search a log file for *keyword* using ripgrep (10-100x faster than Python scan).
+    """Search for *keyword* in log file(s) at *file_path*.
 
-    Returns parsed log entries (same format as search_local_log) when possible,
-    or raw line matches when the file can't be parsed as logcat.
+    Uses ripgrep for large files/directories.  For small single files
+    (< 500 KB), reads the file directly for lower latency (no process spawn).
 
-    Falls back gracefully if rg is unavailable.
+    Returns parsed log entries when possible, or raw line matches when the
+    file can't be parsed as logcat.  Returns ``None`` when rg is unavailable
+    AND the file is too large for direct read.
     """
+    import os as _os
+
+    # ── Smart path: small file → read directly ─────────────────────────
+    _smart_read_max = 500_000  # 500 KB threshold for direct read
+    if _os.path.isfile(file_path):
+        try:
+            fsize = _os.path.getsize(file_path)
+        except OSError:
+            fsize = 0
+        if 0 < fsize <= _smart_read_max:
+            try:
+                with open(file_path, encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            except Exception:
+                return None  # fall through to rg or streaming
+            flag = re.IGNORECASE if not case_sensitive else 0
+            try:
+                pat = re.compile(keyword, flag)
+            except re.error:
+                return None  # invalid regex → let caller's streaming path handle the error
+            results: list[dict] = []
+            for line_num, raw_line in enumerate(text.split("\n"), 1):
+                if pat.search(raw_line):
+                    parsed = _analyzer._parse_single_line(
+                        raw_line.strip(),
+                        line_num,
+                        _analyzer.detect_log_format(raw_line.strip()),
+                        source_file=file_path,
+                    )
+                    results.append(
+                        {
+                            "line_number": line_num,
+                            "timestamp": parsed.timestamp,
+                            "level": parsed.level,
+                            "tag": parsed.tag,
+                            "pid": parsed.pid,
+                            "message": (parsed.message or raw_line.strip())[:500],
+                        }
+                    )
+                    if len(results) >= limit:
+                        break
+            return results
+
     rg_path = code_scanner._RG_PATH
     if rg_path is None:
         return None  # Caller should fall back to streaming scan
 
     cmd: list[str] = [
         rg_path,
-        "--json",  # robust parsing across platforms
-        "--no-heading",
+        "--json",
         "--line-number",
+        "--no-ignore",  # don't respect .gitignore / .ignore files
+        "--no-ignore-parent",
+        "--no-ignore-vcs",
+        "--no-require-git",  # search even outside git repos
+        "-uuu",  # treat all files as text (no binary detection skip)
     ]
 
     if not case_sensitive:
@@ -2593,6 +2874,8 @@ def _search_log_with_rg(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except FileNotFoundError:
         logger.debug("rg log search failed, will fall back")
@@ -2653,6 +2936,8 @@ def _search_log_with_rg(
     # ripgrep exit codes:
     # 0 = matches found, 1 = no matches, 2 = error
     if not early_exit and proc.returncode not in (0, 1):
+        stderr_text = proc.stderr.read() if proc.stderr else ""
+        logger.warning("rg search error (exit=%d): %s", proc.returncode, stderr_text[:500])
         return None
 
     return results
@@ -2706,15 +2991,15 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
             }
         )
 
-    # Resolve the log file path (same logic as _resolve_log_path)
+    # Resolve the log search path (file or directory)
     resolved_log = file_path
     if os.path.isdir(file_path) and log_file:
         candidate = os.path.join(file_path, log_file)
-        if os.path.isfile(candidate):
+        if os.path.isfile(candidate) or os.path.isdir(candidate):
             resolved_log = candidate
-        elif os.path.isabs(log_file) and os.path.isfile(log_file):
+        elif os.path.isabs(log_file) and (os.path.isfile(log_file) or os.path.isdir(log_file)):
             resolved_log = log_file
-    if not os.path.isfile(resolved_log):
+    if not os.path.isfile(resolved_log) and not os.path.isdir(resolved_log):
         elapsed = (time.monotonic() - t_start) * 1000
         return json.dumps(
             {
@@ -2759,39 +3044,57 @@ def _execute_search_all_local(args: dict, file_path: str, project: "Project | No
                 {"error": f"Invalid regex: {keyword_log}", "elapsed_ms": int(elapsed)}
             )
 
+        # Gather files to scan (resolved_log may be a directory)
+        scan_files: list[str] = []
+        if os.path.isdir(resolved_log):
+            for root, _dirs, files in os.walk(resolved_log):
+                for fname in files:
+                    ext = os.path.splitext(fname)[1].lower()
+                    if ext not in LOG_EXTENSIONS and ext:
+                        continue
+                    scan_files.append(os.path.join(root, fname))
+        else:
+            scan_files = [resolved_log]
+
         matches: list[dict] = []
         total_matched = 0
-        for entry in _analyzer.stream_file(resolved_log):
-            if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
-                continue
-            if tag_filter and tag_filter not in entry.tag.lower():
-                continue
-            if pid_filter and entry.pid != pid_filter:
-                continue
-            if keyword_re:
-                text = f"{entry.tag or ''} {entry.message or ''}"
-                if not keyword_re.search(text):
-                    continue
-            if start_time and entry.timestamp and entry.timestamp < start_time:
-                continue
-            if end_time and entry.timestamp and entry.timestamp > end_time:
-                continue
+        for scan_file in scan_files:
+            if total_matched >= limit_log * 3:  # generous buffer
+                break
+            try:
+                for entry in _analyzer.stream_file(scan_file):
+                    if level_filter and _LEVEL_ORDER.get(entry.level, -1) < min_level:
+                        continue
+                    if tag_filter and tag_filter not in entry.tag.lower():
+                        continue
+                    if pid_filter and entry.pid != pid_filter:
+                        continue
+                    if keyword_re:
+                        text = f"{entry.tag or ''} {entry.message or ''}"
+                        if not keyword_re.search(text):
+                            continue
+                    if start_time and entry.timestamp and entry.timestamp < start_time:
+                        continue
+                    if end_time and entry.timestamp and entry.timestamp > end_time:
+                        continue
 
-            total_matched += 1
-            if len(matches) >= limit_log:
-                continue
+                    total_matched += 1
+                    if len(matches) >= limit_log:
+                        continue
 
-            matches.append(
-                {
-                    "line_number": entry.line_number,
-                    "timestamp": entry.timestamp,
-                    "level": entry.level,
-                    "tag": entry.tag,
-                    "pid": entry.pid,
-                    "tid": entry.tid,
-                    "message": (entry.message or "")[:500],
-                }
-            )
+                    matches.append(
+                        {
+                            "line_number": entry.line_number,
+                            "timestamp": entry.timestamp,
+                            "level": entry.level,
+                            "tag": entry.tag,
+                            "pid": entry.pid,
+                            "tid": entry.tid,
+                            "message": (entry.message or "")[:500],
+                        }
+                    )
+            except Exception:
+                continue
 
         log_result = {
             "total_matched": total_matched,
@@ -3120,6 +3423,8 @@ def _execute_shell_search(args: dict, file_path: str | None, project: "Project |
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_SHELL_TIMEOUT,
             env=_get_shell_env(cwd),
         )

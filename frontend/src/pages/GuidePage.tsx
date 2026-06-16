@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 // Module-level cache so the same language file is only fetched once per session
 const guideCache = new Map<string, string>()
 
-const UserGuide: React.FC = () => {
+const GuidePage: React.FC = () => {
   const { i18n, t } = useTranslation()
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState(false)
@@ -65,4 +65,4 @@ const UserGuide: React.FC = () => {
   )
 }
 
-export default UserGuide
+export default GuidePage

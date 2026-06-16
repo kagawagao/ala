@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, waitFor } from '@testing-library/react'
-import UserGuide from '../UserGuide'
+import GuidePage from '../../pages/GuidePage'
 
 // Replace react-markdown with a simple passthrough so we can inspect content in jsdom.
 vi.mock('react-markdown', () => ({
@@ -26,7 +26,7 @@ function mockSuccessfulFetch(text: string) {
   return vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve(text) })
 }
 
-describe('UserGuide', () => {
+describe('GuidePage', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
@@ -41,7 +41,7 @@ describe('UserGuide', () => {
       vi.fn(() => new Promise(() => {})),
     )
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     // Neither content nor error should be visible during loading
     expect(screen.queryByTestId('markdown-content')).toBeNull()
@@ -54,7 +54,7 @@ describe('UserGuide', () => {
   it('shows an error message when the guide file cannot be loaded', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, statusText: 'Not Found' }))
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     await waitFor(() => {
       expect(screen.getByText('guideLoadError')).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('UserGuide', () => {
     mockLang.current = 'zh'
     vi.stubGlobal('fetch', mockSuccessfulFetch('# 用户指南\n\n欢迎使用 ALA。'))
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
@@ -84,7 +84,7 @@ describe('UserGuide', () => {
     )
     const fetchMock = vi.mocked(globalThis.fetch)
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     // Wait until fetch has been invoked and its rejection has propagated.
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -100,7 +100,7 @@ describe('UserGuide', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
@@ -111,7 +111,7 @@ describe('UserGuide', () => {
     const fetchMock = mockSuccessfulFetch('# English Guide')
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<UserGuide />)
+    render(<GuidePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()

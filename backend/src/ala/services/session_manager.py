@@ -1,4 +1,7 @@
-"""SQLite-backed session manager."""
+"""Session manager — stores session metadata + context data in SQLite.
+Conversation history is managed by the frontend (localStorage); the backend
+receives the full message list with each request.
+"""
 
 import json
 import uuid
@@ -19,6 +22,7 @@ class Message:
     role: str
     content: str
     timestamp: str = field(default_factory=_utcnow)
+    parts: str | None = None  # JSON array of structured message parts
 
 
 @dataclass
@@ -27,7 +31,6 @@ class Session:
     title: str
     context_type: str
     project_id: str | None = None
-    messages: list[Message] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
     trace_summary: dict | None = None
     log_entries: list[dict[str, Any]] | None = None
@@ -35,11 +38,6 @@ class Session:
     hci_entries: list[dict[str, Any]] | None = None  # Bluetooth HCI packets
     file_path: str | None = None  # FEAT-LAZY-LOG: local file path for lazy analysis
     log_index: LogIndex | None = None
-    # Raw provider-specific API message history (including tool-call blocks).
-    # Stored after each agentic exchange so follow-up messages can resume with
-    # full tool-call context instead of text-only history.
-    raw_api_messages: list[dict] | None = None
-    raw_api_messages_provider: str | None = None  # "anthropic" | "openai"
 
 
 class SessionManager:
@@ -56,7 +54,6 @@ class SessionManager:
             title=row["title"],
             context_type=row["context_type"],
             project_id=row["project_id"],
-            messages=[],
             created_at=row["created_at"],
             trace_summary=json.loads(row["trace_summary"]) if row["trace_summary"] else None,
             log_entries=json.loads(row["log_entries"]) if row["log_entries"] else None,
@@ -64,10 +61,6 @@ class SessionManager:
             hci_entries=json.loads(row["hci_entries"]) if row["hci_entries"] else None,
             file_path=row["file_path"],
             log_index=self._log_index_cache.get(sid),
-            raw_api_messages=json.loads(row["raw_api_messages"])
-            if row["raw_api_messages"]
-            else None,
-            raw_api_messages_provider=row["raw_api_messages_provider"],
         )
 
     def create_session(
@@ -106,32 +99,11 @@ class SessionManager:
         row = self._db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if row is None:
             return None
-        session = self._row_to_session(row)
-        # Load messages
-        msg_rows = self._db.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session_id,)
-        ).fetchall()
-        session.messages = [
-            Message(role=m["role"], content=m["content"], timestamp=m["timestamp"])
-            for m in msg_rows
-        ]
-        return session
+        return self._row_to_session(row)
 
     def list_sessions(self) -> list[Session]:
         rows = self._db.execute("SELECT * FROM sessions ORDER BY created_at DESC").fetchall()
-        sessions = []
-        for row in rows:
-            session = self._row_to_session(row)
-            # Load messages for each session
-            msg_rows = self._db.execute(
-                "SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session.id,)
-            ).fetchall()
-            session.messages = [
-                Message(role=m["role"], content=m["content"], timestamp=m["timestamp"])
-                for m in msg_rows
-            ]
-            sessions.append(session)
-        return sessions
+        return [self._row_to_session(row) for row in rows]
 
     def delete_session(self, session_id: str) -> bool:
         cur = self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
@@ -141,23 +113,9 @@ class SessionManager:
 
     def delete_all_sessions(self) -> int:
         cur = self._db.execute("DELETE FROM sessions")
-        self._db.execute("DELETE FROM messages")
         self._db.commit()
         self._log_index_cache.clear()
         return cur.rowcount
-
-    def add_message(self, session_id: str, role: str, content: str) -> Message | None:
-        # Verify session exists
-        exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        if not exists:
-            return None
-        msg = Message(role=role, content=content)
-        self._db.execute(
-            "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-            (session_id, msg.role, msg.content, msg.timestamp),
-        )
-        self._db.commit()
-        return msg
 
     def set_trace_summary(self, session_id: str, summary: dict) -> bool:
         cur = self._db.execute(
@@ -168,9 +126,9 @@ class SessionManager:
         return cur.rowcount > 0
 
     def set_file_path(self, session_id: str, path: str) -> bool:
-        """Set local file path for lazy analysis. Clears log_entries and log_index."""
+        """Set local file path for lazy analysis (keeps existing log_entries if any)."""
         cur = self._db.execute(
-            "UPDATE sessions SET file_path = ?, log_entries = NULL WHERE id = ?",
+            "UPDATE sessions SET file_path = ? WHERE id = ?",
             (path, session_id),
         )
         self._db.commit()
@@ -193,13 +151,13 @@ class SessionManager:
         return cur.rowcount > 0
 
     def set_log_entries(self, session_id: str, entries: list[dict[str, Any]]) -> bool:
-        """Store log entries in the session for agentic tool access."""
+        """Store log entries in the session for agentic tool access (keeps existing file_path if any)."""
         # Verify session exists first
         exists = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
         if not exists:
             return False
         self._db.execute(
-            "UPDATE sessions SET log_entries = ?, file_path = NULL WHERE id = ?",
+            "UPDATE sessions SET log_entries = ? WHERE id = ?",
             (json.dumps(entries), session_id),
         )
         self._db.commit()
@@ -231,13 +189,3 @@ class SessionManager:
         )
         self._db.commit()
         return True
-
-    def set_raw_api_messages(self, session_id: str, messages: list[dict], provider: str) -> bool:
-        """Persist the raw provider-specific API message list (including tool-call
-        blocks) so that subsequent agentic requests can resume with full context."""
-        cur = self._db.execute(
-            "UPDATE sessions SET raw_api_messages = ?, raw_api_messages_provider = ? WHERE id = ?",
-            (json.dumps(messages), provider, session_id),
-        )
-        self._db.commit()
-        return cur.rowcount > 0
