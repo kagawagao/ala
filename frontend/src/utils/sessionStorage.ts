@@ -47,14 +47,16 @@ async function withStore<T>(
     const store = tx.objectStore(STORE_NAME)
     const request = fn(store)
 
-    request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
 
     // Guard against transaction-level failures (e.g. quota exceeded)
     tx.onerror = () => reject(tx.error)
     tx.onabort = () => reject(tx.error)
 
-    tx.oncomplete = () => db.close()
+    tx.oncomplete = () => {
+      resolve(request.result)
+      db.close()
+    }
   })
 }
 

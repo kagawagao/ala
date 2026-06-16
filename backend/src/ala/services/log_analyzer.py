@@ -217,7 +217,15 @@ def _extract_archive_to_disk(archive_path: str, filename: str) -> Path:
         inner_name = filename[:-3] if len(filename) > 3 else "log"
         dest = extract_dir / inner_name
         with gzip.open(archive_path, "rb") as gz_f, open(dest, "wb") as out_f:
-            out_f.write(gz_f.read())
+            total = 0
+            while True:
+                chunk = gz_f.read(64 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_DECODE_BYTES:
+                    raise ValueError(f"Decompressed size exceeds {_MAX_DECODE_BYTES:,} byte limit")
+                out_f.write(chunk)
         _logger.info("GZ decompressed to: %s", dest)
 
     else:

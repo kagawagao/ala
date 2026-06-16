@@ -1180,6 +1180,12 @@ def execute_tool(
             logger.warning("tool=decompress_file failed: %s", e, exc_info=True)
             return json.dumps({"error": f"decompress_file failed: {e}"})
 
+    # read_log_file — read a log file from the session path (before project check)
+    if tool_name == "read_log_file":
+        if file_path is None:
+            return json.dumps({"error": "No local log path set in this session"})
+        return _execute_read_log_file(args, file_path)
+
     # search_all_local — composite: logs + code in one call
     if tool_name == "search_all_local":
         if file_path is None:
@@ -1355,9 +1361,6 @@ def execute_tool(
                 ],
             }
         )
-
-    elif tool_name == "read_log_file":
-        return _execute_read_log_file(args, file_path)
 
     elif tool_name == "filter_logs":
         return _execute_filter_logs(args)
