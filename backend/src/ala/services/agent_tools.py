@@ -1265,8 +1265,9 @@ def execute_tool(
                     # Fall back to lazy log tool for structured filters or when rg unavailable
                     try:
                         return _execute_lazy_log_tool("search_local_log", args, file_path)
-                    except Exception:
-                        return json.dumps({"error": "No log_entries loaded in this session."})
+                    except Exception as e:
+                        logger.warning("lazy search_local_log fallback failed: %s", e)
+                        return json.dumps({"error": f"Search failed: {e}"})
             return json.dumps({"error": "No logs loaded in this session"})
         return _execute_log_tool(tool_name, args, log_entries, log_index=log_index)
 

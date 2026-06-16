@@ -490,17 +490,28 @@ def extract_text_files(
                     if info.is_dir():
                         continue
                     member_name = info.filename
-                    if info.file_size > _MAX_DECODE_BYTES:
-                        _logger.warning(
-                            "ZIP member too large, skipping: %s (%d bytes)",
-                            member_name,
-                            info.file_size,
-                        )
+                    # Stream-read ZIP member with incremental size check to
+                    # prevent zip-bomb DoS (info.file_size can be spoofed).
+                    member_data = bytearray()
+                    total = 0
+                    with zf.open(info.filename) as member_f:
+                        while True:
+                            chunk = member_f.read(64 * 1024)
+                            if not chunk:
+                                break
+                            total += len(chunk)
+                            if total > _MAX_DECODE_BYTES:
+                                _logger.warning(
+                                    "ZIP member exceeds %s byte limit, skipping: %s",
+                                    _MAX_DECODE_BYTES,
+                                    member_name,
+                                )
+                                member_data = None  # type: ignore[assignment]
+                                break
+                            member_data.extend(chunk)
+                    if member_data is None:
                         continue
-                    member_data = zf.read(info.filename)
-                    if len(member_data) > _MAX_DECODE_BYTES:
-                        _logger.warning("ZIP member too large, skipping: %s", member_name)
-                        continue
+                    member_data = bytes(member_data)
                     if _is_compressed_name(member_name):
                         # Nested archive → recurse
                         _logger.info("ZIP member is compressed, recursing: %s", member_name)
