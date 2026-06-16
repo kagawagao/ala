@@ -1213,7 +1213,7 @@ def execute_tool(
             if file_path:
                 if tool_name == "list_log_files":
                     try:
-                        return _execute_lazy_log_tool("list_log_files", {}, file_path)
+                        return _execute_lazy_log_tool("list_directory_logs", {}, file_path)
                     except Exception:
                         return json.dumps({"error": "Failed to list files"})
                 elif tool_name == "query_log_overview":
