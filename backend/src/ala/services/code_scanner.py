@@ -56,6 +56,8 @@ def _parse_rg_version(rg_path: str) -> tuple[int, ...]:
             [rg_path, "--version"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
         )
         if proc.returncode == 0:
@@ -621,6 +623,8 @@ class CodeScanner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except FileNotFoundError:
             logger.warning("rg not found, falling back to Python")

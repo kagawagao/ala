@@ -26,7 +26,7 @@ import type { ContextDoc, Project } from '../types'
 
 const { Title, Text } = Typography
 
-const ProjectManager: React.FC = () => {
+const ProjectPage: React.FC = () => {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const [projects, setProjects] = useState<Project[]>([])
@@ -258,4 +258,4 @@ const ProjectManager: React.FC = () => {
   )
 }
 
-export default ProjectManager
+export default ProjectPage

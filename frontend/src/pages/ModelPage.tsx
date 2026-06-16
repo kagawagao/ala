@@ -105,7 +105,7 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   )
 }
 
-const ModelManager: React.FC<{
+const ModelPage: React.FC<{
   onModelsChange?: (models: ModelPreset[]) => void
   onRegisterRefresh?: (fn: () => void) => void
 }> = ({ onModelsChange, onRegisterRefresh }) => {
@@ -711,4 +711,4 @@ const ModelManager: React.FC<{
   )
 }
 
-export default ModelManager
+export default ModelPage

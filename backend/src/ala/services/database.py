@@ -106,6 +106,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     except sqlite3.Error:
         logger.warning("Failed to add hci_entries column", exc_info=True)
 
+    # Schema migration: add parts column to messages for structured content storage
+    try:
+        cur = conn.execute("PRAGMA table_info(messages)")
+        columns = [row[1] for row in cur.fetchall()]
+        if "parts" not in columns:
+            conn.execute("ALTER TABLE messages ADD COLUMN parts TEXT")
+            conn.commit()
+            logger.info("Added parts column to messages table")
+    except sqlite3.Error:
+        logger.warning("Failed to add parts column", exc_info=True)
+
 
 def _import_projects_json(conn: sqlite3.Connection) -> None:
     """If DB has no projects and ~/.ala/projects.json exists, import it."""

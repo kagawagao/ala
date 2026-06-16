@@ -156,7 +156,9 @@ export async function* streamSSE(
 ): AsyncGenerator<string> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(body),
     signal,
   })

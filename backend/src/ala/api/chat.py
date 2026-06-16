@@ -5,7 +5,7 @@ import logging
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
@@ -29,12 +29,13 @@ def _sse_encode(chunk: str) -> str:
 class ChatMessage(BaseModel):
     role: str
     content: str
+    parts: str | None = None  # JSON array of structured message parts
 
 
 class Session(BaseModel):
     id: str
     title: str
-    messages: list[ChatMessage]
+    messages: list[ChatMessage]  # Always empty — history managed by frontend localStorage
     created_at: str
     context_type: str  # "log" | "trace" | "pcap" | "general"
     project_id: str | None = None
@@ -62,6 +63,11 @@ class SendMessageRequest(BaseModel):
     model_override: ModelOverride | None = None
     # UI language for AI responses (e.g. "en", "zh")
     language: str | None = None
+    # Conversation history from frontend localStorage (empty for new sessions)
+    history: list[ChatMessage] | None = None
+    # Raw provider-specific API messages for tool-call resumption
+    raw_api_messages: list[dict] | None = None
+    raw_api_messages_provider: str | None = None  # "anthropic" | "openai"
 
 
 class SetTraceRequest(BaseModel):
@@ -87,10 +93,13 @@ class SetHciRequest(BaseModel):
 
 
 def _session_to_response(session) -> Session:
+    """Convert a SessionManager Session to an API response model.
+
+    Messages are not included — conversation history is managed by the frontend."""
     return Session(
         id=session.id,
         title=session.title,
-        messages=[ChatMessage(role=m.role, content=m.content) for m in session.messages],
+        messages=[],  # Always empty — history managed by frontend localStorage
         created_at=session.created_at,
         context_type=session.context_type,
         project_id=session.project_id,
@@ -128,32 +137,6 @@ async def delete_session(session_id: str):
 async def delete_all_sessions():
     count = _session_manager.delete_all_sessions()
     return {"success": True, "deleted": count}
-
-
-@router.get("/sessions/{session_id}/export")
-async def export_session(session_id: str):
-    """Export a session and its messages as a downloadable JSON file."""
-    session = _session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    export_data = {
-        "id": session.id,
-        "title": session.title,
-        "context_type": session.context_type,
-        "project_id": session.project_id,
-        "created_at": session.created_at,
-        "messages": [
-            {"role": m.role, "content": m.content, "timestamp": m.timestamp}
-            for m in session.messages
-        ],
-    }
-
-    filename = f"ala-session-{session_id[:8]}.json"
-    return JSONResponse(
-        content=export_data,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 @router.put("/sessions/{session_id}/trace")
@@ -239,12 +222,11 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
 
     ai_config = get_ai_config()
     ov = req.model_override
-    effective_api_key = ov.api_key if ov and ov.api_key else ai_config.api_key
+    effective_api_key = (
+        ov.api_key if ov and ov.api_key and ov.api_key != "***" else ai_config.api_key
+    )
     if not effective_api_key:
         raise HTTPException(status_code=400, detail="AI not configured. Please set API key.")
-
-    # Add user message to session
-    _session_manager.add_message(session_id, "user", req.message)
 
     ai_service = AIService(
         api_endpoint=ov.api_endpoint if ov else ai_config.api_endpoint,
@@ -262,14 +244,15 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
         else ai_config.anthropic_compatible,
     )
 
-    # Build messages list including context if provided.
-    # NOTE: `session` is a DB snapshot fetched *before* add_message(), so it does
-    # not yet contain the current user message. Append it explicitly at the end.
+    # Build messages list from frontend-provided history.
+    # The frontend manages conversation history in localStorage and sends
+    # the full list with each request. For new sessions this is an empty list.
     messages: list[dict] = []
     if req.context:
         messages.append({"role": "system", "content": req.context})
 
-    for msg in session.messages:
+    history = req.history or []
+    for msg in history:
         messages.append({"role": msg.role, "content": msg.content})
 
     messages.append({"role": "user", "content": req.message})
@@ -287,96 +270,60 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
     file_path = session.file_path
 
     logger.debug(
-        "send_message — session=%s model=%s agentic=%s",
+        "send_message — session=%s model=%s",
         session_id,
         ov.model if ov else ai_config.model,
-        bool(
-            project
-            or trace_summary
-            or log_entries is not None
-            or pcap_entries is not None
-            or hci_entries is not None
-        ),
     )
 
     async def event_stream():
         full_response = ""
         api_messages_out: list[dict] = []
-        current_provider = "anthropic" if ai_service._use_anthropic else "openai"
+        can_resume = (
+            req.raw_api_messages
+            and req.raw_api_messages_provider
+            and req.raw_api_messages_provider
+            == ("anthropic" if ai_service._use_anthropic else "openai")
+        )
         try:
-            if (
-                project
-                or trace_summary
-                or log_entries is not None
-                or pcap_entries is not None
-                or hci_entries is not None
-                or file_path is not None
+            # Always use agentic mode so tools are always available.
+            async for chunk in ai_service.stream_chat_agentic(
+                messages,
+                project=project,
+                trace_summary=trace_summary,
+                log_entries=log_entries,
+                pcap_entries=pcap_entries,
+                hci_entries=hci_entries,
+                log_index=session.log_index,
+                file_path=file_path,
+                api_messages_out=api_messages_out,
+                resume_messages=req.raw_api_messages if can_resume else None,
+                resume_provider=req.raw_api_messages_provider if can_resume else None,
+                language=req.language,
             ):
-                # Agentic mode: project, trace, log, pcap, hci, or lazy local file tools.
-                # Resume from stored raw API messages if available and provider matches.
-                async for chunk in ai_service.stream_chat_agentic(
-                    messages,
-                    project=project,
-                    trace_summary=trace_summary,
-                    log_entries=log_entries,
-                    pcap_entries=pcap_entries,
-                    hci_entries=hci_entries,
-                    log_index=session.log_index,
-                    file_path=file_path,
-                    api_messages_out=api_messages_out,
-                    resume_messages=session.raw_api_messages,
-                    resume_provider=session.raw_api_messages_provider,
-                    language=req.language,
-                ):
-                    if await request.is_disconnected():
-                        logger.debug(
-                            "Client disconnected — stopping agentic stream for session %s",
-                            session_id,
-                        )
-                        return
-                    if chunk.startswith("{"):
-                        try:
-                            event = json.loads(chunk)
-                            if event.get("type") in (
-                                "tool_call",
-                                "tool_result",
-                                "thinking",
-                                "agent_meta",
-                                "max_rounds_reached",
-                            ):
-                                yield _sse_encode(chunk)
-                                continue
-                        except json.JSONDecodeError:
-                            pass
-                    full_response += chunk
-                    yield _sse_encode(chunk)
-            else:
-                # Simple streaming mode (thinking events still forwarded)
-                async for chunk in ai_service.stream_chat(messages):
-                    if await request.is_disconnected():
-                        logger.debug(
-                            "Client disconnected — stopping stream for session %s", session_id
-                        )
-                        return
-                    if chunk.startswith("{"):
-                        try:
-                            event = json.loads(chunk)
-                            if event.get("type") == "thinking":
-                                yield _sse_encode(chunk)
-                                continue
-                        except json.JSONDecodeError:
-                            pass
-                    full_response += chunk
-                    yield _sse_encode(chunk)
+                if await request.is_disconnected():
+                    logger.debug(
+                        "Client disconnected — stopping agentic stream for session %s",
+                        session_id,
+                    )
+                    return
+                if chunk.startswith("{"):
+                    try:
+                        event = json.loads(chunk)
+                        if event.get("type") in (
+                            "tool_call",
+                            "tool_result",
+                            "thinking",
+                            "agent_meta",
+                            "max_rounds_reached",
+                        ):
+                            yield _sse_encode(chunk)
+                            continue
+                    except json.JSONDecodeError:
+                        pass
+                full_response += chunk
+                yield _sse_encode(chunk)
 
-            # Save assistant message
-            _session_manager.add_message(session_id, "assistant", full_response)
-            # Persist full API message history (with tool-call blocks) for continuation.
-            if api_messages_out:
-                _session_manager.set_raw_api_messages(
-                    session_id, api_messages_out, current_provider
-                )
-            yield "data: [DONE]\n\n"
+            yield _sse_encode(json.dumps({"_done": True}))
         except Exception as e:
             # ── Build rich error context for diagnosis ──────────────────────────
             exc_type = type(e).__name__
@@ -408,7 +355,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 "provider=%s api_spec=%s thinking=%s "
                 "exc_type=%s exc_repr=%s "
                 "api_status=%s api_message=%s api_body=%s request_id=%s "
-                "session_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
+                "history_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
                 session_id,
                 effective_model,
                 endpoint_host,
@@ -423,7 +370,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 api_message,
                 api_body,
                 api_request_id,
-                len(session.messages),
+                len(history),
                 bool(project),
                 bool(file_path),
                 log_entries is not None,

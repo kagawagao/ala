@@ -20,33 +20,33 @@ import zhCN from 'antd/locale/zh_CN'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation } from 'react-router-dom'
-import { getConfig } from './api/config'
-import { uploadFiles } from './api/files'
-import type { UnifiedFileInfo } from './api/files'
-import { autoPath } from './api/logs'
-import type { DirectoryFileInfo } from './api/logs'
-import { listModels } from './api/models'
+import { getConfig } from '../api/config'
+import { uploadFiles } from '../api/files'
+import type { UnifiedFileInfo } from '../api/files'
+import { autoPath } from '../api/logs'
+import type { DirectoryFileInfo } from '../api/logs'
+import { listModels } from '../api/models'
 import {
   getProjectPresets,
   listContextDocs,
   listProjects,
   updateProjectPresets,
-} from './api/projects'
-import AiPanel from './components/AiPanel'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import DirectoryFilePicker from './components/DirectoryFilePicker'
-import FileUpload from './components/FileUpload'
-import FilterDrawer from './components/FilterDrawer'
-import Header from './components/Header'
-import LogViewer from './components/LogViewer'
-import PcapViewer from './components/PcapViewer'
-import HciViewer from './components/HciViewer'
-import TraceViewer from './components/TraceViewer'
-import { useDebouncedValue } from './hooks/useDebounce'
-import { useLazyLogStream } from './hooks/useLazyLogStream'
-import { useLazyPcapStream } from './hooks/useLazyPcapStream'
-import { useLazyHciStream } from './hooks/useLazyHciStream'
-import i18next from './i18n/config'
+} from '../api/projects'
+import AiPanel from '../components/AiPanel'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+import DirectoryFilePicker from '../components/DirectoryFilePicker'
+import FileUpload from '../components/FileUpload'
+import FilterDrawer from '../components/FilterDrawer'
+import Header from '../components/Header'
+import LogViewer from '../components/LogViewer'
+import PcapViewer from '../components/PcapViewer'
+import HciViewer from '../components/HciViewer'
+import TraceViewer from '../components/TraceViewer'
+import { useDebouncedValue } from '../hooks/useDebounce'
+import { useLazyLogStream } from '../hooks/useLazyLogStream'
+import { useLazyPcapStream } from '../hooks/useLazyPcapStream'
+import { useLazyHciStream } from '../hooks/useLazyHciStream'
+import i18next from '../i18n/config'
 import type {
   AIConfig,
   ContextDoc,
@@ -56,14 +56,18 @@ import type {
   ModelPreset,
   Project,
   TraceParseResult,
-} from './types'
-import type { HciEntry } from './types/hci'
-import { hasFilterConditions } from './utils/filters'
+} from '../types'
+import type { HciEntry } from '../types/hci'
+import { hasFilterConditions } from '../utils/filters'
 import {
+  buildAIConfig,
+  filterConfiguredModels,
   getActiveAIConfig,
+  loadModelConfigs,
   migrateFromLegacyConfig,
   migrateLocalModelsToBackend,
-} from './utils/models'
+  MODEL_CONFIGS_CHANGE_EVENT,
+} from '../utils/models'
 
 // Pending files info view — shows uploaded files grouped by type before parsing
 interface PendingFile {
@@ -189,9 +193,9 @@ const PendingFilesView: React.FC<{
   )
 }
 
-const ProjectManager = React.lazy(() => import('./components/ProjectManager'))
-const ModelManager = React.lazy(() => import('./components/ModelManager'))
-const UserGuide = React.lazy(() => import('./components/UserGuide'))
+const ProjectPage = React.lazy(() => import('../pages/ProjectPage'))
+const ModelPage = React.lazy(() => import('../pages/ModelPage'))
+const GuidePage = React.lazy(() => import('../pages/GuidePage'))
 
 const DEFAULT_FILTERS: LogFilters = {
   start_time: '',
@@ -204,7 +208,7 @@ const DEFAULT_FILTERS: LogFilters = {
   tag_keyword_relation: 'AND',
 }
 
-const EMPTY_PCAP_FILTERS: import('./types/pcap').PcapFilters = {
+const EMPTY_PCAP_FILTERS: import('../types/pcap').PcapFilters = {
   start_time: null,
   end_time: null,
   protocol: null,
@@ -216,7 +220,7 @@ const EMPTY_PCAP_FILTERS: import('./types/pcap').PcapFilters = {
   keywords: null,
 }
 
-const EMPTY_HCI_FILTERS: import('./types/hci').HciFilters = {
+const EMPTY_HCI_FILTERS: import('../types/hci').HciFilters = {
   start_time: null,
   end_time: null,
   direction: null,
@@ -249,6 +253,12 @@ const AppContent: React.FC<{
   const [aiConfigured, setAiConfigured] = useState(false)
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
   const [allModels, setAllModels] = useState<ModelPreset[]>([])
+  // Global model selection (persisted to localStorage)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(() => {
+    return localStorage.getItem('ala_active_model_id') || null
+  })
+  // Bump when model configs change to recompute configuredModels
+  const [modelConfigsRevision, setModelConfigsRevision] = useState(0)
   const [activeTab, setActiveTab] = useState<'log' | 'pcap' | 'hci' | 'trace'>('log')
 
   // Project state (lifted here so Header and AiPanel share it)
@@ -360,7 +370,7 @@ const AppContent: React.FC<{
 
   // PCAP filtered state
   const [filteredPcapEntries, setFilteredPcapEntries] = useState<
-    import('./types/pcap').PcapEntry[]
+    import('../types/pcap').PcapEntry[]
   >([])
 
   // HCI filtered state
@@ -512,11 +522,66 @@ const AppContent: React.FC<{
       })
   }, [backendConnected, message, t])
 
+  // Compute configured (enabled + key-set) models for the global selector
+  const configuredModels = useMemo(
+    () => filterConfiguredModels(allModels),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allModels, modelConfigsRevision],
+  )
+
+  // Global model change handler — persists to localStorage and recomputes aiConfig
+  const handleGlobalModelChange = useCallback(
+    (id: string) => {
+      setSelectedModelId(id)
+      localStorage.setItem('ala_active_model_id', id)
+      // Recompute aiConfig from the selected model
+      const preset = allModels.find((m) => m.id === id)
+      if (preset) {
+        const config = loadModelConfigs()[id]
+        const cfg = buildAIConfig(preset, config)
+        if (cfg && cfg.api_key?.trim()) {
+          setAiConfigured(true)
+          setAiConfig(cfg)
+          return
+        }
+      }
+      // Fallback: selected model has no key, fall back to first active
+      const active = getActiveAIConfig(allModels)
+      if (active && active.config.api_key?.trim()) {
+        setAiConfigured(true)
+        setAiConfig(active.config)
+      }
+    },
+    [allModels],
+  )
+
+  // Listen for model config changes (e.g. new API key added on ModelPage)
+  useEffect(() => {
+    const handler = () => setModelConfigsRevision((v) => v + 1)
+    window.addEventListener(MODEL_CONFIGS_CHANGE_EVENT, handler)
+    return () => window.removeEventListener(MODEL_CONFIGS_CHANGE_EVENT, handler)
+  }, [])
+
   // Derive AI config only after models have finished loading to avoid double getConfig() calls.
   // API keys live in localStorage only — never synced to backend.
   useEffect(() => {
     if (!modelsLoaded) return
     migrateFromLegacyConfig(allModels)
+
+    // If a specific model was previously selected, try to use it first
+    if (selectedModelId) {
+      const preset = allModels.find((m) => m.id === selectedModelId)
+      if (preset) {
+        const config = loadModelConfigs()[selectedModelId]
+        const cfg = buildAIConfig(preset, config)
+        if (cfg && cfg.api_key?.trim()) {
+          setAiConfigured(true)
+          setAiConfig(cfg)
+          return
+        }
+      }
+    }
+
     const active = getActiveAIConfig(allModels)
     if (active && active.config.api_key?.trim()) {
       setAiConfigured(true)
@@ -542,7 +607,7 @@ const AppContent: React.FC<{
         setAiConfigured(false)
         setAiConfig(null)
       })
-  }, [backendConnected, allModels, modelsLoaded])
+  }, [backendConnected, allModels, modelsLoaded, selectedModelId])
 
   // Helper: close upload popover and clear pending files (avoids stale state)
   const closeUploadPopover = useCallback(() => {
@@ -1100,6 +1165,9 @@ const AppContent: React.FC<{
           selectedProjectId={selectedProjectId}
           onProjectChange={handleProjectChange}
           onRefreshModels={handleRefreshModels}
+          configuredModels={configuredModels}
+          selectedModelId={selectedModelId}
+          onModelChange={handleGlobalModelChange}
         />
 
         {/* Backend warning */}
@@ -1126,7 +1194,7 @@ const AppContent: React.FC<{
               path="/projects"
               element={
                 <Suspense fallback={null}>
-                  <ProjectManager />
+                  <ProjectPage />
                 </Suspense>
               }
             />
@@ -1134,7 +1202,7 @@ const AppContent: React.FC<{
               path="/models"
               element={
                 <Suspense fallback={null}>
-                  <ModelManager
+                  <ModelPage
                     onModelsChange={setAllModels}
                     onRegisterRefresh={handleRegisterRefreshModels}
                   />
@@ -1145,7 +1213,7 @@ const AppContent: React.FC<{
               path="/guide"
               element={
                 <Suspense fallback={null}>
-                  <UserGuide />
+                  <GuidePage />
                 </Suspense>
               }
             />
@@ -1238,7 +1306,6 @@ const AppContent: React.FC<{
                               contextDocs={contextDocs}
                               localFilePath={sourceRef}
                               aiConfig={aiConfig ?? undefined}
-                              allModels={allModels}
                             />
                           </div>
                         </div>

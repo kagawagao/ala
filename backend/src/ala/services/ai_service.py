@@ -121,6 +121,9 @@ def _is_anthropic_endpoint(endpoint: str) -> bool:
                 endpoint,
             )
         return False
+    # DeepSeek and other providers use /anthropic path suffix for Anthropic-compatible endpoints
+    if parsed.path.rstrip("/").endswith("/anthropic"):
+        return True
     return hostname == "api.anthropic.com" or hostname.endswith(".anthropic.com")
 
 
@@ -396,9 +399,12 @@ class AIService:
                 lazy_hint = (
                     "A local log directory is available to the session's tools. "
                     "Start with list_directory_logs to see what files are available. "
-                    "Then use overview_local_log, search_local_log, read_log_range, "
-                    "or tail_local_log with an explicit file_path parameter "
-                    "to target specific files. "
+                    "For small diagnostic files (ANR traces, tombstones, crash logs, "
+                    "dropbox files < 200KB), use read_log_file(file_path='...') to "
+                    "read the ENTIRE file at once — this is much faster than keyword "
+                    "search for small files. Only use search_local_log / "
+                    "search_all_local for large files or when you need to find "
+                    "specific patterns across many files. "
                     "Complete the full analysis before responding; never stop mid-analysis."
                 )
             else:
@@ -1042,7 +1048,7 @@ class AIService:
                 _finished_naturally = True
                 break
 
-            # Execute each tool via asyncio.to_thread to avoid blocking the event loop
+            # Execute each tool — try custom handler first, then fall through
             for tc in tool_calls_list:
                 arguments_str = tc["arguments"]
 

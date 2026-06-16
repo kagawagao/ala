@@ -65,15 +65,23 @@ export interface TraceParseResult {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
+  parts?: string | null // JSON array of structured message parts
 }
 
 export interface Session {
   id: string
   title: string
-  messages: ChatMessage[]
+  messages: ChatMessage[] // Always empty from API — history in localStorage
   created_at: string
   context_type: 'log' | 'trace' | 'pcap' | 'hci' | 'general'
   project_id: string | null
+}
+
+/** Session state persisted in localStorage by the frontend. */
+export interface SessionState {
+  messages: ChatMessage[]
+  raw_api_messages: Record<string, unknown>[] | null
+  raw_api_messages_provider: string | null
 }
 
 export interface AIConfig {
@@ -177,4 +185,20 @@ export interface MaxRoundsReachedEvent {
   message: string
 }
 
-export type AgentEvent = ToolCallEvent | ToolResultEvent | ThinkingEvent | MaxRoundsReachedEvent
+export interface SessionStateEvent {
+  type: 'session_state'
+  assistant_message?: {
+    role: 'assistant'
+    content: string
+    parts: string | null
+  }
+  raw_api_messages?: Record<string, unknown>[]
+  raw_api_messages_provider?: string
+}
+
+export type AgentEvent =
+  | ToolCallEvent
+  | ToolResultEvent
+  | ThinkingEvent
+  | MaxRoundsReachedEvent
+  | SessionStateEvent

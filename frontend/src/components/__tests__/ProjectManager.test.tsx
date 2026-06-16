@@ -3,7 +3,7 @@ import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { App } from 'antd'
 import { MemoryRouter } from 'react-router-dom'
-import ProjectManager from '../ProjectManager'
+import ProjectPage from '../../pages/ProjectPage'
 
 const mockNavigate = vi.fn()
 
@@ -90,7 +90,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
-describe('ProjectManager', () => {
+describe('ProjectPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
@@ -100,7 +100,7 @@ describe('ProjectManager', () => {
     const { listProjects } = await import('../../api/projects')
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -113,7 +113,7 @@ describe('ProjectManager', () => {
   it('renders project list after loading', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -125,7 +125,7 @@ describe('ProjectManager', () => {
   it('shows project paths', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -136,7 +136,7 @@ describe('ProjectManager', () => {
   it('shows path count tag', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -146,24 +146,10 @@ describe('ProjectManager', () => {
     })
   })
 
-  // Back button removed from ProjectManager — navigation handled by app Header
-  it.skip('navigates back to / on back button click', async () => {
-    render(
-      <Wrapper>
-        <ProjectManager />
-      </Wrapper>,
-    )
-    await waitFor(() => {
-      expect(screen.getByText('TestApp')).toBeInTheDocument()
-    })
-    await userEvent.click(screen.getByText('Back to Analysis'))
-    expect(mockNavigate).toHaveBeenCalledWith('/')
-  })
-
   it('opens add project form when Add Project is clicked', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -178,7 +164,7 @@ describe('ProjectManager', () => {
     const { createProject } = await import('../../api/projects')
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -206,7 +192,7 @@ describe('ProjectManager', () => {
     const { deleteProject } = await import('../../api/projects')
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -229,7 +215,7 @@ describe('ProjectManager', () => {
     vi.mocked(listProjects).mockResolvedValueOnce([])
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -241,7 +227,7 @@ describe('ProjectManager', () => {
     const { listContextDocs } = await import('../../api/projects')
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -262,7 +248,7 @@ describe('ProjectManager', () => {
   it('cancels add project form', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {
@@ -277,7 +263,7 @@ describe('ProjectManager', () => {
   it('shows error when project name is empty', async () => {
     render(
       <Wrapper>
-        <ProjectManager />
+        <ProjectPage />
       </Wrapper>,
     )
     await waitFor(() => {

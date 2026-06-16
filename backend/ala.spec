@@ -154,13 +154,65 @@ binaries = []
 # Collect OpenSSL DLLs required by the _ssl module on Windows.
 # These live in the Python installation's DLLs directory but PyInstaller
 # does not always pick them up automatically.
+#
+# DLL names vary across Python distributions:
+#   python.org 3.12+      → libcrypto-3.dll / libssl-3.dll
+#   some builds           → libcrypto-3-x64.dll / libssl-3-x64.dll
+#   Python 3.11           → libcrypto-1_1.dll / libssl-1_1.dll
+#   conda / MS Store      → may be in bin/ instead of DLLs/
+#
+# We search with glob patterns so we catch any naming variant.
 if sys.platform == "win32":
-    _dlls_dir = Path(sys.prefix) / "DLLs"
-    for _dll_name in ("libcrypto-3.dll", "libssl-3.dll"):
-        _dll_path = _dlls_dir / _dll_name
-        if _dll_path.is_file():
-            binaries.append((str(_dll_path), "."))
-            print(f"  Bundled {_dll_name}")
+    _ssl_search_dirs = [
+        Path(sys.prefix) / "DLLs",
+        Path(sys.prefix) / "bin",
+    ]
+    _ssl_dll_patterns = [
+        "libcrypto-*.dll",
+        "libssl-*.dll",
+        "libcrypto_*.dll",
+        "libssl_*.dll",
+    ]
+
+    _found_ssl = []
+    for _search_dir in _ssl_search_dirs:
+        if not _search_dir.is_dir():
+            continue
+        for _pat in _ssl_dll_patterns:
+            for _dll_path in sorted(_search_dir.glob(_pat)):
+                _name = _dll_path.name
+                if _name not in _found_ssl:
+                    binaries.append((str(_dll_path), "."))
+                    _found_ssl.append(_name)
+                    print(f"  Bundled {_name} from {_search_dir}")
+
+    if not _found_ssl:
+        # Failing to bundle OpenSSL DLLs means the frozen exe will crash
+        # at startup with "ImportError: DLL load failed while importing _ssl".
+        # Surface what's available so the problem is debuggable.
+        print("  ERROR: No OpenSSL DLLs found! The frozen exe will fail at runtime.")
+        print(f"  Searched dirs: {[str(d) for d in _ssl_search_dirs]}")
+        for _search_dir in _ssl_search_dirs:
+            if _search_dir.is_dir():
+                _all = sorted(_search_dir.glob("*.dll"))
+                print(f"  DLLs in {_search_dir}: {[d.name for d in _all]}")
+        raise FileNotFoundError(
+            "Cannot bundle OpenSSL DLLs – searched for libcrypto*/libssl* DLLs in "
+            f"{[str(d) for d in _ssl_search_dirs]} but none were found. "
+            "Install Python from python.org or ensure OpenSSL DLLs are available."
+        )
+
+    # Also collect Visual C++ Redistributable DLLs if they live next to Python.
+    # _ssl.pyd (and many other C extensions) depend on VCRUNTIME140.dll.
+    # PyInstaller normally picks these up, but only if they are on the DLL search
+    # path during analysis.  Explicitly adding them is belt-and-suspenders.
+    for _vc_name in ("VCRUNTIME140.dll", "VCRUNTIME140_1.dll"):
+        for _search_dir in _ssl_search_dirs:
+            _vc_path = _search_dir / _vc_name
+            if _vc_path.is_file():
+                binaries.append((str(_vc_path), "."))
+                print(f"  Bundled {_vc_name}")
+                break
 
 # ---------------------------------------------------------------------------
 # Analysis

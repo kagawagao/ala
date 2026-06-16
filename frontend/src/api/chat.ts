@@ -1,5 +1,5 @@
 import { apiFetch, streamSSE } from './client'
-import type { Session } from '../types'
+import type { ChatMessage, Session } from '../types'
 
 export async function createSession(
   title: string,
@@ -90,10 +90,21 @@ export async function* sendMessage(
     anthropic_compatible?: boolean
   },
   language?: string,
+  history?: ChatMessage[],
+  rawApiMessages?: Record<string, unknown>[] | null,
+  rawApiMessagesProvider?: string | null,
 ): AsyncGenerator<string> {
   yield* streamSSE(
     `/chat/sessions/${sessionId}/messages`,
-    { message, context, model_override: modelOverride ?? null, language },
+    {
+      message,
+      context,
+      model_override: modelOverride ?? null,
+      language,
+      history: history ?? [],
+      raw_api_messages: rawApiMessages ?? null,
+      raw_api_messages_provider: rawApiMessagesProvider ?? null,
+    },
     signal,
   )
 }

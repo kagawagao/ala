@@ -26,6 +26,7 @@ openai = ">=1.0.0"
 scapy = ">=2.5.0"
 typer = ">=0.15.0"
 rich = ">=13.0.0"
+rarfile = ">=4.2"
 # Pin transitive dependency to fix ReDoS (Dependabot #94)
 pygments = ">=2.20.0"
 

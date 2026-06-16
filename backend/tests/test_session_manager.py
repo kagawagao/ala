@@ -34,7 +34,6 @@ class TestCreateSession:
         assert s.title == "My Session"
         assert s.context_type == "log"
         assert s.id
-        assert s.messages == []
         assert s.created_at
 
     def test_create_with_project_id(self, mgr):
@@ -94,41 +93,6 @@ class TestDeleteSession:
     def test_delete_nonexistent_returns_false(self, mgr):
         ok = mgr.delete_session("nonexistent-id")
         assert ok is False
-
-
-# ---------------------------------------------------------------------------
-# Message appending
-# ---------------------------------------------------------------------------
-
-
-class TestAddMessage:
-    def test_add_message_to_existing_session(self, session):
-        mgr, s = session
-        msg = mgr.add_message(s.id, "user", "Hello")
-        assert isinstance(msg, Message)
-        assert msg.role == "user"
-        assert msg.content == "Hello"
-        assert msg.timestamp
-
-        # Verify message is in session
-        found = mgr.get_session(s.id)
-        assert len(found.messages) == 1
-        assert found.messages[0].content == "Hello"
-
-    def test_add_multiple_messages(self, session):
-        mgr, s = session
-        mgr.add_message(s.id, "user", "Q1")
-        mgr.add_message(s.id, "assistant", "A1")
-        mgr.add_message(s.id, "user", "Q2")
-
-        found = mgr.get_session(s.id)
-        assert len(found.messages) == 3
-        roles = [m.role for m in found.messages]
-        assert roles == ["user", "assistant", "user"]
-
-    def test_add_message_to_nonexistent_session(self, mgr):
-        msg = mgr.add_message("nonexistent-id", "user", "Hello")
-        assert msg is None
 
 
 # ---------------------------------------------------------------------------
@@ -203,21 +167,6 @@ class TestLogEntriesContext:
         assert ok is False
 
 
-class TestRawApiMessages:
-    def test_set_raw_api_messages(self, session):
-        mgr, s = session
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}]
-        ok = mgr.set_raw_api_messages(s.id, messages, "anthropic")
-        assert ok is True
-        found = mgr.get_session(s.id)
-        assert found.raw_api_messages == messages
-        assert found.raw_api_messages_provider == "anthropic"
-
-    def test_set_raw_api_messages_nonexistent(self, mgr):
-        ok = mgr.set_raw_api_messages("nonexistent-id", [], "openai")
-        assert ok is False
-
-
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -226,7 +175,6 @@ class TestRawApiMessages:
 class TestEdgeCases:
     def test_session_with_all_fields(self, mgr):
         s = mgr.create_session("Full", "log", project_id="p1")
-        mgr.add_message(s.id, "user", "msg")
         mgr.set_trace_summary(s.id, {"format": "json_trace"})
         mgr.set_log_entries(s.id, [{"level": "I"}])
 
@@ -234,7 +182,6 @@ class TestEdgeCases:
         assert found.title == "Full"
         assert found.context_type == "log"
         assert found.project_id == "p1"
-        assert len(found.messages) == 1
         assert found.trace_summary is not None
         assert found.log_entries is not None
 
@@ -250,10 +197,7 @@ class TestEdgeCases:
             title="Test",
             context_type="general",
         )
-        assert s.messages == []
         assert s.trace_summary is None
         assert s.log_entries is None
         assert s.file_path is None
         assert s.log_index is None
-        assert s.raw_api_messages is None
-        assert s.raw_api_messages_provider is None

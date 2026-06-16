@@ -130,6 +130,8 @@ if (Test-Path $LicenseSrc) {
 }
 
 # Product.wxs
+# Uses WixUI_Advanced to expose optional features (Desktop shortcut, Start Menu, PATH)
+# via the "Advanced" button in the installer UI.
 $ProductWxs = Join-Path $WxsDir "Product.wxs"
 @"
 <?xml version='1.0' encoding='UTF-8'?>
@@ -140,32 +142,77 @@ $ProductWxs = Join-Path $WxsDir "Product.wxs"
     <MediaTemplate EmbedCab='yes'/>
     <Icon Id='AlaIcon' SourceFile='$IconDest'/>
     <Property Id='ARPPRODUCTICON' Value='AlaIcon'/>
-    <Property Id='WIXUI_INSTALLDIR' Value='INSTALLDIR'/>
+    <Property Id='ApplicationFolderName' Value='ALA'/>
+    <Property Id='WixAppFolder' Value='WixPerMachineFolder'/>
     <WixVariable Id='WixUILicenseRtf' Value='$LicenseRtf'/>
-    <Feature Id='MainFeature' Title='ALA' Level='1'>
+
+    <!--
+      MainFeature is always installed (Absent='disallow').
+      Sub-features are enabled by default (Level='1') and can be toggled
+      via the "Advanced" button in the installer UI.
+    -->
+    <Feature Id='MainFeature' Title='ALA' Level='1' Absent='disallow' Display='expand'>
       <ComponentGroupRef Id='AppFiles'/>
-      <ComponentRef Id='ProgramMenuShortcutComp'/>
+      <Feature Id='DesktopShortcut' Title='Desktop Shortcut' Level='1'
+               Description='Create a shortcut on the desktop.'>
+        <ComponentRef Id='DesktopShortcutComp'/>
+      </Feature>
+      <Feature Id='StartMenuShortcut' Title='Start Menu Shortcuts' Level='1'
+               Description='Create a shortcut in the Start Menu.'>
+        <ComponentRef Id='ProgramMenuShortcutComp'/>
+      </Feature>
+      <Feature Id='AddToPath' Title='Add to PATH' Level='1'
+               Description='Add ALA to the system PATH so you can run ala from PowerShell or Command Prompt.'>
+        <ComponentRef Id='PathEnvComp'/>
+      </Feature>
     </Feature>
-    <UIRef Id='WixUI_InstallDir'/>
+
+    <UIRef Id='WixUI_Advanced'/>
   </Product>
+
   <Fragment>
     <Directory Id='TARGETDIR' Name='SourceDir'>
       <Directory Id='ProgramFiles64Folder'>
-        <Directory Id='INSTALLDIR' Name='ALA'/>
+        <Directory Id='APPLICATIONFOLDER' Name='ALA'/>
       </Directory>
+      <Directory Id='DesktopFolder'/>
       <Directory Id='CommonProgramsFolder'>
         <Directory Id='ProgramMenuDir' Name='ALA'/>
       </Directory>
     </Directory>
   </Fragment>
+
+  <!-- Desktop shortcut -->
+  <Fragment>
+    <DirectoryRef Id='DesktopFolder'>
+      <Component Id='DesktopShortcutComp' Guid='B8A7C6D5-E4F3-210A-9B8C-7D6E5F4A3B2C' Win64='yes'>
+      <Shortcut Id='DesktopShortcut' Name='ALA' Target='[APPLICATIONFOLDER]ala.exe'
+                WorkingDirectory='APPLICATIONFOLDER' Description='ALA - Android Log Analyzer'
+                Icon='AlaIcon' IconIndex='0'/>
+      <RegistryValue Root='HKCU' Key='Software\kagawagao\ALA' Name='desktop_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <!-- Start Menu shortcut -->
   <Fragment>
     <DirectoryRef Id='ProgramMenuDir'>
-      <Component Id='ProgramMenuShortcutComp' Guid='C9F3B1D2-4E6F-5A8B-0C1D-2E3F4A5B6C7D'>
-      <Shortcut Id='StartMenuShortcut' Name='ALA' Target='[INSTALLDIR]ala.exe'
-                WorkingDirectory='INSTALLDIR' Description='ALA - Android Log Analyzer'
+      <Component Id='ProgramMenuShortcutComp' Guid='C9F3B1D2-4E6F-5A8B-0C1D-2E3F4A5B6C7D' Win64='yes'>
+      <Shortcut Id='StartMenuShortcut' Name='ALA' Target='[APPLICATIONFOLDER]ala.exe'
+                WorkingDirectory='APPLICATIONFOLDER' Description='ALA - Android Log Analyzer'
                 Icon='AlaIcon' IconIndex='0'/>
       <RemoveFolder Id='RemoveProgramMenuDir' Directory='ProgramMenuDir' On='uninstall'/>
       <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='startmenu_shortcut' Type='integer' Value='1' KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <!-- PATH environment variable -->
+  <Fragment>
+    <DirectoryRef Id='APPLICATIONFOLDER'>
+      <Component Id='PathEnvComp' Guid='A1B2C3D4-E5F6-7890-ABCD-EF1234567890' Win64='yes'>
+        <Environment Id='PathEnv' Name='PATH' Value='[APPLICATIONFOLDER]' Action='set' Part='last' Permanent='no' System='yes'/>
+        <RegistryValue Root='HKLM' Key='Software\kagawagao\ALA' Name='path_env' Type='integer' Value='1' KeyPath='yes'/>
       </Component>
     </DirectoryRef>
   </Fragment>
@@ -180,7 +227,7 @@ Copy-Item -Path "$BackendDist\*" -Destination $StageDir -Recurse -Force
 
 # Generate Files.wxs with heat
 $FilesWxs = Join-Path $WxsDir "Files.wxs"
-& heat.exe dir $StageDir -cg AppFiles -dr INSTALLDIR -srd -gg -g1 -scom -sreg -var var.StageDir -out $FilesWxs
+& heat.exe dir $StageDir -cg AppFiles -dr APPLICATIONFOLDER -srd -gg -g1 -scom -sreg -var var.StageDir -out $FilesWxs
 
 # Mark all components as Win64
 [xml]$FilesDoc = Get-Content -Path $FilesWxs
@@ -198,7 +245,7 @@ $Writer.Close()
 $MsiName = "ALA-$Version-windows-x64.msi"
 $MsiPath = Join-Path $ReleaseDir $MsiName
 & candle.exe -dStageDir="$StageDir" -ext WixUIExtension -out "$WxsDir\" $ProductWxs $FilesWxs
-& light.exe -ext WixUIExtension -out $MsiPath (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
+& light.exe -ext WixUIExtension -sval -out $MsiPath (Join-Path $WxsDir "Product.wixobj") (Join-Path $WxsDir "Files.wixobj")
 
 # Cleanup temp
 Remove-Item $StageDir -Recurse -Force -ErrorAction SilentlyContinue

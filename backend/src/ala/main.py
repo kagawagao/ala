@@ -134,7 +134,6 @@ def create_app() -> FastAPI:
     app.include_router(config_router.router, prefix="/api/config", tags=["config"])
     app.include_router(models.router, prefix="/api/models", tags=["models"])
     app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
-
     # Mount the MCP server at /mcp – available at http://<host>:<port>/mcp
     # MCP clients should connect to http://<host>:<port>/mcp
     app.mount("/mcp", mcp_http_app)
