@@ -1212,31 +1212,10 @@ def execute_tool(
             # ── Fallback: use file-based tools when no log_entries ─────
             if file_path:
                 if tool_name == "list_log_files":
-                    import os as _os
-
-                    if _os.path.isfile(file_path):
-                        return json.dumps(
-                            {
-                                "total_files": 1,
-                                "files": [
-                                    {
-                                        "name": _os.path.basename(file_path),
-                                        "path": file_path,
-                                        "is_dir": False,
-                                        "size": _os.path.getsize(file_path),
-                                    }
-                                ],
-                                "_hint": "File listing from disk (log_entries not in memory).",
-                            }
-                        )
-                    files = _list_directory(file_path)
-                    return json.dumps(
-                        {
-                            "total_files": len(files),
-                            "files": files,
-                            "_hint": "File listing from disk (log_entries not in memory).",
-                        }
-                    )
+                    try:
+                        return _execute_lazy_log_tool("list_log_files", {}, file_path)
+                    except Exception:
+                        return json.dumps({"error": "Failed to list files"})
                 elif tool_name == "query_log_overview":
                     # Use overview_local_log internally
                     try:

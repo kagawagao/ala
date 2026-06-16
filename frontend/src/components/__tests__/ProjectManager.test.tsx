@@ -146,20 +146,6 @@ describe('ProjectPage', () => {
     })
   })
 
-  // Back button removed from ProjectManager — navigation handled by app Header
-  it.skip('navigates back to / on back button click', async () => {
-    render(
-      <Wrapper>
-        <ProjectPage />
-      </Wrapper>,
-    )
-    await waitFor(() => {
-      expect(screen.getByText('TestApp')).toBeInTheDocument()
-    })
-    await userEvent.click(screen.getByText('Back to Analysis'))
-    expect(mockNavigate).toHaveBeenCalledWith('/')
-  })
-
   it('opens add project form when Add Project is clicked', async () => {
     render(
       <Wrapper>
