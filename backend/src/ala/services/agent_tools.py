@@ -1316,7 +1316,8 @@ def execute_tool(
             cand = _resolve_within_base(file_path, requested_path)
             if cand and _os.path.isfile(cand):
                 try:
-                    content = open(cand, encoding="utf-8", errors="replace").read()
+                    with open(cand, encoding="utf-8", errors="replace") as fh:
+                        content = fh.read()
                     size = _os.path.getsize(cand)
                     max_read = 200_000
                     truncated = len(content) > max_read

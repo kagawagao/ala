@@ -90,8 +90,6 @@ def _is_log_name(name: str) -> bool:
     """Return True when *name* looks like a plain-text log file."""
     lower = name.lower()
     # Accept files without extension or with common log extensions
-    import os
-
     ext = os.path.splitext(lower)[1]
     return ext in _LOG_TEXT_EXTS
 
