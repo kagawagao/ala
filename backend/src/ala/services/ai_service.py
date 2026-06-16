@@ -20,6 +20,7 @@ import openai
 from ..config import settings
 from .agent_tools import (
     AGENT_TOOLS,
+    CODING_TOOLS,
     HCI_TOOLS,
     LAZY_LOG_TOOLS,
     LOG_TOOLS,
@@ -352,6 +353,7 @@ class AIService:
 
         if project:
             tools.extend(AGENT_TOOLS)
+            tools.extend(CODING_TOOLS)
 
         if context_docs:
             parts.append(

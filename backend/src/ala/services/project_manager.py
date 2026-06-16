@@ -1,12 +1,16 @@
 """SQLite-backed project manager."""
 
 import json
+import logging
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .database import get_db
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> str:
@@ -197,3 +201,94 @@ class ProjectManager:
         if cur.rowcount == 0:
             return None
         return self.get_project(project_id)
+
+
+# ---------------------------------------------------------------------------
+# Auto-discovery: find an ALA project from the current working directory
+# ---------------------------------------------------------------------------
+
+#: Markers that identify an ALA project root directory.
+_ALA_MARKERS: list[str] = [
+    "backend/src/ala/main.py",
+    "backend/src/ala/",
+    "AGENTS.md",
+]
+
+
+def _is_ala_root(path: Path) -> bool:
+    """Return True when *path* looks like an ALA project root."""
+    # Must have pyproject.toml (at root or inside backend/)
+    if (
+        not (path / "pyproject.toml").exists()
+        and not (path / "backend" / "pyproject.toml").exists()
+    ):
+        return False
+    # At least one ALA marker must exist
+    for marker in _ALA_MARKERS:
+        if (path / marker).exists():
+            return True
+    return False
+
+
+def _upward_candidates(start: Path) -> Iterator[Path]:
+    """Walk up from *start* to root, yielding directories that exist."""
+    current = start.resolve()
+    seen: set[Path] = set()
+    while True:
+        if current in seen:
+            break
+        seen.add(current)
+        if current.is_dir():
+            yield current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+
+
+def discover_project(cwd: Path | None = None) -> Project | None:
+    """Discover an ALA project by walking up from *cwd*.
+
+    Looks for ALA project root markers (pyproject.toml + backend/src/ala/).
+    If found, either returns the already-registered project (matched by path)
+    or auto-registers a new one.
+
+    Returns None if no ALA project is found.
+    """
+    start = Path(cwd) if cwd else Path.cwd()
+    pm = ProjectManager()
+
+    for candidate in _upward_candidates(start):
+        # Check if candidate looks like ALA root
+        if not _is_ala_root(candidate):
+            continue
+
+        candidate_str = str(candidate)
+
+        # Check if any registered project already has this path
+        for proj in pm.list_projects():
+            for p in proj.paths:
+                if Path(p).resolve() == candidate.resolve():
+                    return proj
+
+        # Determine project type
+        # If candidate has backend/pyproject.toml, it's the backend dir inside monorepo
+        # Otherwise use the project name from the directory
+        name = candidate.name
+
+        # Try to get a better name from AGENTS.md title
+        agents_md = candidate / "AGENTS.md"
+        try:
+            first_line = agents_md.read_text(encoding="utf-8", errors="replace").split("\n")[0]
+            if first_line.startswith("# "):
+                name = first_line[2:].split(" — ")[-1].strip()
+        except (OSError, IndexError):
+            logger.debug("Cannot read AGENTS.md at %s, using directory name", agents_md)
+
+        # Auto-register
+        return pm.create_project(
+            name=name,
+            paths=[candidate_str],
+        )
+
+    return None
