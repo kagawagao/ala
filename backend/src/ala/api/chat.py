@@ -150,7 +150,9 @@ async def set_session_source_path(session_id: str, req: SetSourcePathRequest):
     # Empty path clears the session path
     raw_path = req.source_path.strip() if req.source_path else ""
     if not raw_path:
-        _session_manager.clear_source_path(session_id)
+        ok = _session_manager.clear_source_path(session_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Session not found")
         return {"success": True, "source_path": None}
 
     # Validate path and use canonical (normalized) path
