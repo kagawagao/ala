@@ -1602,8 +1602,13 @@ def _list_files_by_type(session_path: str, extensions: list[str]) -> list[dict]:
     try:
         for entry in sorted(_os.scandir(target_dir), key=lambda e: e.name.lower()):
             if entry.is_file():
-                ext = _os.path.splitext(entry.name)[1].lower()
-                if ext in extensions:
+                name = entry.name.lower()
+                compressed_extensions = tuple(f"{ext}.gz" for ext in extensions)
+                if (
+                    name.endswith(tuple(extensions))
+                    or name.endswith(compressed_extensions)
+                    or name.endswith(".zip")
+                ):
                     try:
                         stat = entry.stat()
                         results.append(

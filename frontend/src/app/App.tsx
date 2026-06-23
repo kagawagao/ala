@@ -903,6 +903,8 @@ const AppContent: React.FC<{
 
   const isLoading = loadingFile || pcapLoading || hciLoading || traceLoading
   const errorMessage = fileError || pcapError || hciError || traceError
+  const aiSourcePath =
+    activeTab === 'pcap' ? pcapSourcePath : activeTab === 'hci' ? hciSourcePath : sourceRef
 
   const loadedNames =
     fileNames.length > 0 ? fileNames : pcapFileNames.length > 0 ? pcapFileNames : hciFileNames
@@ -1294,7 +1296,7 @@ const AppContent: React.FC<{
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
-                              sourcePath={sourceRef}
+                              sourcePath={aiSourcePath}
                               aiConfig={aiConfig ?? undefined}
                             />
                           </div>

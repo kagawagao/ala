@@ -27,7 +27,11 @@ def _get_files_dir() -> Path:
         files_dir = Path(env_dir)
     else:
         files_dir = Path.home() / ".ala" / "files"
-    files_dir.mkdir(parents=True, exist_ok=True)
+    files_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        files_dir.chmod(0o700)
+    except OSError:
+        logger.warning("Could not enforce private permissions on files dir: %s", files_dir)
     return files_dir
 
 
@@ -129,7 +133,8 @@ async def unified_upload(files: list[UploadFile] = File(...)):
             dest_path = session_dir / f"{stem}_{counter}{ext}"
             counter += 1
 
-        with open(dest_path, "wb") as f:
+        fd = os.open(dest_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as f:
             f.write(content)
 
         # Detect format-specific sub-type

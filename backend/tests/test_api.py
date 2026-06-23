@@ -526,14 +526,29 @@ class TestChatSessions:
                 os.unlink(path)
 
     def test_set_session_source_path_clear(self, client):
-        create_resp = client.post(
-            "/api/chat/sessions", json={"title": "Clear File Session", "context_type": "log"}
-        )
-        sid = create_resp.json()["id"]
-        # Clear with empty path
-        resp = client.put(f"/api/chat/sessions/{sid}/source-path", json={"source_path": ""})
-        assert resp.status_code == 200
-        assert resp.json()["source_path"] is None
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            f.write(SAMPLE_LOGCAT)
+            path = f.name
+        try:
+            create_resp = client.post(
+                "/api/chat/sessions", json={"title": "Clear File Session", "context_type": "log"}
+            )
+            sid = create_resp.json()["id"]
+            # First set a valid source path
+            set_resp = client.put(
+                f"/api/chat/sessions/{sid}/source-path",
+                json={"source_path": path},
+            )
+            assert set_resp.status_code == 200
+            # Then clear it
+            resp = client.put(f"/api/chat/sessions/{sid}/source-path", json={"source_path": ""})
+            assert resp.status_code == 200
+            assert resp.json()["source_path"] is None
+        finally:
+            import os
+
+            if os.path.exists(path):
+                os.unlink(path)
 
     def test_set_session_source_path_nonexistent(self, client):
         create_resp = client.post(

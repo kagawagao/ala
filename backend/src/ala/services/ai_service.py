@@ -384,8 +384,8 @@ class AIService:
                 lazy_hint = (
                     "A local data directory is available to the session's tools. "
                     "It may contain log, PCAP, and/or HCI (Bluetooth) files. "
-                    "Start with list_directory_logs to discover what files are available, "
-                    "then use type-appropriate tools: "
+                    "Start with list_directory_logs, list_pcap_files, and list_hci_files "
+                    "as appropriate to discover available files, then use type-appropriate tools: "
                     "overview_local_log/search_local_log for logs, "
                     "overview_local_pcap/search_pcap_packets_lazy for PCAP, "
                     "overview_local_hci/search_hci_packets_lazy for HCI. "
@@ -400,9 +400,10 @@ class AIService:
             else:
                 lazy_hint = (
                     "A local data file is available to the session's tools. "
-                    "Always start with overview_local_log to understand the data scope "
-                    "(level distribution, time range, unique tags and PIDs). "
-                    "Then use search_local_log with targeted filters to find relevant entries. "
+                    "It may be a log, PCAP/PCAPNG, or HCI/BTSnoop file. "
+                    "Start with the matching overview tool: overview_local_log for logs, "
+                    "overview_local_pcap for PCAP, or overview_local_hci for HCI. "
+                    "For logs, use search_local_log with targeted filters to find relevant entries. "
                     "For large files, use offset/limit to paginate through results. "
                     "Use read_log_range for context around specific lines, "
                     "and tail_local_log for recent entries. "

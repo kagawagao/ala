@@ -149,6 +149,7 @@ export interface LocalFileRef {
   format_detected: string
   is_gzip: boolean
   is_zip: boolean
+  truncated: boolean
 }
 
 export interface ContextDoc {

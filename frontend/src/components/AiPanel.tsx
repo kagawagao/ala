@@ -301,11 +301,8 @@ const AiPanel: React.FC<AiPanelProps> = ({
   // Sync source path to the active session
   useEffect(() => {
     if (!activeSessionId) return
-    if (sourcePath) {
-      void setSessionSourcePath(activeSessionId, sourcePath)
-    } else {
-      void setSessionSourcePath(activeSessionId, '')
-    }
+    if (!sourcePath) return
+    void setSessionSourcePath(activeSessionId, sourcePath)
   }, [sourcePath, activeSessionId])
 
   // Keyboard shortcut: Cmd/Ctrl+J to focus AI input
