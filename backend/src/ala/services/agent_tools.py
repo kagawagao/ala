@@ -2020,11 +2020,11 @@ def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str
             filters.keywords = content
 
         try:
-            offset = int(args.get("offset", 0))
+            offset = max(int(args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             offset = 0
         try:
-            limit = min(int(args.get("limit", 50)), 500)
+            limit = max(1, min(int(args.get("limit", 50)), 500))
         except (ValueError, TypeError):
             limit = 50
 
@@ -2152,11 +2152,11 @@ def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
             filters.keywords = content
 
         try:
-            offset = int(args.get("offset", 0))
+            offset = max(int(args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             offset = 0
         try:
-            limit = min(int(args.get("limit", 50)), 500)
+            limit = max(1, min(int(args.get("limit", 50)), 500))
         except (ValueError, TypeError):
             limit = 50
 
