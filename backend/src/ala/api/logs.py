@@ -17,7 +17,6 @@ from pydantic import BaseModel
 from ..file_detector import detect_file_type_from_path
 from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.log_analyzer import LogEntry as ServiceLogEntry
-from ..services.log_analyzer import LogFilters as ServiceLogFilters
 
 router = APIRouter()
 _analyzer = LogAnalyzer()
@@ -34,7 +33,6 @@ class LogEntry(BaseModel):
     message: str
     raw_line: str
     source_file: str | None = None
-
 
 
 class LogFilters(BaseModel):
@@ -84,9 +82,6 @@ class AutoPathResponse(BaseModel):
     total_files: int | None = None
     max_depth: int | None = None
 
-
-class DirectoryRequest(BaseModel):
-    path: str
 
 def _to_service_entry(e: LogEntry) -> ServiceLogEntry:
     return ServiceLogEntry(

@@ -645,11 +645,11 @@ LAZY_PCAP_TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "PCAP file name or path. Required when source is a directory."
+                    "description": "PCAP file name or path. Required when source is a directory.",
                 },
                 "max_packets": {
                     "type": "integer",
-                    "description": "Max packets to scan for overview (sampling large files)."
+                    "description": "Max packets to scan for overview (sampling large files).",
                 },
             },
             "required": [],
@@ -667,7 +667,7 @@ LAZY_PCAP_TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "PCAP file name or path. Required when source is a directory."
+                    "description": "PCAP file name or path. Required when source is a directory.",
                 },
                 "protocol": {"type": "string", "description": "TCP, UDP, ICMP, DNS, HTTP, etc."},
                 "src_ip": {"type": "string"},
@@ -711,11 +711,11 @@ LAZY_HCI_TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "HCI file name or path. Required when source is a directory."
+                    "description": "HCI file name or path. Required when source is a directory.",
                 },
                 "max_packets": {
                     "type": "integer",
-                    "description": "Max packets to scan for overview."
+                    "description": "Max packets to scan for overview.",
                 },
             },
             "required": [],
@@ -732,8 +732,14 @@ LAZY_HCI_TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "file_path": {"type": "string"},
-                "direction": {"type": "string", "description": "HOST_TO_CONTROLLER or CONTROLLER_TO_HOST"},
-                "hci_type": {"type": "string", "description": "COMMAND, EVENT, ACL_DATA, SCO_DATA, ISO_DATA"},
+                "direction": {
+                    "type": "string",
+                    "description": "HOST_TO_CONTROLLER or CONTROLLER_TO_HOST",
+                },
+                "hci_type": {
+                    "type": "string",
+                    "description": "COMMAND, EVENT, ACL_DATA, SCO_DATA, ISO_DATA",
+                },
                 "opcode": {"type": "integer", "description": "Numeric HCI opcode"},
                 "opcode_name": {"type": "string", "description": "Substring match on opcode name"},
                 "event_code": {"type": "integer"},
@@ -1588,7 +1594,6 @@ def _list_directory(session_path: str) -> list[dict]:
 
 def _list_files_by_type(session_path: str, extensions: list[str]) -> list[dict]:
     """List files with given extensions in a directory or the parent of a single file."""
-    import os
 
     import os as _os
 
@@ -1612,9 +1617,7 @@ def _list_files_by_type(session_path: str, extensions: list[str]) -> list[dict]:
                             }
                         )
                     except OSError:
-                        results.append(
-                            {"name": entry.name, "path": entry.path, "size": 0}
-                        )
+                        results.append({"name": entry.name, "path": entry.path, "size": 0})
     except (PermissionError, FileNotFoundError):
         pass
     return results
@@ -1909,16 +1912,13 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
 
 def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str:
     """Execute lazy PCAP tools against files on disk via streaming."""
-    import os
 
     from .pcap_analyzer import PcapAnalyzer, PcapFilters
 
     pcap_analyzer = PcapAnalyzer()
     resolved = _resolve_log_path(source_path, args)
     if not resolved:
-        return json.dumps(
-            {"error": "Must specify file_path when source is a directory"}
-        )
+        return json.dumps({"error": "Must specify file_path when source is a directory"})
 
     if tool_name == "overview_local_pcap":
         max_packets = args.get("max_packets")
@@ -2044,7 +2044,6 @@ def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str
 
 def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
     """Execute lazy HCI tools against files on disk via streaming."""
-    import os
 
     from .hci_analyzer import HciAnalyzer, HciFilters, _decode_opcode
 
@@ -2071,9 +2070,7 @@ def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
 
     resolved = _resolve_log_path(source_path, args)
     if not resolved:
-        return json.dumps(
-            {"error": "Must specify file_path when source is a directory"}
-        )
+        return json.dumps({"error": "Must specify file_path when source is a directory"})
 
     if tool_name == "overview_local_hci":
         max_packets = args.get("max_packets")
