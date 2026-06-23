@@ -940,12 +940,32 @@ def execute_tool(
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Lazy PCAP tool '{tool_name}' failed: {e}"})
 
+    # HCI opcode decoder (pure lookup — no file/source needed)
+    if tool_name == "decode_hci_opcode":
+        from .hci_analyzer import _decode_opcode
+
+        try:
+            opcode_val = int(args.get("opcode", 0))
+        except (ValueError, TypeError):
+            return json.dumps({"error": "opcode must be an integer"})
+        ogf, ocf, name = _decode_opcode(opcode_val)
+        return json.dumps(
+            {
+                "opcode": opcode_val,
+                "opcode_hex": f"0x{opcode_val:04X}",
+                "ogf": ogf,
+                "ogf_hex": f"0x{ogf:02X}",
+                "ocf": ocf,
+                "ocf_hex": f"0x{ocf:03X}",
+                "name": name,
+            }
+        )
+
     # Lazy HCI tools (file-based streaming)
     if tool_name in (
         "overview_local_hci",
         "search_hci_packets_lazy",
         "list_hci_files",
-        "decode_hci_opcode",
     ):
         if source_path is None:
             return json.dumps({"error": "No source path set in this session"})
@@ -2051,28 +2071,9 @@ def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str
 def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
     """Execute lazy HCI tools against files on disk via streaming."""
 
-    from .hci_analyzer import HciAnalyzer, HciFilters, _decode_opcode
+    from .hci_analyzer import HciAnalyzer, HciFilters
 
     hci_analyzer = HciAnalyzer()
-
-    if tool_name == "decode_hci_opcode":
-        try:
-            opcode_val = int(args.get("opcode", 0))
-        except (ValueError, TypeError):
-            return json.dumps({"error": "opcode must be an integer"})
-
-        ogf, ocf, name = _decode_opcode(opcode_val)
-        return json.dumps(
-            {
-                "opcode": opcode_val,
-                "opcode_hex": f"0x{opcode_val:04X}",
-                "ogf": ogf,
-                "ogf_hex": f"0x{ogf:02X}",
-                "ocf": ocf,
-                "ocf_hex": f"0x{ocf:03X}",
-                "name": name,
-            }
-        )
 
     resolved = _resolve_log_path(source_path, args)
     if not resolved:
