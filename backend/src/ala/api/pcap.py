@@ -258,7 +258,9 @@ async def filter_pcap_stream(req: PcapFilterStreamRequest, request: Request):
     temp_root = str(_get_pcap_temp_dir().resolve())
     files_root = str(_get_files_dir().resolve())
     if not (real.startswith(temp_root + _os.sep) or real.startswith(files_root + _os.sep)):
-        raise HTTPException(status_code=400, detail="Path is outside allowed temp directory")
+        raise HTTPException(
+            status_code=400, detail="Path is outside allowed temp or files directory"
+        )
 
     if not _os.path.isfile(real):
         raise HTTPException(status_code=404, detail=f"PCAP file not found: {real}")
