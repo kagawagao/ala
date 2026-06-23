@@ -2,12 +2,34 @@ import React, { useCallback, useState } from 'react'
 import { Input, Select, Space, Button, Spin, App } from 'antd'
 import { FilterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
-import { filterPcap } from '../api/pcap'
 import type { PcapEntry, PcapFilters } from '../types/pcap'
 
 interface PcapFilterPanelProps {
   entries: PcapEntry[]
   onFilteredEntries: (entries: PcapEntry[]) => void
+}
+
+/** Client-side PCAP filter (replaces removed POST /pcap/filter endpoint). */
+function filterPcapLocal(entries: PcapEntry[], filters: PcapFilters): PcapEntry[] {
+  return entries.filter((entry) => {
+    if (filters.protocol && entry.protocol !== filters.protocol) return false
+    if (filters.src_ip && entry.src_ip !== filters.src_ip) return false
+    if (filters.dst_ip && entry.dst_ip !== filters.dst_ip) return false
+    if (filters.src_port !== null && entry.src_port !== filters.src_port) return false
+    if (filters.dst_port !== null && entry.dst_port !== filters.dst_port) return false
+    if (filters.tcp_flags && entry.tcp_flags !== filters.tcp_flags) return false
+    if (filters.keywords) {
+      const kws = filters.keywords
+        .split(',')
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
+      if (kws.length > 0) {
+        const info = entry.info.toLowerCase()
+        if (!kws.every((k) => info.includes(k))) return false
+      }
+    }
+    return true
+  })
 }
 
 const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEntries }) => {
@@ -54,7 +76,7 @@ const PcapFilterPanel: React.FC<PcapFilterPanelProps> = ({ entries, onFilteredEn
 
     setFiltering(true)
     try {
-      const result = await filterPcap(entries, filters)
+      const result = filterPcapLocal(entries, filters)
       onFilteredEntries(result)
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('pcapFilterFailed')

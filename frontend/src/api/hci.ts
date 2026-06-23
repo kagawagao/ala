@@ -1,4 +1,4 @@
-import type { HciEntry, HciFilters, HciParseResult, HciStatistics } from '../types/hci'
+import type { HciEntry, HciFilters, HciStatistics } from '../types/hci'
 import { apiFetch, apiUploadMulti, streamNDJSON } from './client'
 
 // ── Temp upload / status ──────────────────────────────────────────────
@@ -31,17 +31,6 @@ export async function getHciTempStatus(): Promise<HciTempStatusResponse> {
 
 export async function cleanupHciTemp(): Promise<{ removed: number }> {
   return apiFetch<{ removed: number }>('/hci/temp/cleanup', { method: 'POST' })
-}
-
-// ── Legacy (kept for backward compat) ─────────────────────────────────
-
-export async function parseHci(file: File): Promise<HciParseResult> {
-  const formData = new FormData()
-  formData.append('file', file)
-  return apiFetch<HciParseResult>('/hci/parse', {
-    method: 'POST',
-    body: formData,
-  })
 }
 
 // ── Stream types ──────────────────────────────────────────────────────
@@ -84,23 +73,4 @@ export async function* streamFilteredHci(
     yield line
     if (isDone(line)) return
   }
-}
-
-// ── Legacy filter (kept for backward compat) ───────────────────────────
-
-export async function filterHci(entries: HciEntry[], filters: HciFilters): Promise<HciEntry[]> {
-  const body = JSON.stringify({ entries, filters })
-  return apiFetch<HciEntry[]>('/hci/filter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  })
-}
-
-export async function getHciStatistics(entries: HciEntry[]): Promise<HciStatistics> {
-  return apiFetch<HciStatistics>('/hci/statistics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(entries),
-  })
 }

@@ -33,12 +33,6 @@ export interface LogStatistics {
   pids: Record<string, number>
 }
 
-export interface ParseResult {
-  logs: LogEntry[]
-  total_lines: number
-  format_detected: string
-}
-
 export interface TraceFilterRequest {
   result: TraceParseResult
   pids?: number[]

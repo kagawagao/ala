@@ -32,10 +32,3 @@ export interface PcapStatistics {
   unique_connections: number
   duration_seconds: number | null
 }
-
-export interface PcapParseResult {
-  entries: PcapEntry[]
-  total_packets: number
-  format_detected: string
-  file_size: number
-}

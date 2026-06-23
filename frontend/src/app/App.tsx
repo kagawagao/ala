@@ -1288,23 +1288,13 @@ const AppContent: React.FC<{
                         >
                           <div style={{ flex: 1, overflow: 'hidden' }}>
                             <AiPanel
-                              logs={displayLogs}
-                              allLogs={displayLogs}
-                              totalLogs={
-                                totalLines ??
-                                filterProgress?.total ??
-                                filterProgress?.scanned ??
-                                displayLogs.length
-                              }
                               filters={filters}
                               traceResult={traceResult}
-                              pcapEntries={pcapEntries}
-                              hciEntries={hciEntries}
                               aiConfigured={aiConfigured}
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
-                              localFilePath={sourceRef}
+                              sourcePath={sourceRef}
                               aiConfig={aiConfig ?? undefined}
                             />
                           </div>
