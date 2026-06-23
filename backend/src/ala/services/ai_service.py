@@ -407,7 +407,7 @@ class AIService:
                     "For large files, use offset/limit to paginate through results. "
                     "Use read_log_range for context around specific lines, "
                     "and tail_local_log for recent entries. "
-                    "Do not guess log details — always query them with tools. "
+                    "Do not guess data details — always query them with tools. "
                     "Complete the full analysis before responding; never stop mid-analysis."
                 )
             parts.append(lazy_hint)
