@@ -201,7 +201,6 @@ class TestBuildAgenticContext:
         tools, system_text = service._build_agentic_context(
             project=None,
             trace_summary=None,
-            log_entries=None,
         )
         assert tools == []
         assert system_text == ""
@@ -222,26 +221,14 @@ class TestBuildAgenticContext:
         tools, system_text = service._build_agentic_context(
             project=None,
             trace_summary=trace_summary,
-            log_entries=None,
         )
         assert len(tools) > 0
         assert any(t["name"] == "query_trace_overview" for t in tools)
         assert "Perfetto trace" in system_text
 
-    def test_log_entries_context_adds_log_tools(self):
-        service = AIService(
-            api_endpoint="https://api.openai.com",
-            api_key=TEST_API_KEY,
-            model=TEST_MODEL,
-        )
-        tools, system_text = service._build_agentic_context(
-            project=None,
-            trace_summary=None,
-            log_entries=[{"level": "E", "message": "test"}],
-        )
-        assert len(tools) > 0
-        assert any(t["name"] == "query_log_overview" for t in tools)
-        assert "log entries" in system_text.lower()
+    # REMOVED: entries→file refactor — test_log_entries_context_adds_log_tools removed.
+    # In-memory log_entries parameter no longer exists; source_path is the only data path.
+    # See test_file_path_context_adds_lazy_tools below for the replacement.
 
     def test_file_path_context_adds_lazy_tools(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
@@ -254,11 +241,11 @@ class TestBuildAgenticContext:
                 model=TEST_MODEL,
             )
             tools, system_text = service._build_agentic_context(
-                project=None, trace_summary=None, log_entries=None, file_path=path
+                project=None, trace_summary=None, source_path=path
             )
             assert len(tools) > 0
             assert any(t["name"] == "overview_local_log" for t in tools)
-            assert "local log file" in system_text.lower()
+            assert "local data file" in system_text.lower()
         finally:
             import os
 
@@ -271,7 +258,7 @@ class TestBuildAgenticContext:
             model=TEST_MODEL,
         )
         tools, system_text = service._build_agentic_context(
-            project=None, trace_summary=None, log_entries=None, language="zh"
+            project=None, trace_summary=None, language="zh"
         )
         assert "Chinese" in system_text or "中文" in system_text
 
