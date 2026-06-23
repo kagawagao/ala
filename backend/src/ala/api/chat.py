@@ -245,13 +245,11 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
             == ("anthropic" if ai_service._use_anthropic else "openai")
         )
         try:
-            # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index params removed;
-            # file_path=source_path kept until ai_service.py is updated in Phase B
             async for chunk in ai_service.stream_chat_agentic(
                 messages,
                 project=project,
                 trace_summary=trace_summary,
-                file_path=source_path,
+                source_path=source_path,
                 api_messages_out=api_messages_out,
                 resume_messages=req.raw_api_messages if can_resume else None,
                 resume_provider=req.raw_api_messages_provider if can_resume else None,

@@ -21,12 +21,10 @@ from ..config import settings
 from .agent_tools import (
     AGENT_TOOLS,
     CODING_TOOLS,
-    HCI_TOOLS,
+    LAZY_HCI_TOOLS,
     LAZY_LOG_TOOLS,
-    LOG_TOOLS,
-    PCAP_TOOLS,
+    LAZY_PCAP_TOOLS,
     TRACE_TOOLS,
-    LogIndex,
     execute_tool,
 )
 from .code_scanner import ContextDoc, get_shared_scanner
@@ -248,11 +246,7 @@ class AIService:
         messages: list[dict],
         project: Project | None = None,
         trace_summary: dict | None = None,
-        log_entries: list[dict] | None = None,
-        pcap_entries: list[dict] | None = None,
-        hci_entries: list[dict] | None = None,
-        log_index: LogIndex | None = None,
-        file_path: str | None = None,
+        source_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         resume_provider: str | None = None,
@@ -282,11 +276,7 @@ class AIService:
                 messages,
                 project=project,
                 trace_summary=trace_summary,
-                log_entries=log_entries,
-                pcap_entries=pcap_entries,
-                hci_entries=hci_entries,
-                log_index=log_index,
-                file_path=file_path,
+                source_path=source_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
                 language=language,
@@ -297,11 +287,7 @@ class AIService:
                 messages,
                 project=project,
                 trace_summary=trace_summary,
-                log_entries=log_entries,
-                pcap_entries=pcap_entries,
-                hci_entries=hci_entries,
-                log_index=log_index,
-                file_path=file_path,
+                source_path=source_path,
                 api_messages_out=api_messages_out,
                 resume_messages=resume_messages if can_resume else None,
                 language=language,
@@ -324,10 +310,7 @@ class AIService:
         self,
         project: Project | None,
         trace_summary: dict | None,
-        log_entries: list[dict] | None,
-        pcap_entries: list[dict] | None = None,
-        hci_entries: list[dict] | None = None,
-        file_path: str | None = None,
+        source_path: str | None = None,
         language: str | None = None,
     ) -> tuple[list[dict[str, Any]], str]:
         """Build tool list and system prompt text for agentic mode.
@@ -389,16 +372,23 @@ class AIService:
                 f"Always cite specific files and line numbers when referencing code."
             )
 
-        if file_path is not None:
+        if source_path is not None:
             import os
 
-            # Lazy mode: tools that read local file/directory on demand
+            # Unified file-based mode: all data types available via lazy tools
             tools.extend(LAZY_LOG_TOOLS)
-            is_dir = os.path.isdir(file_path)
+            tools.extend(LAZY_PCAP_TOOLS)
+            tools.extend(LAZY_HCI_TOOLS)
+            is_dir = os.path.isdir(source_path)
             if is_dir:
                 lazy_hint = (
-                    "A local log directory is available to the session's tools. "
-                    "Start with list_directory_logs to see what files are available. "
+                    "A local data directory is available to the session's tools. "
+                    "It may contain log, PCAP, and/or HCI (Bluetooth) files. "
+                    "Start with list_directory_logs to discover what files are available, "
+                    "then use type-appropriate tools: "
+                    "overview_local_log/search_local_log for logs, "
+                    "overview_local_pcap/search_pcap_packets_lazy for PCAP, "
+                    "overview_local_hci/search_hci_packets_lazy for HCI. "
                     "For small diagnostic files (ANR traces, tombstones, crash logs, "
                     "dropbox files < 200KB), use read_log_file(file_path='...') to "
                     "read the ENTIRE file at once — this is much faster than keyword "
@@ -409,8 +399,8 @@ class AIService:
                 )
             else:
                 lazy_hint = (
-                    "A local log file is available to the session's log tools. "
-                    "Always start with overview_local_log to understand the log scope "
+                    "A local data file is available to the session's tools. "
+                    "Always start with overview_local_log to understand the data scope "
                     "(level distribution, time range, unique tags and PIDs). "
                     "Then use search_local_log with targeted filters to find relevant entries. "
                     "For large files, use offset/limit to paginate through results. "
@@ -420,64 +410,6 @@ class AIService:
                     "Complete the full analysis before responding; never stop mid-analysis."
                 )
             parts.append(lazy_hint)
-
-        if pcap_entries is not None:
-            tools.extend(PCAP_TOOLS)
-            n_packets = len(pcap_entries)
-            pcap_hint = (
-                f"{n_packets} network packets (PCAP) are loaded in this session. "
-                f"Always start with query_pcap_overview to get statistics. "
-                f"Then use search_pcap_packets with specific filters to find relevant traffic. "
-                f"Filter by protocol (TCP/UDP/ICMP/DNS/HTTP), IPs, ports, TCP flags, or content. "
-                f"Complete the full analysis before responding; never stop mid-analysis."
-            )
-            parts.append(pcap_hint)
-
-        if hci_entries is not None:
-            tools.extend(HCI_TOOLS)
-            n_packets = len(hci_entries)
-            hci_hint = (
-                f"{n_packets} Bluetooth HCI packets (BTSnoop) are loaded in this session. "
-                f"Always start with query_hci_overview to get statistics "
-                f"(direction distribution, HCI type distribution, time range). "
-                f"Then use search_hci_packets with specific filters to find relevant packets. "
-                f"Filter by direction (HOST_TO_CONTROLLER/CONTROLLER_TO_HOST), "
-                f"HCI type (COMMAND/EVENT/ACL_DATA/SCO_DATA/ISO_DATA), opcode, or event code. "
-                f"Use decode_hci_opcode to look up command names from numeric opcodes. "
-                f"Use list_hci_files to see which source files are loaded. "
-                f"Complete the full analysis before responding; never stop mid-analysis."
-            )
-            parts.append(hci_hint)
-
-        if log_entries is not None:
-            tools.extend(LOG_TOOLS)
-            n_entries = len(log_entries)
-            log_hint = (
-                f"{n_entries} Android log entries are loaded in this session. "
-                "**IMPORTANT**: Complete the ENTIRE analysis in one session. "
-                "Do NOT ask 'would you like me to continue' or 'shall I dig deeper' — "
-                "just keep analyzing until you have a definitive conclusion with all "
-                "relevant evidence. You have enough tool-calling rounds to finish. "
-                "Always start with query_log_overview to understand the full log scope "
-                "(level distribution, time range, time distribution, unique tags and PIDs). "
-                "Then use search_logs with targeted filters (level, tag, keyword, time range) "
-                "to retrieve relevant entries. "
-                "**Time filtering**: when the user mentions a time point, use "
-                "query_log_overview first to see the time_distribution, then set "
-                "start_time/end_time with a narrow ±2 min window around that time. "
-                "If fewer than 20 results, expand to ±5 min, then ±15 min. "
-                "For large result sets, use the 'offset' parameter to paginate and ensure "
-                "you have seen all matching entries before drawing conclusions. "
-                "Perform multiple targeted searches to ensure comprehensive coverage. "
-                "Do not guess log details — always query them with tools. "
-                "Complete the full analysis before responding; never stop mid-analysis. "
-                "If asked to continue or resume, check the conversation history to see "
-                "what has already been analyzed and only search for what hasn't been covered yet."
-            )
-            if project:
-                parts.append(log_hint)
-            else:
-                parts.insert(0, "You are an Android log analyzer agent. " + log_hint)
 
         if trace_summary:
             tools.extend(TRACE_TOOLS)
@@ -589,11 +521,7 @@ class AIService:
         messages: list[dict],
         project: Project | None = None,
         trace_summary: dict | None = None,
-        log_entries: list[dict] | None = None,
-        pcap_entries: list[dict] | None = None,
-        hci_entries: list[dict] | None = None,
-        log_index: LogIndex | None = None,
-        file_path: str | None = None,
+        source_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         language: str | None = None,
@@ -609,10 +537,7 @@ class AIService:
         tools, system_text = self._build_agentic_context(
             project,
             trace_summary,
-            log_entries,
-            pcap_entries,
-            hci_entries=hci_entries,
-            file_path=file_path,
+            source_path=source_path,
             language=language,
         )
 
@@ -779,11 +704,7 @@ class AIService:
                     tu["name"],
                     arguments_str,
                     trace_summary=trace_summary,
-                    log_entries=log_entries,
-                    pcap_entries=pcap_entries,
-                    hci_entries=hci_entries,
-                    log_index=log_index,
-                    file_path=file_path,
+                    source_path=source_path,
                 )
                 return tu, result
 
@@ -872,11 +793,7 @@ class AIService:
         messages: list[dict],
         project: Project | None = None,
         trace_summary: dict | None = None,
-        log_entries: list[dict] | None = None,
-        pcap_entries: list[dict] | None = None,
-        hci_entries: list[dict] | None = None,
-        log_index: LogIndex | None = None,
-        file_path: str | None = None,
+        source_path: str | None = None,
         api_messages_out: list | None = None,
         resume_messages: list[dict] | None = None,
         language: str | None = None,
@@ -892,10 +809,7 @@ class AIService:
         anthropic_tools, system_text = self._build_agentic_context(
             project,
             trace_summary,
-            log_entries,
-            pcap_entries,
-            hci_entries=hci_entries,
-            file_path=file_path,
+            source_path=source_path,
             language=language,
         )
         openai_tools = [_anthropic_tool_to_openai(t) for t in anthropic_tools]
@@ -1064,11 +978,7 @@ class AIService:
                     tc["name"],
                     arguments_str,
                     trace_summary=trace_summary,
-                    log_entries=log_entries,
-                    pcap_entries=pcap_entries,
-                    hci_entries=hci_entries,
-                    log_index=log_index,
-                    file_path=file_path,
+                    source_path=source_path,
                 )
 
                 logger.debug("Tool result — name=%s length=%d", tc["name"], len(result))
