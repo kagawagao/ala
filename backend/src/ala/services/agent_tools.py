@@ -1121,9 +1121,6 @@ def execute_tool(
             }
         )
 
-    elif tool_name == "filter_logs":
-        return _execute_filter_logs(args)
-
     # Coding tools — edit/write/search/execute within project
     elif tool_name in ("edit_file", "write_file", "search_files", "execute_command"):
         return _execute_coding_tool(tool_name, args, project)
@@ -2357,59 +2354,6 @@ def _execute_read_log_file(args: dict, session_file_path: str | None = None) -> 
         )
     except Exception as e:
         return json.dumps({"error": f"Failed to read {resolved}: {str(e)}"})
-
-
-def _execute_filter_logs(args: dict) -> str:
-    """Filter log entries from a file."""
-    from .log_analyzer import LogAnalyzer, LogFilters
-
-    file_path = args.get("file_path", "")
-    max_results = args.get("max_results", 200)
-
-    if not file_path:
-        return json.dumps({"error": "file_path is required"})
-
-    try:
-        analyzer = LogAnalyzer()
-        with open(file_path, "rb") as f:
-            content = f.read()
-
-        import os
-
-        results = analyzer.parse_log_bytes(content, os.path.basename(file_path))
-        all_entries = []
-        for result in results:
-            all_entries.extend(result.logs)
-
-        filters = LogFilters(
-            level=args.get("level"),
-            tag=args.get("tag"),
-            keywords=args.get("keyword"),
-            pid=args.get("pid"),
-            start_time=args.get("start_time"),
-            end_time=args.get("end_time"),
-        )
-        filtered = analyzer.filter_logs(all_entries, filters)
-        entries = filtered[:max_results]
-        return json.dumps(
-            {
-                "total_matches": len(filtered),
-                "entries_returned": len(entries),
-                "entries": [
-                    {
-                        "line_number": e.line_number,
-                        "timestamp": e.timestamp,
-                        "level": e.level,
-                        "tag": e.tag,
-                        "pid": e.pid,
-                        "message": e.message[:500],
-                    }
-                    for e in entries
-                ],
-            }
-        )
-    except Exception as e:
-        return json.dumps({"error": f"Failed to filter logs: {str(e)}"})
 
 
 # ── Ripgrep-accelerated log search ────────────────────────────────────────
