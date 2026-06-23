@@ -29,11 +29,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
             project_id TEXT,
             created_at TEXT NOT NULL,
             trace_summary TEXT,
-            log_entries TEXT,
-            file_path TEXT,
+            source_path TEXT,
             raw_api_messages TEXT,
-            raw_api_messages_provider TEXT,
-            pcap_entries TEXT
+            raw_api_messages_provider TEXT
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -84,27 +82,38 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO _ala_schema_version (version) VALUES (1)")
         conn.commit()
 
-    # Schema migration: add pcap_entries column if it doesn't exist
+    # Schema migration: add source_path column if it doesn't exist
+    # and migrate data from file_path
     try:
         cur = conn.execute("PRAGMA table_info(sessions)")
         columns = [row[1] for row in cur.fetchall()]
-        if "pcap_entries" not in columns:
-            conn.execute("ALTER TABLE sessions ADD COLUMN pcap_entries TEXT")
-            conn.commit()
-            logger.info("Added pcap_entries column to sessions table")
-    except sqlite3.Error:
-        logger.warning("Failed to add pcap_entries column", exc_info=True)
 
-    # Schema migration: add hci_entries column if it doesn't exist
-    try:
-        cur = conn.execute("PRAGMA table_info(sessions)")
-        columns = [row[1] for row in cur.fetchall()]
-        if "hci_entries" not in columns:
-            conn.execute("ALTER TABLE sessions ADD COLUMN hci_entries TEXT")
+        # REMOVED: entries→file refactor — pcap_entries, hci_entries add column migrations removed.
+        # Old pcap_entries, hci_entries, log_entries columns remain in DB but are now unused.
+        # New migration: add source_path and copy data from file_path
+        if "source_path" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN source_path TEXT")
             conn.commit()
-            logger.info("Added hci_entries column to sessions table")
+            logger.info("Added source_path column to sessions table")
+
+        # Copy data from file_path to source_path if file_path exists
+        if "file_path" in columns and "source_path" in columns:
+            conn.execute(
+                "UPDATE sessions SET source_path = file_path "
+                "WHERE source_path IS NULL AND file_path IS NOT NULL"
+            )
+            conn.commit()
+            logger.info("Migrated file_path → source_path for existing sessions")
+
+        # Nullify old entry columns (can't DROP in SQLite)
+        abandon_cols = ["log_entries", "pcap_entries", "hci_entries", "file_path"]
+        for col in abandon_cols:
+            if col in columns:
+                conn.execute(f"UPDATE sessions SET {col} = NULL")
+        conn.commit()
+
     except sqlite3.Error:
-        logger.warning("Failed to add hci_entries column", exc_info=True)
+        logger.warning("Failed during entries→file migration", exc_info=True)
 
     # Schema migration: add parts column to messages for structured content storage
     try:

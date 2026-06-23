@@ -100,39 +100,38 @@ class TestDeleteSession:
 # ---------------------------------------------------------------------------
 
 
-class TestFileContext:
-    def test_set_file_path(self, session):
+class TestSourcePathContext:
+    """Tests for the unified source_path (renamed from file_path)."""
+
+    def test_set_source_path(self, session):
         mgr, s = session
-        ok = mgr.set_file_path(s.id, "/var/log/system.log")
+        ok = mgr.set_source_path(s.id, "/var/log/system.log")
         assert ok is True
         found = mgr.get_session(s.id)
-        assert found.file_path == "/var/log/system.log"
-        # File path should clear log entries
-        assert found.log_entries is None
-        assert found.log_index is None
+        assert found.source_path == "/var/log/system.log"
 
-    def test_get_file_path(self, session):
+    def test_get_source_path(self, session):
         mgr, s = session
-        mgr.set_file_path(s.id, "/tmp/test.log")
-        path = mgr.get_file_path(s.id)
+        mgr.set_source_path(s.id, "/tmp/test.log")
+        path = mgr.get_source_path(s.id)
         assert path == "/tmp/test.log"
 
-    def test_get_file_path_nonexistent(self, mgr):
-        assert mgr.get_file_path("nonexistent-id") is None
+    def test_get_source_path_nonexistent(self, mgr):
+        assert mgr.get_source_path("nonexistent-id") is None
 
-    def test_clear_file_path(self, session):
+    def test_clear_source_path(self, session):
         mgr, s = session
-        mgr.set_file_path(s.id, "/tmp/test.log")
-        ok = mgr.clear_file_path(s.id)
+        mgr.set_source_path(s.id, "/tmp/test.log")
+        ok = mgr.clear_source_path(s.id)
         assert ok is True
-        assert mgr.get_session(s.id).file_path is None
+        assert mgr.get_session(s.id).source_path is None
 
-    def test_clear_file_path_nonexistent(self, mgr):
-        ok = mgr.clear_file_path("nonexistent-id")
+    def test_clear_source_path_nonexistent(self, mgr):
+        ok = mgr.clear_source_path("nonexistent-id")
         assert ok is False
 
-    def test_set_file_path_nonexistent(self, mgr):
-        ok = mgr.set_file_path("nonexistent-id", "/tmp/test.log")
+    def test_set_source_path_nonexistent(self, mgr):
+        ok = mgr.set_source_path("nonexistent-id", "/tmp/test.log")
         assert ok is False
 
 
@@ -150,23 +149,6 @@ class TestTraceContext:
         assert ok is False
 
 
-class TestLogEntriesContext:
-    def test_set_log_entries(self, session):
-        mgr, s = session
-        entries = [{"level": "E", "message": "error"}]
-        ok = mgr.set_log_entries(s.id, entries)
-        assert ok is True
-        found = mgr.get_session(s.id)
-        assert found.log_entries == entries
-        assert found.log_index is not None
-        # Log entries should clear file_path
-        assert found.file_path is None
-
-    def test_set_log_entries_nonexistent(self, mgr):
-        ok = mgr.set_log_entries("nonexistent-id", [])
-        assert ok is False
-
-
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -176,14 +158,14 @@ class TestEdgeCases:
     def test_session_with_all_fields(self, mgr):
         s = mgr.create_session("Full", "log", project_id="p1")
         mgr.set_trace_summary(s.id, {"format": "json_trace"})
-        mgr.set_log_entries(s.id, [{"level": "I"}])
+        mgr.set_source_path(s.id, "/tmp/test.log")
 
         found = mgr.get_session(s.id)
         assert found.title == "Full"
         assert found.context_type == "log"
         assert found.project_id == "p1"
         assert found.trace_summary is not None
-        assert found.log_entries is not None
+        assert found.source_path == "/tmp/test.log"
 
     def test_message_dataclass(self):
         msg = Message(role="user", content="test")
@@ -198,6 +180,4 @@ class TestEdgeCases:
             context_type="general",
         )
         assert s.trace_summary is None
-        assert s.log_entries is None
-        assert s.file_path is None
-        assert s.log_index is None
+        assert s.source_path is None

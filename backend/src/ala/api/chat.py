@@ -74,22 +74,14 @@ class SetTraceRequest(BaseModel):
     summary: dict
 
 
-class SetFilePathRequest(BaseModel):
-    """Set local file path for lazy log analysis (FEAT-LAZY-LOG)."""
+# REMOVED: entries→file refactor — SetFilePathRequest renamed to SetSourcePathRequest
+class SetSourcePathRequest(BaseModel):
+    """Set universal source path for file-based analysis."""
 
-    file_path: str
-
-
-class SetLogsRequest(BaseModel):
-    entries: list[dict]
+    source_path: str
 
 
-class SetPcapRequest(BaseModel):
-    entries: list[dict]
-
-
-class SetHciRequest(BaseModel):
-    entries: list[dict]
+# REMOVED: entries→file refactor — SetLogsRequest, SetPcapRequest, SetHciRequest removed
 
 
 def _session_to_response(session) -> Session:
@@ -148,18 +140,18 @@ async def set_session_trace(session_id: str, req: SetTraceRequest):
     return {"success": True}
 
 
-@router.put("/sessions/{session_id}/file-path")
-async def set_session_file_path(session_id: str, req: SetFilePathRequest):
-    """Register a local log file for lazy AI-driven analysis (FEAT-LAZY-LOG).
+# REMOVED: entries→file refactor — PUT /sessions/{session_id}/file-path renamed to /source-path
+@router.put("/sessions/{session_id}/source-path")
+async def set_session_source_path(session_id: str, req: SetSourcePathRequest):
+    """Register a local file or directory for lazy AI-driven analysis.
 
-    Sets the file_path on the session and clears any previously loaded
-    log_entries (they are mutually exclusive).
+    Sets the source_path on the session (universal path for all file types).
     """
-    # Empty path clears the session file
-    raw_path = req.file_path.strip() if req.file_path else ""
+    # Empty path clears the session path
+    raw_path = req.source_path.strip() if req.source_path else ""
     if not raw_path:
-        _session_manager.clear_file_path(session_id)
-        return {"success": True, "file_path": None}
+        _session_manager.clear_source_path(session_id)
+        return {"success": True, "source_path": None}
 
     # Validate path and use canonical (normalized) path
     try:
@@ -173,45 +165,15 @@ async def set_session_file_path(session_id: str, req: SetFilePathRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    ok = _session_manager.set_file_path(session_id, canonical)
+    ok = _session_manager.set_source_path(session_id, canonical)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True, "file_path": canonical}
+    return {"success": True, "source_path": canonical}
 
 
-@router.put("/sessions/{session_id}/logs")
-async def set_session_logs(session_id: str, req: SetLogsRequest):
-    """Store log entries in the session for agentic tool access (no hard limit).
-
-    All entries from the frontend are stored in full.  The app is a desktop
-    single-user tool, so per-session memory (~100 KB per 1 K log lines) is
-    bounded by what a single user uploads, not by concurrent tenants.
-    """
-    entries = req.entries
-    ok = _session_manager.set_log_entries(session_id, entries)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True, "stored": len(entries)}
-
-
-@router.put("/sessions/{session_id}/pcap")
-async def set_session_pcap(session_id: str, req: SetPcapRequest):
-    """Store PCAP entries in the session for agentic tool access."""
-    entries = req.entries
-    ok = _session_manager.set_pcap_entries(session_id, entries)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True, "stored": len(entries)}
-
-
-@router.put("/sessions/{session_id}/hci")
-async def set_session_hci(session_id: str, req: SetHciRequest):
-    """Store HCI entries in the session for agentic tool access."""
-    entries = req.entries
-    ok = _session_manager.set_hci_entries(session_id, entries)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True, "stored": len(entries)}
+# REMOVED: entries→file refactor — PUT /sessions/{session_id}/logs endpoint removed
+# REMOVED: entries→file refactor — PUT /sessions/{session_id}/pcap endpoint removed
+# REMOVED: entries→file refactor — PUT /sessions/{session_id}/hci endpoint removed
 
 
 @router.post("/sessions/{session_id}/messages")
@@ -257,17 +219,15 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
 
     messages.append({"role": "user", "content": req.message})
 
-    # Resolve project (if any) and trace/log data for agentic mode
+    # Resolve project (if any) and trace/data for agentic mode
     project = None
     if session.project_id:
         pm = get_project_manager()
         project = pm.get_project(session.project_id)
 
     trace_summary = session.trace_summary
-    log_entries = session.log_entries
-    pcap_entries = session.pcap_entries
-    hci_entries = session.hci_entries
-    file_path = session.file_path
+    # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index removed
+    source_path = session.source_path
 
     logger.debug(
         "send_message — session=%s model=%s",
@@ -285,16 +245,13 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
             == ("anthropic" if ai_service._use_anthropic else "openai")
         )
         try:
-            # Always use agentic mode so tools are always available.
+            # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index params removed;
+            # file_path=source_path kept until ai_service.py is updated in Phase B
             async for chunk in ai_service.stream_chat_agentic(
                 messages,
                 project=project,
                 trace_summary=trace_summary,
-                log_entries=log_entries,
-                pcap_entries=pcap_entries,
-                hci_entries=hci_entries,
-                log_index=session.log_index,
-                file_path=file_path,
+                file_path=source_path,
                 api_messages_out=api_messages_out,
                 resume_messages=req.raw_api_messages if can_resume else None,
                 resume_provider=req.raw_api_messages_provider if can_resume else None,
@@ -355,7 +312,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 "provider=%s api_spec=%s thinking=%s "
                 "exc_type=%s exc_repr=%s "
                 "api_status=%s api_message=%s api_body=%s request_id=%s "
-                "history_msgs=%d has_project=%s has_file_path=%s has_log_entries=%s",
+                "history_msgs=%d has_project=%s has_source_path=%s",
                 session_id,
                 effective_model,
                 endpoint_host,
@@ -372,8 +329,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
                 api_request_id,
                 len(history),
                 bool(project),
-                bool(file_path),
-                log_entries is not None,
+                bool(source_path),
             )
             if not await request.is_disconnected():
                 # Include exception type and status in the frontend error so the
