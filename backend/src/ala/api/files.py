@@ -123,7 +123,7 @@ async def unified_upload(files: list[UploadFile] = File(...)):
         # ── Log / PCAP / HCI: save to unified persistent storage ───────
         temp_root = _get_files_dir()
         session_dir = temp_root / session_uuid
-        session_dir.mkdir(parents=True, exist_ok=True)
+        session_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
         safe_name = Path(filename).name
         dest_path = session_dir / safe_name
