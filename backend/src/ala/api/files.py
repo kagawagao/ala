@@ -13,19 +13,22 @@ from ..file_detector import detect_file_type_from_header
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# ── Temp directory helpers ─────────────────────────────────────────────
+# ── Persistent file storage (entries→file refactor) ────────────────────
 
 
-def _get_temp_dir(sub: str) -> Path:
-    """Return (and create) a type-specific temp directory."""
-    env_key = f"ALA_{sub.upper()}_TEMP_DIR"
-    env_dir = os.getenv(env_key)
+def _get_files_dir() -> Path:
+    """Return (and create) the unified persistent file storage directory.
+
+    Files are stored under ~/.ala/files/{session-uuid}/ with no automatic
+    cleanup — users manage file lifetime by deleting sessions.
+    """
+    env_dir = os.getenv("ALA_FILES_DIR")
     if env_dir:
-        temp_dir = Path(env_dir)
+        files_dir = Path(env_dir)
     else:
-        temp_dir = Path.home() / ".ala" / f"temp_{sub}"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    return temp_dir
+        files_dir = Path.home() / ".ala" / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    return files_dir
 
 
 # ── Unified response models ────────────────────────────────────────────
@@ -114,7 +117,7 @@ async def unified_upload(files: list[UploadFile] = File(...)):
                 continue  # Successfully handled as trace — skip to next file
 
         # ── Log / PCAP / HCI: save to type-specific temp dir ───────────
-        temp_root = _get_temp_dir(file_type)
+        temp_root = _get_files_dir()
         session_dir = temp_root / session_uuid
         session_dir.mkdir(parents=True, exist_ok=True)
 
