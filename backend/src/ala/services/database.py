@@ -95,6 +95,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE sessions ADD COLUMN source_path TEXT")
             conn.commit()
             logger.info("Added source_path column to sessions table")
+            # Refresh column list after ALTER TABLE
+            cur = conn.execute("PRAGMA table_info(sessions)")
+            columns = [row[1] for row in cur.fetchall()]
 
         # Copy data from file_path to source_path if file_path exists
         if "file_path" in columns and "source_path" in columns:

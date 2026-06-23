@@ -33,18 +33,25 @@ const BATCH_SIZE = 500
 function filterLogEntriesLocal(entries: LogEntry[], filters: LogFilters): LogEntry[] {
   return entries.filter((entry) => {
     if (filters.level && entry.level !== filters.level) return false
+    if (filters.pid && entry.pid !== filters.pid) return false
+    if (filters.tid && entry.tid !== filters.tid) return false
+    if (filters.start_time && entry.timestamp && entry.timestamp < filters.start_time) return false
+    if (filters.end_time && entry.timestamp && entry.timestamp > filters.end_time) return false
+
+    // Tag matching (OR between comma-separated tags)
+    let tagMatch = true
     if (filters.tag) {
       const tags = filters.tag
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean)
       if (tags.length > 0) {
-        const matchesAny = tags.some((t) => entry.tag.toLowerCase().includes(t.toLowerCase()))
-        if (!matchesAny) return false
+        tagMatch = tags.some((t) => entry.tag.toLowerCase().includes(t.toLowerCase()))
       }
     }
-    if (filters.pid && entry.pid !== filters.pid) return false
-    if (filters.tid && entry.tid !== filters.tid) return false
+
+    // Keyword matching (AND between comma-separated keywords)
+    let keywordMatch = true
     if (filters.keywords) {
       const kws = filters.keywords
         .split(',')
@@ -52,13 +59,20 @@ function filterLogEntriesLocal(entries: LogEntry[], filters: LogFilters): LogEnt
         .filter(Boolean)
       if (kws.length > 0) {
         const message = entry.message.toLowerCase()
-        const matchesAll = kws.every((k) => message.includes(k.toLowerCase()))
-        if (!matchesAll) return false
+        keywordMatch = kws.every((k) => message.includes(k.toLowerCase()))
       }
     }
-    if (filters.start_time && entry.timestamp && entry.timestamp < filters.start_time) return false
-    if (filters.end_time && entry.timestamp && entry.timestamp > filters.end_time) return false
-    return true
+
+    // Combine tag and keyword filters according to relation
+    if (filters.tag && filters.keywords) {
+      const relation = filters.tag_keyword_relation || 'AND'
+      if (relation === 'OR') {
+        return tagMatch || keywordMatch
+      }
+      return tagMatch && keywordMatch
+    }
+    // Only one of tag/keyword is set, or neither
+    return tagMatch && keywordMatch
   })
 }
 

@@ -482,14 +482,18 @@ class PcapAnalyzer:
 
             with gz.open(real_path, "rb") as fh:
                 data = fh.read()
-            yield from self.stream_pcap(data, os.path.basename(real_path))
+            for entry in self.stream_pcap(data, os.path.basename(real_path)):
+                if filters is None or self._match_entry(entry, filters):
+                    yield entry
             return
 
         # Handle .zip
         if lower.endswith(".zip"):
             with open(real_path, "rb") as fh:
                 data = fh.read()
-            yield from self.stream_pcap(data, os.path.basename(real_path))
+            for entry in self.stream_pcap(data, os.path.basename(real_path)):
+                if filters is None or self._match_entry(entry, filters):
+                    yield entry
             return
 
         # Raw .pcap / .pcapng

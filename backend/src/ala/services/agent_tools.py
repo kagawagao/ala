@@ -1927,9 +1927,13 @@ def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str
         count = 0
         try:
             for pkt in pcap_analyzer.stream_filter_from_path(resolved):
-                count += 1
-                if max_packets is not None and isinstance(max_packets, int) and count > max_packets:
+                if (
+                    max_packets is not None
+                    and isinstance(max_packets, int)
+                    and count >= max_packets
+                ):
                     break
+                count += 1
                 protocols[pkt.protocol] = protocols.get(pkt.protocol, 0) + 1
                 if pkt.src_ip:
                     ips.add(pkt.src_ip)
@@ -2079,9 +2083,13 @@ def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
         count = 0
         try:
             for entry in hci_analyzer.stream_filter_from_path(resolved):
-                count += 1
-                if max_packets is not None and isinstance(max_packets, int) and count > max_packets:
+                if (
+                    max_packets is not None
+                    and isinstance(max_packets, int)
+                    and count >= max_packets
+                ):
                     break
+                count += 1
                 directions[entry.direction] = directions.get(entry.direction, 0) + 1
                 types[entry.hci_type] = types.get(entry.hci_type, 0) + 1
                 if entry.opcode is not None:
