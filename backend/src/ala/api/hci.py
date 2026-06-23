@@ -16,6 +16,7 @@ from ..services.hci_analyzer import (
     HciFilters,
     HciStatistics,
 )
+from .files import _get_files_dir
 
 router = APIRouter()
 _analyzer = HciAnalyzer()
@@ -248,7 +249,8 @@ async def filter_hci_stream(req: HciFilterStreamRequest, request: Request):
         raise HTTPException(status_code=400, detail=f"Invalid path: {e}")
 
     temp_root = str(_get_hci_temp_dir().resolve())
-    if not real.startswith(temp_root + _os.sep):
+    files_root = str(_get_files_dir().resolve())
+    if not (real.startswith(temp_root + _os.sep) or real.startswith(files_root + _os.sep)):
         raise HTTPException(status_code=400, detail="Path is outside allowed temp directory")
 
     if not _os.path.isfile(real):
