@@ -54,7 +54,7 @@ This is a monorepo for an AI-powered Android logcat and Perfetto trace analyzer.
 
 - **Backend** (`backend/`): Python 3.12+ FastAPI, managed with Poetry. Source lives under `backend/src/ala/`.
 - **Frontend** (`frontend/`): React 19 + Vite 6 + Ant Design 6 + TypeScript 5.
-- **AGENTS.md** has the full file tree and detailed architecture descriptions.
+- **AGENTS.md** has the full file tree and detailed architecture descriptions (may trail the current version; this file is authoritative).
 
 ### Request flow
 
@@ -65,11 +65,12 @@ This is a monorepo for an AI-powered Android logcat and Perfetto trace analyzer.
 
 ### Key pipelines
 
-- **Logs**: `POST /api/logs/parse/stream` returns NDJSON (each line = `LogEntry`, final sentinel = `{"_done": true, "total": N}`). Frontend consumes via `parseLogStream()`. Parsed entries carry `source_file` — always preserve this field. Supports plain text, `.gz`, `.zip` (expands to multiple files).
-- **PCAP**: Network capture files (`.pcap`, `.pcapng`) parsed via `scapy`. Frontend uses `usePcapStream()` hook. Packets converted to log entries with protocol tags.
-- **Traces**: Two-step — `parseTrace()` uploads, then `filterTrace()` filters by PID/process name regex (case-insensitive).
-- **AI Chat**: SSE streaming via `POST /api/chat/sessions/:id/messages`. Agentic analysis uses tools to explore loaded data iteratively. Sessions are in-memory only (`SessionManager`) — lost on restart.
-- **Projects**: Source directories registered as projects. `code_scanner.py` uses ripgrep to discover logging patterns. Context docs (AGENTS.md, CLAUDE.md, etc.) in project dirs are auto-injected into AI prompts.
+- **Logs**: `POST /api/logs/parse/stream` returns NDJSON (each line = `LogEntry`, final sentinel = `{"_done": true, "total": N}`). Frontend consumes via `parseLogStream()`. Parsed entries carry `source_file` — always preserve this field. Supports plain text, `.gz`, `.zip` (expands to multiple files). Format detection: `android_logcat`, `generic_timestamped`, `unknown`.
+- **PCAP**: Network capture files (`.pcap`, `.pcapng`) parsed via `scapy`. Frontend uses `usePcapStream()` hook. Packets converted to log entries with protocol tags. Lazy filter streams from disk without loading all packets into memory.
+- **HCI**: Bluetooth HCI logs (BTSnoop format, magic `btsnoop\x00`). `HciAnalyzer` extracts direction, HCI type (COMMAND/EVENT/ACL/SCO/ISO), opcodes, event codes. Frontend uses `useLazyHciStream()` hook.
+- **Traces**: Two-step — `parseTrace()` uploads (TraceProcessor → JSON fallback → legacy varint), then `filterTrace()` filters by PID/process name regex (case-insensitive).
+- **AI Chat**: SSE streaming via `POST /api/chat/sessions/:id/messages`. Agentic analysis uses tool sets selected by available data (LAZY_LOG_TOOLS, LOG_TOOLS, TRACE_TOOLS, PCAP_TOOLS, HCI_TOOLS, AGENT_TOOLS, CODING_TOOLS). Session metadata is persisted in SQLite; conversation history is managed by the frontend (localStorage).
+- **Projects**: Source directories registered as projects. `code_scanner.py` uses ripgrep to discover logging patterns. Context docs (AGENTS.md, CLAUDE.md, README.md, `.cursorrules`, `.github/copilot-instructions.md`, etc.) in project dirs are auto-injected into AI prompts.
 
 ### Standalone executable
 
@@ -84,7 +85,7 @@ Build: `bash scripts/build-exe.sh` — compiles frontend, then bundles backend +
 
 ### Custom hooks
 
-`frontend/src/hooks/` — `useLazyLogStream` (agentic lazy log loading), `usePcapStream` (PCAP parsing), `useLogStream` (eager log loading), `useDebouncedValue` (generic debounce).
+`frontend/src/hooks/` — `useLazyLogStream` (agentic lazy log loading), `useLazyPcapStream` (PCAP lazy streaming), `useLazyHciStream` (HCI lazy streaming), `useLogStream` (eager log loading), `useDebouncedValue` (generic debounce).
 
 ### Keyboard shortcuts (global, defined in App.tsx)
 
@@ -94,6 +95,22 @@ Build: `bash scripts/build-exe.sh` — compiles frontend, then bundles backend +
 | `Ctrl+Shift+F` / `Cmd+Shift+F` | Focus keyword search input                     |
 | `Ctrl+D` / `Cmd+D`             | Toggle dark/light theme                        |
 | `Escape`                       | Close popover → sidebar → AI panel (cascading) |
+
+### CLI
+
+`backend/src/ala/cli/main.py` — Typer-based CLI app, entry point `ala` (registered as Poetry script). Commands for log analysis with Rich-formatted output.
+
+### Database
+
+SQLite singleton at `~/.ala/ala.db` (WAL mode, foreign keys enabled). Auto-creates tables on first access and migrates columns as schema evolves. Tables: `sessions`, `messages`, `projects`, `project_paths`, `project_patterns`, `_ala_schema_version`. Legacy `~/.ala/projects.json` is imported into SQLite on first run.
+
+### Model library
+
+JSON file at `~/.ala/models.json` managed by `model_manager.py`. Built-in presets for Claude (Opus/Sonnet/Haiku), GPT-4o, DeepSeek Chat, Groq, and others. Users can add custom OpenAI-compatible models. Frontend mirrors built-in models in `utils/models.ts` with bidirectional sync.
+
+### Agent tools security
+
+All agent tools validate paths to prevent traversal escapes. `execute_command` uses a blocked-command allowlist. `execute_shell_search` blocks dangerous operations. File-editing tools (`edit_file`, `write_file`) are constrained to project boundaries.
 
 ### Legacy artifacts
 
@@ -122,7 +139,17 @@ In `AppSider.tsx`, editing filter fields updates `pendingFilters`. The active vi
 
 ### localStorage keys (stable, do not rename)
 
-`ala_language`, `ala_theme`, `ala_filter_presets`, `aiConfig`, `ala_last_project_id`, `ala_splitter_ai_size`
+| Key                    | Purpose                         |
+| ---------------------- | ------------------------------- |
+| `ala_language`         | UI language preference (en/zh)  |
+| `ala_theme`            | Dark/light theme preference     |
+| `ala_filter_presets`   | Saved log filter presets        |
+| `aiConfig`             | Cached AI endpoint/model config |
+| `ala_active_model_id`  | Selected model ID               |
+| `ala_last_project_id`  | Last selected project           |
+| `ala_splitter_ai_size` | AI panel width in splitter      |
+| `ala_session_state`    | Chat history + raw API messages |
+| `ala_model_configs`    | Per-model API keys and configs  |
 
 ### i18n
 
@@ -130,7 +157,7 @@ All user-facing UI strings must use `useTranslation()`. Add translations to both
 
 ### Chat sessions
 
-In-memory only (`SessionManager`) — lost on backend restart. No persistence layer.
+Session metadata is persisted in SQLite (`~/.ala/ala.db`, `sessions` + `messages` tables). Conversation history is managed by the frontend in localStorage (`ala_session_state`) — the backend receives the full message list with each request. Max 100 sessions with LRU eviction.
 
 ### Git workflow
 

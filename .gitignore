@@ -94,3 +94,6 @@ coverage/
 
 
 release-assets/
+
+.playwright/
+.playwright-mcp/
