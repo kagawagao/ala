@@ -120,7 +120,7 @@ async def unified_upload(files: list[UploadFile] = File(...)):
             else:
                 continue  # Successfully handled as trace — skip to next file
 
-        # ── Log / PCAP / HCI: save to type-specific temp dir ───────────
+        # ── Log / PCAP / HCI: save to unified persistent storage ───────
         temp_root = _get_files_dir()
         session_dir = temp_root / session_uuid
         session_dir.mkdir(parents=True, exist_ok=True)
