@@ -16,6 +16,7 @@ from ..services.hci_analyzer import (
     HciFilters,
     HciStatistics,
 )
+from .files import _get_files_dir
 
 router = APIRouter()
 _analyzer = HciAnalyzer()
@@ -76,22 +77,6 @@ class HciStatisticsModel(BaseModel):
     by_type: dict[str, int]
     duration_seconds: float | None
     unique_opcodes: int
-
-
-class HciParseResultModel(BaseModel):
-    """API model for HCI parse result."""
-
-    entries: list[HciEntryModel]
-    total_packets: int
-    format_detected: str
-    file_size: int
-
-
-class FilterHciRequest(BaseModel):
-    """Request body for filtering HCI entries."""
-
-    entries: list[HciEntryModel]
-    filters: HciFiltersModel
 
 
 class HciFilterStreamRequest(BaseModel):
@@ -188,103 +173,7 @@ def _stats_to_model(stats: HciStatistics) -> HciStatisticsModel:
     )
 
 
-# ── Existing endpoints (kept for backward compat) ──────────────────────
-
-
-@router.post("/parse", response_model=HciParseResultModel)
-async def parse_hci(file: UploadFile = File(...)):
-    """Parse a BTSnoop HCI log file.
-
-    Supports .log, .hci, .btsnoop, .cfa, .gz, and .zip formats.
-    Returns all packets parsed into HciEntry objects.
-    """
-    content = await file.read()
-    logger.debug("Parsing HCI file — name=%s size=%d", file.filename, len(content))
-
-    try:
-        result = _analyzer.parse_hci(content, file.filename or "btsnoop_hci.log")
-        logger.debug(
-            "HCI parsed — format=%s packets=%d",
-            result.format_detected,
-            result.total_packets,
-        )
-
-        return HciParseResultModel(
-            entries=[_entry_to_model(e) for e in result.entries],
-            total_packets=result.total_packets,
-            format_detected=result.format_detected,
-            file_size=result.file_size,
-        )
-    except ValueError as e:
-        logger.error("Failed to parse HCI file %r: %s", file.filename, e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/parse/stream")
-async def parse_hci_stream(file: UploadFile = File(...)):
-    """Parse a BTSnoop HCI file and stream entries as NDJSON.
-
-    Each line is a JSON object representing an HciEntry.
-    The final line is a sentinel: {"_done": true, "total": N}
-    """
-    content = await file.read()
-    logger.debug("Streaming HCI parse — name=%s size=%d", file.filename, len(content))
-
-    async def generate():
-        """Generate NDJSON lines for each packet."""
-        try:
-            count = 0
-            for entry in _analyzer.stream_hci(content, file.filename or "btsnoop_hci.log"):
-                model = _entry_to_model(entry)
-                yield model.model_dump_json() + "\n"
-                count += 1
-
-            yield json.dumps({"_done": True, "total": count}) + "\n"
-            logger.debug("HCI streaming complete — packets=%d", count)
-        except ValueError as e:
-            logger.error("Failed to stream HCI file %r: %s", file.filename, e)
-            yield json.dumps({"_error": str(e)}) + "\n"
-        except Exception as e:
-            logger.exception("Unexpected error streaming HCI file %r", file.filename)
-            yield json.dumps({"_error": f"Internal server error: {e}"}) + "\n"
-
-    return StreamingResponse(generate(), media_type="application/x-ndjson")
-
-
-@router.post("/filter", response_model=list[HciEntryModel])
-async def filter_hci(req: FilterHciRequest):
-    """Filter HCI entries by various criteria.
-
-    Takes a list of entries and filter parameters, returns filtered entries.
-    """
-    try:
-        service_entries = [_model_to_entry(e) for e in req.entries]
-        service_filters = _filters_to_service(req.filters)
-
-        filtered = _analyzer.filter_hci(service_entries, service_filters)
-
-        return [_entry_to_model(e) for e in filtered]
-    except ValueError as e:
-        logger.error("Failed to filter HCI entries: %s", e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/statistics", response_model=HciStatisticsModel)
-async def get_hci_statistics(entries: list[HciEntryModel]):
-    """Compute statistics for a list of HCI entries.
-
-    Returns aggregated metrics like direction/type distribution, unique opcodes, etc.
-    """
-    try:
-        service_entries = [_model_to_entry(e) for e in entries]
-        stats = _analyzer.compute_statistics(service_entries)
-        return _stats_to_model(stats)
-    except ValueError as e:
-        logger.error("Failed to compute HCI statistics: %s", e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-# ── Lazy endpoints ─────────────────────────────────────────────────────
+# ── Lazy endpoints (file-based, stream from disk) ──────────────────────
 
 
 @router.post("/upload/temp", response_model=HciTempUploadResponse)
@@ -360,8 +249,11 @@ async def filter_hci_stream(req: HciFilterStreamRequest, request: Request):
         raise HTTPException(status_code=400, detail=f"Invalid path: {e}")
 
     temp_root = str(_get_hci_temp_dir().resolve())
-    if not real.startswith(temp_root + _os.sep):
-        raise HTTPException(status_code=400, detail="Path is outside allowed temp directory")
+    files_root = str(_get_files_dir().resolve())
+    if not (real.startswith(temp_root + _os.sep) or real.startswith(files_root + _os.sep)):
+        raise HTTPException(
+            status_code=400, detail="Path is outside allowed temp or files directory"
+        )
 
     if not _os.path.isfile(real):
         raise HTTPException(status_code=404, detail=f"HCI file not found: {real}")

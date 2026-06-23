@@ -16,6 +16,7 @@ from ..services.pcap_analyzer import (
     PcapFilters,
     PcapStatistics,
 )
+from .files import _get_files_dir
 
 router = APIRouter()
 _analyzer = PcapAnalyzer()
@@ -77,22 +78,6 @@ class PcapStatisticsModel(BaseModel):
     unique_ips: int
     unique_connections: int
     duration_seconds: float | None
-
-
-class PcapParseResultModel(BaseModel):
-    """API model for PCAP parse result."""
-
-    entries: list[PcapEntryModel]
-    total_packets: int
-    format_detected: str
-    file_size: int
-
-
-class FilterPcapRequest(BaseModel):
-    """Request body for filtering PCAP entries."""
-
-    entries: list[PcapEntryModel]
-    filters: PcapFiltersModel
 
 
 class PcapFilterStreamRequest(BaseModel):
@@ -191,103 +176,7 @@ def _stats_to_model(stats: PcapStatistics) -> PcapStatisticsModel:
     )
 
 
-# ── Existing endpoints (kept for backward compat) ──────────────────────
-
-
-@router.post("/parse", response_model=PcapParseResultModel)
-async def parse_pcap(file: UploadFile = File(...)):
-    """Parse a PCAP or PCAPNG file.
-
-    Supports .pcap, .pcapng, .gz, and .zip formats.
-    Returns all packets parsed into PcapEntry objects.
-    """
-    content = await file.read()
-    logger.debug("Parsing PCAP file — name=%s size=%d", file.filename, len(content))
-
-    try:
-        result = _analyzer.parse_pcap(content, file.filename or "capture.pcap")
-        logger.debug(
-            "PCAP parsed — format=%s packets=%d",
-            result.format_detected,
-            result.total_packets,
-        )
-
-        return PcapParseResultModel(
-            entries=[_entry_to_model(e) for e in result.entries],
-            total_packets=result.total_packets,
-            format_detected=result.format_detected,
-            file_size=result.file_size,
-        )
-    except ValueError as e:
-        logger.error("Failed to parse PCAP file %r: %s", file.filename, e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/parse/stream")
-async def parse_pcap_stream(file: UploadFile = File(...)):
-    """Parse a PCAP file and stream entries as NDJSON.
-
-    Each line is a JSON object representing a PcapEntry.
-    The final line is a sentinel: {"_done": true, "total": N}
-    """
-    content = await file.read()
-    logger.debug("Streaming PCAP parse — name=%s size=%d", file.filename, len(content))
-
-    async def generate():
-        """Generate NDJSON lines for each packet."""
-        try:
-            count = 0
-            for entry in _analyzer.stream_pcap(content, file.filename or "capture.pcap"):
-                model = _entry_to_model(entry)
-                yield model.model_dump_json() + "\n"
-                count += 1
-
-            yield json.dumps({"_done": True, "total": count}) + "\n"
-            logger.debug("PCAP streaming complete — packets=%d", count)
-        except ValueError as e:
-            logger.error("Failed to stream PCAP file %r: %s", file.filename, e)
-            yield json.dumps({"_error": str(e)}) + "\n"
-        except Exception as e:
-            logger.exception("Unexpected error streaming PCAP file %r", file.filename)
-            yield json.dumps({"_error": f"Internal server error: {e}"}) + "\n"
-
-    return StreamingResponse(generate(), media_type="application/x-ndjson")
-
-
-@router.post("/filter", response_model=list[PcapEntryModel])
-async def filter_pcap(req: FilterPcapRequest):
-    """Filter PCAP entries by various criteria.
-
-    Takes a list of entries and filter parameters, returns filtered entries.
-    """
-    try:
-        service_entries = [_model_to_entry(e) for e in req.entries]
-        service_filters = _filters_to_service(req.filters)
-
-        filtered = _analyzer.filter_pcap(service_entries, service_filters)
-
-        return [_entry_to_model(e) for e in filtered]
-    except ValueError as e:
-        logger.error("Failed to filter PCAP entries: %s", e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/statistics", response_model=PcapStatisticsModel)
-async def get_pcap_statistics(entries: list[PcapEntryModel]):
-    """Compute statistics for a list of PCAP entries.
-
-    Returns aggregated metrics like protocol distribution, unique IPs, etc.
-    """
-    try:
-        service_entries = [_model_to_entry(e) for e in entries]
-        stats = _analyzer.compute_statistics(service_entries)
-        return _stats_to_model(stats)
-    except ValueError as e:
-        logger.error("Failed to compute PCAP statistics: %s", e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-# ── Lazy endpoints ─────────────────────────────────────────────────────
+# ── Lazy endpoints (file-based, stream from disk) ──────────────────────
 
 
 @router.post("/upload/temp", response_model=PcapTempUploadResponse)
@@ -367,8 +256,11 @@ async def filter_pcap_stream(req: PcapFilterStreamRequest, request: Request):
         raise HTTPException(status_code=400, detail=f"Invalid path: {e}")
 
     temp_root = str(_get_pcap_temp_dir().resolve())
-    if not real.startswith(temp_root + _os.sep):
-        raise HTTPException(status_code=400, detail="Path is outside allowed temp directory")
+    files_root = str(_get_files_dir().resolve())
+    if not (real.startswith(temp_root + _os.sep) or real.startswith(files_root + _os.sep)):
+        raise HTTPException(
+            status_code=400, detail="Path is outside allowed temp or files directory"
+        )
 
     if not _os.path.isfile(real):
         raise HTTPException(status_code=404, detail=f"PCAP file not found: {real}")

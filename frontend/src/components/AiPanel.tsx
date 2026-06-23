@@ -36,17 +36,13 @@ import {
   deleteSession,
   listSessions,
   sendMessage,
-  setSessionFilePath,
-  setSessionLogs,
-  setSessionPcap,
-  setSessionHci,
+  setSessionSourcePath,
   setSessionTrace,
 } from '../api/chat'
 import type {
   AIConfig,
   ChatMessage,
   ContextDoc,
-  LogEntry,
   LogFilters,
   Project,
   Session,
@@ -78,18 +74,13 @@ interface DisplayMessage {
 }
 
 interface AiPanelProps {
-  logs: LogEntry[]
-  allLogs: LogEntry[]
-  totalLogs: number
   filters: LogFilters
   traceResult: TraceParseResult | null
-  pcapEntries: import('../types/pcap').PcapEntry[]
-  hciEntries: import('../types/hci').HciEntry[]
   aiConfigured: boolean
   selectedProjectId: string | null
   projects: Project[]
   contextDocs: ContextDoc[]
-  localFilePath?: string | null // FEAT-LAZY-LOG
+  sourcePath?: string | null
   aiConfig?: AIConfig
 }
 
@@ -223,18 +214,13 @@ function toDisplayMessages(
 }
 
 const AiPanel: React.FC<AiPanelProps> = ({
-  logs: _logs,
-  allLogs,
-  totalLogs: _totalLogs,
   filters: _filters,
   traceResult,
-  pcapEntries,
-  hciEntries,
   aiConfigured,
   selectedProjectId,
   projects,
   contextDocs,
-  localFilePath,
+  sourcePath,
   aiConfig,
 }: AiPanelProps) => {
   const { t, i18n } = useTranslation()
@@ -256,9 +242,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const abortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
-  const logSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pcapSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hciSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)
 
@@ -298,11 +281,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
     // Abort any in-flight streaming response
     abortRef.current?.abort()
-    // Cancel any pending log-sync debounce timer
-    if (logSyncTimerRef.current) {
-      clearTimeout(logSyncTimerRef.current)
-      logSyncTimerRef.current = null
-    }
     // Clear all session-related state
     setSessions([])
     setActiveSessionId(null)
@@ -320,51 +298,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
     }
   }, [traceResult, activeSessionId])
 
-  // Debounced sync of PCAP data to the active session (500ms debounce)
-  useEffect(() => {
-    if (!activeSessionId || pcapEntries.length === 0) return
-    if (pcapSyncTimerRef.current) clearTimeout(pcapSyncTimerRef.current)
-    pcapSyncTimerRef.current = setTimeout(() => {
-      void setSessionPcap(activeSessionId, pcapEntries as unknown as Record<string, unknown>[])
-    }, 500)
-    return () => {
-      if (pcapSyncTimerRef.current) clearTimeout(pcapSyncTimerRef.current)
-    }
-  }, [pcapEntries, activeSessionId])
-
-  // Debounced sync of HCI data to the active session (500ms debounce)
+  // Sync source path to the active session
   useEffect(() => {
     if (!activeSessionId) return
-    if (hciSyncTimerRef.current) clearTimeout(hciSyncTimerRef.current)
-    hciSyncTimerRef.current = setTimeout(() => {
-      void setSessionHci(activeSessionId, hciEntries as unknown as Record<string, unknown>[])
-    }, 500)
-    return () => {
-      if (hciSyncTimerRef.current) clearTimeout(hciSyncTimerRef.current)
-    }
-  }, [hciEntries, activeSessionId])
-
-  // Sync local file path to the active session (FEAT-LAZY-LOG)
-  useEffect(() => {
-    if (!activeSessionId) return
-    if (localFilePath) {
-      void setSessionFilePath(activeSessionId, localFilePath)
-    } else {
-      void setSessionFilePath(activeSessionId, '')
-    }
-  }, [localFilePath, activeSessionId])
-
-  // Debounced sync of allLogs to the active session (500ms debounce)
-  useEffect(() => {
-    if (!activeSessionId || allLogs.length === 0) return
-    if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
-    logSyncTimerRef.current = setTimeout(() => {
-      void setSessionLogs(activeSessionId, allLogs as unknown as Record<string, unknown>[])
-    }, 500)
-    return () => {
-      if (logSyncTimerRef.current) clearTimeout(logSyncTimerRef.current)
-    }
-  }, [allLogs, activeSessionId])
+    if (!sourcePath) return
+    void setSessionSourcePath(activeSessionId, sourcePath)
+  }, [sourcePath, activeSessionId])
 
   // Keyboard shortcut: Cmd/Ctrl+J to focus AI input
   useEffect(() => {
@@ -380,16 +319,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
 
   const handleNewSession = async () => {
     try {
-      const contextType =
-        pcapEntries.length > 0
-          ? 'pcap'
-          : hciEntries.length > 0
-            ? 'hci'
-            : allLogs.length > 0
-              ? 'log'
-              : traceResult
-                ? 'trace'
-                : 'general'
+      const contextType = traceResult ? 'trace' : sourcePath ? 'log' : 'general'
       const session = await createSession(
         `${t('sessionTitle')} ${sessions.length + 1}`,
         contextType,
@@ -400,15 +330,6 @@ const AiPanel: React.FC<AiPanelProps> = ({
       setMessages(toDisplayMessages(session.messages))
       if (traceResult) {
         await setSessionTrace(session.id, traceResult.summary as unknown as Record<string, unknown>)
-      }
-      if (pcapEntries.length > 0) {
-        await setSessionPcap(session.id, pcapEntries as unknown as Record<string, unknown>[])
-      }
-      if (hciEntries.length > 0) {
-        await setSessionHci(session.id, hciEntries as unknown as Record<string, unknown>[])
-      }
-      if (allLogs.length > 0) {
-        await setSessionLogs(session.id, allLogs as unknown as Record<string, unknown>[])
       }
     } catch {
       void messageApi.error(t('backendNotConnected'))
@@ -449,11 +370,12 @@ const AiPanel: React.FC<AiPanelProps> = ({
   }
 
   const buildContext = (): string | undefined => {
-    if (allLogs.length > 0) {
+    if (sourcePath) {
       return (
-        `${allLogs.length} Android log entries are loaded in this session. ` +
-        `Use the search_logs tool to filter by level/tag/pid/keyword, ` +
-        `or query_log_overview for statistics.`
+        `A log file is loaded at path: ${sourcePath}. ` +
+        `Use search_local_log to search its contents, ` +
+        `read_log_range to get specific line ranges, ` +
+        `and query_log_overview for statistics.`
       )
     }
     if (traceResult) {
@@ -622,12 +544,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const sessionHasLog = activeSession?.context_type === 'log'
 
   // Build context indicator info (shows what data is linked to current session)
-  const contextInfo =
-    allLogs.length > 0
-      ? { type: 'log' as const, detail: `${allLogs.length} ${t('logEntries')}` }
-      : traceResult
-        ? { type: 'trace' as const, detail: t('traceLoaded') }
-        : null
+  const contextInfo = sourcePath
+    ? { type: 'log' as const, detail: t('logLoaded') }
+    : traceResult
+      ? { type: 'trace' as const, detail: t('traceLoaded') }
+      : null
 
   // Whether sending is possible (model configured globally via header)
   const canSend = aiConfigured
@@ -821,7 +742,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 <Text type="secondary">{t('traceAgentMode')}</Text>
               </div>
             )}
-            {!sessionHasProject && sessionHasLog && allLogs.length > 0 && (
+            {!sessionHasProject && sessionHasLog && sourcePath && (
               <div
                 style={{
                   marginBottom: 8,
@@ -832,9 +753,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 }}
               >
                 <FileTextOutlined style={{ marginRight: 4 }} />
-                <Text type="secondary">
-                  {t('logAgentMode')} ({allLogs.length} {t('logEntries')})
-                </Text>
+                <Text type="secondary">{t('logAgentMode')}</Text>
               </div>
             )}
             {messages.map((msg, idx) => (

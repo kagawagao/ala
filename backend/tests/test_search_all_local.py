@@ -21,7 +21,7 @@ def _write_log(tmp_path) -> str:
 
 def test_search_all_local_requires_target(tmp_path):
     log_path = _write_log(tmp_path)
-    payload = execute_tool(None, "search_all_local", "{}", file_path=log_path)
+    payload = execute_tool(None, "search_all_local", "{}", source_path=log_path)
     result = json.loads(payload)
     assert "error" in result
 
@@ -53,7 +53,7 @@ def test_search_all_local_streaming_combines_logs_and_code(tmp_path, monkeypatch
         "code_pattern": "Started service",
         "limit_code": 10,
     }
-    payload = execute_tool(project, "search_all_local", json.dumps(args), file_path=log_path)
+    payload = execute_tool(project, "search_all_local", json.dumps(args), source_path=log_path)
     result = json.loads(payload)
 
     assert result["logs"]["method"] == "streaming"
@@ -67,7 +67,7 @@ def test_search_all_local_streaming_combines_logs_and_code(tmp_path, monkeypatch
 def test_search_all_local_invalid_regex_returns_error(tmp_path):
     log_path = _write_log(tmp_path)
     args = {"keyword_log": "[invalid("}
-    payload = execute_tool(None, "search_all_local", json.dumps(args), file_path=log_path)
+    payload = execute_tool(None, "search_all_local", json.dumps(args), source_path=log_path)
     result = json.loads(payload)
     assert "error" in result
 
@@ -80,7 +80,7 @@ def test_search_all_local_uses_rg_fast_path_when_available(tmp_path):
 
     log_path = _write_log(tmp_path)
     args = {"keyword_log": "FATAL", "limit_log": 5}
-    payload = execute_tool(None, "search_all_local", json.dumps(args), file_path=log_path)
+    payload = execute_tool(None, "search_all_local", json.dumps(args), source_path=log_path)
     result = json.loads(payload)
 
     assert result["logs"]["method"] == "rg"

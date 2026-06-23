@@ -38,40 +38,10 @@ export async function setSessionTrace(
   })
 }
 
-export async function setSessionFilePath(sessionId: string, filePath: string): Promise<void> {
-  await apiFetch(`/chat/sessions/${sessionId}/file-path`, {
+export async function setSessionSourcePath(sessionId: string, sourcePath: string): Promise<void> {
+  await apiFetch(`/chat/sessions/${sessionId}/source-path`, {
     method: 'PUT',
-    body: JSON.stringify({ file_path: filePath }),
-  })
-}
-
-export async function setSessionLogs(
-  sessionId: string,
-  entries: Record<string, unknown>[],
-): Promise<void> {
-  await apiFetch(`/chat/sessions/${sessionId}/logs`, {
-    method: 'PUT',
-    body: JSON.stringify({ entries }),
-  })
-}
-
-export async function setSessionPcap(
-  sessionId: string,
-  entries: Record<string, unknown>[],
-): Promise<void> {
-  await apiFetch(`/chat/sessions/${sessionId}/pcap`, {
-    method: 'PUT',
-    body: JSON.stringify({ entries }),
-  })
-}
-
-export async function setSessionHci(
-  sessionId: string,
-  entries: Record<string, unknown>[],
-): Promise<void> {
-  await apiFetch(`/chat/sessions/${sessionId}/hci`, {
-    method: 'PUT',
-    body: JSON.stringify({ entries }),
+    body: JSON.stringify({ source_path: sourcePath }),
   })
 }
 

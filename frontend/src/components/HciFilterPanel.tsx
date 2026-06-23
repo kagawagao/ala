@@ -2,12 +2,34 @@ import React, { useCallback, useState } from 'react'
 import { Input, Select, Space, Button, Spin, App } from 'antd'
 import { FilterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
-import { filterHci } from '../api/hci'
 import type { HciEntry, HciFilters } from '../types/hci'
 
 interface HciFilterPanelProps {
   entries: HciEntry[]
   onFilteredEntries: (entries: HciEntry[]) => void
+}
+
+/** Client-side HCI filter (replaces removed POST /hci/filter endpoint). */
+function filterHciLocal(entries: HciEntry[], filters: HciFilters): HciEntry[] {
+  return entries.filter((entry) => {
+    if (filters.direction && entry.direction !== filters.direction) return false
+    if (filters.hci_type && entry.hci_type !== filters.hci_type) return false
+    if (filters.opcode !== null && entry.opcode !== filters.opcode) return false
+    if (filters.opcode_name && entry.opcode_name !== filters.opcode_name) return false
+    if (filters.event_code !== null && entry.event_code !== filters.event_code) return false
+    if (filters.event_name && entry.event_name !== filters.event_name) return false
+    if (filters.keywords) {
+      const kws = filters.keywords
+        .split(',')
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
+      if (kws.length > 0) {
+        const summary = entry.raw_summary.toLowerCase()
+        if (!kws.every((k) => summary.includes(k))) return false
+      }
+    }
+    return true
+  })
 }
 
 const DIRECTION_OPTIONS = [
@@ -77,7 +99,7 @@ const HciFilterPanel: React.FC<HciFilterPanelProps> = ({ entries, onFilteredEntr
 
     setFiltering(true)
     try {
-      const result = await filterHci(entries, filters)
+      const result = filterHciLocal(entries, filters)
       onFilteredEntries(result)
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('hciFilterFailed')

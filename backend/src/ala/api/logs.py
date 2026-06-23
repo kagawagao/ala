@@ -17,7 +17,6 @@ from pydantic import BaseModel
 from ..file_detector import detect_file_type_from_path
 from ..services.log_analyzer import LogAnalyzer, PathTraversalError
 from ..services.log_analyzer import LogEntry as ServiceLogEntry
-from ..services.log_analyzer import LogFilters as ServiceLogFilters
 
 router = APIRouter()
 _analyzer = LogAnalyzer()
@@ -34,12 +33,6 @@ class LogEntry(BaseModel):
     message: str
     raw_line: str
     source_file: str | None = None
-
-
-class ParseResult(BaseModel):
-    logs: list[LogEntry]
-    total_lines: int
-    format_detected: str
 
 
 class LogFilters(BaseModel):
@@ -88,18 +81,6 @@ class AutoPathResponse(BaseModel):
     has_subdirectories: bool | None = None
     total_files: int | None = None
     max_depth: int | None = None
-
-
-class FilterRequest(BaseModel):
-    logs: list[LogEntry]
-    filters: LogFilters
-
-
-class LogStatistics(BaseModel):
-    total: int
-    by_level: dict[str, int]
-    tags: dict[str, int]
-    pids: dict[str, int]
 
 
 def _to_service_entry(e: LogEntry) -> ServiceLogEntry:
@@ -234,107 +215,6 @@ async def auto_path(req: LocalPathRequest):
         )
 
     raise HTTPException(status_code=404, detail=f"Path not found or unsupported: {path}")
-
-
-@router.post("/parse", response_model=list[ParseResult])
-async def parse_log(files: list[UploadFile] = File(...)):
-    """Parse one or more log files.
-
-    Accepts multiple files in a single request.  Each file may be:
-    * A plain text log file (``.log``, ``.txt``, …)
-    * A gzip-compressed log file (``.gz``)
-    * A ZIP archive containing one or more log files (``.zip``)
-
-    Returns a list of ``ParseResult`` – one per extracted text member.
-    """
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
-
-    results: list[ParseResult] = []
-    for upload in files:
-        content = await upload.read()
-        filename = upload.filename or "log"
-        logger.debug("Parsing log file — name=%s size=%d", filename, len(content))
-        try:
-            parse_results = _analyzer.parse_log_bytes(content, filename)
-        except ValueError as exc:
-            logger.error("Failed to parse log file %r: %s", filename, exc)
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        for pr in parse_results:
-            results.append(
-                ParseResult(
-                    logs=[_from_service_entry(e) for e in pr.logs],
-                    total_lines=pr.total_lines,
-                    format_detected=pr.format_detected,
-                )
-            )
-    return results
-
-
-@router.post("/parse/stream")
-async def parse_log_stream(files: list[UploadFile] = File(...)):
-    """Stream-parse one or more log files using NDJSON (newline-delimited JSON).
-
-    Each line of the response body is a JSON-encoded ``LogEntry`` object.
-    After the last entry a sentinel line ``{"_done": true, "total": <N>}`` is
-    emitted so the client knows the stream is complete.
-
-    This endpoint avoids loading the entire response into memory on either side
-    and is the preferred endpoint for large files.
-    """
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
-
-    async def _generate():
-        total = 0
-        for upload in files:
-            data = await upload.read()
-            filename = upload.filename or "log"
-            logger.debug("Stream-parsing log file — name=%s size=%d", filename, len(data))
-            try:
-                for entry in _analyzer.stream_log_bytes(data, filename):
-                    line = _from_service_entry(entry)
-                    yield json.dumps(line.model_dump()) + "\n"
-                    total += 1
-            except ValueError as exc:
-                logger.error("Failed to stream-parse log file %r: %s", filename, exc)
-                yield json.dumps({"_error": str(exc)}) + "\n"
-        yield json.dumps({"_done": True, "total": total}) + "\n"
-
-    return StreamingResponse(
-        _generate(),
-        media_type="application/x-ndjson",
-        headers={"X-Accel-Buffering": "no"},
-    )
-
-
-@router.post("/filter", response_model=list[LogEntry])
-async def filter_logs(req: FilterRequest):
-    service_logs = [_to_service_entry(e) for e in req.logs]
-    service_filters = ServiceLogFilters(
-        start_time=req.filters.start_time,
-        end_time=req.filters.end_time,
-        keywords=req.filters.keywords,
-        level=req.filters.level,
-        tag=req.filters.tag,
-        pid=req.filters.pid,
-        tid=req.filters.tid,
-        tag_keyword_relation=req.filters.tag_keyword_relation,
-    )
-    filtered = _analyzer.filter_logs(service_logs, service_filters)
-    return [_from_service_entry(e) for e in filtered]
-
-
-@router.post("/statistics", response_model=LogStatistics)
-async def get_statistics(logs: list[LogEntry]):
-    service_logs = [_to_service_entry(e) for e in logs]
-    stats = _analyzer.get_statistics(service_logs)
-    return LogStatistics(
-        total=stats.total,
-        by_level=stats.by_level,
-        tags=stats.tags,
-        pids=stats.pids,
-    )
 
 
 class DirectoryRequest(BaseModel):

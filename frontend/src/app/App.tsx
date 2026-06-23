@@ -903,6 +903,8 @@ const AppContent: React.FC<{
 
   const isLoading = loadingFile || pcapLoading || hciLoading || traceLoading
   const errorMessage = fileError || pcapError || hciError || traceError
+  const aiSourcePath =
+    activeTab === 'pcap' ? pcapSourcePath : activeTab === 'hci' ? hciSourcePath : sourceRef
 
   const loadedNames =
     fileNames.length > 0 ? fileNames : pcapFileNames.length > 0 ? pcapFileNames : hciFileNames
@@ -1288,23 +1290,13 @@ const AppContent: React.FC<{
                         >
                           <div style={{ flex: 1, overflow: 'hidden' }}>
                             <AiPanel
-                              logs={displayLogs}
-                              allLogs={displayLogs}
-                              totalLogs={
-                                totalLines ??
-                                filterProgress?.total ??
-                                filterProgress?.scanned ??
-                                displayLogs.length
-                              }
                               filters={filters}
                               traceResult={traceResult}
-                              pcapEntries={pcapEntries}
-                              hciEntries={hciEntries}
                               aiConfigured={aiConfigured}
                               selectedProjectId={selectedProjectId}
                               projects={projects}
                               contextDocs={contextDocs}
-                              localFilePath={sourceRef}
+                              sourcePath={aiSourcePath}
                               aiConfig={aiConfig ?? undefined}
                             />
                           </div>

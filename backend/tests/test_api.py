@@ -108,60 +108,9 @@ class TestConfig:
 
 
 class TestLogParse:
-    def test_parse_single_text_file(self, client):
-        files = [("files", ("test.log", io.BytesIO(SAMPLE_LOGCAT.encode()), "text/plain"))]
-        resp = client.post("/api/logs/parse", files=files)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, list)
-        assert len(data) >= 1
-        result = data[0]
-        assert result["total_lines"] == 5
-        assert result["format_detected"] == "android_logcat"
-        assert len(result["logs"]) == 5
-
-    def test_parse_no_files_returns_400(self, client):
-        resp = client.post("/api/logs/parse")
-        assert resp.status_code == 422  # FastAPI validation error
-
-    def test_parse_stream_returns_ndjson(self, client):
-        files = [("files", ("test.log", io.BytesIO(SAMPLE_LOGCAT.encode()), "text/plain"))]
-        resp = client.post("/api/logs/parse/stream", files=files)
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("application/x-ndjson")
-        lines = resp.text.strip().split("\n")
-        # Should have 5 entry lines + 1 done line
-        parsed = [json.loads(line) for line in lines if line.strip()]
-        assert len(parsed) >= 6
-        assert parsed[-1] == {"_done": True, "total": 5}
-
-    def test_filter_logs(self, client):
-        # Parse first to get logs
-        files = [("files", ("test.log", io.BytesIO(SAMPLE_LOGCAT.encode()), "text/plain"))]
-        parse_resp = client.post("/api/logs/parse", files=files)
-        logs = parse_resp.json()[0]["logs"]
-
-        # Filter for level E only
-        filter_payload = {"logs": logs, "filters": {"level": "E", "tag_keyword_relation": "AND"}}
-        resp = client.post("/api/logs/filter", json=filter_payload)
-        assert resp.status_code == 200
-        filtered = resp.json()
-        assert isinstance(filtered, list)
-        assert all(e["level"] == "E" for e in filtered)
-
-    def test_statistics(self, client):
-        files = [("files", ("test.log", io.BytesIO(SAMPLE_LOGCAT.encode()), "text/plain"))]
-        parse_resp = client.post("/api/logs/parse", files=files)
-        logs = parse_resp.json()[0]["logs"]
-
-        resp = client.post("/api/logs/statistics", json=logs)
-        assert resp.status_code == 200
-        stats = resp.json()
-        assert stats["total"] == 5
-        assert stats["by_level"]["E"] == 2
-        assert stats["by_level"]["W"] == 1
-        assert "tags" in stats
-        assert "pids" in stats
+    # REMOVED: entries→file refactor — old /parse, /parse/stream, /filter, /statistics endpoints removed.
+    # Log operations now go through /files/upload → /filter/stream lazy pipeline.
+    # See test_lazy_log.py for the replacement tests.
 
     def test_parse_local_nonexistent_file_returns_400(self, client):
         resp = client.post(
@@ -554,19 +503,10 @@ class TestChatSessions:
         )
         assert resp.status_code == 404
 
-    def test_set_session_logs(self, client):
-        create_resp = client.post(
-            "/api/chat/sessions", json={"title": "Log Session", "context_type": "log"}
-        )
-        sid = create_resp.json()["id"]
-        resp = client.put(
-            f"/api/chat/sessions/{sid}/logs",
-            json={"entries": [{"level": "E", "message": "test"}]},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["stored"] == 1
+    # REMOVED: entries→file refactor — /sessions/{id}/logs endpoint removed.
+    # Session data now goes through /sessions/{id}/source-path only.
 
-    def test_set_session_file_path_valid_file(self, client):
+    def test_set_session_source_path_valid_file(self, client):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
             f.write(SAMPLE_LOGCAT)
             path = f.name
@@ -575,34 +515,49 @@ class TestChatSessions:
                 "/api/chat/sessions", json={"title": "File Session", "context_type": "log"}
             )
             sid = create_resp.json()["id"]
-            resp = client.put(f"/api/chat/sessions/{sid}/file-path", json={"file_path": path})
+            resp = client.put(f"/api/chat/sessions/{sid}/source-path", json={"source_path": path})
             assert resp.status_code == 200
             assert resp.json()["success"] is True
-            assert resp.json()["file_path"] == path
+            assert resp.json()["source_path"] == path
         finally:
             import os
 
             if os.path.exists(path):
                 os.unlink(path)
 
-    def test_set_session_file_path_clear(self, client):
-        create_resp = client.post(
-            "/api/chat/sessions", json={"title": "Clear File Session", "context_type": "log"}
-        )
-        sid = create_resp.json()["id"]
-        # Clear with empty path
-        resp = client.put(f"/api/chat/sessions/{sid}/file-path", json={"file_path": ""})
-        assert resp.status_code == 200
-        assert resp.json()["file_path"] is None
+    def test_set_session_source_path_clear(self, client):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            f.write(SAMPLE_LOGCAT)
+            path = f.name
+        try:
+            create_resp = client.post(
+                "/api/chat/sessions", json={"title": "Clear File Session", "context_type": "log"}
+            )
+            sid = create_resp.json()["id"]
+            # First set a valid source path
+            set_resp = client.put(
+                f"/api/chat/sessions/{sid}/source-path",
+                json={"source_path": path},
+            )
+            assert set_resp.status_code == 200
+            # Then clear it
+            resp = client.put(f"/api/chat/sessions/{sid}/source-path", json={"source_path": ""})
+            assert resp.status_code == 200
+            assert resp.json()["source_path"] is None
+        finally:
+            import os
 
-    def test_set_session_file_path_nonexistent(self, client):
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_set_session_source_path_nonexistent(self, client):
         create_resp = client.post(
             "/api/chat/sessions", json={"title": "Bad File Session", "context_type": "log"}
         )
         sid = create_resp.json()["id"]
         resp = client.put(
-            f"/api/chat/sessions/{sid}/file-path",
-            json={"file_path": "/tmp/nonexistent_file_xyz_123.log"},
+            f"/api/chat/sessions/{sid}/source-path",
+            json={"source_path": "/tmp/nonexistent_file_xyz_123.log"},
         )
         assert resp.status_code in (400, 403, 404)
 

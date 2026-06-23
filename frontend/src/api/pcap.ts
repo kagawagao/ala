@@ -1,4 +1,4 @@
-import type { PcapEntry, PcapFilters, PcapParseResult, PcapStatistics } from '../types/pcap'
+import type { PcapEntry, PcapFilters, PcapStatistics } from '../types/pcap'
 import { apiFetch, apiUploadMulti, streamNDJSON } from './client'
 
 // ── Temp upload / status ──────────────────────────────────────────────
@@ -31,17 +31,6 @@ export async function getPcapTempStatus(): Promise<PcapTempStatusResponse> {
 
 export async function cleanupPcapTemp(): Promise<{ removed: number }> {
   return apiFetch<{ removed: number }>('/pcap/temp/cleanup', { method: 'POST' })
-}
-
-// ── Legacy (kept for backward compat) ─────────────────────────────────
-
-export async function parsePcap(file: File): Promise<PcapParseResult> {
-  const formData = new FormData()
-  formData.append('file', file)
-  return apiFetch<PcapParseResult>('/pcap/parse', {
-    method: 'POST',
-    body: formData,
-  })
 }
 
 // ── Stream types ──────────────────────────────────────────────────────
@@ -84,23 +73,4 @@ export async function* streamFilteredPcap(
     yield line
     if (isDone(line)) return
   }
-}
-
-// ── Legacy filter (kept for backward compat) ───────────────────────────
-
-export async function filterPcap(entries: PcapEntry[], filters: PcapFilters): Promise<PcapEntry[]> {
-  const body = JSON.stringify({ entries, filters })
-  return apiFetch<PcapEntry[]>('/pcap/filter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  })
-}
-
-export async function getPcapStatistics(entries: PcapEntry[]): Promise<PcapStatistics> {
-  return apiFetch<PcapStatistics>('/pcap/statistics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(entries),
-  })
 }

@@ -1,11 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import type { LogEntry, LogFilters, LogStatistics } from '../types'
-import {
-  filterLogs,
-  parseDirectoryStream,
-  parseSelectedFilesStream,
-  streamFilteredLogs,
-} from '../api/logs'
+import { parseDirectoryStream, parseSelectedFilesStream, streamFilteredLogs } from '../api/logs'
 import type { FilterStreamDone, StreamDone } from '../api/logs'
 
 export interface FilterProgress {
@@ -33,6 +28,53 @@ interface UseLazyLogStreamReturn {
 }
 
 const BATCH_SIZE = 500
+
+/** Client-side filtering for directory-loaded log entries. */
+function filterLogEntriesLocal(entries: LogEntry[], filters: LogFilters): LogEntry[] {
+  return entries.filter((entry) => {
+    if (filters.level && entry.level !== filters.level) return false
+    if (filters.pid && entry.pid !== filters.pid) return false
+    if (filters.tid && entry.tid !== filters.tid) return false
+    if (filters.start_time && entry.timestamp && entry.timestamp < filters.start_time) return false
+    if (filters.end_time && entry.timestamp && entry.timestamp > filters.end_time) return false
+
+    // Tag matching (OR between comma-separated tags)
+    let tagMatch = true
+    if (filters.tag) {
+      const tags = filters.tag
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+      if (tags.length > 0) {
+        tagMatch = tags.some((t) => entry.tag.toLowerCase().includes(t.toLowerCase()))
+      }
+    }
+
+    // Keyword matching (AND between comma-separated keywords)
+    let keywordMatch = true
+    if (filters.keywords) {
+      const kws = filters.keywords
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean)
+      if (kws.length > 0) {
+        const message = entry.message.toLowerCase()
+        keywordMatch = kws.every((k) => message.includes(k.toLowerCase()))
+      }
+    }
+
+    // Combine tag and keyword filters according to relation
+    if (filters.tag && filters.keywords) {
+      const relation = filters.tag_keyword_relation || 'AND'
+      if (relation === 'OR') {
+        return tagMatch || keywordMatch
+      }
+      return tagMatch && keywordMatch
+    }
+    // Only one of tag/keyword is set, or neither
+    return tagMatch && keywordMatch
+  })
+}
 
 export function useLazyLogStream(): UseLazyLogStreamReturn {
   const [displayLogs, setDisplayLogs] = useState<LogEntry[]>([])
@@ -166,7 +208,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
 
       const gen = ++generationRef.current
 
-      // ── Directory mode: filter pre-loaded entries ────────
+      // ── Directory mode: filter pre-loaded entries locally ────────
       if (isDirectory) {
         if (directoryEntries.length === 0) return // still loading, wait for next filter change
         setLoading(true)
@@ -176,7 +218,7 @@ export function useLazyLogStream(): UseLazyLogStreamReturn {
         setFilterProgress({ matched: 0, scanned: directoryEntries.length })
 
         try {
-          const filtered = await filterLogs(directoryEntries, filters)
+          const filtered = filterLogEntriesLocal(directoryEntries, filters)
           if (generationRef.current === gen) {
             setDisplayLogs(filtered)
             setFilterProgress({

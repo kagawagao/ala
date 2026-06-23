@@ -33,12 +33,6 @@ export interface LogStatistics {
   pids: Record<string, number>
 }
 
-export interface ParseResult {
-  logs: LogEntry[]
-  total_lines: number
-  format_detected: string
-}
-
 export interface TraceFilterRequest {
   result: TraceParseResult
   pids?: number[]
@@ -155,6 +149,7 @@ export interface LocalFileRef {
   format_detected: string
   is_gzip: boolean
   is_zip: boolean
+  truncated: boolean
 }
 
 export interface ContextDoc {

@@ -1,17 +1,11 @@
 """Benchmarks for log search and source code search hot paths."""
 
-import json
 from pathlib import Path
 
 import pytest
 
-from ala.services.agent_tools import _execute_log_tool, build_log_index
-from ala.services.code_scanner import CodeScanner
-
-
-class _IterationBlocker(list):
-    def __iter__(self):
-        raise AssertionError("indexed benchmark should not iterate the full entry list")
+# REMOVED: entries→file refactor — _execute_log_tool and build_log_index removed.
+# Old benchmarks tested in-memory search_logs which no longer exists.
 
 
 def _make_log_entries(count: int = 50_000) -> list[dict]:
@@ -66,12 +60,6 @@ def _write_source_file(path: Path, index: int) -> None:
 
 
 @pytest.fixture(scope="session")
-def log_search_dataset() -> tuple[list[dict], list[dict], object]:
-    entries = _make_log_entries()
-    return entries, _IterationBlocker(entries), build_log_index(entries)
-
-
-@pytest.fixture(scope="session")
 def source_search_project(tmp_path_factory) -> Path:
     root = tmp_path_factory.mktemp("search-bench-project")
     for module_index in range(8):
@@ -82,41 +70,15 @@ def source_search_project(tmp_path_factory) -> Path:
     return root
 
 
-@pytest.mark.benchmark(group="log-search")
-def test_benchmark_search_logs_indexed(log_search_dataset, benchmark):
-    _, indexed_entries, log_index = log_search_dataset
-    args = {"level": "W", "tag": "NetworkManager", "limit": 50, "offset": 0}
-
-    payload = benchmark(
-        lambda: _execute_log_tool("search_logs", args, indexed_entries, log_index=log_index)
-    )
-    result = json.loads(payload)
-
-    assert result["returned"] == 50
-    assert result["total_matched"] > 1_000
-
-
-@pytest.mark.benchmark(group="log-search")
-def test_benchmark_search_logs_keyword_scan(log_search_dataset, benchmark):
-    entries, _, _ = log_search_dataset
-    args = {
-        "keyword": "database timeout",
-        "start_time": "01-15 10:05:00.000",
-        "end_time": "01-15 10:54:59.999",
-        "limit": 50,
-        "offset": 100,
-    }
-
-    payload = benchmark(lambda: _execute_log_tool("search_logs", args, entries, log_index=None))
-    result = json.loads(payload)
-
-    assert result["returned"] == 50
-    assert result["total_matched"] > 100
-    assert result["has_more"] is True
+# Removed: in-memory log search benchmarks (test_benchmark_search_logs_indexed,
+# test_benchmark_search_logs_keyword_scan). Replace with file-based benchmarks
+# using the filter/stream endpoint when benchmarks are re-enabled.
 
 
 @pytest.mark.benchmark(group="code-search")
 def test_benchmark_search_code(source_search_project, benchmark):
+    from ala.services.code_scanner import CodeScanner
+
     scanner = CodeScanner()
     include_patterns = ["**/*.kt"]
     exclude_patterns = ["**/build/**", "**/.git/**"]

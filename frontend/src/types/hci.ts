@@ -31,10 +31,3 @@ export interface HciStatistics {
   duration_seconds: number | null
   unique_opcodes: number
 }
-
-export interface HciParseResult {
-  entries: HciEntry[]
-  total_packets: number
-  format_detected: string
-  file_size: number
-}

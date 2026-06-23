@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -127,85 +127,8 @@ class ToolResultCache:
 _lazy_tool_cache = ToolResultCache(max_size=128, ttl_seconds=60.0)
 
 
-@dataclass
-class LogIndex:
-    """Pre-built indexes for O(1) log entry lookup by common dimensions."""
-
-    by_level: dict[str, list[int]] = field(default_factory=dict)  # level -> list of entry indices
-    by_tag: dict[str, list[int]] = field(
-        default_factory=dict
-    )  # tag (lower) -> list of entry indices
-    by_pid: dict[str, list[int]] = field(default_factory=dict)  # pid -> list of entry indices
-    total_entries: int = 0
-
-
-def build_log_index(entries: list[dict]) -> LogIndex:
-    """Build per-dimension indexes for O(1) filtering lookups."""
-    idx = LogIndex(total_entries=len(entries))
-    for i, entry in enumerate(entries):
-        level = entry.get("level")
-        if level:
-            idx.by_level.setdefault(level, []).append(i)
-        tag = entry.get("tag")
-        if tag:
-            idx.by_tag.setdefault(tag.lower(), []).append(i)
-        pid = entry.get("pid")
-        if pid is not None:
-            idx.by_pid.setdefault(str(pid), []).append(i)
-    return idx
-
-
 _scanner = get_shared_scanner()
 _trace_analyzer = TraceAnalyzer()
-
-
-class _OverviewCache:
-    """LRU cache for query_log_overview results.
-
-    Uses ``(id(entries), len(entries))`` as the cache key.  The risk of a
-    false-positive hit — a different list that happens to land at the same
-    memory address *and* has the same length — is negligible in practice:
-    Python only reuses an object id after the original object is garbage-
-    collected, and matching length at the same address for a *different* log
-    session is astronomically unlikely.
-
-    **Assumption**: the ``entries`` list is treated as immutable after the
-    first ``set()`` call.  If entries are appended or removed after caching,
-    the length changes, which invalidates the key automatically.  Replacing
-    entries in-place (same length, different content) would produce a stale
-    cache hit — but the session model never mutates loaded log entries in
-    place, so this is safe in practice.
-
-    Capped at ``_MAX`` entries with LRU eviction to avoid unbounded growth.
-    """
-
-    _MAX = 32
-
-    def __init__(self) -> None:
-        self._store: OrderedDict[tuple[int, int], dict] = OrderedDict()
-
-    def _key(self, entries: list[dict]) -> tuple[int, int]:
-        return (id(entries), len(entries))
-
-    def get(self, entries: list[dict]) -> dict | None:
-        key = self._key(entries)
-        if key not in self._store:
-            return None
-        self._store.move_to_end(key)
-        return self._store[key]
-
-    def set(self, entries: list[dict], value: dict) -> None:
-        key = self._key(entries)
-        self._store[key] = value
-        self._store.move_to_end(key)
-        while len(self._store) > self._MAX:
-            self._store.popitem(last=False)
-
-    def clear(self) -> None:
-        self._store.clear()
-
-
-_overview_cache = _OverviewCache()
 
 # Anthropic tool schemas – lazy local file tools (FEAT-LAZY-LOG)
 # When file_path points to a directory, use list_directory_logs first,
@@ -707,67 +630,54 @@ TRACE_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
-# Anthropic tool schemas – PCAP-specific tools
-PCAP_TOOLS: list[dict[str, Any]] = [
+# Anthropic tool schemas – lazy PCAP tools (file-based)
+LAZY_PCAP_TOOLS: list[dict[str, Any]] = [
     {
-        "name": "query_pcap_overview",
+        "name": "overview_local_pcap",
         "description": (
-            "Get statistics about the loaded network capture (PCAP/PCAPNG): "
-            "total packet count, protocol distribution, time range, unique IPs and ports."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "search_pcap_packets",
-        "description": (
-            "Search and filter network packets in the loaded PCAP file. "
-            "Filter by protocol, source/destination IP, source/destination port, "
-            "TCP flags, or packet content. Returns up to `limit` matching packets "
-            "starting at `offset`."
+            "Stream through a local PCAP/PCAPNG file to compute statistics: "
+            "total packet count, protocol distribution, unique IPs/ports, time range. "
+            "Does NOT load all packets into memory. "
+            "Use this FIRST before search_pcap_packets_lazy."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "protocol": {
+                "file_path": {
                     "type": "string",
-                    "description": "Filter by protocol (e.g., TCP, UDP, ICMP, DNS, HTTP)",
+                    "description": "PCAP file name or path. Required when source is a directory.",
                 },
-                "src_ip": {
-                    "type": "string",
-                    "description": "Filter by source IP address (supports partial match)",
-                },
-                "dst_ip": {
-                    "type": "string",
-                    "description": "Filter by destination IP address (supports partial match)",
-                },
-                "src_port": {
+                "max_packets": {
                     "type": "integer",
-                    "description": "Filter by source port number",
+                    "description": "Max packets to scan for overview (sampling large files).",
                 },
-                "dst_port": {
-                    "type": "integer",
-                    "description": "Filter by destination port number",
-                },
-                "tcp_flags": {
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_pcap_packets_lazy",
+        "description": (
+            "Stream-filter a local PCAP/PCAPNG file. "
+            "Filter by protocol, IPs, ports, TCP flags, or content. "
+            "Returns matching packets with pagination."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
                     "type": "string",
-                    "description": "Filter by TCP flags (e.g., SYN, ACK, FIN, RST)",
+                    "description": "PCAP file name or path. Required when source is a directory.",
                 },
-                "content": {
-                    "type": "string",
-                    "description": "Search for text pattern in packet payload",
-                },
-                "offset": {
-                    "type": "integer",
-                    "description": "Skip this many matching packets (for pagination)",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of packets to return (default: 50)",
-                },
+                "protocol": {"type": "string", "description": "TCP, UDP, ICMP, DNS, HTTP, etc."},
+                "src_ip": {"type": "string"},
+                "dst_ip": {"type": "string"},
+                "src_port": {"type": "integer"},
+                "dst_port": {"type": "integer"},
+                "tcp_flags": {"type": "string", "description": "e.g. SYN, ACK, FIN, RST"},
+                "content": {"type": "string", "description": "Text pattern in packet info"},
+                "offset": {"type": "integer", "description": "Skip N matching packets"},
+                "limit": {"type": "integer", "description": "Max packets (default: 50, max: 500)"},
             },
             "required": [],
         },
@@ -775,8 +685,7 @@ PCAP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_pcap_files",
         "description": (
-            "List the PCAP files currently loaded in this session. "
-            "Returns the unique source file names that were uploaded. "
+            "List PCAP files in the session source directory. "
             "Use this to discover what network capture data is available."
         ),
         "input_schema": {
@@ -787,32 +696,42 @@ PCAP_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
-# Anthropic tool schemas – HCI Bluetooth tools
-HCI_TOOLS: list[dict[str, Any]] = [
+# Anthropic tool schemas – lazy HCI tools (file-based)
+LAZY_HCI_TOOLS: list[dict[str, Any]] = [
     {
-        "name": "query_hci_overview",
+        "name": "overview_local_hci",
         "description": (
-            "Get statistics about the loaded Bluetooth HCI (BTSnoop) log: "
-            "total packet count, direction distribution (host-to-controller vs "
-            "controller-to-host), HCI type distribution (command, event, ACL, "
-            "SCO, ISO), time range, and unique opcode count."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "search_hci_packets",
-        "description": (
-            "Search and filter HCI packets in the loaded BTSnoop log. "
-            "Filter by direction, HCI type, opcode, event code, or keywords. "
-            "Returns up to `limit` matching packets starting at `offset`."
+            "Stream through a local BTSnoop HCI file to compute statistics: "
+            "total packet count, direction distribution, HCI type distribution, "
+            "time range, unique opcodes. Does NOT load all packets into memory. "
+            "Use this FIRST before search_hci_packets_lazy."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "HCI file name or path. Required when source is a directory.",
+                },
+                "max_packets": {
+                    "type": "integer",
+                    "description": "Max packets to scan for overview.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_hci_packets_lazy",
+        "description": (
+            "Stream-filter a local BTSnoop HCI file. "
+            "Filter by direction, HCI type, opcode, event code, or content. "
+            "Returns matching packets with pagination."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string"},
                 "direction": {
                     "type": "string",
                     "description": "HOST_TO_CONTROLLER or CONTROLLER_TO_HOST",
@@ -821,50 +740,21 @@ HCI_TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "COMMAND, EVENT, ACL_DATA, SCO_DATA, ISO_DATA",
                 },
-                "opcode": {
-                    "type": "integer",
-                    "description": "Numeric HCI command opcode (OGF<<10 | OCF), e.g. 0x200D",
-                },
-                "opcode_name": {
-                    "type": "string",
-                    "description": "Substring match on human-readable opcode name",
-                },
-                "event_code": {
-                    "type": "integer",
-                    "description": "Numeric HCI event code (e.g. 0x07 for COMMAND_COMPLETE)",
-                },
-                "event_name": {
-                    "type": "string",
-                    "description": "Substring match on human-readable event name",
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Search for text or hex pattern in packet raw_summary",
-                },
-                "offset": {
-                    "type": "integer",
-                    "description": "Skip this many matching packets (for pagination)",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of packets to return (default: 50)",
-                },
+                "opcode": {"type": "integer", "description": "Numeric HCI opcode"},
+                "opcode_name": {"type": "string", "description": "Substring match on opcode name"},
+                "event_code": {"type": "integer"},
+                "event_name": {"type": "string"},
+                "content": {"type": "string", "description": "Search in packet raw_summary"},
+                "offset": {"type": "integer"},
+                "limit": {"type": "integer", "description": "Max packets (default: 50, max: 500)"},
             },
             "required": [],
         },
     },
     {
         "name": "list_hci_files",
-        "description": (
-            "List the Bluetooth HCI (BTSnoop) files currently loaded in this session. "
-            "Returns the unique source file names. "
-            "Use this to discover what HCI log data is available."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
+        "description": "List Bluetooth HCI (BTSnoop) files in the session source directory.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "decode_hci_opcode",
@@ -881,76 +771,6 @@ HCI_TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["opcode"],
-        },
-    },
-]
-
-# Anthropic tool schemas – log-specific tools
-LOG_TOOLS: list[dict[str, Any]] = [
-    {
-        "name": "query_log_overview",
-        "description": (
-            "Get statistics about the loaded Android logs or network captures: total count, "
-            "level distribution, time range, unique tags/protocols and PIDs. "
-            "Note: may reflect a capped subset if the log file is very large."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "search_logs",
-        "description": (
-            "Search and filter the loaded Android log or network capture entries. "
-            "Start with query_log_overview first, then use targeted search_logs with limit=50. "
-            "For pcap files: tag filter matches protocol (TCP/UDP/etc). "
-            "**Time-filtering strategy**: when the user mentions a specific time "
-            "(e.g. 'around 14:30', 'at 3pm'), use start_time/end_time with a narrow "
-            "±2 minute window first. If that yields fewer than 20 results, expand "
-            "the window to ±5 min, then ±15 min, until sufficient context is found. "
-            "For large result sets, use the 'offset' parameter to paginate and ensure "
-            "you have seen all matching entries before drawing conclusions. "
-            "Returns up to `limit` matching entries starting at `offset`."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "level": {
-                    "type": "string",
-                    "description": "Minimum log level to include (V, D, I, W, E, F)",
-                },
-                "tag": {
-                    "type": "string",
-                    "description": "Tag substring filter (case-insensitive)",
-                },
-                "pid": {
-                    "type": "string",
-                    "description": "Process ID to filter by",
-                },
-                "keyword": {
-                    "type": "string",
-                    "description": "Keyword or regex to match in the log message",
-                },
-                "start_time": {
-                    "type": "string",
-                    "description": "Only include entries after this timestamp",
-                },
-                "end_time": {
-                    "type": "string",
-                    "description": "Only include entries before this timestamp",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return (default: 50, max: 500)",
-                },
-                "offset": {
-                    "type": "integer",
-                    "description": "Number of matching entries to skip before returning results (default: 0). Use for pagination.",
-                },
-            },
-            "required": [],
         },
     },
 ]
@@ -1079,11 +899,7 @@ def execute_tool(
     tool_name: str,
     arguments: str,
     trace_summary: dict | None = None,
-    log_entries: list[dict] | None = None,
-    pcap_entries: list[dict] | None = None,
-    hci_entries: list[dict] | None = None,
-    log_index: "LogIndex | None" = None,
-    file_path: str | None = None,
+    source_path: str | None = None,
 ) -> str:
     """Execute a tool call and return the result as a string."""
     try:
@@ -1114,22 +930,50 @@ def execute_tool(
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Trace SQL tool failed: {e}"})
 
-    # PCAP tools
-    if tool_name in ("query_pcap_overview", "search_pcap_packets", "list_pcap_files"):
-        if pcap_entries is None:
-            return json.dumps({"error": "No PCAP data loaded in this session"})
-        return _execute_pcap_tool(tool_name, args, pcap_entries)
+    # Lazy PCAP tools (file-based streaming)
+    if tool_name in ("overview_local_pcap", "search_pcap_packets_lazy", "list_pcap_files"):
+        if source_path is None:
+            return json.dumps({"error": "No source path set in this session"})
+        try:
+            return _execute_lazy_pcap_tool(tool_name, args, source_path)
+        except Exception as e:
+            logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
+            return json.dumps({"error": f"Lazy PCAP tool '{tool_name}' failed: {e}"})
 
-    # HCI tools
+    # HCI opcode decoder (pure lookup — no file/source needed)
+    if tool_name == "decode_hci_opcode":
+        from .hci_analyzer import _decode_opcode
+
+        try:
+            opcode_val = int(args.get("opcode", 0))
+        except (ValueError, TypeError):
+            return json.dumps({"error": "opcode must be an integer"})
+        ogf, ocf, name = _decode_opcode(opcode_val)
+        return json.dumps(
+            {
+                "opcode": opcode_val,
+                "opcode_hex": f"0x{opcode_val:04X}",
+                "ogf": ogf,
+                "ogf_hex": f"0x{ogf:02X}",
+                "ocf": ocf,
+                "ocf_hex": f"0x{ocf:03X}",
+                "name": name,
+            }
+        )
+
+    # Lazy HCI tools (file-based streaming)
     if tool_name in (
-        "query_hci_overview",
-        "search_hci_packets",
+        "overview_local_hci",
+        "search_hci_packets_lazy",
         "list_hci_files",
-        "decode_hci_opcode",
     ):
-        if hci_entries is None:
-            return json.dumps({"error": "No HCI data loaded in this session"})
-        return _execute_hci_tool(tool_name, args, hci_entries)
+        if source_path is None:
+            return json.dumps({"error": "No source path set in this session"})
+        try:
+            return _execute_lazy_hci_tool(tool_name, args, source_path)
+        except Exception as e:
+            logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
+            return json.dumps({"error": f"Lazy HCI tool '{tool_name}' failed: {e}"})
 
     # Lazy log tools (operate on local file/directory path, not in-memory entries)
     if tool_name in (
@@ -1139,17 +983,17 @@ def execute_tool(
         "read_log_range",
         "tail_local_log",
     ):
-        if file_path is None:
+        if source_path is None:
             return json.dumps({"error": "No local log path set in this session"})
         try:
-            return _execute_lazy_log_tool(tool_name, args, file_path)
+            return _execute_lazy_log_tool(tool_name, args, source_path)
         except Exception as e:
             logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
             return json.dumps({"error": f"Lazy tool '{tool_name}' failed: {e}"})
 
     # decompress_file — manually decompress nested archives in a directory
     if tool_name == "decompress_file":
-        if file_path is None:
+        if source_path is None:
             return json.dumps({"error": "No local log path set in this session"})
         try:
             import os
@@ -1157,10 +1001,10 @@ def execute_tool(
 
             from .log_analyzer import decompress_nested
 
-            target = file_path
+            target = source_path
             requested = args.get("file_path")
             if requested:
-                target = _resolve_within_base(file_path, requested, allow_directory=True)
+                target = _resolve_within_base(source_path, requested, allow_directory=True)
                 if not target or not os.path.exists(target):
                     return json.dumps({"error": f"File not found: {requested}"})
             decompressed = decompress_nested(
@@ -1182,73 +1026,29 @@ def execute_tool(
 
     # read_log_file — read a log file from the session path (before project check)
     if tool_name == "read_log_file":
-        if file_path is None:
+        if source_path is None:
             return json.dumps({"error": "No local log path set in this session"})
-        return _execute_read_log_file(args, file_path)
+        return _execute_read_log_file(args, source_path)
 
     # search_all_local — composite: logs + code in one call
     if tool_name == "search_all_local":
-        if file_path is None:
+        if source_path is None:
             return json.dumps({"error": "No local log path set in this session"})
         try:
-            return _execute_search_all_local(args, file_path, project)
+            return _execute_search_all_local(args, source_path, project)
         except Exception as e:
             logger.warning("tool=search_all_local failed: %s", e, exc_info=True)
             return json.dumps({"error": f"search_all_local failed: {e}"})
 
     # execute_shell_search — arbitrary shell commands for searching
     if tool_name == "execute_shell_search":
-        if file_path is None and (project is None or not project.paths):
+        if source_path is None and (project is None or not project.paths):
             return json.dumps({"error": "No log path or project set in this session"})
         try:
-            return _execute_shell_search(args, file_path, project)
+            return _execute_shell_search(args, source_path, project)
         except Exception as e:
             logger.warning("tool=execute_shell_search failed: %s", e, exc_info=True)
             return json.dumps({"error": f"execute_shell_search failed: {e}"})
-
-    # Log tools (work standalone or alongside project tools)
-    if tool_name in ("list_log_files", "query_log_overview", "search_logs"):
-        if log_entries is None:
-            # ── Fallback: use file-based tools when no log_entries ─────
-            if file_path:
-                if tool_name == "list_log_files":
-                    try:
-                        return _execute_lazy_log_tool("list_directory_logs", {}, file_path)
-                    except Exception:
-                        return json.dumps({"error": "Failed to list files"})
-                elif tool_name == "query_log_overview":
-                    # Use overview_local_log internally
-                    try:
-                        return _execute_lazy_log_tool("overview_local_log", {}, file_path)
-                    except Exception:
-                        return json.dumps({"error": "Failed to query overview from files"})
-                elif tool_name == "search_logs":
-                    # Only use ripgrep fast-path when keyword is the sole filter.
-                    # If structured filters (level/tag/pid/time) are present,
-                    # fall through to search_local_log which handles them all.
-                    _structured_filters = {"level", "tag", "pid", "start_time", "end_time"}
-                    _has_structured = any(args.get(k) for k in _structured_filters)
-                    if args.get("keyword") and not _has_structured:
-                        rg_results = _search_log_with_rg(
-                            file_path,
-                            args["keyword"],
-                            limit=args.get("limit", 50),
-                        )
-                        if rg_results is not None:
-                            return json.dumps(
-                                {
-                                    "total": len(rg_results),
-                                    "results": rg_results[: args.get("limit", 50)],
-                                }
-                            )
-                    # Fall back to lazy log tool for structured filters or when rg unavailable
-                    try:
-                        return _execute_lazy_log_tool("search_local_log", args, file_path)
-                    except Exception as e:
-                        logger.warning("lazy search_local_log fallback failed: %s", e)
-                        return json.dumps({"error": f"Search failed: {e}"})
-            return json.dumps({"error": "No logs loaded in this session"})
-        return _execute_log_tool(tool_name, args, log_entries, log_index=log_index)
 
     # Project tools – project must be present
     if project is None:
@@ -1289,11 +1089,11 @@ def execute_tool(
                             "content": result.content,
                         }
                     )
-        # ── Fallback 1: resolve relative to session file_path ──────────
+        # ── Fallback 1: resolve relative to session source_path ──────────
         import os as _os
 
-        if file_path:
-            cand = _resolve_within_base(file_path, requested_path)
+        if source_path:
+            cand = _resolve_within_base(source_path, requested_path)
             if cand and _os.path.isfile(cand):
                 try:
                     with open(cand, encoding="utf-8", errors="replace") as fh:
@@ -1340,9 +1140,6 @@ def execute_tool(
                 ],
             }
         )
-
-    elif tool_name == "filter_logs":
-        return _execute_filter_logs(args)
 
     # Coding tools — edit/write/search/execute within project
     elif tool_name in ("edit_file", "write_file", "search_files", "execute_command"):
@@ -1812,6 +1609,42 @@ def _list_directory(session_path: str) -> list[dict]:
     return subdirs + items
 
 
+def _list_files_by_type(session_path: str, extensions: list[str]) -> list[dict]:
+    """List files with given extensions in a directory or the parent of a single file."""
+
+    import os as _os
+
+    target_dir = session_path
+    if _os.path.isfile(session_path):
+        target_dir = _os.path.dirname(session_path)
+
+    results: list[dict] = []
+    try:
+        for entry in sorted(_os.scandir(target_dir), key=lambda e: e.name.lower()):
+            if entry.is_file():
+                name = entry.name.lower()
+                compressed_extensions = tuple(f"{ext}.gz" for ext in extensions)
+                if (
+                    name.endswith(tuple(extensions))
+                    or name.endswith(compressed_extensions)
+                    or name.endswith(".zip")
+                ):
+                    try:
+                        stat = entry.stat()
+                        results.append(
+                            {
+                                "name": entry.name,
+                                "path": entry.path,
+                                "size": stat.st_size,
+                            }
+                        )
+                    except OSError:
+                        results.append({"name": entry.name, "path": entry.path, "size": 0})
+    except (PermissionError, FileNotFoundError):
+        pass
+    return results
+
+
 def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     """Execute a lazy log tool against a local file or directory path.
 
@@ -2099,259 +1932,272 @@ def _execute_lazy_log_tool(tool_name: str, args: dict, file_path: str) -> str:
     return json.dumps({"error": f"Unknown lazy tool: {tool_name}"})
 
 
-def _execute_pcap_tool(tool_name: str, args: dict, pcap_entries: list[dict]) -> str:
-    """Handle PCAP-query tools against stored PCAP entries."""
-    if tool_name == "query_pcap_overview":
-        # Calculate statistics
-        protocols = {}
-        ips = set()
-        ports = set()
+def _execute_lazy_pcap_tool(tool_name: str, args: dict, source_path: str) -> str:
+    """Execute lazy PCAP tools against files on disk via streaming."""
+
+    from .pcap_analyzer import PcapAnalyzer, PcapFilters
+
+    pcap_analyzer = PcapAnalyzer()
+    resolved = _resolve_log_path(source_path, args)
+    if not resolved:
+        return json.dumps({"error": "Must specify file_path when source is a directory"})
+
+    if tool_name == "overview_local_pcap":
+        max_packets = args.get("max_packets")
+        protocols: dict[str, int] = {}
+        ips: set[str] = set()
+        ports: set[int] = set()
         min_time = None
         max_time = None
-
-        for entry in pcap_entries:
-            # Protocol distribution
-            protocol = entry.get("protocol", "Unknown")
-            protocols[protocol] = protocols.get(protocol, 0) + 1
-
-            # Unique IPs
-            if "src_ip" in entry:
-                ips.add(entry["src_ip"])
-            if "dst_ip" in entry:
-                ips.add(entry["dst_ip"])
-
-            # Unique ports (use `is not None` so port 0 is not dropped)
-            if "src_port" in entry and entry["src_port"] is not None:
-                ports.add(entry["src_port"])
-            if "dst_port" in entry and entry["dst_port"] is not None:
-                ports.add(entry["dst_port"])
-
-            # Time range
-            timestamp = entry.get("timestamp")
-            if timestamp:
-                if min_time is None or timestamp < min_time:
-                    min_time = timestamp
-                if max_time is None or timestamp > max_time:
-                    max_time = timestamp
+        count = 0
+        try:
+            for pkt in pcap_analyzer.stream_filter_from_path(resolved):
+                if (
+                    max_packets is not None
+                    and isinstance(max_packets, int)
+                    and count >= max_packets
+                ):
+                    break
+                count += 1
+                protocols[pkt.protocol] = protocols.get(pkt.protocol, 0) + 1
+                if pkt.src_ip:
+                    ips.add(pkt.src_ip)
+                if pkt.dst_ip:
+                    ips.add(pkt.dst_ip)
+                if pkt.src_port is not None:
+                    ports.add(pkt.src_port)
+                if pkt.dst_port is not None:
+                    ports.add(pkt.dst_port)
+                if pkt.timestamp:
+                    if min_time is None or pkt.timestamp < min_time:
+                        min_time = pkt.timestamp
+                    if max_time is None or pkt.timestamp > max_time:
+                        max_time = pkt.timestamp
+        except Exception as e:
+            return json.dumps({"error": f"Failed to stream pcap file: {e}"})
 
         return json.dumps(
             {
-                "total_packets": len(pcap_entries),
+                "file": resolved,
+                "total_packets": count,
                 "protocols": protocols,
                 "unique_ips": len(ips),
                 "unique_ports": len(ports),
-                "time_range": {
-                    "start": min_time,
-                    "end": max_time,
-                }
+                "time_range": {"start": min_time, "end": max_time}
                 if min_time is not None and max_time is not None
                 else None,
             }
         )
 
-    if tool_name == "search_pcap_packets":
-        # Apply filters
-        filtered = pcap_entries
-
-        protocol = args.get("protocol", "").upper()
+    if tool_name == "search_pcap_packets_lazy":
+        filters = PcapFilters()
+        protocol = (args.get("protocol") or "").strip()
         if protocol:
-            filtered = [e for e in filtered if e.get("protocol", "").upper() == protocol]
-
-        src_ip = args.get("src_ip", "")
+            filters.protocol = protocol
+        src_ip = (args.get("src_ip") or "").strip()
         if src_ip:
-            filtered = [e for e in filtered if src_ip in e.get("src_ip", "")]
-
-        dst_ip = args.get("dst_ip", "")
+            filters.src_ip = src_ip
+        dst_ip = (args.get("dst_ip") or "").strip()
         if dst_ip:
-            filtered = [e for e in filtered if dst_ip in e.get("dst_ip", "")]
-
+            filters.dst_ip = dst_ip
         src_port = args.get("src_port")
         if src_port is not None:
-            filtered = [e for e in filtered if e.get("src_port") == src_port]
-
+            try:
+                filters.src_port = int(src_port)
+            except (ValueError, TypeError):
+                pass
         dst_port = args.get("dst_port")
         if dst_port is not None:
-            filtered = [e for e in filtered if e.get("dst_port") == dst_port]
-
-        tcp_flags = args.get("tcp_flags", "").upper()
+            try:
+                filters.dst_port = int(dst_port)
+            except (ValueError, TypeError):
+                pass
+        tcp_flags = (args.get("tcp_flags") or "").strip()
         if tcp_flags:
-            filtered = [e for e in filtered if tcp_flags in e.get("tcp_flags", "").upper()]
-
-        content = args.get("content", "")
+            filters.tcp_flags = tcp_flags
+        content = (args.get("content") or "").strip()
         if content:
-            pattern = re.compile(re.escape(content), re.IGNORECASE)
-            filtered = [e for e in filtered if pattern.search(e.get("info", ""))]
+            filters.keywords = content
 
-        # Pagination (safe int parsing)
         try:
-            offset = int(args.get("offset", 0))
+            offset = max(int(args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             offset = 0
         try:
-            limit = min(int(args.get("limit", 50)), 500)
+            limit = max(1, min(int(args.get("limit", 50)), 500))
         except (ValueError, TypeError):
             limit = 50
 
+        matched: list[dict] = []
+        total = 0
+        try:
+            for pkt in pcap_analyzer.stream_filter_from_path(resolved, filters=filters):
+                total += 1
+                if total > offset and len(matched) < limit:
+                    matched.append(
+                        {
+                            "packet_number": pkt.packet_number,
+                            "timestamp": pkt.timestamp,
+                            "protocol": pkt.protocol,
+                            "src_ip": pkt.src_ip,
+                            "dst_ip": pkt.dst_ip,
+                            "src_port": pkt.src_port,
+                            "dst_port": pkt.dst_port,
+                            "length": pkt.length,
+                            "tcp_flags": pkt.tcp_flags,
+                            "info": pkt.info,
+                        }
+                    )
+        except Exception as e:
+            return json.dumps({"error": f"Failed to stream pcap file: {e}"})
+
         return json.dumps(
             {
-                "total": len(filtered),
-                "packets": filtered[offset : offset + limit],
+                "total": total,
+                "offset": offset,
+                "returned": len(matched),
+                "has_more": (offset + limit) < total,
+                "packets": matched,
             }
         )
 
     if tool_name == "list_pcap_files":
-        # Get unique source files
-        source_files = sorted(set(e.get("source_file", "unknown") for e in pcap_entries))
-        return json.dumps(
-            {
-                "total": len(source_files),
-                "files": source_files,
-            }
-        )
+        files = _list_files_by_type(source_path, [".pcap", ".pcapng"])
+        return json.dumps({"total": len(files), "files": files})
 
-    return json.dumps({"error": f"Unknown PCAP tool: {tool_name}"})
+    return json.dumps({"error": f"Unknown lazy PCAP tool: {tool_name}"})
 
 
-def _execute_hci_tool(tool_name: str, args: dict, hci_entries: list[dict]) -> str:
-    """Handle HCI-query tools against stored HCI entries."""
-    if tool_name == "query_hci_overview":
+def _execute_lazy_hci_tool(tool_name: str, args: dict, source_path: str) -> str:
+    """Execute lazy HCI tools against files on disk via streaming."""
+
+    from .hci_analyzer import HciAnalyzer, HciFilters
+
+    hci_analyzer = HciAnalyzer()
+
+    resolved = _resolve_log_path(source_path, args)
+    if not resolved:
+        return json.dumps({"error": "Must specify file_path when source is a directory"})
+
+    if tool_name == "overview_local_hci":
+        max_packets = args.get("max_packets")
         directions: dict[str, int] = {}
         types: dict[str, int] = {}
         opcodes: set[int] = set()
         min_time = None
         max_time = None
-
-        for entry in hci_entries:
-            direction = entry.get("direction", "Unknown")
-            directions[direction] = directions.get(direction, 0) + 1
-
-            hci_type = entry.get("hci_type", "Unknown")
-            types[hci_type] = types.get(hci_type, 0) + 1
-
-            opcode = entry.get("opcode")
-            if opcode is not None:
-                opcodes.add(opcode)
-
-            timestamp = entry.get("timestamp")
-            if timestamp:
-                if min_time is None or timestamp < min_time:
-                    min_time = timestamp
-                if max_time is None or timestamp > max_time:
-                    max_time = timestamp
+        count = 0
+        try:
+            for entry in hci_analyzer.stream_filter_from_path(resolved):
+                if (
+                    max_packets is not None
+                    and isinstance(max_packets, int)
+                    and count >= max_packets
+                ):
+                    break
+                count += 1
+                directions[entry.direction] = directions.get(entry.direction, 0) + 1
+                types[entry.hci_type] = types.get(entry.hci_type, 0) + 1
+                if entry.opcode is not None:
+                    opcodes.add(entry.opcode)
+                if entry.timestamp:
+                    if min_time is None or entry.timestamp < min_time:
+                        min_time = entry.timestamp
+                    if max_time is None or entry.timestamp > max_time:
+                        max_time = entry.timestamp
+        except Exception as e:
+            return json.dumps({"error": f"Failed to stream HCI file: {e}"})
 
         return json.dumps(
             {
-                "total_packets": len(hci_entries),
+                "file": resolved,
+                "total_packets": count,
                 "by_direction": directions,
                 "by_type": types,
                 "unique_opcodes": len(opcodes),
-                "time_range": {
-                    "start": min_time,
-                    "end": max_time,
-                }
+                "time_range": {"start": min_time, "end": max_time}
                 if min_time is not None and max_time is not None
                 else None,
             }
         )
 
-    if tool_name == "search_hci_packets":
-        filtered = hci_entries
-
-        direction = args.get("direction", "")
+    if tool_name == "search_hci_packets_lazy":
+        filters = HciFilters()
+        direction = (args.get("direction") or "").strip()
         if direction:
-            filtered = [e for e in filtered if e.get("direction") == direction]
-
-        hci_type = args.get("hci_type", "")
+            filters.direction = direction
+        hci_type = (args.get("hci_type") or "").strip()
         if hci_type:
-            filtered = [e for e in filtered if e.get("hci_type") == hci_type]
-
+            filters.hci_type = hci_type
         opcode = args.get("opcode")
         if opcode is not None:
             try:
-                opcode_int = int(opcode) if isinstance(opcode, str) else opcode
+                filters.opcode = int(opcode) if isinstance(opcode, str) else opcode
             except (ValueError, TypeError):
-                opcode_int = opcode
-            filtered = [e for e in filtered if e.get("opcode") == opcode_int]
-
-        opcode_name = args.get("opcode_name", "")
+                pass
+        opcode_name = (args.get("opcode_name") or "").strip()
         if opcode_name:
-            opcode_name_upper = opcode_name.upper()
-            filtered = [
-                e
-                for e in filtered
-                if e.get("opcode_name") and opcode_name_upper in e["opcode_name"].upper()
-            ]
-
+            filters.opcode_name = opcode_name
         event_code = args.get("event_code")
         if event_code is not None:
             try:
-                event_code_int = int(event_code) if isinstance(event_code, str) else event_code
+                filters.event_code = int(event_code) if isinstance(event_code, str) else event_code
             except (ValueError, TypeError):
-                event_code_int = event_code
-            filtered = [e for e in filtered if e.get("event_code") == event_code_int]
-
-        event_name = args.get("event_name", "")
+                pass
+        event_name = (args.get("event_name") or "").strip()
         if event_name:
-            event_name_upper = event_name.upper()
-            filtered = [
-                e
-                for e in filtered
-                if e.get("event_name") and event_name_upper in e["event_name"].upper()
-            ]
-
-        content = args.get("content", "")
+            filters.event_name = event_name
+        content = (args.get("content") or "").strip()
         if content:
-            pattern = re.compile(re.escape(content), re.IGNORECASE)
-            filtered = [e for e in filtered if pattern.search(e.get("raw_summary", ""))]
+            filters.keywords = content
 
-        # Pagination
         try:
-            offset = int(args.get("offset", 0))
+            offset = max(int(args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             offset = 0
         try:
-            limit = min(int(args.get("limit", 50)), 500)
+            limit = max(1, min(int(args.get("limit", 50)), 500))
         except (ValueError, TypeError):
             limit = 50
 
+        matched: list[dict] = []
+        total = 0
+        try:
+            for entry in hci_analyzer.stream_filter_from_path(resolved, filters=filters):
+                total += 1
+                if total > offset and len(matched) < limit:
+                    matched.append(
+                        {
+                            "packet_number": entry.packet_number,
+                            "timestamp": entry.timestamp,
+                            "direction": entry.direction,
+                            "hci_type": entry.hci_type,
+                            "opcode": entry.opcode,
+                            "opcode_name": entry.opcode_name,
+                            "event_code": entry.event_code,
+                            "event_name": entry.event_name,
+                            "data_length": entry.data_length,
+                            "raw_summary": entry.raw_summary,
+                        }
+                    )
+        except Exception as e:
+            return json.dumps({"error": f"Failed to stream HCI file: {e}"})
+
         return json.dumps(
             {
-                "total": len(filtered),
-                "packets": filtered[offset : offset + limit],
+                "total": total,
+                "offset": offset,
+                "returned": len(matched),
+                "has_more": (offset + limit) < total,
+                "packets": matched,
             }
         )
 
     if tool_name == "list_hci_files":
-        source_files = sorted(set(e.get("source_file", "unknown") for e in hci_entries))
-        return json.dumps(
-            {
-                "total": len(source_files),
-                "files": source_files,
-            }
-        )
+        files = _list_files_by_type(source_path, [".log", ".hci", ".btsnoop", ".cfa"])
+        return json.dumps({"total": len(files), "files": files})
 
-    if tool_name == "decode_hci_opcode":
-        from .hci_analyzer import _decode_opcode
-
-        try:
-            opcode_val = int(args.get("opcode", 0))
-        except (ValueError, TypeError):
-            return json.dumps({"error": "opcode must be an integer"})
-
-        ogf, ocf, name = _decode_opcode(opcode_val)
-        return json.dumps(
-            {
-                "opcode": opcode_val,
-                "opcode_hex": f"0x{opcode_val:04X}",
-                "ogf": ogf,
-                "ogf_hex": f"0x{ogf:02X}",
-                "ocf": ocf,
-                "ocf_hex": f"0x{ocf:03X}",
-                "name": name,
-            }
-        )
-
-    return json.dumps({"error": f"Unknown HCI tool: {tool_name}"})
+    return json.dumps({"error": f"Unknown lazy HCI tool: {tool_name}"})
 
 
 def _execute_trace_tool(tool_name: str, args: dict, trace_summary: dict) -> str:
@@ -2442,189 +2288,6 @@ def _timestamp_to_seconds(value: Any) -> float | None:
     return None
 
 
-def _execute_log_tool(
-    tool_name: str,
-    args: dict,
-    log_entries: list[dict],
-    log_index: "LogIndex | None" = None,
-) -> str:
-    """Handle log-query tools against session-stored log entries."""
-    if tool_name == "list_log_files":
-        # Collect unique source files from loaded log entries
-        files: dict[str, int] = {}
-        for entry in log_entries:
-            src = entry.get("source_file") or "unknown"
-            files[src] = files.get(src, 0) + 1
-        file_list = [{"name": name, "entry_count": count} for name, count in sorted(files.items())]
-        return json.dumps({"total_files": len(file_list), "files": file_list})
-
-    if tool_name == "query_log_overview":
-        cached = _overview_cache.get(log_entries)
-        if cached is not None:
-            return json.dumps(cached)
-
-        level_counts: dict[str, int] = {}
-        tags: set[str] = set()
-        pids: set[str] = set()
-        timestamps: list[str] = []
-        numeric_timestamps: list[float] = []
-        for entry in log_entries:
-            lvl = entry.get("level", "?")
-            level_counts[lvl] = level_counts.get(lvl, 0) + 1
-            if entry.get("tag"):
-                tags.add(entry["tag"])
-            if entry.get("pid"):
-                pids.add(str(entry["pid"]))
-            if entry.get("timestamp"):
-                ts_text = str(entry["timestamp"])
-                timestamps.append(ts_text)
-                ts_num = _timestamp_to_seconds(entry["timestamp"])
-                if ts_num is not None:
-                    numeric_timestamps.append(ts_num)
-
-        # Build adaptive time-distribution buckets so the AI can pick
-        # sensible start_time / end_time windows for search_logs.
-        time_dist: list[dict] = []
-        if numeric_timestamps:
-            t_min = min(numeric_timestamps)
-            t_max = max(numeric_timestamps)
-            # Choose bucket size that yields 20-60 buckets
-            span = max(t_max - t_min, 1)
-            bucket_s = span / 40
-            for boundary in (1, 5, 10, 30, 60, 300, 600, 1800, 3600):
-                if bucket_s <= boundary:
-                    bucket_s = boundary
-                    break
-            buckets: dict[int, int] = {}
-            for ts in numeric_timestamps:
-                slot = int((ts - t_min) / bucket_s)
-                buckets[slot] = buckets.get(slot, 0) + 1
-            time_dist = [
-                {"bucket_start": t_min + s * bucket_s, "count": c}
-                for s, c in sorted(buckets.items())
-            ]
-
-        result = {
-            "total_stored": len(log_entries),
-            "level_distribution": level_counts,
-            "unique_tags": len(tags),
-            "unique_pids": len(pids),
-            "time_range": {
-                "start": min(timestamps) if timestamps else None,
-                "end": max(timestamps) if timestamps else None,
-            },
-            "time_distribution": time_dist,
-            "sample_tags": sorted(tags)[:30],
-            "sample_pids": sorted(pids)[:30],
-        }
-        _overview_cache.set(log_entries, result)
-        return json.dumps(result)
-
-    if tool_name == "search_logs":
-        level_filter = args.get("level", "").upper()
-        tag_filter = args.get("tag", "").lower()
-        pid_filter = str(args.get("pid", ""))
-        keyword = args.get("keyword", "")
-        start_time = args.get("start_time", "")
-        end_time = args.get("end_time", "")
-        limit = min(int(args.get("limit", 50)), 500)
-        offset = max(int(args.get("offset", 0)), 0)
-
-        min_level = _LEVEL_ORDER.get(level_filter, 0) if level_filter else 0
-        keyword_re = re.compile(keyword, re.IGNORECASE) if keyword else None
-
-        # Fast path: use pre-built index when no keyword regex or time range is specified.
-        # Tag filter must also be an exact tag match for the index to apply; partial/substring
-        # tag filters fall through to the slow path to preserve consistent semantics.
-        can_use_index = (
-            log_index is not None
-            and not keyword_re
-            and not start_time
-            and not end_time
-            and (not tag_filter or tag_filter in log_index.by_tag)
-        )
-        if can_use_index:
-            # Start with all indices, then intersect by each active filter
-            full_set: set[int] | None = None
-
-            if level_filter:
-                level_candidates: set[int] = set()
-                for lvl, indices in log_index.by_level.items():
-                    if _LEVEL_ORDER.get(lvl, 0) >= min_level:
-                        level_candidates.update(indices)
-                full_set = level_candidates
-            else:
-                full_set = set(range(log_index.total_entries))
-
-            if tag_filter and full_set is not None:
-                # Exact match only (ensured by can_use_index check above)
-                tag_indices = set(log_index.by_tag.get(tag_filter, []))
-                full_set &= tag_indices
-
-            if pid_filter and full_set is not None:
-                pid_indices = set(log_index.by_pid.get(pid_filter, []))
-                full_set &= pid_indices
-
-            if full_set is not None:
-                candidate_indices = sorted(full_set)
-                total_matched = len(candidate_indices)
-                page_indices = candidate_indices[offset : offset + limit]
-                all_matched = [log_entries[i] for i in page_indices]
-            else:
-                all_matched = []
-                total_matched = 0
-        else:
-            # Slow path: linear scan with streaming to avoid a large intermediate list.
-            # Count matches and collect only the page [offset, offset+limit) in one pass.
-            all_matched = []
-            total_matched = 0
-            entries_skipped = 0  # tracks progress toward the offset target
-            for entry in log_entries:
-                lvl = entry.get("level", "V")
-                if _LEVEL_ORDER.get(lvl, 0) < min_level:
-                    continue
-                if tag_filter and tag_filter not in (entry.get("tag") or "").lower():
-                    continue
-                if pid_filter and pid_filter != str(entry.get("pid") or ""):
-                    continue
-                ts = entry.get("timestamp") or ""
-                if start_time and ts < start_time:
-                    continue
-                if end_time and ts > end_time:
-                    continue
-                if keyword_re and not keyword_re.search(
-                    entry.get("message") or entry.get("raw_line") or ""
-                ):
-                    continue
-                total_matched += 1
-                if entries_skipped < offset:
-                    entries_skipped += 1
-                    continue
-                if len(all_matched) < limit:
-                    all_matched.append(entry)
-
-        # Trim message length to avoid token overflow when results are sent to the model
-        trimmed = []
-        for e in all_matched:
-            entry_copy = dict(e)
-            msg = entry_copy.get("message") or entry_copy.get("raw_line") or ""
-            if len(msg) > 300:
-                entry_copy["message"] = msg[:300] + "…"
-            trimmed.append(entry_copy)
-
-        return json.dumps(
-            {
-                "total_matched": total_matched,
-                "offset": offset,
-                "returned": len(trimmed),
-                "has_more": (offset + limit) < total_matched,
-                "entries": trimmed,
-            }
-        )
-
-    return json.dumps({"error": f"Unknown log tool: {tool_name}"})
-
-
 def _execute_list_log_files(args: dict) -> str:
     """List log files in a directory."""
     import os
@@ -2705,59 +2368,6 @@ def _execute_read_log_file(args: dict, session_file_path: str | None = None) -> 
         )
     except Exception as e:
         return json.dumps({"error": f"Failed to read {resolved}: {str(e)}"})
-
-
-def _execute_filter_logs(args: dict) -> str:
-    """Filter log entries from a file."""
-    from .log_analyzer import LogAnalyzer, LogFilters
-
-    file_path = args.get("file_path", "")
-    max_results = args.get("max_results", 200)
-
-    if not file_path:
-        return json.dumps({"error": "file_path is required"})
-
-    try:
-        analyzer = LogAnalyzer()
-        with open(file_path, "rb") as f:
-            content = f.read()
-
-        import os
-
-        results = analyzer.parse_log_bytes(content, os.path.basename(file_path))
-        all_entries = []
-        for result in results:
-            all_entries.extend(result.logs)
-
-        filters = LogFilters(
-            level=args.get("level"),
-            tag=args.get("tag"),
-            keywords=args.get("keyword"),
-            pid=args.get("pid"),
-            start_time=args.get("start_time"),
-            end_time=args.get("end_time"),
-        )
-        filtered = analyzer.filter_logs(all_entries, filters)
-        entries = filtered[:max_results]
-        return json.dumps(
-            {
-                "total_matches": len(filtered),
-                "entries_returned": len(entries),
-                "entries": [
-                    {
-                        "line_number": e.line_number,
-                        "timestamp": e.timestamp,
-                        "level": e.level,
-                        "tag": e.tag,
-                        "pid": e.pid,
-                        "message": e.message[:500],
-                    }
-                    for e in entries
-                ],
-            }
-        )
-    except Exception as e:
-        return json.dumps({"error": f"Failed to filter logs: {str(e)}"})
 
 
 # ── Ripgrep-accelerated log search ────────────────────────────────────────
