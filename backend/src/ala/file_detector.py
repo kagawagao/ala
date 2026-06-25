@@ -72,14 +72,15 @@ def detect_file_type_from_header(header: bytes) -> str:
     # ── ANR trace / Tombstone detection (text-based) ──────────────────────
     try:
         text = header.decode("utf-8", errors="replace")
+        scan_window = text[:8192]
         trimmed = text.lstrip()
 
         # Tombstone: *** *** *** ... marker line
-        if _TOMBSTONE_HEADER_PATTERN.search(trimmed):
+        if _TOMBSTONE_HEADER_PATTERN.search(scan_window):
             return "tombstone"
 
         # ANR trace: ----- pid N at ... ----- + "main" prio=
-        if _ANR_HEADER_PATTERN.search(trimmed) and '"main" prio=' in trimmed[:8192]:
+        if _ANR_HEADER_PATTERN.search(scan_window) and '"main" prio=' in scan_window:
             return "anr"
 
         # Fall through: JSON trace detection (existing)
