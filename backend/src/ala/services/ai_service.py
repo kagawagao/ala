@@ -425,6 +425,49 @@ class AIService:
                 )
             parts.append(lazy_hint)
 
+            # ── Bugreport directory hint ────────────────────────────────────
+            # When source_path is a directory, check for bugreport-characteristic
+            # files and provide a summary to help the AI navigate the contents.
+            try:
+                from .bugreport_router import classify_extracted_file as _classify
+            except ImportError:
+                pass
+            else:
+                file_types: dict[str, int] = {}
+                try:
+                    for entry in os.scandir(source_path):
+                        if entry.is_file():
+                            try:
+                                ft = _classify(entry.path)
+                            except Exception:
+                                ft = "other"
+                            file_types[ft] = file_types.get(ft, 0) + 1
+                except OSError:
+                    pass
+
+                if file_types:
+                    type_names = {
+                        "log": "log",
+                        "pcap": "PCAP",
+                        "hci": "HCI",
+                        "trace": "trace",
+                        "anr": "ANR trace",
+                        "tombstone": "tombstone",
+                        "other": "other",
+                    }
+                    summary_parts = [
+                        f"{count} {type_names.get(ft, ft)}"
+                        for ft, count in sorted(file_types.items())
+                    ]
+                    bugreport_hint = (
+                        f"Bugreport directory: {', '.join(summary_parts)}. "
+                        f"Use list_directory_logs to discover all files. "
+                        f"Use read_log_file(file_path='...') to read specific diagnostic "
+                        f"files (ANR traces, tombstones). "
+                        f"Use overview_local_log/search_local_log for large log files."
+                    )
+                    parts.append(bugreport_hint)
+
         if trace_summary:
             tools.extend(TRACE_TOOLS)
             meta = trace_summary.get("metadata", {})
