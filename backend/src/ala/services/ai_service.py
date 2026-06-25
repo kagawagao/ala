@@ -407,7 +407,13 @@ class AIService:
             else:
                 lazy_hint = (
                     "A local data file is available to the session's tools. "
-                    "It may be a log, PCAP/PCAPNG, or HCI/BTSnoop file. "
+                    "It may be a log, ANR trace, tombstone, PCAP/PCAPNG, or HCI/BTSnoop file. "
+                    "If it is a diagnostic file (ANR trace or tombstone), "
+                    "PREFER parse_diagnostic_file(file_path='...') to get structured "
+                    "JSON (threads, locks, signals, backtraces). "
+                    "Use parse_anr_trace or parse_tombstone directly if you already "
+                    "know the file type. "
+                    "Fall back to read_log_file only if diagnostic parsing fails. "
                     "Start with the matching overview tool: overview_local_log for logs, "
                     "overview_local_pcap for PCAP, or overview_local_hci for HCI. "
                     "For logs, use search_local_log with targeted filters to find relevant entries. "

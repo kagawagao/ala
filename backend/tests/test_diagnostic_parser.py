@@ -304,7 +304,7 @@ class TestParseTombstone:
         assert "sp" in regs
         assert "lr" in regs
         assert "x0" in regs
-        assert len(regs) >= 3
+        assert len(regs) >= 18
 
     def test_parse_tombstone_empty_file(self):
         """Tombstone: empty file returns error."""
