@@ -228,7 +228,6 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
         project = pm.get_project(session.project_id)
 
     trace_summary = session.trace_summary
-    # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index removed
     source_path = session.source_path
 
     logger.debug(

@@ -31,7 +31,6 @@ class Session:
     project_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
     trace_summary: dict | None = None
-    # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index fields removed
     source_path: str | None = None  # Universal file/directory path for all analysis
 
 
@@ -43,7 +42,6 @@ class SessionManager:
     def _row_to_session(self, row) -> Session:
         """Reconstruct a Session dataclass from a sqlite3.Row (or dict)."""
         sid = row["id"]
-        # REMOVED: entries→file refactor — log_entries, pcap_entries, hci_entries, log_index deserialization removed
         return Session(
             id=sid,
             title=row["title"],
