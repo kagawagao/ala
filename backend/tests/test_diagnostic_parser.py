@@ -472,7 +472,9 @@ class TestDiagnosticParserFromFile:
         try:
             with open(path, encoding="utf-8") as f:
                 content = f.read()
-            result = DiagnosticParser.parse_diagnostic(content)
+            result = DiagnosticParser.parse_diagnostic(content, file_path=path)
             assert result.get("type") == "tombstone"
+            # file_path is also accepted and used for error messages
+            assert result.get("file_path") is None  # success path doesn't set it
         finally:
             os.unlink(path)
