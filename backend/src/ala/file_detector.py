@@ -34,7 +34,7 @@ _TOMBSTONE_HEADER_PATTERN = re.compile(r"\*{3} \*{3} \*{3} \*{3}")
 def detect_file_type_from_header(header: bytes) -> str:
     """Detect file type from header bytes (first 8 KB recommended).
 
-    Returns one of: "log", "pcap", "hci", "trace".
+    Returns one of: "log", "pcap", "hci", "trace", "anr", "tombstone".
     """
     if len(header) == 0:
         return "log"
@@ -95,7 +95,7 @@ def detect_file_type_from_header(header: bytes) -> str:
 def detect_file_type_from_path(file_path: str) -> str:
     """Detect file type from a file path by reading its header bytes.
 
-    Returns one of: "log", "pcap", "hci", "trace".
+    Returns one of: "log", "pcap", "hci", "trace", "anr", "tombstone".
     """
     try:
         with open(file_path, "rb") as f:
