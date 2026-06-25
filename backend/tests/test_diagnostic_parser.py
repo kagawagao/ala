@@ -303,6 +303,7 @@ class TestParseTombstone:
         assert "pc" in regs
         assert "sp" in regs
         assert "lr" in regs
+        assert "x0" in regs
         assert len(regs) >= 3
 
     def test_parse_tombstone_empty_file(self):
@@ -471,7 +472,7 @@ class TestDiagnosticParserFromFile:
         try:
             with open(path, encoding="utf-8") as f:
                 content = f.read()
-            result = DiagnosticParser.parse_diagnostic(content, file_path=path)
+            result = DiagnosticParser.parse_diagnostic(content)
             assert result.get("type") == "tombstone"
         finally:
             os.unlink(path)

@@ -804,6 +804,29 @@ def query_perfetto_trace_sql(trace_file_path: str, sql: str | None = None) -> di
 from ..services.diagnostic_parser import DiagnosticParser  # noqa: E402
 
 
+def _validate_file_path(file_path: str) -> str:
+    """Resolve and validate a file path, rejecting traversal escapes.
+
+    Normalises the path, rejects ``..`` components, and resolves symlinks.
+    Returns the absolute real path on success.
+
+    Raises:
+        ValueError: If the path contains traversal attempts.
+    """
+    import os
+
+    if not file_path or not isinstance(file_path, str):
+        raise ValueError("Invalid file path")
+
+    # Reject path traversal via .. components
+    normalized = os.path.normpath(file_path)
+    parts = normalized.split(os.sep)
+    if ".." in parts:
+        raise ValueError(f"Path traversal not allowed: {file_path}")
+
+    return os.path.realpath(file_path)
+
+
 @mcp.tool()
 def parse_anr_trace(file_path: str) -> dict:
     """Parse an Android ANR (App Not Responding) trace file from disk.
@@ -822,6 +845,8 @@ def parse_anr_trace(file_path: str) -> dict:
     try:
         import os
 
+        file_path = _validate_file_path(file_path)
+
         if not os.path.isfile(file_path):
             return {"error": f"File not found: {file_path}"}
 
@@ -836,6 +861,8 @@ def parse_anr_trace(file_path: str) -> dict:
         with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
         return DiagnosticParser.parse_anr(content)
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e:
         return {"error": f"Failed to parse ANR trace: {str(e)}"}
 
@@ -858,6 +885,8 @@ def parse_tombstone(file_path: str) -> dict:
     try:
         import os
 
+        file_path = _validate_file_path(file_path)
+
         if not os.path.isfile(file_path):
             return {"error": f"File not found: {file_path}"}
 
@@ -872,5 +901,7 @@ def parse_tombstone(file_path: str) -> dict:
         with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
         return DiagnosticParser.parse_tombstone(content)
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e:
         return {"error": f"Failed to parse tombstone: {str(e)}"}

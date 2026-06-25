@@ -75,11 +75,11 @@ def detect_file_type_from_header(header: bytes) -> str:
         trimmed = text.lstrip()
 
         # Tombstone: *** *** *** ... marker line + signal info
-        if _TOMBSTONE_HEADER_PATTERN.search(trimmed) and "signal " in trimmed[:4096]:
+        if _TOMBSTONE_HEADER_PATTERN.search(trimmed) and "signal " in trimmed[:8192]:
             return "tombstone"
 
         # ANR trace: ----- pid N at ... ----- + "main" prio=
-        if _ANR_HEADER_PATTERN.search(trimmed) and '"main" prio=' in trimmed[:4096]:
+        if _ANR_HEADER_PATTERN.search(trimmed) and '"main" prio=' in trimmed[:8192]:
             return "anr"
 
         # Fall through: JSON trace detection (existing)
