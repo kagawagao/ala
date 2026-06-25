@@ -74,8 +74,8 @@ def detect_file_type_from_header(header: bytes) -> str:
         text = header.decode("utf-8", errors="replace")
         trimmed = text.lstrip()
 
-        # Tombstone: *** *** *** ... marker line + signal info
-        if _TOMBSTONE_HEADER_PATTERN.search(trimmed) and "signal " in trimmed[:8192]:
+        # Tombstone: *** *** *** ... marker line
+        if _TOMBSTONE_HEADER_PATTERN.search(trimmed):
             return "tombstone"
 
         # ANR trace: ----- pid N at ... ----- + "main" prio=
