@@ -314,5 +314,16 @@
   "clickToLoadFile": "Click a file to load and parse it",
   "loadFile": "Load",
   "directoryLoaded": "Directory loaded",
-  "directoryHint": "The AI assistant can explore files in this directory. Ask a question in the chat panel to get started."
+  "directoryHint": "The AI assistant can explore files in this directory. Ask a question in the chat panel to get started.",
+  "bugreport.title": "Bugreport Files",
+  "bugreport.extracted": "{{count}} files extracted",
+  "bugreport.expand": "Expand",
+  "bugreport.collapse": "Collapse",
+  "bugreport.type.log": "Log",
+  "bugreport.type.pcap": "Network Capture",
+  "bugreport.type.hci": "Bluetooth HCI",
+  "bugreport.type.trace": "Trace",
+  "bugreport.type.anr": "ANR",
+  "bugreport.type.tombstone": "Tombstone",
+  "bugreport.type.other": "Other"
 }

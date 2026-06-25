@@ -1,4 +1,5 @@
 import { apiUploadMulti } from './client'
+import type { BugreportFileInfo } from '../types'
 
 export interface UnifiedFileInfo {
   original_name: string
@@ -25,6 +26,9 @@ export interface UnifiedFileInfo {
 export interface UnifiedUploadResponse {
   session_uuid: string
   files: UnifiedFileInfo[]
+  bugreport_extracted?: boolean
+  bugreport_files?: BugreportFileInfo[]
+  extract_dir?: string
 }
 
 export async function uploadFiles(files: File[]): Promise<UnifiedUploadResponse> {

@@ -314,5 +314,16 @@
   "clickToLoadFile": "点击文件以加载并解析",
   "loadFile": "加载",
   "directoryLoaded": "目录已加载",
-  "directoryHint": "AI 助手可以浏览此目录中的文件，在右侧聊天面板中提问即可开始分析。"
+  "directoryHint": "AI 助手可以浏览此目录中的文件，在右侧聊天面板中提问即可开始分析。",
+  "bugreport.title": "Bugreport 文件",
+  "bugreport.extracted": "已解压 {{count}} 个文件",
+  "bugreport.expand": "展开",
+  "bugreport.collapse": "收起",
+  "bugreport.type.log": "日志",
+  "bugreport.type.pcap": "网络抓包",
+  "bugreport.type.hci": "蓝牙 HCI",
+  "bugreport.type.trace": "Trace",
+  "bugreport.type.anr": "ANR",
+  "bugreport.type.tombstone": "Tombstone",
+  "bugreport.type.other": "其他"
 }
