@@ -3,6 +3,8 @@
 Detection is purely header-based — file extension is never consulted.
 """
 
+import re
+
 _BTSNOOP_MAGIC = b"btsnoop\x00"
 
 _PCAP_MAGICS = {
@@ -19,6 +21,14 @@ _TRACE_MARKERS = (
     '"displayTimeUnit"',
     '"ph"',
 )
+
+# ── ANR trace header pattern ────────────────────────────────────────────────
+# Matches: "----- pid 1234 at 2025-08-15 14:30:22 -----"
+_ANR_HEADER_PATTERN = re.compile(r"----- pid \d+ at .* -----")
+
+# ── Tombstone header pattern ────────────────────────────────────────────────
+# Matches: "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***"
+_TOMBSTONE_HEADER_PATTERN = re.compile(r"\*{3} \*{3} \*{3} \*{3}")
 
 
 def detect_file_type_from_header(header: bytes) -> str:
@@ -59,10 +69,20 @@ def detect_file_type_from_header(header: bytes) -> str:
     if control_bytes > 4:
         return "trace"
 
-    # JSON trace signature scan
+    # ── ANR trace / Tombstone detection (text-based) ──────────────────────
     try:
         text = header.decode("utf-8", errors="replace")
         trimmed = text.lstrip()
+
+        # Tombstone: *** *** *** ... marker line + signal info
+        if _TOMBSTONE_HEADER_PATTERN.search(trimmed) and "signal " in trimmed[:4096]:
+            return "tombstone"
+
+        # ANR trace: ----- pid N at ... ----- + "main" prio=
+        if _ANR_HEADER_PATTERN.search(trimmed) and '"main" prio=' in trimmed[:4096]:
+            return "anr"
+
+        # Fall through: JSON trace detection (existing)
         if trimmed.startswith("{") or trimmed.startswith("["):
             if any(marker in text for marker in _TRACE_MARKERS):
                 return "trace"

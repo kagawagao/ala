@@ -21,6 +21,7 @@ from ..config import settings
 from .agent_tools import (
     AGENT_TOOLS,
     CODING_TOOLS,
+    DIAGNOSTIC_TOOLS,
     LAZY_HCI_TOOLS,
     LAZY_LOG_TOOLS,
     LAZY_PCAP_TOOLS,
@@ -379,6 +380,7 @@ class AIService:
             tools.extend(LAZY_LOG_TOOLS)
             tools.extend(LAZY_PCAP_TOOLS)
             tools.extend(LAZY_HCI_TOOLS)
+            tools.extend(DIAGNOSTIC_TOOLS)
             is_dir = os.path.isdir(source_path)
             if is_dir:
                 lazy_hint = (
@@ -389,8 +391,13 @@ class AIService:
                     "overview_local_log/search_local_log for logs, "
                     "overview_local_pcap/search_pcap_packets_lazy for PCAP, "
                     "overview_local_hci/search_hci_packets_lazy for HCI. "
-                    "For small diagnostic files (ANR traces, tombstones, crash logs, "
-                    "dropbox files < 200KB), use read_log_file(file_path='...') to "
+                    "For diagnostic files (ANR traces, tombstones, native crash dumps): "
+                    "PREFER parse_diagnostic_file(file_path='...') which auto-detects "
+                    "the file type and returns STRUCTURED JSON (threads, locks, signals, "
+                    "backtraces). This is much more efficient than reading raw text. "
+                    "Use parse_anr_trace or parse_tombstone directly if you already know "
+                    "the file type. Fall back to read_log_file only if parsing fails. "
+                    "For other small files (< 200KB), use read_log_file(file_path='...') to "
                     "read the ENTIRE file at once — this is much faster than keyword "
                     "search for small files. Only use search_local_log / "
                     "search_all_local for large files or when you need to find "

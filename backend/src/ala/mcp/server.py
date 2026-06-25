@@ -795,3 +795,82 @@ def query_perfetto_trace_sql(trace_file_path: str, sql: str | None = None) -> di
         Otherwise: {"columns": [...], "rows": [{...}], "row_count": N}.
     """
     return _trace_analyzer.query_sql(trace_file_path, sql)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Diagnostic file tools — ANR traces & tombstones
+# ──────────────────────────────────────────────────────────────────────────────
+
+from ..services.diagnostic_parser import DiagnosticParser  # noqa: E402
+
+
+@mcp.tool()
+def parse_anr_trace(file_path: str) -> dict:
+    """Parse an Android ANR (App Not Responding) trace file from disk.
+
+    Reads the file at *file_path*, extracts structured information including
+    the main thread stack, all thread states, held locks, and wait chains.
+
+    Args:
+        file_path: Absolute or relative path to the ANR trace file.
+
+    Returns:
+        Structured dict with process info, main_thread, all_threads,
+        held_locks, total_threads, anr_subject, and parse_time_ms.
+        Returns {"error": "..."} on failure.
+    """
+    try:
+        import os
+
+        if not os.path.isfile(file_path):
+            return {"error": f"File not found: {file_path}"}
+
+        size = os.path.getsize(file_path)
+        if size > DiagnosticParser.MAX_FILE_SIZE:
+            return {
+                "error": (
+                    f"File too large ({size} bytes, max {DiagnosticParser.MAX_FILE_SIZE // 1000}KB)"
+                ),
+            }
+
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return DiagnosticParser.parse_anr(content)
+    except Exception as e:
+        return {"error": f"Failed to parse ANR trace: {str(e)}"}
+
+
+@mcp.tool()
+def parse_tombstone(file_path: str) -> dict:
+    """Parse an Android tombstone (native crash dump) file from disk.
+
+    Reads the file at *file_path*, extracts structured information including
+    signal info, CPU registers, backtrace, abort message, and build fingerprint.
+
+    Args:
+        file_path: Absolute or relative path to the tombstone file.
+
+    Returns:
+        Structured dict with process, signal, registers, backtrace,
+        abort_message, build_fingerprint, abort_timestamp, and parse_time_ms.
+        Returns {"error": "..."} on failure.
+    """
+    try:
+        import os
+
+        if not os.path.isfile(file_path):
+            return {"error": f"File not found: {file_path}"}
+
+        size = os.path.getsize(file_path)
+        if size > DiagnosticParser.MAX_FILE_SIZE:
+            return {
+                "error": (
+                    f"File too large ({size} bytes, max {DiagnosticParser.MAX_FILE_SIZE // 1000}KB)"
+                ),
+            }
+
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return DiagnosticParser.parse_tombstone(content)
+    except Exception as e:
+        return {"error": f"Failed to parse tombstone: {str(e)}"}
