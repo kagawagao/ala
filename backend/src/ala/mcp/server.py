@@ -807,11 +807,14 @@ from ..services.diagnostic_parser import DiagnosticParser  # noqa: E402
 def _validate_file_path(file_path: str) -> str:
     """Resolve and validate a file path, rejecting traversal escapes.
 
-    Normalises the path, rejects ``..`` components, and resolves symlinks.
+    Normalises the path, rejects ``..`` components, resolves symlinks,
+    and ensures the file resides within the configured allowed root.
+
     Returns the absolute real path on success.
 
     Raises:
-        ValueError: If the path contains traversal attempts.
+        ValueError: If the path contains traversal attempts or is outside
+                    the allowed root.
     """
     import os
 
@@ -824,7 +827,17 @@ def _validate_file_path(file_path: str) -> str:
     if ".." in parts:
         raise ValueError(f"Path traversal not allowed: {file_path}")
 
-    return os.path.realpath(file_path)
+    resolved = os.path.realpath(file_path)
+
+    # Constrain to allowed root
+    from ..config import settings
+
+    allowed_root = settings.mcp_allowed_root or os.getcwd()
+    allowed_root = os.path.realpath(allowed_root)
+    if not resolved.startswith(allowed_root + os.sep) and resolved != allowed_root:
+        raise ValueError(f"File outside allowed root: {file_path}")
+
+    return resolved
 
 
 @mcp.tool()

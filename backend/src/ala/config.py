@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # AI agent behaviour
     ai_max_tool_rounds: int = 50  # max iterations in agentic tool-calling loop
 
+    # MCP security
+    mcp_allowed_root: str = ""  # if empty, resolves to CWD; constrains MCP file reads
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
