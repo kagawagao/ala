@@ -192,8 +192,4 @@ export interface SessionStateEvent {
 }
 
 export type AgentEvent =
-  | ToolCallEvent
-  | ToolResultEvent
-  | ThinkingEvent
-  | MaxRoundsReachedEvent
-  | SessionStateEvent
+  ToolCallEvent | ToolResultEvent | ThinkingEvent | MaxRoundsReachedEvent | SessionStateEvent
