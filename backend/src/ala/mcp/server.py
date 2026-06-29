@@ -795,3 +795,126 @@ def query_perfetto_trace_sql(trace_file_path: str, sql: str | None = None) -> di
         Otherwise: {"columns": [...], "rows": [{...}], "row_count": N}.
     """
     return _trace_analyzer.query_sql(trace_file_path, sql)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Diagnostic file tools — ANR traces & tombstones
+# ──────────────────────────────────────────────────────────────────────────────
+
+from ..services.diagnostic_parser import DiagnosticParser  # noqa: E402
+
+
+def _validate_file_path(file_path: str) -> str:
+    """Resolve and validate a file path, rejecting traversal escapes.
+
+    Normalises the path, rejects ``..`` components, resolves symlinks,
+    and ensures the file resides within the configured allowed root.
+
+    Returns the absolute real path on success.
+
+    Raises:
+        ValueError: If the path contains traversal attempts or is outside
+                    the allowed root.
+    """
+    import os
+
+    if not file_path or not isinstance(file_path, str):
+        raise ValueError("Invalid file path")
+
+    # Reject path traversal via .. components
+    normalized = os.path.normpath(file_path)
+    parts = normalized.split(os.sep)
+    if ".." in parts:
+        raise ValueError(f"Path traversal not allowed: {file_path}")
+
+    resolved = os.path.realpath(file_path)
+
+    # Constrain to allowed root
+    from ..config import settings
+
+    allowed_root = settings.mcp_allowed_root or os.getcwd()
+    allowed_root = os.path.realpath(allowed_root)
+    if not resolved.startswith(allowed_root + os.sep) and resolved != allowed_root:
+        raise ValueError(f"File outside allowed root: {file_path}")
+
+    return resolved
+
+
+@mcp.tool()
+def parse_anr_trace(file_path: str) -> dict:
+    """Parse an Android ANR (App Not Responding) trace file from disk.
+
+    Reads the file at *file_path*, extracts structured information including
+    the main thread stack, all thread states, held locks, and wait chains.
+
+    Args:
+        file_path: Absolute or relative path to the ANR trace file.
+
+    Returns:
+        Structured dict with process info, main_thread, all_threads,
+        held_locks, total_threads, anr_subject, and parse_time_ms.
+        Returns {"error": "..."} on failure.
+    """
+    try:
+        import os
+
+        file_path = _validate_file_path(file_path)
+
+        if not os.path.isfile(file_path):
+            return {"error": f"File not found: {file_path}"}
+
+        size = os.path.getsize(file_path)
+        if size > DiagnosticParser.MAX_FILE_SIZE:
+            return {
+                "error": (
+                    f"File too large ({size} bytes, max {DiagnosticParser.MAX_FILE_SIZE // 1000}KB)"
+                ),
+            }
+
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return DiagnosticParser.parse_anr(content)
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Failed to parse ANR trace: {str(e)}"}
+
+
+@mcp.tool()
+def parse_tombstone(file_path: str) -> dict:
+    """Parse an Android tombstone (native crash dump) file from disk.
+
+    Reads the file at *file_path*, extracts structured information including
+    signal info, CPU registers, backtrace, abort message, and build fingerprint.
+
+    Args:
+        file_path: Absolute or relative path to the tombstone file.
+
+    Returns:
+        Structured dict with process, signal, registers, backtrace,
+        abort_message, build_fingerprint, abort_timestamp, and parse_time_ms.
+        Returns {"error": "..."} on failure.
+    """
+    try:
+        import os
+
+        file_path = _validate_file_path(file_path)
+
+        if not os.path.isfile(file_path):
+            return {"error": f"File not found: {file_path}"}
+
+        size = os.path.getsize(file_path)
+        if size > DiagnosticParser.MAX_FILE_SIZE:
+            return {
+                "error": (
+                    f"File too large ({size} bytes, max {DiagnosticParser.MAX_FILE_SIZE // 1000}KB)"
+                ),
+            }
+
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return DiagnosticParser.parse_tombstone(content)
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Failed to parse tombstone: {str(e)}"}
