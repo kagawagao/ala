@@ -3,6 +3,8 @@
 Detection is purely header-based — file extension is never consulted.
 """
 
+import re
+
 _BTSNOOP_MAGIC = b"btsnoop\x00"
 
 _PCAP_MAGICS = {
@@ -20,11 +22,19 @@ _TRACE_MARKERS = (
     '"ph"',
 )
 
+# ── ANR trace header pattern ────────────────────────────────────────────────
+# Matches: "----- pid 1234 at 2025-08-15 14:30:22 -----"
+_ANR_HEADER_PATTERN = re.compile(r"----- pid \d+ at .* -----")
+
+# ── Tombstone header pattern ────────────────────────────────────────────────
+# Matches: "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***"
+_TOMBSTONE_HEADER_PATTERN = re.compile(r"\*{3} \*{3} \*{3} \*{3}")
+
 
 def detect_file_type_from_header(header: bytes) -> str:
     """Detect file type from header bytes (first 8 KB recommended).
 
-    Returns one of: "log", "pcap", "hci", "trace".
+    Returns one of: "log", "pcap", "hci", "trace", "anr", "tombstone".
     """
     if len(header) == 0:
         return "log"
@@ -59,10 +69,21 @@ def detect_file_type_from_header(header: bytes) -> str:
     if control_bytes > 4:
         return "trace"
 
-    # JSON trace signature scan
+    # ── ANR trace / Tombstone detection (text-based) ──────────────────────
     try:
         text = header.decode("utf-8", errors="replace")
+        scan_window = text[:8192]
         trimmed = text.lstrip()
+
+        # Tombstone: *** *** *** ... marker line
+        if _TOMBSTONE_HEADER_PATTERN.search(scan_window):
+            return "tombstone"
+
+        # ANR trace: ----- pid N at ... ----- + "main" prio=
+        if _ANR_HEADER_PATTERN.search(scan_window) and '"main" prio=' in scan_window:
+            return "anr"
+
+        # Fall through: JSON trace detection (existing)
         if trimmed.startswith("{") or trimmed.startswith("["):
             if any(marker in text for marker in _TRACE_MARKERS):
                 return "trace"
@@ -75,7 +96,7 @@ def detect_file_type_from_header(header: bytes) -> str:
 def detect_file_type_from_path(file_path: str) -> str:
     """Detect file type from a file path by reading its header bytes.
 
-    Returns one of: "log", "pcap", "hci", "trace".
+    Returns one of: "log", "pcap", "hci", "trace", "anr", "tombstone".
     """
     try:
         with open(file_path, "rb") as f:

@@ -404,6 +404,79 @@ LAZY_LOG_TOOLS: list[dict] = [
     },
 ]
 
+# ── Diagnostic file tools (ANR traces, tombstones, native crashes) ─────────
+
+DIAGNOSTIC_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "parse_anr_trace",
+        "description": (
+            "Parse an Android ANR (App Not Responding) trace file and return "
+            "structured analysis including main thread stack, all thread states, "
+            "held locks, and wait chains. Input: file_path relative to session "
+            "source directory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "File name or relative path to the ANR trace file. "
+                        "Resolved relative to the session log directory."
+                    ),
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "parse_tombstone",
+        "description": (
+            "Parse an Android tombstone file (native crash dump) and return "
+            "structured analysis including signal info, registers, backtrace, "
+            "and abort message. Input: file_path relative to session source "
+            "directory."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "File name or relative path to the tombstone file. "
+                        "Resolved relative to the session log directory."
+                    ),
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "parse_diagnostic_file",
+        "description": (
+            "Auto-detect and parse an Android diagnostic file (ANR trace or "
+            "tombstone). Returns structured JSON with type-specific analysis. "
+            "This is the RECOMMENDED tool for analyzing crash dumps and ANR "
+            "reports — use it instead of read_log_file for diagnostic files. "
+            "Falls back gracefully: if the file cannot be parsed as ANR or "
+            "tombstone, suggests using read_log_file for raw access."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": (
+                        "File name or relative path to the diagnostic file. "
+                        "Resolved relative to the session log directory."
+                    ),
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+]
+
 # Anthropic tool schemas – project (code/log) tools
 AGENT_TOOLS: list[dict[str, Any]] = [
     {
@@ -1029,6 +1102,20 @@ def execute_tool(
         if source_path is None:
             return json.dumps({"error": "No local log path set in this session"})
         return _execute_read_log_file(args, source_path)
+
+    # ── Diagnostic parser tools (ANR traces, tombstones) ──────────────────
+    if tool_name in (
+        "parse_anr_trace",
+        "parse_tombstone",
+        "parse_diagnostic_file",
+    ):
+        if source_path is None:
+            return json.dumps({"error": "No source path set in this session"})
+        try:
+            return _execute_diagnostic_tool(tool_name, args, source_path)
+        except Exception as e:
+            logger.warning("tool=%s failed: %s", tool_name, e, exc_info=True)
+            return json.dumps({"error": f"Diagnostic tool '{tool_name}' failed: {e}"})
 
     # search_all_local — composite: logs + code in one call
     if tool_name == "search_all_local":
@@ -2525,6 +2612,73 @@ def _search_log_with_rg(
         return None
 
     return results
+
+
+# ── Diagnostic tool executor ──────────────────────────────────────────────
+
+
+def _execute_diagnostic_tool(tool_name: str, args: dict, source_path: str) -> str:
+    """Execute a diagnostic parsing tool (parse_anr_trace / parse_tombstone /
+    parse_diagnostic_file).
+
+    Follows the same path-resolution + file-read pattern as
+    _execute_read_log_file.
+    """
+    import os as _os
+
+    from .diagnostic_parser import DiagnosticParser
+
+    requested = (args.get("file_path") or "").strip()
+    if not requested:
+        return json.dumps({"error": "file_path is required"})
+
+    # ── Resolve path ─────────────────────────────────────────────────────
+    resolved: str | None = None
+    if _os.path.isfile(source_path):
+        resolved = source_path
+    elif _os.path.isdir(source_path):
+        resolved = _resolve_within_base(source_path, requested)
+
+    if not resolved:
+        return json.dumps(
+            {
+                "error": f"File not found: {requested}",
+                "session_path": source_path,
+            }
+        )
+
+    # ── Size check ───────────────────────────────────────────────────────
+    try:
+        size = _os.path.getsize(resolved)
+    except OSError:
+        return json.dumps({"error": f"Cannot access file: {resolved}"})
+
+    if size > DiagnosticParser.MAX_FILE_SIZE:
+        return json.dumps(
+            {
+                "error": (
+                    f"File too large ({size} bytes, max "
+                    f"{DiagnosticParser.MAX_FILE_SIZE // 1000}KB). "
+                    f"Use read_log_file for raw access."
+                ),
+            }
+        )
+
+    # ── Read and parse ───────────────────────────────────────────────────
+    try:
+        with open(resolved, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+    except Exception as e:
+        return json.dumps({"error": f"Failed to read {resolved}: {e}"})
+
+    if tool_name == "parse_anr_trace":
+        result = DiagnosticParser.parse_anr(content)
+    elif tool_name == "parse_tombstone":
+        result = DiagnosticParser.parse_tombstone(content)
+    else:  # parse_diagnostic_file
+        result = DiagnosticParser.parse_diagnostic(content, file_path=resolved)
+
+    return json.dumps(result)
 
 
 # ── Composite search_all_local executor ───────────────────────────────────
