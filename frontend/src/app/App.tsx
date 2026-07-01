@@ -1023,7 +1023,7 @@ const AppContent: React.FC<{
                   {f.original_name}
                 </Typography.Text>
                 <Tag color="orange" style={{ fontSize: 10, marginLeft: 4 }}>
-                  {f.classified_type}
+                  {t(`bugreport.type.${f.classified_type}`)}
                 </Tag>
               </div>
             ))

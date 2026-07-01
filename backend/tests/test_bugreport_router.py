@@ -519,7 +519,9 @@ class TestSecurity:
                 zf.writestr(f"file_{i}.txt", huge_repeated)
 
         with tempfile.TemporaryDirectory() as output_dir:
-            with pytest.raises(ValueError, match="[Zz]ip bomb|[Cc]ompression ratio"):
+            with pytest.raises(
+                ValueError, match="[Zz]ip bomb|[Cc]ompression ratio|[Zz]ip too large"
+            ):
                 extract_bugreport(path, output_dir)
 
         os.unlink(path)

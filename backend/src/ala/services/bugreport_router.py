@@ -110,6 +110,15 @@ def extract_bugreport(zip_path: str, output_dir: str) -> list[ExtractedFileInfo]
 
     total_compressed = sum(info.compress_size for info in infos)
     total_uncompressed = sum(info.file_size for info in infos)
+
+    # Independent uncompressed-size guard — catches low-compression
+    # ZIPs that would otherwise bypass the ratio-based bomb check.
+    if total_uncompressed > MAX_UNCOMPRESSED_BOMB_BYTES:
+        raise ValueError(
+            f"Zip too large: uncompressed size {total_uncompressed:,} bytes "
+            f"exceeds maximum of {MAX_UNCOMPRESSED_BOMB_BYTES:,} bytes"
+        )
+
     if total_compressed > 0:
         ratio = total_uncompressed / total_compressed
         if ratio > MAX_COMPRESSION_RATIO and total_uncompressed > MAX_UNCOMPRESSED_BOMB_BYTES:
@@ -119,13 +128,21 @@ def extract_bugreport(zip_path: str, output_dir: str) -> list[ExtractedFileInfo]
             )
 
     # ── Extract ────────────────────────────────────────────────────────
-    # Reuse the battle-tested extraction logic from log_analyzer.
-    # It handles path-traversal protection, mtime-based caching, and
-    # the {path}_extracted directory convention.
-    from .log_analyzer import _extract_archive_to_disk  # noqa: PLC0415
+    # Extract directly to *output_dir* after the security pre-checks above.
+    # Path-traversal protection: normalize each member path and reject
+    # absolute paths or parent-directory escapes.
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            for member in zf.infolist():
+                member_path = os.path.normpath(member.filename)
+                if member_path.startswith("..") or os.path.isabs(member_path):
+                    logger.warning("Skipping potentially unsafe path: %s", member.filename)
+                    continue
+                zf.extract(member, str(output))
+    except (zipfile.BadZipFile, OSError, RuntimeError) as e:
+        raise ValueError(f"Extraction failed: {e}") from e
 
-    filename = os.path.basename(zip_path)
-    actual_extract_dir = _extract_archive_to_disk(zip_path, filename)
+    actual_extract_dir = output
 
     # ── Collect and classify extracted files ───────────────────────────
     results: list[ExtractedFileInfo] = []

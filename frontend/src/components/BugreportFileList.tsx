@@ -103,6 +103,15 @@ const BugreportFileList: React.FC<BugreportFileListProps> = ({ files, onSelectFi
                     <List.Item
                       style={{ cursor: 'pointer', padding: '8px 12px' }}
                       onClick={() => onSelectFile(file)}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={file.original_name}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onSelectFile(file)
+                        }
+                      }}
                     >
                       <div
                         style={{
