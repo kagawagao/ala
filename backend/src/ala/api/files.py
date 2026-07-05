@@ -51,6 +51,9 @@ class UnifiedFileInfo(BaseModel):
 class UnifiedUploadResponse(BaseModel):
     session_uuid: str
     files: list[UnifiedFileInfo]
+    # Bugreport-specific fields (populated only when a bugreport .zip is detected)
+    bugreport_files: list[dict] | None = None
+    bugreport_extracted: bool = False
 
 
 # ── Endpoint ───────────────────────────────────────────────────────────
@@ -72,6 +75,8 @@ async def unified_upload(files: list[UploadFile] = File(...)):
 
     session_uuid = str(uuid.uuid4())
     result_files: list[UnifiedFileInfo] = []
+    bugreport_files: list[dict] | None = None
+    bugreport_extracted = False
 
     for upload in files:
         # Read enough of the file to detect type (up to 8 KB)
@@ -137,6 +142,72 @@ async def unified_upload(files: list[UploadFile] = File(...)):
         with os.fdopen(fd, "wb") as f:
             f.write(content)
 
+        # ── Bugreport .zip detection and auto-extraction ─────────────────
+        if file_type == "log" and content[:2] == b"\x50\x4b":  # ZIP magic
+            try:
+                from ..config import settings
+                from ..services.bugreport_router import extract_bugreport, is_bugreport_zip
+                from ..services.session_manager import SessionManager
+
+                if is_bugreport_zip(str(dest_path)):
+                    extract_dir = str(dest_path) + "_extracted"
+                    extracted = extract_bugreport(str(dest_path), extract_dir)
+
+                    # Add the zip itself to result files
+                    result_files.append(
+                        UnifiedFileInfo(
+                            original_name=filename,
+                            saved_path=str(dest_path),
+                            size_bytes=len(content),
+                            file_type=file_type,
+                            format_detected="bugreport_zip",
+                        )
+                    )
+
+                    # Populate bugreport-specific response fields
+                    bugreport_files = [
+                        {
+                            "path": ef.path,
+                            "original_name": ef.original_name,
+                            "classified_type": ef.classified_type,
+                            "size": ef.size,
+                        }
+                        for ef in extracted
+                    ]
+                    bugreport_extracted = True
+
+                    # Create a session and set the source_path to the extracted dir
+                    from datetime import UTC, datetime
+
+                    _sm = SessionManager(max_sessions=settings.max_sessions)
+                    _sm._db.execute(
+                        "INSERT OR REPLACE INTO sessions (id, title, context_type, source_path, created_at) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (
+                            session_uuid,
+                            f"Bugreport: {filename}",
+                            "bugreport",
+                            extract_dir,
+                            datetime.now(UTC).isoformat(),
+                        ),
+                    )
+                    _sm._db.commit()
+
+                    logger.info(
+                        "Bugreport extracted: %d files from %s",
+                        len(extracted),
+                        filename,
+                    )
+                    continue  # skip normal format detection for this file
+            except Exception as exc:
+                logger.warning(
+                    "Bugreport detection/extraction failed for %r: %s — "
+                    "falling back to normal zip handling",
+                    filename,
+                    exc,
+                )
+                # Fall through to normal zip handling below
+
         # Detect format-specific sub-type
         format_detected = "unknown"
         try:
@@ -174,4 +245,9 @@ async def unified_upload(files: list[UploadFile] = File(...)):
         [f.file_type for f in result_files],
     )
 
-    return UnifiedUploadResponse(session_uuid=session_uuid, files=result_files)
+    return UnifiedUploadResponse(
+        session_uuid=session_uuid,
+        files=result_files,
+        bugreport_files=bugreport_files,
+        bugreport_extracted=bugreport_extracted,
+    )

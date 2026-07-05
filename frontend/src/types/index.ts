@@ -152,6 +152,13 @@ export interface LocalFileRef {
   truncated: boolean
 }
 
+export interface BugreportFileInfo {
+  path: string
+  original_name: string
+  classified_type: 'log' | 'pcap' | 'hci' | 'trace' | 'anr' | 'tombstone' | 'other'
+  size: number
+}
+
 export interface ContextDoc {
   path: string
   content: string

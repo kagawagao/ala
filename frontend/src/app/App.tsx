@@ -33,6 +33,7 @@ import {
   updateProjectPresets,
 } from '../api/projects'
 import AiPanel from '../components/AiPanel'
+import BugreportFileList from '../components/BugreportFileList'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import DirectoryFilePicker from '../components/DirectoryFilePicker'
 import FileUpload from '../components/FileUpload'
@@ -49,6 +50,7 @@ import { useLazyHciStream } from '../hooks/useLazyHciStream'
 import i18next from '../i18n/config'
 import type {
   AIConfig,
+  BugreportFileInfo,
   ContextDoc,
   FilterPreset,
   HighlightItem,
@@ -271,6 +273,10 @@ const AppContent: React.FC<{
 
   // Pending uploaded files — stored but not yet parsed (agent decides when to load)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+
+  // Bugreport extracted files — shown in BugreportFileList panel
+  const [bugreportFiles, setBugreportFiles] = useState<BugreportFileInfo[]>([])
+  const [bugreportExtractDir, setBugreportExtractDir] = useState<string>('')
 
   // Directory listing — populated by autoPath when isDirectory is detected
   const [directoryFiles, setDirectoryFiles] = useState<DirectoryFileInfo[]>([])
@@ -683,6 +689,8 @@ const AppContent: React.FC<{
       setFilteredHciEntries([])
       setDetectedFileType(null)
       setPendingFiles([])
+      setBugreportFiles([])
+      setBugreportExtractDir('')
       setFilters(DEFAULT_FILTERS)
       setActiveTab('log')
       setSelectedProjectId(projectId)
@@ -728,11 +736,27 @@ const AppContent: React.FC<{
       setTraceError(undefined)
       setTraceLoading(false)
       setPendingFiles([])
+      setBugreportFiles([])
+      setBugreportExtractDir('')
 
       try {
         const result = await uploadFiles(files)
-        if (result.files.length === 0) {
+        if (result.files.length === 0 && !result.bugreport_extracted) {
           void message.error(t('parseError'))
+          return
+        }
+
+        // ★ Bugreport branch — backend detected bugreport.zip and extracted files
+        if (
+          result.bugreport_extracted &&
+          result.bugreport_files &&
+          result.bugreport_files.length > 0
+        ) {
+          setBugreportFiles(result.bugreport_files)
+          setBugreportExtractDir(result.extract_dir || '')
+          setDetectedFileType('bugreport')
+          setActiveTab('log')
+          void message.success(t('fileUploaded'))
           return
         }
 
@@ -795,6 +819,49 @@ const AppContent: React.FC<{
       )
     },
     [loadSource, loadPcapSource, loadHciSource],
+  )
+
+  // Handle bugreport file click — route to appropriate tab based on classified_type
+  const handleBugreportFileClick = useCallback(
+    (file: BugreportFileInfo) => {
+      const fullPath = bugreportExtractDir
+        ? `${bugreportExtractDir.replace(/\\/g, '/').replace(/\/+$/, '')}/${file.path}`
+        : file.path
+      const displayName = file.original_name
+
+      switch (file.classified_type) {
+        case 'log':
+          setFilters(DEFAULT_FILTERS)
+          loadSource(fullPath, [displayName])
+          setActiveTab('log')
+          break
+        case 'pcap':
+          loadPcapSource(fullPath, [displayName], 'pcap')
+          setActiveTab('pcap')
+          break
+        case 'hci':
+          loadHciSource(fullPath, [displayName], 'hci')
+          setActiveTab('hci')
+          break
+        case 'trace':
+          // Trace files need to be parsed; switch to trace tab
+          setActiveTab('trace')
+          break
+        case 'anr':
+        case 'tombstone':
+        case 'other':
+          // Load as log — the AI agent can analyze these diagnostic files
+          setFilters(DEFAULT_FILTERS)
+          loadSource(fullPath, [displayName])
+          setActiveTab('log')
+          break
+      }
+
+      // Clear bugreport state after loading a file
+      setBugreportFiles([])
+      setBugreportExtractDir('')
+    },
+    [bugreportExtractDir, loadSource, loadPcapSource, loadHciSource],
   )
 
   // Local path handler — detects file vs directory, routes accordingly
@@ -899,7 +966,12 @@ const AppContent: React.FC<{
   )
 
   const showFileUpload =
-    !sourceRef && !traceResult && !pcapSourcePath && !hciSourcePath && pendingFiles.length === 0
+    !sourceRef &&
+    !traceResult &&
+    !pcapSourcePath &&
+    !hciSourcePath &&
+    pendingFiles.length === 0 &&
+    bugreportFiles.length === 0
 
   const isLoading = loadingFile || pcapLoading || hciLoading || traceLoading
   const errorMessage = fileError || pcapError || hciError || traceError
@@ -914,7 +986,8 @@ const AppContent: React.FC<{
     fileNames.length > 0 ||
     pcapFileNames.length > 0 ||
     hciFileNames.length > 0 ||
-    pendingFiles.length > 0
+    pendingFiles.length > 0 ||
+    bugreportFiles.length > 0
 
   const popoverFileInfo = hasLoadedFiles ? (
     <div style={{ marginBottom: 8 }}>
@@ -939,33 +1012,48 @@ const AppContent: React.FC<{
               </Tag>
             </div>
           ))
-        : loadedNames.map((name, idx) => (
-            <div
-              key={`${name}-${idx}`}
-              style={{ padding: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <FileOutlined style={{ fontSize: 12 }} />
-              <Typography.Text style={{ fontSize: 12 }} ellipsis title={name}>
-                {name}
-              </Typography.Text>
-              {detectedFileType && (
-                <Tag
-                  color={
-                    detectedFileType === 'pcap'
-                      ? 'blue'
-                      : detectedFileType === 'hci'
-                        ? 'purple'
-                        : detectedFileType === 'trace'
-                          ? 'orange'
-                          : 'green'
-                  }
-                  style={{ fontSize: 10, marginLeft: 4 }}
-                >
-                  {detectedFileType}
+        : bugreportFiles.length > 0
+          ? bugreportFiles.map((f, idx) => (
+              <div
+                key={`${f.original_name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <FileOutlined style={{ fontSize: 12 }} />
+                <Typography.Text style={{ fontSize: 12 }} ellipsis title={f.original_name}>
+                  {f.original_name}
+                </Typography.Text>
+                <Tag color="orange" style={{ fontSize: 10, marginLeft: 4 }}>
+                  {t(`bugreport.type.${f.classified_type}`)}
                 </Tag>
-              )}
-            </div>
-          ))}
+              </div>
+            ))
+          : loadedNames.map((name, idx) => (
+              <div
+                key={`${name}-${idx}`}
+                style={{ padding: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <FileOutlined style={{ fontSize: 12 }} />
+                <Typography.Text style={{ fontSize: 12 }} ellipsis title={name}>
+                  {name}
+                </Typography.Text>
+                {detectedFileType && (
+                  <Tag
+                    color={
+                      detectedFileType === 'pcap'
+                        ? 'blue'
+                        : detectedFileType === 'hci'
+                          ? 'purple'
+                          : detectedFileType === 'trace'
+                            ? 'orange'
+                            : 'green'
+                    }
+                    style={{ fontSize: 10, marginLeft: 4 }}
+                  >
+                    {detectedFileType}
+                  </Tag>
+                )}
+              </div>
+            ))}
     </div>
   ) : null
 
@@ -1246,6 +1334,11 @@ const AppContent: React.FC<{
                               loading={isLoading}
                               error={errorMessage}
                               fileNames={fileNames}
+                            />
+                          ) : bugreportFiles.length > 0 ? (
+                            <BugreportFileList
+                              files={bugreportFiles}
+                              onSelectFile={handleBugreportFileClick}
                             />
                           ) : pendingFiles.length > 0 ? (
                             <PendingFilesView
