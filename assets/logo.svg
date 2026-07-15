@@ -1,122 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0d1117"/>
-      <stop offset="100%" stop-color="#161b22"/>
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#1f2a44"/>
     </linearGradient>
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#58a6ff"/>
-      <stop offset="100%" stop-color="#1f6feb"/>
+      <stop offset="0%" stop-color="#6ee7ff"/>
+      <stop offset="100%" stop-color="#4f7dff"/>
     </linearGradient>
-    <linearGradient id="green" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3fb950"/>
-      <stop offset="100%" stop-color="#238636"/>
+    <linearGradient id="accentSoft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7ff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#4f7dff" stop-opacity="0.08"/>
     </linearGradient>
-    <linearGradient id="glow" x1="50%" y1="0%" x2="50%" y2="100%">
-      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#58a6ff" flood-opacity="0.25"/>
-    </filter>
-    <filter id="innerGlow">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
-      <feFlood flood-color="#58a6ff" flood-opacity="0.15"/>
-      <feComposite in2="blur" operator="in"/>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#3b82f6" flood-opacity="0.28"/>
     </filter>
   </defs>
 
-  <!-- Background rounded square -->
   <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- Subtle border -->
-  <rect x="2" y="2" width="508" height="508" rx="106" fill="none" stroke="#30363d" stroke-width="2"/>
+  <rect x="2" y="2" width="508" height="508" rx="106" fill="none" stroke="#334155" stroke-width="2"/>
 
-  <!-- Decorative circuit lines (subtle tech pattern) -->
-  <g opacity="0.08" stroke="#58a6ff" stroke-width="1.5" fill="none">
-    <path d="M80 100 H126 V156"/>
-    <path d="M432 100 H386 V156"/>
-    <path d="M80 412 H126 V356"/>
-    <path d="M432 412 H386 V356"/>
-    <circle cx="126" cy="100" r="3" fill="#58a6ff"/>
-    <circle cx="386" cy="100" r="3" fill="#58a6ff"/>
-    <circle cx="126" cy="412" r="3" fill="#58a6ff"/>
-    <circle cx="386" cy="412" r="3" fill="#58a6ff"/>
+  <g opacity="0.35" stroke="#8ab4ff" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M94 156H158"/>
+    <path d="M354 156H418"/>
+    <path d="M94 356H158"/>
+    <path d="M354 356H418"/>
+    <circle cx="158" cy="156" r="8" fill="#8ab4ff"/>
+    <circle cx="354" cy="156" r="8" fill="#8ab4ff"/>
+    <circle cx="158" cy="356" r="8" fill="#8ab4ff"/>
+    <circle cx="354" cy="356" r="8" fill="#8ab4ff"/>
   </g>
 
-  <!-- Central terminal/document shape -->
   <g filter="url(#shadow)">
-    <rect x="72" y="72" width="368" height="368" rx="22" fill="#21262d" stroke="#30363d" stroke-width="2"/>
-
-    <!-- Terminal title bar -->
-    <rect x="72" y="72" width="368" height="48" rx="22" fill="#282e36"/>
-    <rect x="72" y="96" width="368" height="24" fill="#282e36"/>
-    <!-- Window dots -->
-    <circle cx="107" cy="96" r="8" fill="#f85149"/>
-    <circle cx="137" cy="96" r="8" fill="#d29922"/>
-    <circle cx="167" cy="96" r="8" fill="#3fb950"/>
-
-    <!-- Log lines with colored level indicators -->
-    <!-- Line 1 - Info (blue) -->
-    <rect x="104" y="146" width="8" height="8" rx="1" fill="#58a6ff"/>
-    <rect x="124" y="146" width="80" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="146" width="176" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 2 - Warning (yellow) -->
-    <rect x="104" y="176" width="8" height="8" rx="1" fill="#d29922"/>
-    <rect x="124" y="176" width="64" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="176" width="164" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 3 - Error (red) - highlighted -->
-    <rect x="88" y="196" width="336" height="28" rx="5" fill="#f8514920"/>
-    <rect x="104" y="206" width="8" height="8" rx="1" fill="#f85149"/>
-    <rect x="124" y="206" width="96" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="206" width="136" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 4 - Debug (green) -->
-    <rect x="104" y="236" width="8" height="8" rx="1" fill="#3fb950"/>
-    <rect x="124" y="236" width="72" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="236" width="120" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 5 - Info (blue) -->
-    <rect x="104" y="266" width="8" height="8" rx="1" fill="#58a6ff"/>
-    <rect x="124" y="266" width="60" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="266" width="164" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 6 - Verbose (gray) -->
-    <rect x="104" y="296" width="8" height="8" rx="1" fill="#8b949e"/>
-    <rect x="124" y="296" width="76" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="296" width="144" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 7 - Warning -->
-    <rect x="104" y="326" width="8" height="8" rx="1" fill="#d29922"/>
-    <rect x="124" y="326" width="88" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="326" width="104" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 8 - Info (blue) -->
-    <rect x="104" y="356" width="8" height="8" rx="1" fill="#58a6ff"/>
-    <rect x="124" y="356" width="52" height="8" rx="2" fill="#484f58"/>
-    <rect x="228" y="356" width="132" height="8" rx="2" fill="#8b949e" opacity="0.5"/>
-
-    <!-- Line 9 - partial/faded -->
-    <rect x="104" y="386" width="8" height="8" rx="1" fill="#8b949e" opacity="0.4"/>
-    <rect x="124" y="386" width="68" height="8" rx="2" fill="#484f58" opacity="0.4"/>
-    <rect x="228" y="386" width="94" height="8" rx="2" fill="#8b949e" opacity="0.2"/>
+    <polygon points="256,116 360,176 360,296 256,356 152,296 152,176" fill="url(#accentSoft)" stroke="url(#accent)" stroke-width="14" stroke-linejoin="round"/>
+    <polyline points="200,216 240,256 312,184" fill="none" stroke="url(#accent)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="200" cy="216" r="11" fill="#6ee7ff"/>
+    <circle cx="240" cy="256" r="11" fill="#6ee7ff"/>
+    <circle cx="312" cy="184" r="11" fill="#6ee7ff"/>
   </g>
-
-  <!-- AI sparkle/analysis overlay (bottom-right) -->
-  <g transform="translate(388, 370)">
-    <circle cx="40" cy="40" r="44" fill="url(#accent)" opacity="0.9" filter="url(#innerGlow)"/>
-    <!-- Magnifying glass / analysis icon -->
-    <circle cx="34" cy="34" r="16" fill="none" stroke="#fff" stroke-width="3.5"/>
-    <line x1="45" y1="45" x2="58" y2="58" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
-    <!-- Sparkle dots suggesting AI -->
-    <circle cx="22" cy="18" r="2.5" fill="#fff" opacity="0.9"/>
-    <circle cx="56" cy="22" r="2" fill="#fff" opacity="0.7"/>
-    <circle cx="18" cy="54" r="1.5" fill="#fff" opacity="0.6"/>
-  </g>
-
 </svg>
