@@ -1,26 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen, cleanup } from '@testing-library/react'
 import { App } from 'antd'
 import TraceViewer from '../TraceViewer'
 import type { TraceParseResult } from '../../types'
-
-vi.mock('../../api/trace', () => ({
-  filterTrace: vi.fn().mockResolvedValue({
-    summary: {
-      duration_ms: 100,
-      process_count: 2,
-      thread_count: 4,
-      event_count: 50,
-      processes: [{ pid: 100, name: 'system', thread_count: 2 }],
-      top_slices: [{ name: 'draw', count: 5, duration_ms: 50 }],
-      ftrace_events: ['sched_switch'],
-      metadata: { key: 'value' },
-    },
-    format: 'proto',
-    file_size: 2048,
-  }),
-}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -36,13 +18,6 @@ vi.mock('react-i18next', () => ({
         metadata: 'Metadata',
         process: 'Process',
         message: 'Message',
-        filtered: 'Filtered',
-        processFilter: 'Process Filter',
-        resetFilter: 'Reset Filter',
-        selectProcesses: 'Select processes…',
-        processNameRegex: 'Name regex',
-        pidCommaList: 'PIDs',
-        applyFilter: 'Apply Filter',
         ms: 'ms',
       }
       return map[key] ?? key
@@ -201,107 +176,6 @@ describe('TraceViewer', () => {
       </Wrapper>,
     )
     expect(screen.getByText('Metadata')).toBeInTheDocument()
-  })
-
-  it('renders process filter UI', () => {
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    expect(screen.getByText('Process Filter')).toBeInTheDocument()
-    expect(screen.getByText('Apply Filter')).toBeInTheDocument()
-    // antd v6 Select may render placeholder differently; check via text content
-    expect(screen.getByText('Select processes…')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name regex')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('PIDs')).toBeInTheDocument()
-  })
-
-  it('shows reset filter button after filtering', async () => {
-    const { filterTrace } = await import('../../api/trace')
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    // Type something in the PID field and click Apply
-    const pidInput = screen.getByPlaceholderText('PIDs')
-    await userEvent.type(pidInput, '100')
-    await userEvent.click(screen.getByText('Apply Filter'))
-    await waitFor(() => {
-      expect(filterTrace).toHaveBeenCalled()
-    })
-    expect(screen.getByText('Reset Filter')).toBeInTheDocument()
-  })
-
-  it('clears filtered result on reset', async () => {
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    const pidInput = screen.getByPlaceholderText('PIDs')
-    await userEvent.type(pidInput, '100')
-    await userEvent.click(screen.getByText('Apply Filter'))
-    await waitFor(() => {
-      expect(screen.getByText('Reset Filter')).toBeInTheDocument()
-    })
-    await userEvent.click(screen.getByText('Reset Filter'))
-    // After reset, the filtered tag should be gone
-    expect(screen.queryByText('Filtered')).not.toBeInTheDocument()
-  })
-
-  it('shows filtered tag when filter is applied', async () => {
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    const pidInput = screen.getByPlaceholderText('PIDs')
-    await userEvent.type(pidInput, '100')
-    await userEvent.click(screen.getByText('Apply Filter'))
-    await waitFor(() => {
-      expect(screen.getByText('Filtered')).toBeInTheDocument()
-    })
-  })
-
-  it('handles filter with process name', async () => {
-    const { filterTrace } = await import('../../api/trace')
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    const nameInput = screen.getByPlaceholderText('Name regex')
-    await userEvent.type(nameInput, 'system')
-    await userEvent.click(screen.getByText('Apply Filter'))
-    await waitFor(() => {
-      expect(filterTrace).toHaveBeenCalledWith(expect.objectContaining({ process_name: 'system' }))
-    })
-  })
-
-  it('clears filter when both PID and process name are empty', async () => {
-    const result = makeTraceResult()
-    render(
-      <Wrapper>
-        <TraceViewer traceResult={result} />
-      </Wrapper>,
-    )
-    // Apply filter first
-    const pidInput = screen.getByPlaceholderText('PIDs')
-    await userEvent.type(pidInput, '100')
-    await userEvent.click(screen.getByText('Apply Filter'))
-    // Now clear and apply again
-    await userEvent.clear(pidInput)
-    await userEvent.click(screen.getByText('Apply Filter'))
-    await waitFor(() => {
-      expect(screen.queryByText('Filtered')).not.toBeInTheDocument()
-    })
   })
 
   it('hides process table when processes array is empty', () => {

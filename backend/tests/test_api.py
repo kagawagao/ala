@@ -127,11 +127,11 @@ class TestLogParse:
             assert resp.status_code == 200
             data = resp.json()
             assert data["line_count"] == 5
-            assert data["session_file"] == path
+            # The API canonicalises the path (symlinks resolved) for sandbox
+            # confinement — on macOS /var is a symlink to /private/var.
+            assert data["session_file"] == os.path.realpath(path)
             assert data["format_detected"] == "android_logcat"
         finally:
-            import os
-
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -518,10 +518,9 @@ class TestChatSessions:
             resp = client.put(f"/api/chat/sessions/{sid}/source-path", json={"source_path": path})
             assert resp.status_code == 200
             assert resp.json()["success"] is True
-            assert resp.json()["source_path"] == path
+            # Canonical (symlink-resolved) path is returned, not the raw input.
+            assert resp.json()["source_path"] == os.path.realpath(path)
         finally:
-            import os
-
             if os.path.exists(path):
                 os.unlink(path)
 
