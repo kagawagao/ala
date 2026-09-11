@@ -9,6 +9,7 @@ export interface CreateModelPayload {
   description?: string
   anthropic_compatible?: boolean | null
   supports_thinking?: boolean
+  supports_vision?: boolean
 }
 
 export interface UpdateModelPayload {
@@ -20,6 +21,7 @@ export interface UpdateModelPayload {
   /** Pass undefined to leave unchanged, null to set auto-detect. */
   anthropic_compatible?: boolean | null | 'unset'
   supports_thinking?: boolean
+  supports_vision?: boolean
 }
 
 export async function listModels(): Promise<ModelPreset[]> {

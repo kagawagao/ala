@@ -428,6 +428,12 @@ right parser. Each domain also exposes its own temp-upload + lazy-filter endpoin
 - `GET /api/config` **masks the API key** — do not treat the returned value as a reusable secret
 - Supports Anthropic (native SDK) and any OpenAI-compatible API (OpenAI, Ollama, Azure, LM Studio)
 - Supports "extended thinking" (think mode) for deeper reasoning
+- **Multimodal input**: models whose preset sets `supports_vision` accept inline images
+  (PNG / JPEG / WebP / GIF, ≤ 8 MB each, ≤ 8 per message) attached from the chat panel via the
+  file picker or clipboard paste. Images are base64-encoded on the client, validated in
+  `ala/api/chat.py`, and rendered into provider-native content blocks — Anthropic `image` blocks
+  (before the text block) or OpenAI-compatible `image_url` parts. The chat API rejects images
+  for text-only models with a 400 rather than letting the provider fail opaquely.
 
 ### Agentic Analysis (AI tools)
 
@@ -560,7 +566,7 @@ Environment variables (loaded from `backend/.env`, or `.env` next to frozen exec
 | `LOG_DIR`                   | `logs`                         | Rotating log file directory             |
 | `AI_API_ENDPOINT`           | `https://api.anthropic.com`    | AI provider base URL                    |
 | `AI_API_KEY`                | (empty)                        | API key                                 |
-| `AI_MODEL`                  | `claude-sonnet-4-20250514`     | Model name                              |
+| `AI_MODEL`                  | `claude-sonnet-5`              | Model name                              |
 | `AI_TEMPERATURE`            | `0.7`                          | Sampling temperature                    |
 | `AI_THINKING_MODE`          | `off`                          | `off` / `auto` / `on`                   |
 | `AI_THINKING_BUDGET_TOKENS` | `8000`                         | Max tokens for think mode               |

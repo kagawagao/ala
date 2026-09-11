@@ -28,6 +28,7 @@ class ModelPresetOut(BaseModel):
     builtin: bool = False
     anthropic_compatible: bool | None = None
     supports_thinking: bool = False
+    supports_vision: bool = False
     enabled: bool = True
 
     @classmethod
@@ -42,6 +43,7 @@ class ModelPresetOut(BaseModel):
             builtin=p.builtin,
             anthropic_compatible=p.anthropic_compatible,
             supports_thinking=p.supports_thinking,
+            supports_vision=p.supports_vision,
             enabled=p.enabled,
         )
 
@@ -54,6 +56,7 @@ class CreateModelRequest(BaseModel):
     description: str = ""
     anthropic_compatible: bool | None = None
     supports_thinking: bool = False
+    supports_vision: bool = False
 
 
 class UpdateModelRequest(BaseModel):
@@ -65,6 +68,7 @@ class UpdateModelRequest(BaseModel):
     # "unset" = leave unchanged
     anthropic_compatible: bool | None | Literal["unset"] = "unset"
     supports_thinking: bool | None = None
+    supports_vision: bool | None = None
     enabled: bool | None = None
 
 
@@ -94,6 +98,7 @@ async def create_model(req: CreateModelRequest):
         description=req.description,
         anthropic_compatible=req.anthropic_compatible,
         supports_thinking=req.supports_thinking,
+        supports_vision=req.supports_vision,
     )
     logger.info("Created custom model: %s (%s)", preset.name, preset.id)
     return ModelPresetOut.from_preset(preset)
@@ -117,6 +122,7 @@ async def update_model(preset_id: str, req: UpdateModelRequest):
             description=req.description,
             anthropic_compatible=compat,
             supports_thinking=req.supports_thinking,
+            supports_vision=req.supports_vision,
             enabled=req.enabled,
         )
     except ValueError as exc:

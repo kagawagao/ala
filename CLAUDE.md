@@ -91,6 +91,7 @@ of `log`, `pcap`, `hci`, `trace`, `anr`, `tombstone`. The unified upload endpoin
 - **Diagnostics**: `diagnostic_parser.py` (pure stdlib) parses ANR traces (`parse_anr`) and native tombstones (`parse_tombstone`) into structured JSON, with `parse_diagnostic` auto-detecting the flavour.
 - **Traces**: two-step — `parseTrace()` uploads (TraceProcessor → JSON fallback → legacy varint), then `filterTrace()` filters by PID/process name regex (case-insensitive).
 - **AI Chat**: SSE streaming via `POST /api/chat/sessions/:id/messages`. Agentic analysis uses tool sets selected by available data (see below). Session metadata is persisted in SQLite; conversation history is managed by the frontend (IndexedDB) and sent with each request.
+- **Multimodal input**: models with `supports_vision` on their preset accept inline images (PNG/JPEG/WebP/GIF, ≤ 8 MB, ≤ 8 per message) sent as an `attachments` array on the message. `ala/api/chat.py` validates them; `build_multimodal_content()` in `ai_service.py` renders Anthropic `image` blocks or OpenAI `image_url` parts. Text-only models are rejected with a 400.
 - **Projects**: Source directories registered as projects. `code_scanner.py` uses ripgrep to discover logging patterns. Context docs (AGENTS.md, CLAUDE.md, README.md, `.cursorrules`, `.github/copilot-instructions.md`, etc.) in project dirs are auto-injected at the top of the AI system prompt (capped ~50 KB).
 
 ### Agent tool sets
@@ -229,7 +230,7 @@ Conventional Commits enforced by commitlint + Husky. Pre-commit hook runs ESLint
 | `LOG_DIR`                   | `logs`                         | Rotating log files                  |
 | `AI_API_ENDPOINT`           | `https://api.anthropic.com`    | AI provider URL                     |
 | `AI_API_KEY`                | (empty)                        | API key                             |
-| `AI_MODEL`                  | `claude-sonnet-4-20250514`     | Model name                          |
+| `AI_MODEL`                  | `claude-sonnet-5`              | Model name                          |
 | `AI_TEMPERATURE`            | `0.7`                          | Sampling temperature                |
 | `AI_THINKING_MODE`          | `off`                          | `off`/`auto`/`on`                   |
 | `AI_THINKING_BUDGET_TOKENS` | `8000`                         | Think mode token budget             |

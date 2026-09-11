@@ -1,7 +1,10 @@
 """Multi-turn chat with streaming SSE."""
 
+import base64
+import binascii
 import json
 import logging
+from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request
@@ -9,8 +12,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
-from ..services.ai_service import AIService
+from ..services.ai_service import (
+    MAX_IMAGE_ATTACHMENTS,
+    MAX_IMAGE_BYTES,
+    SUPPORTED_IMAGE_MEDIA_TYPES,
+    AIService,
+)
 from ..services.log_analyzer import LogAnalyzer, PathTraversalError
+from ..services.model_manager import model_manager
 from ..services.session_manager import SessionManager
 from .config import get_ai_config
 from .projects import get_project_manager
@@ -26,10 +35,19 @@ def _sse_encode(chunk: str) -> str:
     return "\n".join(f"data: {line}" for line in lines) + "\n\n"
 
 
+class Attachment(BaseModel):
+    """An inline image attachment sent alongside a chat message."""
+
+    type: Literal["image"] = "image"
+    media_type: str  # e.g. "image/png"
+    data: str  # base64-encoded payload (a "data:" URL prefix is also accepted)
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
     parts: str | None = None  # JSON array of structured message parts
+    attachments: list[Attachment] | None = None
 
 
 class Session(BaseModel):
@@ -60,6 +78,7 @@ class ModelOverride(BaseModel):
 class SendMessageRequest(BaseModel):
     message: str
     context: str | None = None  # Serialized log/trace context
+    attachments: list[Attachment] | None = None  # Inline images for multimodal models
     model_override: ModelOverride | None = None
     # UI language for AI responses (e.g. "en", "zh")
     language: str | None = None
@@ -96,6 +115,76 @@ def _session_to_response(session) -> Session:
         context_type=session.context_type,
         project_id=session.project_id,
     )
+
+
+def _normalize_attachment(att: Attachment) -> dict:
+    """Validate a single image attachment and return a provider-ready dict."""
+    media_type = (att.media_type or "").strip().lower()
+    data = (att.data or "").strip()
+
+    # Tolerate full data URLs by extracting the declared media type + payload.
+    if data.startswith("data:"):
+        header, _, payload = data.partition(",")
+        if not payload:
+            raise HTTPException(status_code=400, detail="Malformed attachment data URL.")
+        media_type = header[len("data:") :].split(";")[0].strip().lower() or media_type
+        data = payload.strip()
+
+    if media_type not in SUPPORTED_IMAGE_MEDIA_TYPES:
+        supported = ", ".join(sorted(SUPPORTED_IMAGE_MEDIA_TYPES))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type '{att.media_type}'. Supported types: {supported}.",
+        )
+    if not data:
+        raise HTTPException(status_code=400, detail="Attachment payload is empty.")
+
+    try:
+        decoded = base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status_code=400, detail="Attachment payload is not valid base64."
+        ) from exc
+
+    if not decoded:
+        raise HTTPException(status_code=400, detail="Attachment payload is empty.")
+    if len(decoded) > MAX_IMAGE_BYTES:
+        limit_mb = MAX_IMAGE_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image exceeds the {limit_mb} MB limit ({len(decoded)} bytes).",
+        )
+    return {"type": "image", "media_type": media_type, "data": data}
+
+
+def _validate_attachments(attachments: list[Attachment] | None) -> list[dict]:
+    """Validate an attachment list, enforcing count and per-image limits."""
+    if not attachments:
+        return []
+    if len(attachments) > MAX_IMAGE_ATTACHMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many images ({len(attachments)}). Maximum is "
+            f"{MAX_IMAGE_ATTACHMENTS} per message.",
+        )
+    return [_normalize_attachment(att) for att in attachments]
+
+
+def _assert_vision_capable(model_id: str) -> None:
+    """Reject image attachments for models known to be text-only.
+
+    Unknown (custom) model ids pass through — the provider remains the authority
+    for anything we hold no metadata for.
+    """
+    for preset in model_manager.list_models():
+        if preset.model_id == model_id:
+            if not preset.supports_vision:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model '{preset.name}' does not accept image input. "
+                    "Select a vision-capable model or remove the images.",
+                )
+            return
 
 
 @router.post("/sessions", response_model=Session)
@@ -211,15 +300,29 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
     # Build messages list from frontend-provided history.
     # The frontend manages conversation history in localStorage and sends
     # the full list with each request. For new sessions this is an empty list.
+    # Inline images are validated up front so bad payloads fail fast, before any
+    # provider call is made.
+    message_attachments = _validate_attachments(req.attachments)
+    if message_attachments:
+        _assert_vision_capable(ov.model if ov else ai_config.model)
+
     messages: list[dict] = []
     if req.context:
         messages.append({"role": "system", "content": req.context})
 
     history = req.history or []
     for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
+        entry: dict = {"role": msg.role, "content": msg.content}
+        prior_attachments = _validate_attachments(msg.attachments)
+        if prior_attachments:
+            # Keep images from earlier turns attached so visual context persists.
+            entry["attachments"] = prior_attachments
+        messages.append(entry)
 
-    messages.append({"role": "user", "content": req.message})
+    user_message: dict = {"role": "user", "content": req.message}
+    if message_attachments:
+        user_message["attachments"] = message_attachments
+    messages.append(user_message)
 
     # Resolve project (if any) and trace/data for agentic mode
     project = None
@@ -231,9 +334,10 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
     source_path = session.source_path
 
     logger.debug(
-        "send_message — session=%s model=%s",
+        "send_message — session=%s model=%s images=%d",
         session_id,
         ov.model if ov else ai_config.model,
+        len(message_attachments),
     )
 
     async def event_stream():

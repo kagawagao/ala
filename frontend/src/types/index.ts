@@ -56,10 +56,20 @@ export interface TraceParseResult {
   file_size: number
 }
 
+/** Inline image attachment sent with a chat message (multimodal input). */
+export interface ChatAttachment {
+  type: 'image'
+  /** MIME type, e.g. "image/png". */
+  media_type: string
+  /** Base64 payload without the `data:` prefix. */
+  data: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   parts?: string | null // JSON array of structured message parts
+  attachments?: ChatAttachment[] | null // inline images for multimodal models
 }
 
 export interface Session {
@@ -117,6 +127,8 @@ export interface ModelPreset {
   anthropic_compatible?: boolean
   /** Whether this model supports thinking/reasoning mode as configured in this app. */
   supports_thinking?: boolean
+  /** Whether this model accepts image (vision) input. */
+  supports_vision?: boolean
 }
 
 export interface Project {

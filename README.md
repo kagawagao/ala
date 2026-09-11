@@ -212,7 +212,7 @@ The app opens in your default browser at `http://localhost:8000` automatically.
 
 ```env
 AI_API_KEY=sk-ant-...
-AI_MODEL=claude-sonnet-4-20250514
+AI_MODEL=claude-sonnet-5
 ```
 
 Or configure it in the app's Settings UI after launching.
@@ -240,7 +240,7 @@ Configure AI settings in the UI (Settings button) or via environment variables i
 ```env
 AI_API_ENDPOINT=https://api.openai.com/v1
 AI_API_KEY=sk-...
-AI_MODEL=gpt-4o-mini
+AI_MODEL=gpt-5.6-sol
 AI_TEMPERATURE=0.7
 ```
 

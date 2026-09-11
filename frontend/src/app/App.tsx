@@ -535,6 +535,14 @@ const AppContent: React.FC<{
     [allModels, modelConfigsRevision],
   )
 
+  // Whether the model currently backing `aiConfig` accepts image input.
+  // Derived from the model list so it stays correct regardless of how the
+  // active config was resolved (explicit selection, fallback, or env var).
+  const activeSupportsVision = useMemo(() => {
+    if (!aiConfig) return false
+    return allModels.find((m) => m.model_id === aiConfig.model)?.supports_vision ?? false
+  }, [aiConfig, allModels])
+
   // Global model change handler — persists to localStorage and recomputes aiConfig
   const handleGlobalModelChange = useCallback(
     (id: string) => {
@@ -1391,6 +1399,7 @@ const AppContent: React.FC<{
                               contextDocs={contextDocs}
                               sourcePath={aiSourcePath}
                               aiConfig={aiConfig ?? undefined}
+                              supportsVision={activeSupportsVision}
                             />
                           </div>
                         </div>

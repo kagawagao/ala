@@ -33,6 +33,16 @@ from .project_manager import Project
 
 MAX_TOOL_ROUNDS = settings.ai_max_tool_rounds
 MAX_TOKENS = 32768
+
+# ── Multimodal (vision) input ────────────────────────────────────────────────
+# Image attachments travel inline as base64.  Requests are validated at the API
+# boundary (see ``ala/api/chat.py``) before they reach a provider.
+SUPPORTED_IMAGE_MEDIA_TYPES: frozenset[str] = frozenset(
+    {"image/png", "image/jpeg", "image/webp", "image/gif"}
+)
+MAX_IMAGE_ATTACHMENTS = 8
+MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MB per image (decoded)
+
 _scanner = get_shared_scanner()
 logger = logging.getLogger(__name__)
 
@@ -179,6 +189,52 @@ def _truncate_tool_result(tool_name: str, result_str: str, max_chars: int = 8000
     if len(result_str) > max_chars:
         result_str = result_str[:max_chars] + "… (truncated)"
     return result_str
+
+
+def build_multimodal_content(
+    text: str, attachments: list[dict[str, Any]], *, use_anthropic: bool
+) -> Any:
+    """Render text + image attachments into provider-native message content.
+
+    Returns a plain string when there are no attachments, so text-only requests
+    keep their original payload shape.
+
+    Anthropic expects content blocks shaped as
+    ``{"type": "image", "source": {"type": "base64", "media_type": ..., "data": ...}}``.
+    OpenAI-compatible endpoints expect
+    ``{"type": "image_url", "image_url": {"url": "data:<mime>;base64,<data>"}}``.
+    """
+    if not attachments:
+        return text
+
+    if use_anthropic:
+        # Anthropic recommends placing images before the text prompt.
+        blocks: list[dict[str, Any]] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": att["media_type"],
+                    "data": att["data"],
+                },
+            }
+            for att in attachments
+        ]
+        if text:
+            blocks.append({"type": "text", "text": text})
+        return blocks
+
+    parts: list[dict[str, Any]] = []
+    if text:
+        parts.append({"type": "text", "text": text})
+    parts.extend(
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:{att['media_type']};base64,{att['data']}"},
+        }
+        for att in attachments
+    )
+    return parts
 
 
 class AIService:
@@ -502,11 +558,35 @@ class AIService:
                 api_messages.append(msg)
         return system_text, api_messages
 
+    def _normalize_messages(self, messages: list[dict]) -> list[dict]:
+        """Rewrite messages carrying ``attachments`` into provider-native content.
+
+        The ``attachments`` key is always stripped — providers reject unknown
+        message fields.  Messages without attachments pass through untouched so
+        text-only requests keep their original payload shape.
+        """
+        normalized: list[dict] = []
+        for msg in messages:
+            if "attachments" not in msg:
+                normalized.append(msg)
+                continue
+            clean = {k: v for k, v in msg.items() if k != "attachments"}
+            attachments = msg.get("attachments") or []
+            if attachments:
+                clean["content"] = build_multimodal_content(
+                    msg.get("content") or "",
+                    attachments,
+                    use_anthropic=self._use_anthropic,
+                )
+            normalized.append(clean)
+        return normalized
+
     # ── Anthropic implementation ──────────────────────────────────────────────
 
     async def _stream_chat_anthropic(self, messages: list[dict]) -> AsyncIterator[str]:
         """Simple streaming chat via Anthropic. Supports extended thinking."""
         system_text, api_messages = self._extract_system(messages)
+        api_messages = self._normalize_messages(api_messages)
 
         extra = self._thinking_params()
         extra_headers = extra.pop("extra_headers", None)
@@ -599,6 +679,7 @@ class AIService:
         )
 
         existing_system, rebuilt_messages = self._extract_system(messages)
+        rebuilt_messages = self._normalize_messages(rebuilt_messages)
         if existing_system:
             system_text = system_text + "\n\n" + existing_system
 
@@ -807,6 +888,7 @@ class AIService:
 
     async def _stream_chat_openai(self, messages: list[dict]) -> AsyncIterator[str]:
         """Simple streaming chat via OpenAI-compatible API."""
+        messages = self._normalize_messages(messages)
         logger.debug("OpenAI stream_chat — model=%s messages=%d", self._model, len(messages))
         try:
             stream = await self._openai_client.chat.completions.create(
@@ -873,6 +955,7 @@ class AIService:
 
         # Build message list: prepend system prompt, then include any inline system message
         existing_system, base_messages = self._extract_system(messages)
+        base_messages = self._normalize_messages(base_messages)
         combined_system = system_text
         if existing_system:
             combined_system = combined_system + "\n\n" + existing_system
