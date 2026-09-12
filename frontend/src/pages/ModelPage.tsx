@@ -50,6 +50,7 @@ interface CustomModelForm {
   api_endpoint: string
   anthropic_compatible: 'auto' | 'anthropic' | 'openai'
   supports_thinking: boolean
+  supports_vision: boolean
 }
 
 interface ConfigForm {
@@ -225,6 +226,7 @@ const ModelPage: React.FC<{
             api_endpoint: values.api_endpoint.trim(),
             anthropic_compatible: formCompatToPreset(values.anthropic_compatible) ?? null,
             supports_thinking: values.supports_thinking,
+            supports_vision: values.supports_vision,
           })
           setModels((prev) => [...prev, preset])
           addForm.resetFields()
@@ -252,6 +254,7 @@ const ModelPage: React.FC<{
             api_endpoint: values.api_endpoint.trim(),
             anthropic_compatible: formCompatToPreset(values.anthropic_compatible),
             supports_thinking: values.supports_thinking,
+            supports_vision: values.supports_vision,
           })
           setModels((prev) => prev.map((m) => (m.id === editTarget.id ? updated : m)))
           setEditTarget(null)
@@ -288,6 +291,7 @@ const ModelPage: React.FC<{
         description: model.description,
         anthropic_compatible: model.anthropic_compatible ?? null,
         supports_thinking: model.supports_thinking,
+        supports_vision: model.supports_vision,
       })
       setModels((prev) => [...prev, newPreset])
       if (sourceConfig.api_key) {
@@ -309,6 +313,7 @@ const ModelPage: React.FC<{
       api_endpoint: model.api_endpoint,
       anthropic_compatible: presetCompatToForm(model.anthropic_compatible),
       supports_thinking: model.supports_thinking ?? false,
+      supports_vision: model.supports_vision ?? false,
     })
   }
 
@@ -404,6 +409,11 @@ const ModelPage: React.FC<{
               {m.supports_thinking && (
                 <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
                   {t('supportsThinking')}
+                </Tag>
+              )}
+              {m.supports_vision && (
+                <Tag color="cyan" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+                  {t('supportsVision')}
                 </Tag>
               )}
             </Space>
@@ -647,6 +657,14 @@ const ModelPage: React.FC<{
           >
             <Switch />
           </Form.Item>
+          <Form.Item
+            label={t('supportsVision')}
+            name="supports_vision"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Switch />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -700,6 +718,14 @@ const ModelPage: React.FC<{
           <Form.Item
             label={t('supportsThinking')}
             name="supports_thinking"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            label={t('supportsVision')}
+            name="supports_vision"
             valuePropName="checked"
             initialValue={false}
           >

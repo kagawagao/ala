@@ -1,5 +1,5 @@
 import { apiFetch, streamSSE } from './client'
-import type { ChatMessage, Session } from '../types'
+import type { ChatAttachment, ChatMessage, Session } from '../types'
 
 export async function createSession(
   title: string,
@@ -63,12 +63,14 @@ export async function* sendMessage(
   history?: ChatMessage[],
   rawApiMessages?: Record<string, unknown>[] | null,
   rawApiMessagesProvider?: string | null,
+  attachments?: ChatAttachment[] | null,
 ): AsyncGenerator<string> {
   yield* streamSSE(
     `/chat/sessions/${sessionId}/messages`,
     {
       message,
       context,
+      attachments: attachments ?? null,
       model_override: modelOverride ?? null,
       language,
       history: history ?? [],

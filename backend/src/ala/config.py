@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # AI defaults (user can override via API)
     ai_api_endpoint: str = "https://api.anthropic.com"
     ai_api_key: str = ""
-    ai_model: str = "claude-sonnet-4-20250514"
+    ai_model: str = "claude-sonnet-5"
     ai_temperature: float = 0.7
     ai_thinking_mode: str = "off"  # off | auto | on
     ai_thinking_budget_tokens: int = 8000

@@ -6,6 +6,7 @@ import {
   DownloadOutlined,
   FileTextOutlined,
   LinkOutlined,
+  PictureOutlined,
   PlusOutlined,
   RobotOutlined,
   SendOutlined,
@@ -41,6 +42,7 @@ import {
 } from '../api/chat'
 import type {
   AIConfig,
+  ChatAttachment,
   ChatMessage,
   ContextDoc,
   LogFilters,
@@ -52,6 +54,34 @@ import { createSSEState, processSSEChunk } from '../utils/sseParser'
 
 const { Text } = Typography
 const { TextArea } = Input
+
+// ── Multimodal (image) input limits — mirrored by the backend in ala/api/chat.py
+const SUPPORTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_ATTACHMENTS = 8
+
+/** Read a File into a base64 attachment (payload without the `data:` prefix). */
+function fileToAttachment(file: File): Promise<ChatAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
+    reader.onload = () => {
+      const result = String(reader.result ?? '')
+      const comma = result.indexOf(',')
+      if (comma < 0) {
+        reject(new Error(`Failed to read ${file.name}`))
+        return
+      }
+      resolve({ type: 'image', media_type: file.type, data: result.slice(comma + 1) })
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+/** Turn an attachment back into an inline data URL for previews / rendering. */
+function attachmentPreviewUrl(attachment: ChatAttachment): string {
+  return `data:${attachment.media_type};base64,${attachment.data}`
+}
 
 interface ToolCallInfo {
   name: string
@@ -69,6 +99,7 @@ interface DisplayMessage {
   role: 'user' | 'assistant' | 'system'
   content: string // plain text for session storage / history
   parts?: MessagePart[] // ordered rendering parts (streaming)
+  attachments?: ChatAttachment[] // inline images (user messages)
   toolCalls?: ToolCallInfo[] // legacy fallback for loaded sessions
   thinkingBlocks?: string[] // legacy fallback for loaded sessions
 }
@@ -82,6 +113,8 @@ interface AiPanelProps {
   contextDocs: ContextDoc[]
   sourcePath?: string | null
   aiConfig?: AIConfig
+  /** Whether the currently active model accepts image input. */
+  supportsVision?: boolean
 }
 
 const ThinkingDisplay: React.FC<{ blocks: string[]; thinkingMode?: string }> = ({
@@ -204,12 +237,18 @@ const ToolCallDisplay: React.FC<{ toolCalls: ToolCallInfo[] }> = ({ toolCalls })
 }
 
 function toDisplayMessages(
-  msgs: { role: string; content: string; parts?: string | null }[],
+  msgs: {
+    role: string
+    content: string
+    parts?: string | null
+    attachments?: ChatAttachment[] | null
+  }[],
 ): DisplayMessage[] {
   return msgs.map((m) => ({
     role: m.role as DisplayMessage['role'],
     content: m.content,
     parts: m.parts ? (JSON.parse(m.parts) as MessagePart[]) : undefined,
+    attachments: m.attachments ?? undefined,
   }))
 }
 
@@ -222,6 +261,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   contextDocs,
   sourcePath,
   aiConfig,
+  supportsVision = false,
 }: AiPanelProps) => {
   const { t, i18n } = useTranslation()
   const { message: messageApi } = App.useApp()
@@ -229,6 +269,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [inputValue, setInputValue] = useState('')
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([])
   const [streaming, setStreaming] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [continueMessage, setContinueMessage] = useState<string | null>(null)
@@ -240,6 +281,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
     tokenEstimate: number
   } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   // Track previous project to detect changes (undefined = component not yet mounted)
@@ -394,8 +436,60 @@ const AiPanel: React.FC<AiPanelProps> = ({
     return undefined
   }
 
+  const addAttachments = useCallback(
+    async (files: File[]) => {
+      const images = files.filter((f) => f.type.startsWith('image/'))
+      if (images.length === 0) return
+
+      const room = MAX_ATTACHMENTS - pendingAttachments.length
+      if (room <= 0) {
+        void messageApi.warning(t('tooManyImages', { max: MAX_ATTACHMENTS }))
+        return
+      }
+      if (images.length > room) {
+        void messageApi.warning(t('tooManyImages', { max: MAX_ATTACHMENTS }))
+      }
+
+      const accepted: ChatAttachment[] = []
+      for (const file of images.slice(0, room)) {
+        if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+          void messageApi.warning(t('unsupportedImageType'))
+          continue
+        }
+        if (file.size > MAX_IMAGE_BYTES) {
+          void messageApi.warning(
+            t('imageTooLarge', { max: Math.round(MAX_IMAGE_BYTES / (1024 * 1024)) }),
+          )
+          continue
+        }
+        try {
+          accepted.push(await fileToAttachment(file))
+        } catch {
+          void messageApi.error(t('imageReadFailed'))
+        }
+      }
+      if (accepted.length > 0) {
+        setPendingAttachments((prev) => [...prev, ...accepted])
+      }
+    },
+    [messageApi, pendingAttachments.length, t],
+  )
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!supportsVision) return
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null)
+    if (files.length > 0) {
+      e.preventDefault()
+      void addAttachments(files)
+    }
+  }
+
   const handleSend = async () => {
-    if (!inputValue.trim() || !activeSessionId || streaming) return
+    const hasAttachments = pendingAttachments.length > 0
+    if ((!inputValue.trim() && !hasAttachments) || !activeSessionId || streaming) return
 
     const canSendNow = aiConfigured
 
@@ -403,11 +497,21 @@ const AiPanel: React.FC<AiPanelProps> = ({
       void messageApi.warning(t('aiNotConfigured'))
       return
     }
+    if (hasAttachments && !supportsVision) {
+      void messageApi.warning(t('visionNotSupported'))
+      return
+    }
 
-    const userMsg: DisplayMessage = { role: 'user', content: inputValue.trim() }
+    const sentAttachments = pendingAttachments
+    const userMsg: DisplayMessage = {
+      role: 'user',
+      content: inputValue.trim(),
+      attachments: sentAttachments.length > 0 ? sentAttachments : undefined,
+    }
     setMessages((prev) => [...prev, userMsg])
     const sentInput = inputValue
     setInputValue('')
+    setPendingAttachments([])
     setStreaming(true)
     setContinueMessage(null) // dismiss any previous Continue prompt
     setStreamStats(null)
@@ -436,6 +540,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
       const historyPayload: ChatMessage[] = messages.map((m) => ({
         role: m.role as ChatMessage['role'],
         content: m.content,
+        attachments: m.attachments && m.attachments.length > 0 ? m.attachments : null,
       }))
 
       for await (const chunk of sendMessage(
@@ -458,6 +563,7 @@ const AiPanel: React.FC<AiPanelProps> = ({
         historyPayload,
         null, // rawApiMessages — persisted tool-call state (future)
         null, // rawApiMessagesProvider
+        sentAttachments.length > 0 ? sentAttachments : null,
       )) {
         if (chunk === '[DONE]') break
 
@@ -486,7 +592,11 @@ const AiPanel: React.FC<AiPanelProps> = ({
                 ...s,
                 messages: [
                   ...s.messages,
-                  { role: 'user' as const, content: sentInput },
+                  {
+                    role: 'user' as const,
+                    content: sentInput,
+                    attachments: sentAttachments.length > 0 ? sentAttachments : null,
+                  },
                   { role: 'assistant' as const, content: state.accumulated },
                 ],
               }
@@ -866,7 +976,35 @@ const AiPanel: React.FC<AiPanelProps> = ({
                         )}
                       </>
                     ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      <>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 6,
+                              marginBottom: msg.content ? 6 : 0,
+                            }}
+                          >
+                            {msg.attachments.map((att, aIdx) => (
+                              <img
+                                key={aIdx}
+                                src={attachmentPreviewUrl(att)}
+                                alt={t('attachedImage')}
+                                style={{
+                                  maxWidth: 160,
+                                  maxHeight: 160,
+                                  borderRadius: 8,
+                                  display: 'block',
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {msg.content && (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        )}
+                      </>
                     )}
                     {msg.role === 'assistant' &&
                       streaming &&
@@ -993,17 +1131,93 @@ const AiPanel: React.FC<AiPanelProps> = ({
             </div>
           )}
           <div style={{ position: 'relative' }}>
+            {pendingAttachments.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                {pendingAttachments.map((att, aIdx) => (
+                  <div key={aIdx} style={{ position: 'relative' }}>
+                    <img
+                      src={attachmentPreviewUrl(att)}
+                      alt={t('attachedImage')}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        display: 'block',
+                        border: '1px solid var(--ant-color-border)',
+                      }}
+                    />
+                    <Button
+                      size="small"
+                      shape="circle"
+                      icon={<DeleteOutlined />}
+                      onClick={() =>
+                        setPendingAttachments((prev) => prev.filter((_, i) => i !== aIdx))
+                      }
+                      style={{
+                        position: 'absolute',
+                        top: -8,
+                        right: -8,
+                        width: 18,
+                        height: 18,
+                        minWidth: 18,
+                        fontSize: 9,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={SUPPORTED_IMAGE_TYPES.join(',')}
+              multiple
+              hidden
+              onChange={(e) => {
+                void addAttachments(Array.from(e.target.files ?? []))
+                e.target.value = ''
+              }}
+            />
             <TextArea
               ref={textAreaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={`${t('typeMessage')}  (Shift+Enter ${t('newLine')})`}
               autoSize={{ minRows: 2, maxRows: 6 }}
               disabled={streaming}
               style={{ fontSize: 13, paddingRight: 42 }}
             />
-            <div style={{ position: 'absolute', right: 6, bottom: 6 }}>
+            <div
+              style={{
+                position: 'absolute',
+                right: 6,
+                bottom: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              {!streaming && supportsVision && (
+                <Tooltip title={t('attachImage')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PictureOutlined />}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!canSend || pendingAttachments.length >= MAX_ATTACHMENTS}
+                  />
+                </Tooltip>
+              )}
               {streaming ? (
                 <Button
                   icon={<StopOutlined />}
@@ -1019,10 +1233,13 @@ const AiPanel: React.FC<AiPanelProps> = ({
                   onClick={() => {
                     void handleSend()
                   }}
-                  disabled={!inputValue.trim() || !canSend}
+                  disabled={(!inputValue.trim() && pendingAttachments.length === 0) || !canSend}
                   size="small"
                   style={{
-                    color: inputValue.trim() && canSend ? 'var(--ant-color-primary)' : undefined,
+                    color:
+                      (inputValue.trim() || pendingAttachments.length > 0) && canSend
+                        ? 'var(--ant-color-primary)'
+                        : undefined,
                   }}
                 />
               )}

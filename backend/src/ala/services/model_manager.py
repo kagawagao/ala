@@ -21,26 +21,87 @@ def _default_storage_path() -> Path:
 # Built-in model presets (mirrors frontend BUILTIN_MODELS)
 # ---------------------------------------------------------------------------
 
+# Model ids whose provider documents image (vision) input support.
+# Sourced from each vendor's official model documentation:
+#   Anthropic — all current models accept text + image input
+#   OpenAI    — all latest models support text + image input / vision
+#   Google    — Gemini 3.x pro & flash accept image input
+#   DeepSeek  — V4.1 Flash (`deepseek-flash`) only; V4 Pro is text-only
+#   xAI       — Grok language models declare TEXT + IMAGE input modalities
+#   Mistral   — multimodal frontier models (Medium 3 family); Large/Small are
+#               inferred from the same generation — adjust if a vendor differs
+#   Cohere    — Command A+ combines vision input with agentic + reasoning
+#   Kimi      — Chat Completions API documents vision input
+#   MiniMax   — M3 is a frontier multimodal model
+#   Qwen      — Qwen3.8 series supports vision
+_VISION_CAPABLE_IDS: frozenset[str] = frozenset(
+    {
+        # Anthropic
+        "claude-fable-5.1",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-haiku-4.5",
+        # OpenAI
+        "gpt-6-astra",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        # Google
+        "gemini-3.1-pro",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        # DeepSeek
+        "deepseek-flash",
+        # xAI
+        "grok-4.6",
+        "grok-4.5",
+        "grok-4.20",
+        # Mistral
+        "mistral-large",
+        "mistral-small",
+        # Cohere
+        "command-a-plus",
+        # Kimi
+        "kimi-k3",
+        # MiniMax
+        "minimax-m3",
+        # Qwen
+        "qwen3.8-max",
+        "qwen3.8-flash",
+    }
+)
+
 _BUILTIN_MODELS_DATA: list[dict] = [
     # ── Anthropic ──────────────────────────────────────────────────────────
     {
-        "id": "claude-opus-4.7",
-        "name": "Claude Opus 4.7",
+        "id": "claude-fable-5.1",
+        "name": "Claude Fable 5.1",
         "provider": "Anthropic",
-        "model_id": "claude-opus-4-7",
+        "model_id": "claude-fable-5-1",
         "api_endpoint": "https://api.anthropic.com",
-        "description": "Most capable, adaptive thinking",
+        "description": "Most capable — deep reasoning & long-horizon agents",
         "builtin": True,
         "anthropic_compatible": True,
         "supports_thinking": True,
     },
     {
-        "id": "claude-sonnet-4.6",
-        "name": "Claude Sonnet 4.6",
+        "id": "claude-opus-5",
+        "name": "Claude Opus 5",
         "provider": "Anthropic",
-        "model_id": "claude-sonnet-4-6",
+        "model_id": "claude-opus-5",
         "api_endpoint": "https://api.anthropic.com",
-        "description": "Speed & intelligence, extended thinking",
+        "description": "Complex agentic coding & enterprise work",
+        "builtin": True,
+        "anthropic_compatible": True,
+        "supports_thinking": True,
+    },
+    {
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
+        "provider": "Anthropic",
+        "model_id": "claude-sonnet-5",
+        "api_endpoint": "https://api.anthropic.com",
+        "description": "Best speed/intelligence balance, 1M context",
         "builtin": True,
         "anthropic_compatible": True,
         "supports_thinking": True,
@@ -54,94 +115,83 @@ _BUILTIN_MODELS_DATA: list[dict] = [
         "description": "Fastest near-frontier",
         "builtin": True,
         "anthropic_compatible": True,
-        "supports_thinking": False,
+        "supports_thinking": True,
     },
     # ── OpenAI ─────────────────────────────────────────────────────────────
     {
-        "id": "gpt-5.5",
-        "name": "GPT-5.5",
+        "id": "gpt-6-astra",
+        "name": "GPT-6 Astra",
         "provider": "OpenAI",
-        "model_id": "gpt-5.5",
+        "model_id": "gpt-6-astra",
         "api_endpoint": "https://api.openai.com/v1",
-        "description": "Frontier, 1.05M context",
+        "description": "Most capable, built for hardest end-to-end work",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     {
-        "id": "gpt-5.4",
-        "name": "GPT-5.4",
+        "id": "gpt-5.6-sol",
+        "name": "GPT-5.6 Sol",
         "provider": "OpenAI",
-        "model_id": "gpt-5.4",
+        "model_id": "gpt-5.6-sol",
         "api_endpoint": "https://api.openai.com/v1",
-        "description": "Unified Codex+GPT, 1.05M",
+        "description": "Flagship for complex professional work, 1M context",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     {
-        "id": "gpt-4.1",
-        "name": "GPT-4.1",
+        "id": "gpt-5.6-terra",
+        "name": "GPT-5.6 Terra",
         "provider": "OpenAI",
-        "model_id": "gpt-4.1",
+        "model_id": "gpt-5.6-terra",
         "api_endpoint": "https://api.openai.com/v1",
-        "description": "Flagship, 1M context",
+        "description": "Balances intelligence and cost",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     {
-        "id": "o3",
-        "name": "o3",
+        "id": "gpt-5.6-luna",
+        "name": "GPT-5.6 Luna",
         "provider": "OpenAI",
-        "model_id": "o3",
+        "model_id": "gpt-5.6-luna",
         "api_endpoint": "https://api.openai.com/v1",
-        "description": "Advanced reasoning",
-        "builtin": True,
-        "anthropic_compatible": False,
-        "supports_thinking": False,
-    },
-    {
-        "id": "o4-mini",
-        "name": "o4-mini",
-        "provider": "OpenAI",
-        "model_id": "o4-mini",
-        "api_endpoint": "https://api.openai.com/v1",
-        "description": "Compact reasoning",
+        "description": "Cost-sensitive, high-volume workloads",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     # ── Google Gemini ──────────────────────────────────────────────────────
     {
-        "id": "gemini-2.5-pro",
-        "name": "Gemini 2.5 Pro",
+        "id": "gemini-3.1-pro",
+        "name": "Gemini 3.1 Pro",
         "provider": "Google",
-        "model_id": "gemini-2.5-pro-preview-03-25",
+        "model_id": "gemini-3.1-pro-preview",
         "api_endpoint": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "description": "Most capable Gemini",
+        "description": "Advanced intelligence, agentic & vibe coding (preview)",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": True,
     },
     {
-        "id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
+        "id": "gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
         "provider": "Google",
-        "model_id": "gemini-2.5-flash-preview-04-17",
+        "model_id": "gemini-3.8-flash",
         "api_endpoint": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "description": "Fast & capable",
+        "description": "Frontier-class performance at a fraction of the cost",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": True,
     },
     {
-        "id": "gemini-2.0-flash",
-        "name": "Gemini 2.0 Flash",
+        "id": "gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash Lite",
         "provider": "Google",
-        "model_id": "gemini-2.0-flash",
+        "model_id": "gemini-3.5-flash-lite",
         "api_endpoint": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "description": "Fast, efficient",
+        "description": "Fastest, most economical",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
@@ -153,44 +203,55 @@ _BUILTIN_MODELS_DATA: list[dict] = [
         "provider": "DeepSeek",
         "model_id": "deepseek-v4-pro",
         "api_endpoint": "https://api.deepseek.com",
-        "description": "Flagship reasoning MoE",
+        "description": "Pro reasoning MoE (retiring Sep 2026)",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": True,
     },
     {
-        "id": "deepseek-v4-flash",
-        "name": "DeepSeek-V4 Flash",
+        "id": "deepseek-flash",
+        "name": "DeepSeek-V4.1 Flash",
         "provider": "DeepSeek",
-        "model_id": "deepseek-v4-flash",
+        "model_id": "deepseek-flash",
         "api_endpoint": "https://api.deepseek.com",
-        "description": "Fast & efficient",
+        "description": "Flagship — vision, 1M context, thinking by default",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": True,
     },
     # ── xAI (Grok) ─────────────────────────────────────────────────────────
     {
-        "id": "grok-4.20",
-        "name": "Grok 4.20",
+        "id": "grok-4.6",
+        "name": "Grok 4.6",
         "provider": "xAI",
-        "model_id": "grok-4.20",
+        "model_id": "grok-4.6",
         "api_endpoint": "https://api.x.ai/v1",
-        "description": "Flagship, 2M context",
+        "description": "Most intelligent and fastest, 500K context",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": True,
     },
     {
-        "id": "grok-4.1-fast",
-        "name": "Grok 4.1 Fast",
+        "id": "grok-4.5",
+        "name": "Grok 4.5",
         "provider": "xAI",
-        "model_id": "grok-4-1-fast",
+        "model_id": "grok-4.5",
         "api_endpoint": "https://api.x.ai/v1",
-        "description": "Fast, 2M context",
+        "description": "Balanced flagship, 500K context",
         "builtin": True,
         "anthropic_compatible": False,
-        "supports_thinking": False,
+        "supports_thinking": True,
+    },
+    {
+        "id": "grok-4.20",
+        "name": "Grok 4.20",
+        "provider": "xAI",
+        "model_id": "grok-4.20",
+        "api_endpoint": "https://api.x.ai/v1",
+        "description": "Long-context reasoning, 1M context",
+        "builtin": True,
+        "anthropic_compatible": False,
+        "supports_thinking": True,
     },
     # ── Mistral AI ─────────────────────────────────────────────────────────
     {
@@ -228,22 +289,22 @@ _BUILTIN_MODELS_DATA: list[dict] = [
     },
     # ── Cohere ─────────────────────────────────────────────────────────────
     {
-        "id": "command-r-plus",
-        "name": "Command R+",
+        "id": "command-a-plus",
+        "name": "Command A+",
         "provider": "Cohere",
-        "model_id": "command-r-plus",
+        "model_id": "command-a-plus",
         "api_endpoint": "https://api.cohere.com/v1",
-        "description": "Advanced RAG",
+        "description": "Latest flagship, agentic & RAG",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     # ── Kimi (Moonshot AI) ─────────────────────────────────────────────────
     {
-        "id": "kimi-k2",
-        "name": "Kimi K2",
+        "id": "kimi-k3",
+        "name": "Kimi K3",
         "provider": "Kimi",
-        "model_id": "kimi-k2",
+        "model_id": "kimi-k3",
         "api_endpoint": "https://api.moonshot.cn/v1",
         "description": "Latest flagship",
         "builtin": True,
@@ -251,22 +312,22 @@ _BUILTIN_MODELS_DATA: list[dict] = [
         "supports_thinking": False,
     },
     {
-        "id": "kimi-k2-thinking",
-        "name": "Kimi K2 Thinking",
+        "id": "kimi-k2.7-code",
+        "name": "Kimi K2.7 Code",
         "provider": "Kimi",
-        "model_id": "kimi-k2-thinking",
+        "model_id": "kimi-k2.7-code",
         "api_endpoint": "https://api.moonshot.cn/v1",
-        "description": "Extended reasoning",
+        "description": "Code-optimised",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
     },
     # ── MiniMax ────────────────────────────────────────────────────────────
     {
-        "id": "minimax-m2.7",
-        "name": "MiniMax-M2.7",
+        "id": "minimax-m3",
+        "name": "MiniMax-M3",
         "provider": "MiniMax",
-        "model_id": "minimax-m2.7",
+        "model_id": "MiniMax-M3",
         "api_endpoint": "https://api.minimax.io/v1",
         "description": "Latest",
         "builtin": True,
@@ -275,10 +336,10 @@ _BUILTIN_MODELS_DATA: list[dict] = [
     },
     # ── Qwen (DashScope) ───────────────────────────────────────────────────
     {
-        "id": "qwen-max",
-        "name": "Qwen Max",
+        "id": "qwen3.8-max",
+        "name": "Qwen3.8 Max",
         "provider": "Qwen",
-        "model_id": "qwen-max-latest",
+        "model_id": "qwen3.8-max",
         "api_endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "description": "Most capable",
         "builtin": True,
@@ -286,12 +347,12 @@ _BUILTIN_MODELS_DATA: list[dict] = [
         "supports_thinking": False,
     },
     {
-        "id": "qwen-plus",
-        "name": "Qwen Plus",
+        "id": "qwen3.8-flash",
+        "name": "Qwen3.8 Flash",
         "provider": "Qwen",
-        "model_id": "qwen-plus-latest",
+        "model_id": "qwen3.8-flash",
         "api_endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "description": "Balanced",
+        "description": "Fast & efficient",
         "builtin": True,
         "anthropic_compatible": False,
         "supports_thinking": False,
@@ -310,13 +371,14 @@ class ModelPreset:
     builtin: bool = False
     anthropic_compatible: bool | None = None
     supports_thinking: bool = False
+    supports_vision: bool = False
     enabled: bool = True
 
 
 def _make_builtin_presets() -> list[ModelPreset]:
     presets = []
     for d in _BUILTIN_MODELS_DATA:
-        presets.append(ModelPreset(**d))
+        presets.append(ModelPreset(**d, supports_vision=d["id"] in _VISION_CAPABLE_IDS))
     return presets
 
 
@@ -426,6 +488,7 @@ class ModelManager:
         description: str = "",
         anthropic_compatible: bool | None = None,
         supports_thinking: bool = False,
+        supports_vision: bool = False,
     ) -> ModelPreset:
         preset = ModelPreset(
             id=f"custom-{uuid.uuid4().hex[:8]}",
@@ -437,6 +500,7 @@ class ModelManager:
             builtin=False,
             anthropic_compatible=anthropic_compatible,
             supports_thinking=supports_thinking,
+            supports_vision=supports_vision,
         )
         self._models[preset.id] = preset
         self._save()
@@ -452,6 +516,7 @@ class ModelManager:
         description: str | None = None,
         anthropic_compatible: object = _UNSET,
         supports_thinking: bool | None = None,
+        supports_vision: bool | None = None,
         enabled: bool | None = None,
     ) -> ModelPreset | None:
         preset = self._models.get(preset_id)
@@ -472,6 +537,7 @@ class ModelManager:
                         api_endpoint,
                         description,
                         supports_thinking,
+                        supports_vision,
                     ]
                 )
                 or anthropic_compatible is not _UNSET
@@ -494,6 +560,8 @@ class ModelManager:
             preset.anthropic_compatible = anthropic_compatible
         if supports_thinking is not None:
             preset.supports_thinking = supports_thinking
+        if supports_vision is not None:
+            preset.supports_vision = supports_vision
         self._save()
         return preset
 
