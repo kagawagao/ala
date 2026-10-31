@@ -99,7 +99,7 @@ DSH 插件」的路径已经在生产环境走通。
 | ALA 部分                    | 现在是什么                          | 插件形态                     | 必要性 | DSH 原生替代                                | 建议                     |
 | --------------------------- | ----------------------------------- | ---------------------------- | ------ | ------------------------------------------- | ------------------------ |
 | 域解析工具集                | Python 服务 + REST/SSE              | host 插件（内部调 sidecar）  | 高     | 无                                          | 必做                     |
-| 日志/PCAP/HCI/Trace 查看器  | 4 个 React 组件，合计约 1,255 行    | client 插件（main panel）    | 高     | 无（`sidebar.documentpreview` 只预览文本）  | 必做                     |
+| 日志/PCAP/HCI/Trace 查看器  | 4 个 React 组件，合计约 1,255 行    | client 插件（main panel）    | 高     | 无（`sidebar-documentpreview` 只预览文本） | 必做                     |
 | 过滤器面板 + 预设           | 4 个面板约 1,247 行 + localStorage  | client 插件                  | 高     | 无                                          | 必做（保留 draft/apply） |
 | 上传 / 待解析批次           | `FileUpload`、`PendingFilesView`    | client 插件（复用 DSH 上传） | 中     | `client-file-upload`/`attachment` 有上传    | 做简化版                 |
 | 导出 CSV/JSON               | `utils/export.ts`                   | 可选命令/工具                | 低     | agent 直接写文件                            | 低优先                   |
