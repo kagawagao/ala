@@ -411,3 +411,5 @@ Git hooks (via Husky):
 MIT — see [LICENSE](./LICENSE)
 
 Installed by dsh-superagent.
+
+Automerge verification placeholder.
