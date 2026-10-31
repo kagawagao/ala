@@ -409,3 +409,5 @@ Git hooks (via Husky):
 ## License
 
 MIT — see [LICENSE](./LICENSE)
+
+Installed by dsh-superagent.
