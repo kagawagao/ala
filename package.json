@@ -24,7 +24,12 @@
     "format:check": "npm run format:check:frontend && npm run format:check:backend",
     "format:check:frontend": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" --ignore-path .prettierignore",
     "format:check:backend": "cd backend && poetry run ruff format --check src/ tests/ && poetry run ruff check src/ tests/",
-    "prepare": "husky"
+    "prepare": "husky",
+    "dev:node": "cd node && node --experimental-strip-types src/cli/index.ts",
+    "build:node": "cd node && npm run build",
+    "test:node": "cd node && npm test",
+    "typecheck:node": "cd node && npm run typecheck",
+    "check:node": "cd node && npm run check"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
