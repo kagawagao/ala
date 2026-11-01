@@ -1,0 +1,5 @@
+# ala-dsh bundle layer: inserts the ALA host plugin, which registers the Android
+# diagnostics tools and skills in every Session.
+- insert:
+    - id: ala-dsh
+      name: ala-dsh
